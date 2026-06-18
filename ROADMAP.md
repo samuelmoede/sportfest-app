@@ -266,6 +266,15 @@ Beispiele:
 - [ ] Letzte Speicherung je Klasse mit Uhrzeit anzeigen
 - [ ] Fehlgeschlagene Speicherung sichtbar machen
 
+### Speicherung
+
+- [ ] Speichern pro Klasse
+- [ ] Letzte erfolgreiche Speicherung anzeigen
+- [ ] Uhrzeit der letzten Speicherung direkt neben dem Speicherbutton anzeigen
+- [ ] Keine störenden Popups verwenden
+- [ ] Fehlgeschlagene Speicherung deutlich kennzeichnen
+- [ ] Bei erneuter Speicherung Uhrzeit aktualisieren
+
 Keine Teilnehmerverwaltung mit Namen.
 
 ### 8.3 Sechskampf-Auswertung
@@ -275,6 +284,13 @@ Keine Teilnehmerverwaltung mit Namen.
 * [ ] Rangliste der Klassen
 * [ ] spätere Integration in Gesamtwertung
 
+### Rangliste
+
+- [ ] Rangliste automatisch nach Gesamtpunktzahl sortieren
+- [ ] Höchste Punktzahl auf Platz 1
+- [ ] Gleiche Punktzahlen erhalten denselben Rang
+- [ ] Nach Änderung von Ergebnissen automatisch neu berechnen
+- [ ] Platzierung in Beameransicht anzeigen
 ---
 
 ## 9. Zeitplan-Modul
