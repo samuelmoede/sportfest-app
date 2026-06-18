@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
+from math import isfinite
 from typing import List, Optional
 
 from fastapi import FastAPI, Request, Form
@@ -1474,24 +1475,65 @@ def create_competition(
 @app.post("/competition/{competition_id}/update")
 def update_competition(
     competition_id: int,
+    name: str = Form(...),
+    sportart: str = Form(...),
+    jahrgang: str = Form(...),
     status: str = Form(...),
-    points_win: float = Form(...),
-    points_draw: float = Form(...),
-    points_loss: float = Form(...)
+    points_win: str = Form(...),
+    points_draw: str = Form(...),
+    points_loss: str = Form(...)
 ):
+    try:
+        jahrgang_value = int(jahrgang)
+        points_win_value = float(points_win.strip().replace(",", "."))
+        points_draw_value = float(points_draw.strip().replace(",", "."))
+        points_loss_value = float(points_loss.strip().replace(",", "."))
+    except (TypeError, ValueError):
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    name_value = name.strip()
+    sportart_value = sportart.strip()
+    valid_statuses = {"geplant", "läuft", "beendet", "archiviert"}
+    point_values = (points_win_value, points_draw_value, points_loss_value)
+
+    if (
+        not name_value
+        or not sportart_value
+        or not 1 <= jahrgang_value <= 13
+        or status not in valid_statuses
+        or not all(isfinite(value) for value in point_values)
+    ):
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
     with get_conn() as conn:
+        duplicate_name = conn.execute("""
+            SELECT 1
+            FROM competitions
+            WHERE name = ?
+              AND id != ?
+        """, (name_value, competition_id)).fetchone()
+
+        if duplicate_name:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+
         conn.execute("""
             UPDATE competitions
-            SET status = ?,
+            SET name = ?,
+                sportart = ?,
+                jahrgang = ?,
+                status = ?,
                 points_win = ?,
                 points_draw = ?,
                 points_loss = ?
             WHERE id = ?
         """, (
+            name_value,
+            sportart_value,
+            jahrgang_value,
             status,
-            points_win,
-            points_draw,
-            points_loss,
+            points_win_value,
+            points_draw_value,
+            points_loss_value,
             competition_id
         ))
         conn.commit()
