@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from math import isfinite
 from typing import List, Optional
 
@@ -54,6 +54,183 @@ def parse_slot_time(value: str):
         except ValueError:
             continue
     return None
+
+
+def parse_event_date(value: str):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def classify_yeargang(value):
+    if value is None:
+        return None
+    try:
+        year = int(value)
+    except (TypeError, ValueError):
+        normalized = str(value).strip().lower()
+        if "oberstufe" in normalized or normalized in ("go", "gost", "sg"):
+            return "Oberstufe"
+        return None
+
+    if year == 7:
+        return "Jahrgang 7"
+    if year == 8:
+        return "Jahrgang 8"
+    if year == 9:
+        return "Jahrgang 9"
+    if year >= 10:
+        return "Oberstufe"
+    return None
+
+
+def combine_time_today(value: datetime):
+    if value is None:
+        return None
+    now = datetime.now()
+    return datetime(
+        now.year,
+        now.month,
+        now.day,
+        value.hour,
+        value.minute,
+        value.second,
+    )
+
+
+def format_time_range(start: datetime, end: datetime):
+    return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
+
+
+def build_day_schedule(competitions):
+    columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    blocks = {}
+
+    def get_field(item, key):
+        if hasattr(item, "get"):
+            return item.get(key)
+        return item[key]
+
+    for competition in competitions:
+        start_value = get_field(competition, "start_time")
+        end_value = get_field(competition, "end_time")
+        if not start_value or not end_value:
+            continue
+
+        start = parse_slot_time(start_value)
+        end = parse_slot_time(end_value)
+        if not start or not end or end <= start:
+            continue
+
+        yeargang = classify_yeargang(get_field(competition, "jahrgang"))
+        if yeargang is None:
+            continue
+
+        key = (start.strftime("%H:%M"), end.strftime("%H:%M"))
+        block = blocks.setdefault(key, {
+            "start": start,
+            "end": end,
+            "display_time": format_time_range(start, end),
+            "cells": {col: [] for col in columns},
+        })
+
+        label = get_field(competition, "name") or get_field(competition, "sportart") or "–"
+        if label not in block["cells"][yeargang]:
+            block["cells"][yeargang].append(label)
+
+    rows = sorted(blocks.values(), key=lambda block: (block["start"].time(), block["end"].time()))
+    now = datetime.now()
+    current_block = None
+    next_block = None
+
+    for block in rows:
+        start_today = combine_time_today(block["start"])
+        end_today = combine_time_today(block["end"])
+        if start_today <= now < end_today:
+            current_block = {**block, "start_today": start_today, "end_today": end_today}
+            break
+
+    if current_block is None:
+        future_blocks = [
+            {**block, "start_today": combine_time_today(block["start"])}
+            for block in rows
+            if combine_time_today(block["start"]) > now
+        ]
+        if future_blocks:
+            next_block = min(future_blocks, key=lambda block: block["start_today"])
+    else:
+        future_blocks = [
+            {**block, "start_today": combine_time_today(block["start"])}
+            for block in rows
+            if combine_time_today(block["start"]) > now
+        ]
+        if future_blocks:
+            next_block = min(future_blocks, key=lambda block: block["start_today"])
+
+    def build_entries(block):
+        entries = []
+        for col in columns:
+            for label in block["cells"][col]:
+                year_label = col.replace("Jahrgang ", "JG")
+                entries.append({"yeargang": year_label, "label": label})
+        return entries
+
+    schedule = {
+        "columns": columns,
+        "rows": [
+            {
+                "display_time": row["display_time"],
+                "cells": row["cells"],
+                "current": combine_time_today(row["start"]) <= now < combine_time_today(row["end"]),
+            }
+            for row in rows
+        ],
+        "current_block": None,
+        "next_block": None,
+        "hint_text": "Aktuell kein Zeitblock aktiv",
+        "active_competitions": [],
+        "time_remaining": None,
+        "progress_percent": 0,
+    }
+
+    if current_block:
+        remaining_seconds = int((current_block["end_today"] - now).total_seconds())
+        remaining_minutes = max(0, remaining_seconds // 60)
+        schedule["current_block"] = {
+            "display_time": current_block["display_time"],
+            "entries": build_entries(current_block),
+        }
+        schedule["active_competitions"] = schedule["current_block"]["entries"]
+        schedule["hint_text"] = f"Aktueller Zeitblock: {current_block['display_time']}"
+        schedule["time_remaining"] = f"{remaining_minutes} Minuten"
+        total_seconds = int((current_block["end_today"] - current_block["start_today"]).total_seconds())
+        elapsed_seconds = int((now - current_block["start_today"]).total_seconds())
+        if total_seconds > 0:
+            schedule["progress_percent"] = max(0, min(100, int(elapsed_seconds / total_seconds * 100)))
+
+    if next_block:
+        schedule["next_block"] = {
+            "display_time": next_block["display_time"],
+            "entries": build_entries(next_block),
+        }
+        if not current_block:
+            schedule["hint_text"] = "Aktuell kein Zeitblock aktiv"
+
+    return schedule
+
+
+def get_day_schedule_for_event(event_id: int):
+    with get_conn() as conn:
+        competitions = [dict(row) for row in conn.execute("""
+            SELECT * FROM competitions
+            WHERE event_id = ?
+              AND status != 'archiviert'
+            ORDER BY start_time, end_time, jahrgang, name
+        """, (event_id,)).fetchall()]
+    return build_day_schedule(competitions)
 
 
 def get_unique_competition_name(conn, original_name: str):
@@ -170,12 +347,12 @@ def get_all_competitions():
 
 def fetch_dashboard_data():
     with get_conn() as conn:
-        competitions = conn.execute("""
+        competitions = [dict(row) for row in conn.execute("""
             SELECT *
             FROM competitions
             WHERE status != 'archiviert'
             ORDER BY jahrgang, name
-        """).fetchall()
+        """).fetchall()]
 
         teams = conn.execute("SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name").fetchall()
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
@@ -505,7 +682,6 @@ def calculate_table(competition_id: int):
 
 
 def calculate_tournament_points(competition):
-    rows = calculate_table(competition["id"])
     with get_conn() as conn:
         slots = conn.execute("""
             SELECT slots.*, ta.name AS team_a, tb.name AS team_b
@@ -518,6 +694,11 @@ def calculate_tournament_points(competition):
               AND team_a_id IS NOT NULL
               AND team_b_id IS NOT NULL
         """, (competition["id"],)).fetchall()
+
+    if not slots:
+        return []
+
+    rows = calculate_table(competition["id"])
 
     previous = None
     previous_place = 0
@@ -588,6 +769,8 @@ def calculate_event_overall_ranking(event_id: int):
                     "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
                     (competition["id"],)
                 ).fetchall()
+            if not result_rows:
+                continue
             ranking, _, _ = calculate_sixkampf_team_ranking(
                 teams, disciplines, result_rows,
                 competition["points_first_place"],
@@ -618,15 +801,46 @@ def calculate_event_overall_ranking(event_id: int):
                 record["total_points"] += row["competition_points"]
 
     ranked = sorted(overall.values(), key=lambda r: (-r["total_points"], r["team"].lower()))
-    place = 0
-    previous_total = None
-    for index, row in enumerate(ranked, start=1):
-        if previous_total is None or row["total_points"] != previous_total:
-            place = index
-        row["place"] = place
-        previous_total = row["total_points"]
 
-    return ranked
+    year_groups = {}
+    grouped_competitions = {}
+    for competition in competitions:
+        year_group = classify_yeargang(competition["jahrgang"])
+        if year_group is None:
+            continue
+        grouped_competitions.setdefault(year_group, []).append({
+            "id": competition["id"],
+            "name": competition["name"],
+        })
+
+    for row in ranked:
+        year_group = classify_yeargang(row["jahrgang"])
+        if year_group is None:
+            continue
+        year_groups.setdefault(year_group, []).append(row)
+
+    ordered_groups = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    result = []
+    for year_group in ordered_groups:
+        rows = year_groups.get(year_group)
+        if not rows:
+            continue
+
+        place = 0
+        previous_total = None
+        for index, row in enumerate(rows, start=1):
+            if previous_total is None or row["total_points"] != previous_total:
+                place = index
+            row["place"] = place
+            previous_total = row["total_points"]
+
+        result.append({
+            "year_group": year_group,
+            "competitions": grouped_competitions.get(year_group, []),
+            "rows": rows,
+        })
+
+    return result
 
 
 def calculate_group_table(competition_id: int, gruppe: str):
@@ -1145,6 +1359,7 @@ def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int)
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
+    data["schedule"] = build_day_schedule(data["competitions"])
     return templates.TemplateResponse(request=request, name="dashboard.html", context=data)
 
 
@@ -2156,10 +2371,12 @@ def wettbewerbe(request: Request):
             FROM teams
             WHERE active = 1
             GROUP BY jahrgang
+            ORDER BY jahrgang
         """).fetchall()
     disciplines_by_competition = defaultdict(list)
     for discipline in disciplines:
         disciplines_by_competition[discipline["competition_id"]].append(discipline)
+    team_years = [row["jahrgang"] for row in team_counts]
     return templates.TemplateResponse(
         request=request, name="wettbewerbe.html",
         context={
@@ -2170,6 +2387,7 @@ def wettbewerbe(request: Request):
             "team_counts_by_year": {
                 row["jahrgang"]: row["count"] for row in team_counts
             },
+            "team_years": team_years,
         }
     )
 
@@ -2204,6 +2422,11 @@ def create_competition(
         except (TypeError, ValueError):
             return RedirectResponse("/wettbewerbe", status_code=303)
         if points_first_place_value < 1:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        if conn.execute(
+            "SELECT 1 FROM teams WHERE active = 1 AND jahrgang = ? LIMIT 1",
+            (jahrgang,)
+        ).fetchone() is None:
             return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("""
             INSERT INTO competitions (
@@ -2276,6 +2499,11 @@ def update_competition(
     ):
         return RedirectResponse("/wettbewerbe", status_code=303)
     with get_conn() as conn:
+        if conn.execute(
+            "SELECT 1 FROM teams WHERE active = 1 AND jahrgang = ? LIMIT 1",
+            (jahrgang_value,)
+        ).fetchone() is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("BEGIN IMMEDIATE")
         duplicate_name = conn.execute(
             "SELECT 1 FROM competitions WHERE name = ? AND id != ?",
@@ -2637,6 +2865,7 @@ def event_detail(request: Request, event_id: int):
             competition.get("start_time"), competition.get("end_time")
         )
 
+    schedule = get_day_schedule_for_event(event_id)
     overall_ranking = calculate_event_overall_ranking(event_id)
     return templates.TemplateResponse(
         request=request, name="event_detail.html",
@@ -2644,6 +2873,7 @@ def event_detail(request: Request, event_id: int):
             "event": event,
             "competitions": competitions,
             "overall_ranking": overall_ranking,
+            "schedule": schedule,
         }
     )
 

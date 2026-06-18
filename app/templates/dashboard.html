@@ -26,6 +26,63 @@
     </section>
 
     <section class="panel">
+        <h2>Tagesplan</h2>
+        {% if schedule.current_block %}
+        <p class="muted">{{ schedule.hint_text }}</p>
+        <p><strong>{{ schedule.current_block.display_time }}</strong></p>
+        <ul class="schedule-list">
+            {% for entry in schedule.active_competitions %}
+            <li><strong>{{ entry.yeargang }}</strong>: {{ entry.label }}</li>
+            {% endfor %}
+        </ul>
+        <p class="muted">Restzeit: {{ schedule.time_remaining }}</p>
+        <div class="progress-bar"><span style="width: {{ schedule.progress_percent }}%;"></span></div>
+        {% elif schedule.next_block %}
+        <p class="muted">Nächster Programmpunkt:</p>
+        <p><strong>{{ schedule.next_block.display_time }}</strong></p>
+        <ul class="schedule-list">
+            {% for entry in schedule.next_block.entries %}
+            <li><strong>{{ entry.yeargang }}</strong>: {{ entry.label }}</li>
+            {% endfor %}
+        </ul>
+        {% elif schedule.rows %}
+        <p class="muted">Geplanter Tagesplan:</p>
+        <div class="table-scroll">
+            <table class="schedule-table compact">
+                <thead>
+                    <tr>
+                        <th>Zeit</th>
+                        {% for column in schedule.columns %}
+                        <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in schedule.rows %}
+                    <tr{% if row.current %} class="current-row"{% endif %}>
+                        <td>{{ row.display_time }}</td>
+                        {% for column in schedule.columns %}
+                        <td>
+                            {% if row.cells[column] %}
+                                {% for item in row.cells[column] %}
+                                <div>{{ item }}</div>
+                                {% endfor %}
+                            {% else %}
+                                –
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="muted">Keine Zeitplan-Einträge verfügbar.</p>
+        {% endif %}
+    </section>
+
+    <section class="panel">
         <h2>Wettbewerbe</h2>
         {% for c in competitions %}
         <div class="list-row">

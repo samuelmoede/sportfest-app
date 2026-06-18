@@ -20,7 +20,11 @@
         <input type="time" name="end_time" value="">
 
         <label>Jahrgang</label>
-        <input type="number" name="jahrgang" value="11" min="1" max="13" required>
+        <select name="jahrgang" required>
+            {% for year in team_years %}
+            <option value="{{ year }}">Jahrgang {{ year }}</option>
+            {% endfor %}
+        </select>
 
         <label>Typ</label>
         <select name="competition_type" required>
@@ -72,7 +76,13 @@
             <input type="text" name="sportart" value="{{ c.sportart }}" required>
 
             <label>Jahrgang</label>
-            <input type="number" name="jahrgang" value="{{ c.jahrgang }}" min="1" max="13" required>
+            <select name="jahrgang" required>
+                {% for year in team_years %}
+                <option value="{{ year }}" {% if c.jahrgang == year %}selected{% endif %}>
+                    Jahrgang {{ year }}
+                </option>
+                {% endfor %}
+            </select>
 
             <label>Typ</label>
             <select name="competition_type" required>

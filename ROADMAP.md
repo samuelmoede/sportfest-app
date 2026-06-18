@@ -73,6 +73,7 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [ ] Veranstaltung archivieren
 * [ ] Veranstaltung löschen, nur wenn keine abhängigen Daten vorhanden sind
 * [ ] Detailseite einer Veranstaltung verbessern
+* [ ] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
 * [ ] Wettbewerbe direkt innerhalb einer Veranstaltung anlegen
 * [ ] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden
 * [ ] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
@@ -106,7 +107,7 @@ Status: teilweise umgesetzt
   * Turnier
   * Sechskampf
   * Lauf / Einzelwettbewerb später optional
-* [ ] Wettbewerbe mit Zeitfenster in Veranstaltungszeitplan einbauen
+* [x] Wettbewerbe mit Zeitfenster in Veranstaltungszeitplan einbauen
 * [ ] Wettbewerbe nach Jahrgang und Veranstaltung gruppieren
 * [ ] Wettbewerbe in Veranstaltungen kopieren
 

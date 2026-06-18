@@ -43,35 +43,79 @@
 </section>
 
 <section class="panel">
-    <h2>Gesamtwertung</h2>
-    {% if overall_ranking %}
+    <h2>Tagesplan</h2>
+    {% if schedule.rows %}
+    <p class="muted">{{ schedule.hint_text }}</p>
     <div class="table-scroll">
-        <table>
+        <table class="schedule-table">
             <thead>
                 <tr>
-                    <th>Platz</th>
-                    <th>Klasse</th>
-                    {% for competition in competitions %}
-                    <th>{{ competition.name }}</th>
+                    <th>Zeit</th>
+                    {% for column in schedule.columns %}
+                    <th>{{ column }}</th>
                     {% endfor %}
-                    <th>Gesamtpunkte</th>
                 </tr>
             </thead>
             <tbody>
-                {% for row in overall_ranking %}
-                <tr>
-                    <td>{{ row.place }}</td>
-                    <td>{{ row.team }}</td>
-                    {% for competition in competitions %}
-                    {% set points = row.points_by_competition.get(competition.id) %}
-                    <td>{{ points if points is not none else '–' }}</td>
+                {% for row in schedule.rows %}
+                <tr{% if row.current %} class="current-row"{% endif %}>
+                    <td>{{ row.display_time }}</td>
+                    {% for column in schedule.columns %}
+                    <td>
+                        {% if row.cells[column] %}
+                            {% for item in row.cells[column] %}
+                            <div>{{ item }}</div>
+                            {% endfor %}
+                        {% else %}
+                            –
+                        {% endif %}
+                    </td>
                     {% endfor %}
-                    <td>{{ row.total_points }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% else %}
+    <p class="muted">Für diese Veranstaltung gibt es derzeit keinen Zeitplan.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Gesamtwertung</h2>
+    {% if overall_ranking %}
+        {% for group in overall_ranking %}
+        <div class="year-group-block">
+            <h3>{{ group.year_group }}</h3>
+            <div class="table-scroll">
+                <table class="team-table">
+                    <thead>
+                        <tr>
+                            <th>Platz</th>
+                            <th>Klasse</th>
+                            {% for competition in group.competitions %}
+                            <th>{{ competition.name }}</th>
+                            {% endfor %}
+                            <th>Gesamtpunkte</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in group.rows %}
+                        <tr>
+                            <td>{{ row.place }}</td>
+                            <td>{{ row.team }}</td>
+                            {% for competition in group.competitions %}
+                            {% set points = row.points_by_competition.get(competition.id) %}
+                            <td>{{ points if points is not none else '–' }}</td>
+                            {% endfor %}
+                            <td>{{ row.total_points }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
     {% else %}
     <p class="muted">Noch keine Punkte für die Gesamtwertung vorhanden.</p>
     {% endif %}
