@@ -118,6 +118,7 @@ def init_db():
             team_b_id INTEGER,
             score_a INTEGER,
             score_b INTEGER,
+
             status TEXT NOT NULL DEFAULT 'geplant',
             note TEXT,
             FOREIGN KEY (competition_id) REFERENCES competitions(id),
