@@ -55,6 +55,13 @@ def get_unique_event_name(conn, original_name: str):
     return candidate
 
 
+def table_has_column(conn, table_name: str, column_name: str):
+    return any(
+        row["name"] == column_name
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    )
+
+
 def copy_competition_disciplines(conn, source_competition_id: int, target_competition_id: int):
     disciplines = conn.execute("""
         SELECT name, sort_order, unit, scoring_direction, values_per_team
@@ -411,6 +418,110 @@ def calculate_table(competition_id: int):
         rows.append(row)
 
     return sort_table_rows(rows, slots, competition)
+
+
+def calculate_tournament_points(competition):
+    rows = calculate_table(competition["id"])
+    with get_conn() as conn:
+        slots = conn.execute("""
+            SELECT slots.*, ta.name AS team_a, tb.name AS team_b
+            FROM slots
+            LEFT JOIN teams ta ON ta.id = slots.team_a_id
+            LEFT JOIN teams tb ON tb.id = slots.team_b_id
+            WHERE competition_id = ?
+              AND slot_typ = 'Spiel'
+              AND status = 'beendet'
+              AND team_a_id IS NOT NULL
+              AND team_b_id IS NOT NULL
+        """, (competition["id"],)).fetchall()
+
+    previous = None
+    previous_place = 0
+    for index, row in enumerate(rows, start=1):
+        if (
+            previous is not None
+            and row["pkt"] == previous["pkt"]
+            and row["diff"] == previous["diff"]
+            and row["plus"] == previous["plus"]
+        ):
+            direct = calculate_direct_comparison(previous["team"], row["team"], slots, competition)
+            place = previous_place if direct == 0 else index
+        else:
+            place = index
+
+        row["placement"] = place
+        row["competition_points"] = max(len(rows) - place + 1, 0)
+        previous = row
+        previous_place = place
+
+    return rows
+
+
+def calculate_event_overall_ranking(event_id: int):
+    with get_conn() as conn:
+        competitions = conn.execute("""
+            SELECT * FROM competitions
+            WHERE event_id = ?
+            ORDER BY jahrgang, name
+        """, (event_id,)).fetchall()
+
+    overall = {}
+    for competition in competitions:
+        if competition["competition_type"] == "Sechskampf":
+            with get_conn() as conn:
+                teams = conn.execute("""
+                    SELECT * FROM teams
+                    WHERE active = 1 AND jahrgang = ?
+                    ORDER BY name
+                """, (competition["jahrgang"],)).fetchall()
+                disciplines = conn.execute("""
+                    SELECT * FROM competition_disciplines
+                    WHERE competition_id = ?
+                    ORDER BY sort_order, id
+                """, (competition["id"],)).fetchall()
+                result_rows = conn.execute(
+                    "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
+                    (competition["id"],)
+                ).fetchall()
+            ranking, _, _ = calculate_sixkampf_team_ranking(
+                teams, disciplines, result_rows,
+                competition["points_first_place"],
+            )
+            for row in ranking:
+                team_id = row["team"]["id"]
+                record = overall.setdefault(team_id, {
+                    "team_id": team_id,
+                    "team": row["team"]["name"],
+                    "jahrgang": row["team"]["jahrgang"],
+                    "points_by_competition": {},
+                    "total_points": 0.0,
+                })
+                record["points_by_competition"][competition["id"]] = row["scoring_points"]
+                record["total_points"] += row["scoring_points"]
+        else:
+            rows = calculate_tournament_points(competition)
+            for row in rows:
+                team_id = row["team_id"]
+                record = overall.setdefault(team_id, {
+                    "team_id": team_id,
+                    "team": row["team"],
+                    "jahrgang": competition["jahrgang"],
+                    "points_by_competition": {},
+                    "total_points": 0.0,
+                })
+                record["points_by_competition"][competition["id"]] = row["competition_points"]
+                record["total_points"] += row["competition_points"]
+
+    ranked = sorted(overall.values(), key=lambda r: (-r["total_points"], r["team"].lower()))
+    place = 0
+    previous_total = None
+    for index, row in enumerate(ranked, start=1):
+        if previous_total is None or row["total_points"] != previous_total:
+            place = index
+        row["place"] = place
+        previous_total = row["total_points"]
+
+    return ranked
 
 
 def calculate_group_table(competition_id: int, gruppe: str):
@@ -1754,14 +1865,21 @@ def tabellen(request: Request, competition_id: str = ""):
 @app.get("/teams")
 def teams(request: Request):
     with get_conn() as conn:
-        team_rows = conn.execute("""
+        has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
+        query = """
             SELECT t.*, 
                    EXISTS(SELECT 1 FROM slots WHERE team_a_id = t.id OR team_b_id = t.id) AS has_slots,
                    EXISTS(SELECT 1 FROM sixkampf_team_results WHERE team_id = t.id) AS has_sixkampf,
-                   EXISTS(SELECT 1 FROM discipline_results WHERE team_id = t.id) AS has_discipline_results
+        """
+        if has_discipline_team:
+            query += "                   EXISTS(SELECT 1 FROM discipline_results WHERE team_id = t.id) AS has_discipline_results\n"
+        else:
+            query += "                   0 AS has_discipline_results\n"
+        query += """
             FROM teams t
             ORDER BY jahrgang, name
-        """).fetchall()
+        """
+        team_rows = conn.execute(query).fetchall()
 
     teams = []
     for row in team_rows:
@@ -1805,18 +1923,24 @@ def update_team(
 @app.post("/team/{team_id}/delete")
 def delete_team(team_id: int):
     with get_conn() as conn:
-        dependency = conn.execute("""
+        has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
+        query = """
             SELECT 1 FROM (
                 SELECT team_a_id AS team_id FROM slots WHERE team_a_id = ?
                 UNION ALL
                 SELECT team_b_id FROM slots WHERE team_b_id = ?
                 UNION ALL
                 SELECT team_id FROM sixkampf_team_results WHERE team_id = ?
-                UNION ALL
-                SELECT team_id FROM discipline_results WHERE team_id = ?
+        """
+        params = [team_id, team_id, team_id]
+        if has_discipline_team:
+            query += "                UNION ALL SELECT team_id FROM discipline_results WHERE team_id = ?\n"
+            params.append(team_id)
+        query += """
             )
             LIMIT 1
-        """, (team_id, team_id, team_id, team_id)).fetchone()
+        """
+        dependency = conn.execute(query, tuple(params)).fetchone()
         if dependency:
             return RedirectResponse("/teams", status_code=303)
         conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
@@ -2308,9 +2432,14 @@ def event_detail(request: Request, event_id: int):
         """, (event_id,)).fetchall()
     if event is None:
         return RedirectResponse("/events", status_code=303)
+    overall_ranking = calculate_event_overall_ranking(event_id)
     return templates.TemplateResponse(
         request=request, name="event_detail.html",
-        context={"event": event, "competitions": competitions}
+        context={
+            "event": event,
+            "competitions": competitions,
+            "overall_ranking": overall_ranking,
+        }
     )
 
 

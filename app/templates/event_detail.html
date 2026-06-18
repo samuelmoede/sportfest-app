@@ -38,5 +38,43 @@
     <p class="muted">Dieser Veranstaltung sind noch keine Wettbewerbe zugeordnet.</p>
     {% endif %}
 </section>
+
+<section class="panel">
+    <h2>Gesamtwertung</h2>
+    {% if overall_ranking %}
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Platz</th>
+                    <th>Klasse</th>
+                    <th>Gesamtpunkte</th>
+                    <th>Punkte je Wettbewerb</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in overall_ranking %}
+                <tr>
+                    <td>{{ row.place }}</td>
+                    <td>{{ row.team }}</td>
+                    <td>{{ row.total_points }}</td>
+                    <td>
+                        {% for competition in competitions %}
+                            {% set points = row.points_by_competition.get(competition.id) %}
+                            {% if points is not none %}
+                                <div>{{ competition.name }}: {{ points }}</div>
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Punkte für die Gesamtwertung vorhanden.</p>
+    {% endif %}
+</section>
+
 <p><a href="/events">← Zurück zu Veranstaltungen</a></p>
 {% endblock %}

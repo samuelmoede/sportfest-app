@@ -75,6 +75,7 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [ ] Detailseite einer Veranstaltung verbessern
 * [ ] Wettbewerbe direkt innerhalb einer Veranstaltung anlegen
 * [ ] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden
+* [ ] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
 
 Zielbild:
 

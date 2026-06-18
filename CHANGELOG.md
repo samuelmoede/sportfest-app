@@ -13,6 +13,8 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 - Wettbewerbe können als Kopie mit dem Zusatz "(Kopie)" dupliziert werden.
 - Wettbewerbe auf /wettbewerbe werden nun als breite Karten untereinander angezeigt; Formulare und Sechskampf-Disziplinzeilen passen sich besser an.
 - Teams / Klassenverwaltung auf /teams wurde auf eine kompakte Tabellenansicht umgestellt; Name, Jahrgang und Aktivität lassen sich direkt bearbeiten.
+- Fix: /teams lädt jetzt auch auf Datenbanken ohne `discipline_results.team_id` und verhindert falsche Löschrechte.
+- Erste Veranstaltungs-Übergreifende Gesamtwertung auf der Event-Detailseite hinzugefügt.
 - Responsive Layout für Smartphones und Tablets verbessert: Formulare, Tabellen und Seitenleiste angepasst.
 
 ## [0.1.1-dev] - 2026-06-18
