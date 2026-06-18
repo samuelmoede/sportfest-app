@@ -88,13 +88,11 @@ Sie unterstützt Wettbewerbe, Sechskampf, Spielpläne, Teams, Ergebnisse und gru
 - Das Skript `backup_database.py` kopiert die aktuelle Datenbankdatei unter Wahrung von Zeitstempel und Dateiattributen.
 - Für regelmäßige Sicherungen kann das Skript in einen Cron-Job, Windows Task Scheduler oder CI/CD-Workflow eingebunden werden.
 
-## Zugriffsschutz / Admin-Login
+## Zugriffsschutz
 
-- Die App bietet jetzt einen einfachen Admin-Login.
-- Standard-Credentials: `admin` / `admin`.
-- Für Produktion sollten `APP_SECRET_KEY`, `ADMIN_USERNAME` und `ADMIN_PASSWORD` als Umgebungsvariablen gesetzt werden.
-- Nicht-öffentliche Routen leiten nicht angemeldete Benutzer auf `/login` um.
-- CSRF-Schutz ist aktiviert; POST-Formulare benötigen einen versteckten `csrf_token`.
+- Die App läuft derzeit bewusst ohne Login, Sessions oder Zugriffsschutz.
+- Zugriffsschutz wird später als eigenes Feature geplant und umgesetzt.
+- Bis dahin sollen keine Login- oder Session-Funktionen ergänzt werden.
 
 ## Bekannte offene Punkte
 
