@@ -1530,10 +1530,24 @@ def delete_team(team_id: int):
 def wettbewerbe(request: Request):
     competitions = get_all_competitions()
 
+    with get_conn() as conn:
+        disciplines = conn.execute("""
+            SELECT *
+            FROM competition_disciplines
+            ORDER BY competition_id, sort_order, id
+        """).fetchall()
+
+    disciplines_by_competition = defaultdict(list)
+    for discipline in disciplines:
+        disciplines_by_competition[discipline["competition_id"]].append(discipline)
+
     return templates.TemplateResponse(
         request=request,
         name="wettbewerbe.html",
-        context={"competitions": competitions}
+        context={
+            "competitions": competitions,
+            "disciplines_by_competition": disciplines_by_competition,
+        }
     )
 
 
@@ -1690,6 +1704,87 @@ def update_competition(
     return RedirectResponse("/wettbewerbe", status_code=303)
 
 
+@app.post("/competition/{competition_id}/discipline/create")
+def create_competition_discipline(
+    competition_id: int,
+    name: str = Form(...),
+    sort_order: str = Form(...),
+    unit: str = Form(""),
+):
+    try:
+        sort_order_value = int(sort_order)
+    except (TypeError, ValueError):
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    name_value = name.strip()
+    unit_value = unit.strip() or None
+
+    if not name_value or sort_order_value < 1:
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    with get_conn() as conn:
+        competition_exists = conn.execute(
+            "SELECT 1 FROM competitions WHERE id = ?",
+            (competition_id,)
+        ).fetchone()
+
+        if competition_exists is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+
+        conn.execute("""
+            INSERT INTO competition_disciplines (
+                competition_id, name, sort_order, unit
+            )
+            VALUES (?, ?, ?, ?)
+        """, (competition_id, name_value, sort_order_value, unit_value))
+        conn.commit()
+
+    return RedirectResponse("/wettbewerbe", status_code=303)
+
+
+@app.post("/discipline/{discipline_id}/update")
+def update_competition_discipline(
+    discipline_id: int,
+    name: str = Form(...),
+    sort_order: str = Form(...),
+    unit: str = Form(""),
+):
+    try:
+        sort_order_value = int(sort_order)
+    except (TypeError, ValueError):
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    name_value = name.strip()
+    unit_value = unit.strip() or None
+
+    if not name_value or sort_order_value < 1:
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE competition_disciplines
+            SET name = ?,
+                sort_order = ?,
+                unit = ?
+            WHERE id = ?
+        """, (name_value, sort_order_value, unit_value, discipline_id))
+        conn.commit()
+
+    return RedirectResponse("/wettbewerbe", status_code=303)
+
+
+@app.post("/discipline/{discipline_id}/delete")
+def delete_competition_discipline(discipline_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM competition_disciplines WHERE id = ?",
+            (discipline_id,)
+        )
+        conn.commit()
+
+    return RedirectResponse("/wettbewerbe", status_code=303)
+
+
 @app.post("/competition/{competition_id}/archive")
 def archive_competition(competition_id: int):
     with get_conn() as conn:
@@ -1734,6 +1829,7 @@ def reset_competition(competition_id: int):
 def delete_competition(competition_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM slots WHERE competition_id = ?", (competition_id,))
+        conn.execute("DELETE FROM competition_disciplines WHERE competition_id = ?", (competition_id,))
         conn.execute("DELETE FROM competitions WHERE id = ?", (competition_id,))
         conn.commit()
 

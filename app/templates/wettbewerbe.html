@@ -67,6 +67,36 @@
             <button class="green" type="submit">Speichern</button>
         </form>
 
+        {% set disciplines = disciplines_by_competition.get(c.id, []) %}
+        <div class="discipline-section">
+            <h3>Sechskampf-Disziplinen</h3>
+
+            {% for discipline in disciplines %}
+            <div class="discipline-row">
+                <form method="post" action="/discipline/{{ discipline.id }}/update" class="discipline-form">
+                    <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
+                    <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
+                    <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
+                    <button type="submit">Speichern</button>
+                </form>
+
+                <form method="post" action="/discipline/{{ discipline.id }}/delete"
+                      onsubmit="return confirm('Disziplin wirklich löschen?');">
+                    <button type="submit">Löschen</button>
+                </form>
+            </div>
+            {% else %}
+            <p class="muted">Noch keine Disziplinen definiert.</p>
+            {% endfor %}
+
+            <form method="post" action="/competition/{{ c.id }}/discipline/create" class="discipline-form discipline-create-form">
+                <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
+                <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
+                <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
+                <button class="green" type="submit">Hinzufügen</button>
+            </form>
+        </div>
+
         <div class="competition-actions">
             {% if c.status == "archiviert" %}
                 <form method="post" action="/competition/{{ c.id }}/restore">
@@ -111,6 +141,46 @@
     .badge.beendet {
         background: #dcfce7;
         color: #166534;
+    }
+
+    .discipline-section {
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+    }
+
+    .discipline-section h3 {
+        margin-top: 0;
+    }
+
+    .discipline-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .discipline-form {
+        display: grid;
+        grid-template-columns: 80px minmax(140px, 1fr) minmax(120px, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        flex: 1;
+    }
+
+    .discipline-create-form {
+        margin-top: 14px;
+    }
+
+    @media (max-width: 760px) {
+        .discipline-row {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .discipline-form {
+            grid-template-columns: 1fr;
+        }
     }
 
     .competition-actions {
