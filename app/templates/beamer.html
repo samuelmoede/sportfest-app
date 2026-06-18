@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Sportfest Live</title>
+    <meta http-equiv="refresh" content="15">
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0d1728;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        .top {
+            height: 54px;
+            background: #17243a;
+            border-bottom: 1px solid #263852;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+        }
+
+        .brand {
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .subbar {
+            height: 44px;
+            background: #121f34;
+            border-bottom: 1px solid #263852;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 0 28px;
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .subbar .status {
+            margin-left: auto;
+        }
+
+        .grid {
+            height: calc(100vh - 98px);
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+        }
+
+        .main {
+            position: relative;
+            border-right: 1px solid #263852;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 240px;
+        }
+
+        .current {
+            width: 100%;
+            text-align: center;
+        }
+
+        .label {
+            color: #93a4bd;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+        }
+
+        .label span {
+            margin-left: 16px;
+            color: #cbd5e1;
+        }
+
+        .multi-matches {
+            width: 100%;
+            padding: 0 70px;
+            display: grid;
+            gap: 24px;
+        }
+
+        .multi-match {
+            display: grid;
+            grid-template-columns: 1fr 1.25fr 1fr;
+            align-items: center;
+            gap: 34px;
+        }
+
+        .team {
+            font-size: 72px;
+            font-weight: 900;
+            text-align: center;
+        }
+
+        .score {
+            background: #1e2d44;
+            border-radius: 20px;
+            padding: 22px 32px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            align-items: center;
+            font-size: 78px;
+            font-weight: 900;
+        }
+
+        .score .colon {
+            color: #64748b;
+        }
+
+        .pause {
+            font-size: 76px;
+            font-weight: 900;
+            color: #facc15;
+        }
+
+        .bottom {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 240px;
+            border-top: 1px solid #263852;
+            padding: 22px 30px;
+            background: #0d1728;
+        }
+
+        .bottom h3 {
+            margin: 0 0 12px 0;
+            color: #64748b;
+            font-size: 13px;
+            letter-spacing: 2px;
+        }
+
+        .next {
+            border: 1px solid #806b15;
+            background: #25291f;
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .next strong {
+            color: #fff;
+        }
+
+        .next .type {
+            color: #facc15;
+            font-weight: 900;
+        }
+
+        .next em {
+            color: #9fb0c8;
+            font-style: normal;
+        }
+
+        .courts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .court {
+            background: #1b2940;
+            border-radius: 10px;
+            padding: 12px;
+            min-height: 58px;
+        }
+
+        .court strong {
+            display: block;
+            color: #cbd5e1;
+        }
+
+        .court span {
+            display: block;
+            color: #93a4bd;
+            font-size: 13px;
+        }
+
+        .court em {
+            display: block;
+            color: #fff;
+            font-size: 13px;
+            font-style: normal;
+            margin-top: 4px;
+        }
+
+        .table-panel {
+            background: #0b1425;
+            padding: 28px;
+        }
+
+        .table-panel h2 {
+            margin-top: 0;
+            font-size: 20px;
+            letter-spacing: 1px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+        }
+
+        th {
+            color: #64748b;
+            font-size: 13px;
+            text-transform: uppercase;
+            text-align: left;
+            padding: 8px 12px;
+        }
+
+        td {
+            background: #1a263b;
+            padding: 14px 12px;
+            font-size: 20px;
+        }
+
+        td:first-child {
+            border-radius: 12px 0 0 12px;
+            width: 40px;
+            color: #94a3b8;
+        }
+
+        td:last-child {
+            border-radius: 0 12px 12px 0;
+            text-align: center;
+        }
+
+        .rank-one td {
+            background: #3a3320;
+            outline: 1px solid #786516;
+        }
+
+        .rank-two td {
+            background: #1e2d44;
+        }
+
+        .teamname {
+            font-weight: 900;
+            font-size: 24px;
+        }
+
+        .goals {
+            font-size: 15px;
+            color: #cbd5e1;
+        }
+
+        .diff {
+            color: #22c55e;
+            font-size: 14px;
+        }
+
+        .points {
+            display: inline-block;
+            background: #facc15;
+            color: #111827;
+            font-weight: 900;
+            border-radius: 999px;
+            padding: 8px 14px;
+            min-width: 46px;
+        }
+
+        .empty {
+            color: #94a3b8;
+            font-size: 24px;
+            text-align: center;
+            padding: 40px;
+        }
+    </style>
+</head>
+
+<body>
+<header class="top">
+    <div class="brand">⚡ Sportfest</div>
+    <div>↻ Auto-Refresh alle 15 s</div>
+</header>
+
+<div class="subbar">
+    {% if current %}
+        <span>{{ current.sportart }}</span>
+        <span>Jahrgang {{ current.jahrgang }}</span>
+        <strong>{{ current.competition_name }}</strong>
+        <span class="status">● läuft</span>
+    {% else %}
+        <span>Kein aktuelles Spiel</span>
+    {% endif %}
+</div>
+
+<main class="grid">
+    <section class="main">
+        <div class="current">
+            {% if running_slots %}
+                <div class="label">
+                    AKTUELLE SPIELE
+                    <span>{{ running_slots|length }} laufend</span>
+                </div>
+
+                <div class="multi-matches">
+                    {% for match in running_slots %}
+                    <div class="multi-match">
+                        <div class="team">{{ match.team_a or "?" }}</div>
+                        <div>
+                            <div class="label">
+                                {{ match.startzeit }}
+                                <span>{{ match.court_name or "-" }}</span>
+                            </div>
+                            <div class="score">
+                                <span>{{ match.score_a if match.score_a is not none else "-" }}</span>
+                                <span class="colon">:</span>
+                                <span>{{ match.score_b if match.score_b is not none else "-" }}</span>
+                            </div>
+                        </div>
+                        <div class="team">{{ match.team_b or "?" }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif current %}
+                <div class="label">
+                    AKTUELLES
+                    <span>{{ current.startzeit }}</span>
+                    <span>{{ current.court_name or "-" }}</span>
+                </div>
+
+                {% if current.slot_typ == "Spiel" %}
+                    <div class="multi-match">
+                        <div class="team">{{ current.team_a or "?" }}</div>
+                        <div class="score">
+                            <span>{{ current.score_a if current.score_a is not none else "-" }}</span>
+                            <span class="colon">:</span>
+                            <span>{{ current.score_b if current.score_b is not none else "-" }}</span>
+                        </div>
+                        <div class="team">{{ current.team_b or "?" }}</div>
+                    </div>
+                {% else %}
+                    <div class="pause">{{ current.slot_typ }}</div>
+                {% endif %}
+            {% else %}
+                <div class="pause">Kein aktuelles Spiel</div>
+            {% endif %}
+        </div>
+
+        <div class="bottom">
+            <h3>NÄCHSTES</h3>
+            {% if next_slot %}
+                <div class="next">
+                    <strong>{{ next_slot.startzeit }}</strong>
+                    <span class="type">{{ next_slot.slot_typ }}</span>
+                    <em>
+                        {% if next_slot.slot_typ == "Spiel" %}
+                            {{ next_slot.team_a or "?" }} vs {{ next_slot.team_b or "?" }}
+                        {% else %}
+                            {{ next_slot.note or next_slot.slot_typ }}
+                        {% endif %}
+                    </em>
+                </div>
+            {% else %}
+                <div class="next">Keine weiteren Slots geplant.</div>
+            {% endif %}
+
+            <h3>SPIELE JE SPIELFELD</h3>
+            <div class="courts">
+                {% for item in court_summaries %}
+                    <div class="court">
+                        <strong>{{ item.court.name }}</strong>
+                        <span>{{ item.open_count }} ausstehend</span>
+                        {% if item.next %}
+                            <em>{{ item.next.startzeit }} · {{ item.next.team_a or "?" }} vs {{ item.next.team_b or "?" }}</em>
+                        {% else %}
+                            <em>frei</em>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <aside class="table-panel">
+        <h2>🏆 TABELLE</h2>
+
+        {% if table_rows %}
+            <table>
+                <tr>
+                    <th>#</th>
+                    <th>Team</th>
+                    <th>T</th>
+                    <th>PKT</th>
+                </tr>
+
+                {% for r in table_rows %}
+                <tr class="{% if loop.index == 1 %}rank-one{% elif loop.index == 2 %}rank-two{% endif %}">
+                    <td>{{ loop.index }}</td>
+                    <td class="teamname">{{ r.team }}</td>
+                    <td>
+                        <div class="goals">{{ r.plus }}:{{ r.minus }}</div>
+                        <div class="diff">{{ "%+d"|format(r.diff) }}</div>
+                    </td>
+                    <td><span class="points">{{ r.pkt_display }}</span></td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <div class="empty">Noch keine Tabelle vorhanden.</div>
+        {% endif %}
+    </aside>
+</main>
+</body>
+</html>

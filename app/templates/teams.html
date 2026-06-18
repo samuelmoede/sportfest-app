@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Teams / Klassen</h1>
+<p class="muted">{{ teams|length }} Teams gesamt</p>
+
+<section class="panel">
+    <h2>Team hinzufügen</h2>
+
+    <form method="post" action="/team/create" class="admin-form">
+        <label>Teamname</label>
+        <input type="text" name="name" placeholder="z. B. 7a" required>
+
+        <label>Jahrgang</label>
+        <input type="number" name="jahrgang" min="1" max="13" required>
+
+        <button class="green" type="submit">Team hinzufügen</button>
+    </form>
+</section>
+
+<section class="cards">
+{% for t in teams %}
+    <div class="card">
+        <div class="avatar">{{ t.name.upper() }}</div>
+        <div>
+            <strong>{{ t.name }}</strong><br>
+            <span>Jahrgang {{ t.jahrgang }}</span>
+        </div>
+
+        <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
+            <button type="submit">Löschen</button>
+        </form>
+    </div>
+{% endfor %}
+</section>
+{% endblock %}

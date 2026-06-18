@@ -1,0 +1,9 @@
+services:
+  sportfest-app:
+    build: .
+    container_name: sportfest-app
+    restart: unless-stopped
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./data:/app/data

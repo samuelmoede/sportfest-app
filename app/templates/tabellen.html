@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tabellen</h1>
+<p class="muted">Automatisch berechnete Ranglisten</p>
+
+{% for t in tables %}
+<section class="panel">
+    <h2>{{ t.competition.name }}</h2>
+    <p class="muted">
+        Sieg: {{ t.competition.points_win }} ·
+        Remis: {{ t.competition.points_draw }} ·
+        Niederlage: {{ t.competition.points_loss }}
+    </p>
+
+    {% if t.rows %}
+    <table>
+        <tr>
+            <th>#</th>
+            <th>Team</th>
+            <th>Sp</th>
+            <th>S</th>
+            <th>U</th>
+            <th>N</th>
+            <th>+</th>
+            <th>-</th>
+            <th>Diff</th>
+            <th>Pkt</th>
+        </tr>
+        {% for r in t.rows %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ r.team }}</strong></td>
+            <td>{{ r.sp }}</td>
+            <td>{{ r.s }}</td>
+            <td>{{ r.u }}</td>
+            <td>{{ r.n }}</td>
+            <td>{{ r.plus }}</td>
+            <td>{{ r.minus }}</td>
+            <td>{{ "%+d"|format(r.diff) }}</td>
+            <td><strong>{{ r.pkt_display }}</strong></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Ergebnisse.</p>
+    {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

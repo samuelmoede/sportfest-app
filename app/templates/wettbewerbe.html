@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Wettbewerbe</h1>
+<p class="muted">Turniere anlegen, Status setzen, Punktevergabe einstellen, archivieren oder löschen.</p>
+
+<section class="panel">
+    <h2>Neues Turnier anlegen</h2>
+
+    <form method="post" action="/competition/create" class="admin-form">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="z. B. Volleyball GOST" required>
+
+        <label>Sportart</label>
+        <input type="text" name="sportart" placeholder="z. B. Volleyball, Fußball, Zweifelderball" required>
+
+        <label>Jahrgang</label>
+        <input type="number" name="jahrgang" value="11" min="1" max="13" required>
+
+        <label>Punkte Sieg</label>
+        <input type="number" step="0.5" name="points_win" value="3" required>
+
+        <label>Punkte Remis</label>
+        <input type="number" step="0.5" name="points_draw" value="1" required>
+
+        <label>Punkte Niederlage</label>
+        <input type="number" step="0.5" name="points_loss" value="0" required>
+
+        <button class="green" type="submit">Turnier anlegen</button>
+    </form>
+</section>
+
+<section class="cards">
+{% for c in competitions %}
+    <div class="card column {% if c.status == 'archiviert' %}archived-card{% endif %}">
+        <span class="badge {{ c.status }}">{{ c.status }}</span>
+
+        <h2>{{ c.name }}</h2>
+        <p>{{ c.sportart }} · Jahrgang {{ c.jahrgang }}</p>
+
+        <form method="post" action="/competition/{{ c.id }}/update" class="points-form">
+            <label>Status</label>
+            <select name="status" required>
+                <option value="geplant" {% if c.status == "geplant" %}selected{% endif %}>geplant</option>
+                <option value="läuft" {% if c.status == "läuft" %}selected{% endif %}>läuft</option>
+                <option value="beendet" {% if c.status == "beendet" %}selected{% endif %}>beendet</option>
+                <option value="archiviert" {% if c.status == "archiviert" %}selected{% endif %}>archiviert</option>
+            </select>
+
+            <label>Sieg</label>
+            <input type="number" step="0.5" name="points_win" value="{{ c.points_win }}" required>
+
+            <label>Remis</label>
+            <input type="number" step="0.5" name="points_draw" value="{{ c.points_draw }}" required>
+
+            <label>Niederlage</label>
+            <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
+
+            <button class="green" type="submit">Speichern</button>
+        </form>
+
+        <div class="competition-actions">
+            {% if c.status == "archiviert" %}
+                <form method="post" action="/competition/{{ c.id }}/restore">
+                    <button type="submit">Wiederherstellen</button>
+                </form>
+            {% else %}
+                <form method="post" action="/competition/{{ c.id }}/archive"
+                      onsubmit="return confirm('Turnier archivieren? Es verschwindet dann aus Spielplan, Ergebnissen und Tabellen.');">
+                    <button type="submit">Archivieren</button>
+                </form>
+            {% endif %}
+
+            <form method="post" action="/competition/{{ c.id }}/delete"
+                  onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
+                <button type="submit">Löschen</button>
+            </form>
+        </div>
+    </div>
+{% endfor %}
+</section>
+
+<style>
+    .archived-card {
+        opacity: 0.55;
+        filter: grayscale(0.4);
+    }
+
+    .badge.archiviert {
+        background: #e5e7eb;
+        color: #4b5563;
+    }
+
+    .badge.beendet {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .competition-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}

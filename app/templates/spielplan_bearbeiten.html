@@ -1,0 +1,682 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Spielplan bearbeiten</h1>
+<p class="muted">Feste Slots anlegen, bearbeiten, Turniere filtern und automatische Vorschläge erzeugen.</p>
+
+<style>
+    .generator-box {
+        background: #fff7ed;
+        border: 1px solid #fdba74;
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .generator-grid {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 14px 18px;
+        align-items: center;
+    }
+
+    .generator-grid label {
+        font-weight: bold;
+        color: var(--muted);
+    }
+
+    .court-checkboxes {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .court-checkboxes label {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 14px;
+        color: var(--text);
+    }
+
+    .preview-table {
+        margin-top: 18px;
+    }
+
+    .filter-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .phase-label {
+        margin: 28px 0 12px;
+        padding: 10px 14px;
+        background: #111d33;
+        color: white;
+        border-radius: 10px;
+        font-weight: bold;
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+    }
+
+    .ko-box {
+        background: #ecfdf5;
+        border: 1px solid #86efac;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .ko-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+    }
+
+    .dragging {
+        opacity: 0.45;
+    }
+
+    .drag-over {
+        outline: 2px dashed #fb923c;
+        outline-offset: 6px;
+    }
+
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(15, 23, 42, 0.65);
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    .modal-backdrop.open {
+        display: flex;
+    }
+
+    .modal {
+        width: min(900px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+        background: white;
+        border-radius: 18px;
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+        padding: 28px;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+    }
+
+    .modal-close {
+        border: none;
+        background: #f1f5f9;
+        border-radius: 999px;
+        width: 42px;
+        height: 42px;
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .slot-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+</style>
+
+<section class="panel">
+    <h2>Turnier auswählen</h2>
+
+    <form method="get" action="/spielplan-bearbeiten" class="filter-row">
+        <select name="competition_id">
+            <option value="">Alle Turniere anzeigen</option>
+            {% for c in competitions %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}
+            </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Anzeigen</button>
+    </form>
+
+    <div class="toolbar">
+        <button type="button" class="green" onclick="openSlotModal()">+ Neuen Slot manuell anlegen</button>
+
+        {% if selected_competition_id %}
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/delete-planned-slots"
+              onsubmit="return confirm('Alle geplanten Slots dieses Turniers löschen? Laufende und beendete Spiele bleiben erhalten.');">
+            <button type="submit">Alle geplanten Slots dieses Turniers löschen</button>
+        </form>
+        {% else %}
+        <span class="muted">Wähle ein einzelnes Turnier aus, um geplante Slots gesammelt zu löschen.</span>
+        {% endif %}
+    </div>
+</section>
+
+{% if selected_competition_id %}
+<section class="ko-box">
+    <h2>Nächste Phase automatisch besetzen</h2>
+
+    {% if ko_hint %}
+        <p>{{ ko_hint }}</p>
+    {% else %}
+        <p class="muted">
+            Sobald Gruppenphase oder Halbfinale vollständig beendet sind, kann die nächste Phase automatisch besetzt werden.
+        </p>
+    {% endif %}
+
+    <div class="ko-actions">
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/generate-semifinals"
+              onsubmit="return confirm('Halbfinale automatisch anhand der Gruppentabellen besetzen?');">
+            <button class="green" type="submit" {% if not can_generate_semifinals %}disabled{% endif %}>
+                Halbfinale automatisch besetzen
+            </button>
+        </form>
+
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/generate-finals"
+              onsubmit="return confirm('Finale und Spiel um Platz 3 automatisch anhand der Halbfinals besetzen?');">
+            <button class="green" type="submit" {% if not can_generate_finals %}disabled{% endif %}>
+                Finale automatisch besetzen
+            </button>
+        </form>
+    </div>
+</section>
+{% endif %}
+
+<section class="generator-box">
+    <h2>Automatischen Spielplan-Vorschlag erstellen</h2>
+    <p class="muted">Erst wird nur eine Vorschau erzeugt. Gespeichert wird der Plan erst danach.</p>
+
+    <form method="post" action="/plan-generator/preview" class="generator-grid">
+        <label>Turnier</label>
+        <select name="competition_id" required>
+            {% for c in competitions %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Spielfelder</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if loop.index <= 2 %}checked{% endif %}>
+                {{ court.name }}
+            </label>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="08:00" required>
+
+        <label>Slotdauer</label>
+        <input type="number" name="slot_minutes" value="10" min="1" required>
+
+        <label>Vorrundenspiele pro Team</label>
+        <input type="number" name="games_per_team" value="2" min="1" required>
+
+        <label>Finalrunde</label>
+        <label>
+            <input type="checkbox" name="include_ko" value="1" checked>
+            Halbfinale, Spiel um Platz 3 und Finale als Platzhalter erzeugen
+        </label>
+
+        <button class="green" type="submit">Vorschau erzeugen</button>
+    </form>
+
+    {% if proposed_slots %}
+    <form method="post" action="/plan-generator/apply" class="preview-table">
+        <h3>Vorschau</h3>
+
+        <table>
+            <tr>
+                <th>Zeit</th>
+                <th>Feld</th>
+                <th>Typ</th>
+                <th>Phase</th>
+                <th>Gruppe</th>
+                <th>Begegnung</th>
+                <th>Notiz</th>
+            </tr>
+
+            {% for s in proposed_slots %}
+            <tr>
+                <td>{{ s.startzeit }}</td>
+                <td>{{ s.court_name }}</td>
+                <td>{{ s.slot_typ }}</td>
+                <td>{{ s.phase }}</td>
+                <td>{{ s.gruppe }}</td>
+                <td>
+                    {% if s.slot_typ == "Spiel" %}
+                        {{ s.team_a }} vs {{ s.team_b }}
+                    {% else %}
+                        {{ s.slot_typ }}
+                    {% endif %}
+                </td>
+                <td>{{ s.note }}</td>
+            </tr>
+
+            <input type="hidden" name="competition_id" value="{{ s.competition_id }}">
+            <input type="hidden" name="startzeit" value="{{ s.startzeit }}">
+            <input type="hidden" name="slot_typ" value="{{ s.slot_typ }}">
+            <input type="hidden" name="court_id" value="{{ s.court_id }}">
+            <input type="hidden" name="phase" value="{{ s.phase }}">
+            <input type="hidden" name="gruppe" value="{{ s.gruppe }}">
+            <input type="hidden" name="team_a_id" value="{{ s.team_a_id }}">
+            <input type="hidden" name="team_b_id" value="{{ s.team_b_id }}">
+            <input type="hidden" name="note" value="{{ s.note }}">
+            {% endfor %}
+        </table>
+
+        <button class="green" type="submit">Vorschlag übernehmen</button>
+    </form>
+    {% endif %}
+</section>
+
+<div id="slotModal" class="modal-backdrop" onclick="closeSlotModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Neuen Slot manuell anlegen</h2>
+            <button type="button" class="modal-close" onclick="closeSlotModal()">×</button>
+        </div>
+
+        <form method="post" action="/slot/create" class="admin-form">
+            <label>Wettbewerb</label>
+            <select name="competition_id" required>
+                {% for c in competitions %}
+                <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                    {{ c.name }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label>Uhrzeit</label>
+            <input type="time" name="startzeit" required>
+
+            <label>Slottyp</label>
+            <select name="slot_typ" required>
+                <option value="Spiel">Spiel</option>
+                <option value="Pause">Pause</option>
+                <option value="Leer">Leer</option>
+                <option value="Siegerehrung">Siegerehrung</option>
+            </select>
+
+            <label>Spielfeld</label>
+            <select name="court_id">
+                <option value="">Kein Spielfeld</option>
+                {% for court in courts %}
+                <option value="{{ court.id }}">{{ court.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Phase</label>
+            <select name="phase" required>
+                <option value="Gruppenphase">Gruppenphase</option>
+                <option value="Halbfinale">Halbfinale</option>
+                <option value="Spiel um Platz 3">Spiel um Platz 3</option>
+                <option value="Finale">Finale</option>
+                <option value="Platzierung">Platzierung</option>
+                <option value="Pause">Pause</option>
+                <option value="Siegerehrung">Siegerehrung</option>
+            </select>
+
+            <label>Gruppe</label>
+            <input type="text" name="gruppe" placeholder="z. B. A, B oder leer">
+
+            <label>Team A</label>
+            <select name="team_a_id">
+                <option value="">Kein Team / Platzhalter</option>
+                {% for team in teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Team B</label>
+            <select name="team_b_id">
+                <option value="">Kein Team / Platzhalter</option>
+                {% for team in teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Status</label>
+            <select name="status" disabled>
+                <option value="geplant">geplant</option>
+            </select>
+
+            <label>Notiz</label>
+            <input type="text" name="note" placeholder="z. B. 1. Gruppe A gegen 2. Gruppe B">
+
+            <button class="green" type="submit">Slot hinzufügen</button>
+        </form>
+    </div>
+</div>
+
+<div id="editSlotModal" class="modal-backdrop" onclick="closeEditSlotModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Slot bearbeiten</h2>
+            <button type="button" class="modal-close" onclick="closeEditSlotModal()">×</button>
+        </div>
+
+        <form id="editSlotForm" method="post" action="" class="admin-form">
+            <label>Wettbewerb</label>
+            <select id="editCompetitionId" name="competition_id" required>
+                {% for c in competitions %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Uhrzeit</label>
+            <input id="editStartzeit" type="time" name="startzeit" required>
+
+            <label>Slottyp</label>
+            <select id="editSlotTyp" name="slot_typ" required>
+                <option value="Spiel">Spiel</option>
+                <option value="Pause">Pause</option>
+                <option value="Leer">Leer</option>
+                <option value="Siegerehrung">Siegerehrung</option>
+            </select>
+
+            <label>Spielfeld</label>
+            <select id="editCourtId" name="court_id">
+                <option value="">Kein Spielfeld</option>
+                {% for court in courts %}
+                <option value="{{ court.id }}">{{ court.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Phase</label>
+            <select id="editPhase" name="phase" required>
+                <option value="Gruppenphase">Gruppenphase</option>
+                <option value="Halbfinale">Halbfinale</option>
+                <option value="Spiel um Platz 3">Spiel um Platz 3</option>
+                <option value="Finale">Finale</option>
+                <option value="Platzierung">Platzierung</option>
+                <option value="Pause">Pause</option>
+                <option value="Siegerehrung">Siegerehrung</option>
+            </select>
+
+            <label>Gruppe</label>
+            <input id="editGruppe" type="text" name="gruppe" placeholder="z. B. A oder B">
+
+            <label>Team A</label>
+            <select id="editTeamAId" name="team_a_id">
+                <option value="">Kein Team / Platzhalter</option>
+                {% for team in teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Team B</label>
+            <select id="editTeamBId" name="team_b_id">
+                <option value="">Kein Team / Platzhalter</option>
+                {% for team in teams %}
+                <option value="{{ team.id }}">{{ team.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Status</label>
+            <select id="editStatus" name="status" required>
+                <option value="geplant">geplant</option>
+                <option value="läuft">läuft</option>
+                <option value="beendet">beendet</option>
+            </select>
+
+            <label>Notiz</label>
+            <input id="editNote" type="text" name="note">
+
+            <button class="green" type="submit">Änderungen speichern</button>
+        </form>
+    </div>
+</div>
+
+<section class="schedule-board">
+    {% for group in groups %}
+    <div class="court-column dropzone" data-court-id="{{ group.court.id }}">
+        <h2>{{ group.court.name }}</h2>
+
+        {% set last_phase = "" %}
+
+        {% for s in group.slots %}
+        {% if s.phase != last_phase %}
+            <div class="phase-label">{{ s.phase }}</div>
+            {% set last_phase = s.phase %}
+        {% endif %}
+
+        <div class="slot-card draggable {{ s.status }}"
+             draggable="true"
+             data-slot-id="{{ s.id }}"
+             data-time="{{ s.startzeit }}">
+
+            <div class="slot-time">
+                <input class="time-input" type="time" value="{{ s.startzeit }}" onclick="event.stopPropagation();">
+            </div>
+
+            <div class="slot-type">{{ s.slot_typ }}</div>
+
+            {% if s.slot_typ == "Spiel" %}
+                <div class="slot-teams">
+                    <strong>{{ s.team_a or "?" }}</strong>
+                    <span>
+                        {% if s.score_a is not none %}
+                            {{ s.score_a }} : {{ s.score_b }}
+                        {% else %}
+                            vs
+                        {% endif %}
+                    </span>
+                    <strong>{{ s.team_b or "?" }}</strong>
+                </div>
+            {% else %}
+                <div class="slot-teams">
+                    <strong>{{ s.slot_typ }}</strong>
+                    {% if s.note %}
+                        <span>{{ s.note }}</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <div class="slot-footer">
+                <span>{{ s.phase }}{% if s.gruppe %} ({{ s.gruppe }}){% endif %}</span>
+                <span class="badge {{ s.status }}">{{ s.status }}</span>
+            </div>
+
+            <div class="slot-actions">
+                <button type="button"
+                        onclick="openEditSlotModal(
+                            '{{ s.id }}',
+                            '{{ s.competition_id }}',
+                            '{{ s.startzeit }}',
+                            '{{ s.slot_typ }}',
+                            '{{ s.court_id or "" }}',
+                            '{{ s.phase }}',
+                            '{{ s.gruppe or "" }}',
+                            '{{ s.team_a_id or "" }}',
+                            '{{ s.team_b_id or "" }}',
+                            '{{ s.status }}',
+                            '{{ s.note or "" }}'
+                        )">
+                    Bearbeiten
+                </button>
+
+                <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
+                    <button type="submit" onclick="event.stopPropagation();">Löschen</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <p class="muted">Keine Slots geplant.</p>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</section>
+
+<script>
+let draggedSlot = null;
+
+function openSlotModal() {
+    document.getElementById("slotModal").classList.add("open");
+}
+
+function closeSlotModal() {
+    document.getElementById("slotModal").classList.remove("open");
+}
+
+function closeSlotModalOnBackdrop(event) {
+    if (event.target.id === "slotModal") {
+        closeSlotModal();
+    }
+}
+
+function openEditSlotModal(slotId, competitionId, startzeit, slotTyp, courtId, phase, gruppe, teamAId, teamBId, status, note) {
+    document.getElementById("editSlotForm").action = `/slot/${slotId}/update`;
+
+    document.getElementById("editCompetitionId").value = competitionId;
+    document.getElementById("editStartzeit").value = startzeit;
+    document.getElementById("editSlotTyp").value = slotTyp;
+    document.getElementById("editCourtId").value = courtId;
+    document.getElementById("editPhase").value = phase;
+    document.getElementById("editGruppe").value = gruppe;
+    document.getElementById("editTeamAId").value = teamAId;
+    document.getElementById("editTeamBId").value = teamBId;
+    document.getElementById("editStatus").value = status;
+    document.getElementById("editNote").value = note;
+
+    document.getElementById("editSlotModal").classList.add("open");
+}
+
+function closeEditSlotModal() {
+    document.getElementById("editSlotModal").classList.remove("open");
+}
+
+function closeEditSlotModalOnBackdrop(event) {
+    if (event.target.id === "editSlotModal") {
+        closeEditSlotModal();
+    }
+}
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+        closeSlotModal();
+        closeEditSlotModal();
+    }
+});
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll(".draggable:not(.dragging)")];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+
+        if (offset < 0 && offset > closest.offset) {
+            return {
+                offset: offset,
+                element: child
+            };
+        }
+
+        return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function persistSlotMove(slotCard, zone) {
+    const slotId = slotCard.dataset.slotId;
+    const courtId = zone.dataset.courtId || "";
+    const timeInput = slotCard.querySelector(".time-input");
+    const startzeit = timeInput ? timeInput.value : slotCard.dataset.time;
+
+    const formData = new FormData();
+    formData.append("court_id", courtId);
+    formData.append("startzeit", startzeit);
+
+    await fetch(`/slot/${slotId}/move`, {
+        method: "POST",
+        body: formData
+    });
+}
+
+document.querySelectorAll(".draggable").forEach(card => {
+    card.addEventListener("dragstart", event => {
+        draggedSlot = card;
+        card.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", card.dataset.slotId);
+    });
+
+    card.addEventListener("dragend", () => {
+        card.classList.remove("dragging");
+        draggedSlot = null;
+    });
+});
+
+document.querySelectorAll(".dropzone").forEach(zone => {
+    zone.addEventListener("dragover", event => {
+        event.preventDefault();
+        zone.classList.add("drag-over");
+
+        if (!draggedSlot) {
+            return;
+        }
+
+        const afterElement = getDragAfterElement(zone, event.clientY);
+
+        if (afterElement == null) {
+            zone.appendChild(draggedSlot);
+        } else {
+            zone.insertBefore(draggedSlot, afterElement);
+        }
+    });
+
+    zone.addEventListener("dragleave", () => {
+        zone.classList.remove("drag-over");
+    });
+
+    zone.addEventListener("drop", async event => {
+        event.preventDefault();
+        zone.classList.remove("drag-over");
+
+        if (!draggedSlot) {
+            return;
+        }
+
+        await persistSlotMove(draggedSlot, zone);
+    });
+});
+
+document.querySelectorAll(".time-input").forEach(input => {
+    input.addEventListener("change", async () => {
+        const card = input.closest(".slot-card");
+        const zone = input.closest(".dropzone");
+
+        await persistSlotMove(card, zone);
+    });
+});
+</script>
+{% endblock %}

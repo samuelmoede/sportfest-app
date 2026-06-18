@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Ergebniseingabe</h1>
+<p class="muted">Aktive Spiele erfassen. Beendete Spiele erscheinen unten im Archiv und können korrigiert werden.</p>
+
+<form method="get" action="/ergebnisse" class="filter-row">
+    <select name="competition_id">
+        <option value="">Alle Turniere anzeigen</option>
+        {% for c in competitions %}
+        <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+            {{ c.name }}
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit">Anzeigen</button>
+</form>
+
+<section class="panel">
+    <h2>Aktive Spiele</h2>
+
+    {% for s in slots %}
+    <section class="result-card">
+        <div class="result-meta">
+            <strong>{{ s.startzeit }}</strong>
+            <span class="pill">{{ s.court_name }}</span>
+            <span>{{ s.competition_name }}</span>
+            <span class="badge {{ s.status }}">{{ s.status }}</span>
+        </div>
+
+        <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
+            <strong>{{ s.team_a or "?" }}</strong>
+            <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
+            <span>:</span>
+            <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
+            <strong>{{ s.team_b or "?" }}</strong>
+
+            <button name="finish" value="0">Zwischenspeichern</button>
+            <button class="green" name="finish" value="1">Beenden & Speichern</button>
+        </form>
+
+        <div class="result-actions">
+            {% if s.status == "geplant" %}
+            <form method="post" action="/slot/{{ s.id }}/start">
+                <button class="outline">Starten</button>
+            </form>
+            {% endif %}
+
+            {% if s.status == "läuft" %}
+            <form method="post" action="/slot/{{ s.id }}/unstart" onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten.');">
+                <button class="outline">Start rückgängig</button>
+            </form>
+            {% endif %}
+        </div>
+    </section>
+    {% else %}
+    <p class="muted">Keine aktiven Spiele vorhanden.</p>
+    {% endfor %}
+</section>
+
+<section class="panel archive-panel">
+    <h2>Archiv zuletzt gespeicherter Ergebnisse</h2>
+    <p class="muted">
+        Diese Spiele zählen aktuell zur Tabelle. Du kannst sie reaktivieren, bearbeiten oder das Ergebnis löschen.
+    </p>
+
+    {% for s in archived_slots %}
+    <section class="result-card archived">
+        <div class="result-meta">
+            <strong>{{ s.startzeit }}</strong>
+            <span class="pill">{{ s.court_name }}</span>
+            <span>{{ s.competition_name }}</span>
+            <span class="badge {{ s.status }}">{{ s.status }}</span>
+        </div>
+
+        <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
+            <strong>{{ s.team_a or "?" }}</strong>
+            <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
+            <span>:</span>
+            <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
+            <strong>{{ s.team_b or "?" }}</strong>
+
+            <button class="green" name="finish" value="1">Korrigieren & beendet speichern</button>
+        </form>
+
+        <div class="archive-actions">
+            <form method="post" action="/slot/{{ s.id }}/reactivate">
+                <button type="submit">Reaktivieren</button>
+            </form>
+
+            <form method="post" action="/slot/{{ s.id }}/clear-result" onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+                <button type="submit">Ergebnis löschen</button>
+            </form>
+        </div>
+    </section>
+    {% else %}
+    <p class="muted">Noch keine gespeicherten Ergebnisse im Archiv.</p>
+    {% endfor %}
+</section>
+{% endblock %}

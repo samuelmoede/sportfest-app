@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Sportfest Manager</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="logo">⚡</div>
+            <div>
+                <strong>Sportfest</strong>
+                <span>Manager</span>
+            </div>
+        </div>
+
+        <nav>
+            <a href="/">Dashboard</a>
+	    <a href="/spielplan-bearbeiten">Spielplan bearbeiten</a>
+            <a href="/spielplan">Spielplan</a>
+            <a href="/ergebnisse">Ergebnisse</a>
+            <a href="/tabellen">Tabellen</a>
+            <a href="/teams">Teams</a>
+            <a href="/wettbewerbe">Wettbewerbe</a>
+            <a href="/spielfelder">Spielfelder</a>
+            <a href="/einstellungen">Einstellungen</a>
+        </nav>
+
+        <a class="beamer-link" href="/beamer" target="_blank">⚡ Beamer-Ansicht öffnen</a>
+    </aside>
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+</body>
+</html>

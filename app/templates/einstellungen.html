@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+<section class="panel">
+    <h2>Beamer-Ansicht</h2>
+    <p>Öffne diese URL auf dem Beamer-PC:</p>
+    <code>http://192.168.178.20:8500/beamer</code>
+</section>
+
+<section class="panel">
+    <h2>CSV-Import Format</h2>
+    <pre>startzeit;slotTyp;wettbewerb;spielfeld;teamA;teamB;phase;gruppe;notiz
+09:00;Spiel;Zweifelderball Jahrgang 7;Feld 1;7a;7b;Gruppenphase;A;
+10:00;Pause;Zweifelderball Jahrgang 7;;;;Pause;;Frühstückspause</pre>
+</section>
+{% endblock %}

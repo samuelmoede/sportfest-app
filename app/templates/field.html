@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ court["name"] }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<h1>{{ court["name"] }}</h1>
+
+{% for slot in slots %}
+<div class="card">
+    <h2>{{ slot["startzeit"] }} – {{ slot["phase"] }}</h2>
+
+    {% if slot["slot_typ"] == "Spiel" %}
+        <p class="teams">{{ slot["team_a"] }} gegen {{ slot["team_b"] }}</p>
+
+        {% if slot["status"] == "beendet" %}
+            <p class="score">{{ slot["score_a"] }} : {{ slot["score_b"] }}</p>
+        {% else %}
+            <form method="post" action="/result/{{ slot['id'] }}">
+                <input type="number" name="score_a" required>
+                :
+                <input type="number" name="score_b" required>
+                <button type="submit">Speichern</button>
+            </form>
+        {% endif %}
+    {% else %}
+        <p class="pause">{{ slot["slot_typ"] }} – {{ slot["note"] or "" }}</p>
+    {% endif %}
+</div>
+{% endfor %}
+
+</body>
+</html>

@@ -1,0 +1,674 @@
+:root {
+    --navy: #111d33;
+    --navy2: #1c2e56;
+    --orange: #ff6b1a;
+    --bg: #f5f7fb;
+    --border: #dfe6f0;
+    --text: #0f1b2d;
+    --muted: #6d7b91;
+    --green: #16a34a;
+    --blue: #2563eb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 270px;
+    background: var(--navy);
+    color: white;
+    padding: 24px 16px;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+}
+
+.brand {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 36px;
+}
+
+.brand span {
+    display: block;
+    color: #aab6c8;
+    font-size: 14px;
+}
+
+.logo {
+    background: var(--orange);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 22px;
+}
+
+nav a,
+.beamer-link {
+    display: block;
+    color: #cbd5e1;
+    text-decoration: none;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+
+nav a:hover,
+.beamer-link {
+    background: var(--navy2);
+    color: white;
+}
+
+.beamer-link {
+    margin-top: 32px;
+    background: #4b2a24;
+    color: var(--orange);
+    font-weight: bold;
+}
+
+.content {
+    margin-left: 270px;
+    padding: 48px;
+    width: calc(100% - 270px);
+}
+
+h1 {
+    font-size: 34px;
+    margin-bottom: 4px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin: 32px 0;
+}
+
+.stat,
+.panel,
+.card,
+.result-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+}
+
+.stat strong {
+    font-size: 32px;
+    display: block;
+}
+
+.stat span {
+    color: var(--muted);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.panel {
+    margin-bottom: 24px;
+}
+
+.match {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    border: 1px solid #ffd7ad;
+    background: #fff7ed;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.match strong {
+    font-size: 24px;
+    background: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+}
+
+.match em {
+    margin-left: auto;
+    color: var(--muted);
+}
+
+.list-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+}
+
+.badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.badge.läuft {
+    background: #ffedd5;
+    color: #ea580c;
+}
+
+.badge.geplant {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.badge.beendet {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.pill {
+    background: #eef2f7;
+    padding: 6px 12px;
+    border-radius: 999px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+th,
+td {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+    text-align: left;
+}
+
+.score-small {
+    background: #eef2f7;
+    padding: 4px 8px;
+    border-radius: 6px;
+    margin: 0 8px;
+}
+
+.result-card {
+    margin-bottom: 16px;
+    border-color: #fdba74;
+}
+
+.result-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.result-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+input,
+select {
+    font-size: 16px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.result-form input {
+    font-size: 20px;
+    width: 80px;
+}
+
+button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 16px;
+    background: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.green {
+    background: var(--green);
+    color: white;
+}
+
+button.outline {
+    margin-top: 12px;
+    color: var(--orange);
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(240px, 1fr));
+    gap: 18px;
+}
+
+.card {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+.card.column {
+    display: block;
+}
+
+.avatar {
+    background: #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    font-weight: bold;
+}
+
+code,
+pre {
+    display: block;
+    background: #eef2f7;
+    padding: 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.admin-form {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 14px 18px;
+    align-items: center;
+}
+
+.admin-form label {
+    font-weight: bold;
+    color: var(--muted);
+}
+
+.admin-form input,
+.admin-form select {
+    width: 100%;
+}
+
+.admin-form button {
+    grid-column: 2;
+}
+
+.points-form {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.points-form button {
+    grid-column: 2;
+}
+
+.schedule-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 22px;
+    align-items: start;
+}
+
+.court-column {
+    background: #eef2f7;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    min-height: 220px;
+}
+
+.court-column h2 {
+    margin-top: 0;
+}
+
+.slot-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    cursor: grab;
+}
+
+.slot-card.dragging {
+    opacity: 0.5;
+}
+
+.dropzone.drag-over {
+    outline: 3px dashed var(--orange);
+    background: #fff7ed;
+}
+
+.slot-time {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.time-input {
+    width: 120px;
+}
+
+.slot-type {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.slot-teams {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 20px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.slot-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.beamer {
+    padding: 40px;
+    background: #0f172a;
+    color: white;
+}
+
+.beamer h1 {
+    font-size: 60px;
+}
+
+.beamer table {
+    color: white;
+    background: #111827;
+    font-size: 28px;
+}
+
+.beamer th,
+.beamer td {
+    border-color: #334155;
+    padding: 22px;
+}
+
+.court-form {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.court-form button {
+    grid-column: 2;
+}
+
+.beamer-v2 {
+    margin: 0;
+    background: #0d1728;
+    color: #f8fafc;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+.beamer-top {
+    height: 54px;
+    border-bottom: 1px solid #23324a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: #17243a;
+}
+
+.beamer-brand {
+    font-size: 20px;
+}
+
+.beamer-dots {
+    color: #64748b;
+    letter-spacing: 10px;
+}
+
+.beamer-time {
+    color: #9fb0c8;
+}
+
+.beamer-subbar {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 28px;
+    border-bottom: 1px solid #23324a;
+    background: #142036;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.beamer-subbar em {
+    margin-left: auto;
+    color: white;
+    font-style: normal;
+}
+
+.beamer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    height: calc(100vh - 96px);
+}
+
+.beamer-main {
+    position: relative;
+    border-right: 1px solid #23324a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.current-label {
+    text-align: center;
+    margin-bottom: 28px;
+    color: #9fb0c8;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    align-items: center;
+}
+
+.current-label strong {
+    color: white;
+    letter-spacing: 1px;
+}
+
+.mini-pill {
+    background: #334155;
+    padding: 6px 12px;
+    border-radius: 999px;
+}
+
+.big-match {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    align-items: center;
+    gap: 40px;
+    padding: 0 80px;
+}
+
+.big-team {
+    font-size: 86px;
+    font-weight: 900;
+    text-align: center;
+}
+
+.big-score {
+    background: #1e2d44;
+    border-radius: 18px;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 34px;
+    font-size: 100px;
+    font-weight: 900;
+}
+
+.big-score b {
+    color: #64748b;
+}
+
+.big-pause {
+    text-align: center;
+    font-size: 80px;
+    font-weight: 900;
+}
+
+.beamer-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-top: 1px solid #23324a;
+    padding: 22px 32px;
+}
+
+.beamer-bottom h3 {
+    color: #64748b;
+    letter-spacing: 2px;
+    font-size: 13px;
+}
+
+.next-card {
+    border: 1px solid #786516;
+    background: #24291f;
+    padding: 16px 20px;
+    border-radius: 12px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.next-card span {
+    color: #facc15;
+    font-weight: bold;
+}
+
+.next-card em {
+    color: #9fb0c8;
+    font-style: normal;
+}
+
+.court-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.court-mini {
+    background: #1e2d44;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.court-mini strong,
+.court-mini span,
+.court-mini em {
+    display: block;
+}
+
+.court-mini span {
+    color: #9fb0c8;
+}
+
+.court-mini em {
+    color: white;
+    font-style: normal;
+    margin-top: 4px;
+}
+
+.beamer-table {
+    padding: 26px;
+    background: #0b1425;
+}
+
+.beamer-table h2 {
+    font-size: 20px;
+    letter-spacing: 1px;
+}
+
+.beamer-table table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    background: transparent;
+    color: white;
+}
+
+.beamer-table th {
+    color: #64748b;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.beamer-table td,
+.beamer-table th {
+    border: none;
+    padding: 12px;
+}
+
+.beamer-table tr:not(:first-child) {
+    background: #1a263b;
+    border-radius: 12px;
+}
+
+.beamer-table tr.rank-one {
+    background: #3a3320;
+    outline: 1px solid #786516;
+}
+
+.beamer-table tr.rank-two {
+    background: #1e2d44;
+}
+
+.beamer-table td:first-child {
+    border-radius: 12px 0 0 12px;
+}
+
+.beamer-table td:last-child {
+    border-radius: 0 12px 12px 0;
+}
+
+.beamer-table td b {
+    background: #facc15;
+    color: #111827;
+    border-radius: 999px;
+    padding: 8px 14px;
+}
+
+.beamer-table td span {
+    color: #22c55e;
+}

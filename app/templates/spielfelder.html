@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Spielfelder</h1>
+<p class="muted">Spielfelder hinzufügen, umbenennen oder löschen.</p>
+
+<section class="panel">
+    <h2>Spielfeld hinzufügen</h2>
+
+    <form method="post" action="/court/create" class="admin-form">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="z. B. Feld 1" required>
+
+        <label>Sportart</label>
+        <input type="text" name="sportart" placeholder="z. B. Fußball, Zweifelderball, Volleyball">
+
+        <button class="green" type="submit">Spielfeld hinzufügen</button>
+    </form>
+</section>
+
+<section class="cards">
+{% for c in courts %}
+    <div class="card column">
+        <span class="badge geplant">Aktiv</span>
+
+        <form method="post" action="/court/{{ c.id }}/update" class="court-form">
+            <label>Name</label>
+            <input type="text" name="name" value="{{ c.name }}" required>
+
+            <label>Sportart</label>
+            <input type="text" name="sportart" value="{{ c.sportart or '' }}">
+
+            <button class="green" type="submit">Speichern</button>
+        </form>
+
+        <form method="post" action="/court/{{ c.id }}/delete" onsubmit="return confirm('Spielfeld wirklich löschen? Zugeordnete Spiele behalten ihre Uhrzeit, liegen danach aber unter Ohne Feld.');">
+            <button type="submit">Spielfeld löschen</button>
+        </form>
+    </div>
+{% endfor %}
+</section>
+{% endblock %}

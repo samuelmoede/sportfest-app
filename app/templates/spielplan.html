@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Spielplan</h1>
+<p class="muted">Nach Spielfeldern gruppierte Übersicht</p>
+
+<section class="schedule-board">
+    {% for group in groups %}
+    <div class="court-column">
+        <h2>{{ group.court.name }}</h2>
+
+        {% for s in group.slots %}
+        <div class="slot-card {{ s.status }}">
+            <div class="slot-time">{{ s.startzeit }}</div>
+            <div class="slot-type">{{ s.slot_typ }}</div>
+
+            {% if s.slot_typ == "Spiel" %}
+                <div class="slot-teams">
+                    <strong>{{ s.team_a or "?" }}</strong>
+                    <span>
+                        {% if s.score_a is not none %}
+                            {{ s.score_a }} : {{ s.score_b }}
+                        {% else %}
+                            vs
+                        {% endif %}
+                    </span>
+                    <strong>{{ s.team_b or "?" }}</strong>
+                </div>
+            {% else %}
+                <div class="slot-teams">
+                    <strong>{{ s.slot_typ }}</strong>
+                </div>
+            {% endif %}
+
+            <div class="slot-footer">
+                <span>{{ s.competition_name }}</span>
+                <span class="badge {{ s.status }}">{{ s.status }}</span>
+            </div>
+        </div>
+        {% else %}
+        <p class="muted">Keine Slots geplant.</p>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</section>
+{% endblock %}
