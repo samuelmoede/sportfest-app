@@ -7,57 +7,16 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-
 from app.database import init_db, get_conn
 from pathlib import Path
-import os
-import secrets
 
 app = FastAPI(title="Sportfest-App")
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
 
-SECRET_KEY = os.getenv("APP_SECRET_KEY", "sportfest-secret-key")
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
-CSRF_EXEMPT_PATHS = {"/beamer"}
-
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
-
-class AuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        public_paths = {"/login", "/logout", "/beamer"}
-        if request.url.path.startswith("/static") or request.url.path in public_paths:
-            return await call_next(request)
-        if request.session.get("logged_in"):
-            return await call_next(request)
-        return RedirectResponse(url="/login")
-
-class CSRFMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if request.method == "POST" and request.url.path not in CSRF_EXEMPT_PATHS:
-            form = await request.form()
-            token = form.get("csrf_token") or request.headers.get("X-CSRF-Token")
-            if not token or token != request.session.get("csrf_token"):
-                return JSONResponse({"detail": "CSRF validation failed."}, status_code=403)
-        return await call_next(request)
-
-app.add_middleware(AuthMiddleware)
-app.add_middleware(CSRFMiddleware)
-
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
-
-
-def get_csrf_token(request: Request):
-    token = request.session.get("csrf_token")
-    if not token:
-        token = secrets.token_urlsafe(32)
-        request.session["csrf_token"] = token
-    return token
 
 
 def get_app_version():
@@ -68,7 +27,6 @@ def get_app_version():
         return "dev"
 
 templates.env.globals["app_version"] = get_app_version
-templates.env.globals["csrf_token"] = get_csrf_token
 
 
 def parse_competition_id(value):
@@ -157,41 +115,6 @@ def calculate_sixkampf_team_ranking(
 @app.on_event("startup")
 def startup():
     init_db()
-
-
-@app.get("/login")
-def login_form(request: Request):
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request, "error": None},
-    )
-
-
-@app.post("/login")
-def login(request: Request, username: str = Form(...), password: str = Form(...), csrf_token: str = Form(None)):
-    if csrf_token != get_csrf_token(request):
-        return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "CSRF-Token ungültig."},
-            status_code=403,
-        )
-    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        request.session["logged_in"] = True
-        return RedirectResponse(url="/", status_code=303)
-
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request, "error": "Ungültige Zugangsdaten."},
-        status_code=401,
-    )
-
-
-@app.post("/logout")
-def logout(request: Request, csrf_token: str = Form(None)):
-    if csrf_token != get_csrf_token(request):
-        return JSONResponse({"detail": "CSRF validation failed."}, status_code=403)
-    request.session.clear()
-    return RedirectResponse(url="/login", status_code=303)
 
 
 def get_active_competitions():
