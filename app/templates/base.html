@@ -36,10 +36,6 @@
 
         <div class="sidebar-footer">
             <a class="beamer-link" href="/beamer" target="_blank">⚡ Beamer-Ansicht öffnen</a>
-            <form method="post" action="/logout" class="logout-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
-                <button type="submit" class="logout-link">Abmelden</button>
-            </form>
             <div class="app-version">Version {{ app_version() }}</div>
         </div>
     </aside>
@@ -50,3 +46,4 @@
 </div>
 </body>
 </html>
+
