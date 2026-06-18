@@ -25,20 +25,43 @@
 <section class="panel">
     <h2>Disziplinen</h2>
     {% if disciplines %}
-    <nav class="discipline-tabs">
+    <nav class="discipline-tabs" aria-label="Sechskampf-Disziplinen">
         {% for discipline in disciplines %}
         <a href="/ergebnisse?competition_id={{ selected_competition_id }}&discipline_id={{ discipline.id }}"
            class="{% if selected_discipline and selected_discipline.id == discipline.id %}active{% endif %}">
             {{ discipline.name }}
         </a>
         {% endfor %}
+        <a href="/ergebnisse?competition_id={{ selected_competition_id }}&discipline_id=auswertung"
+           class="{% if show_evaluation %}active{% endif %}">
+            Auswertung
+        </a>
     </nav>
     {% else %}
     <p class="muted">Für diesen Wettbewerb sind noch keine Disziplinen konfiguriert.</p>
     {% endif %}
 </section>
 
-{% if selected_discipline %}
+{% if show_evaluation %}
+<section class="panel">
+    <h2>Auswertung</h2>
+    <p class="muted">Die höchste Gesamtsumme erhält Platz 1. Gleiche Summen erhalten denselben Rang.</p>
+    {% if ranking %}
+    <div class="ranking-list">
+        {% for row in ranking %}
+        <div class="ranking-card">
+            <span class="ranking-place">{{ row.placement }}</span>
+            <strong>{{ row.team.name }}</strong>
+            <span>{{ row.overall_total|round(3) }} Gesamt</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Klassen für die Rangliste vorhanden.</p>
+    {% endif %}
+</section>
+
+{% elif selected_discipline %}
 <section class="panel">
     <h2>
         {{ selected_discipline.name }}
@@ -54,32 +77,43 @@
     </p>
 
     {% if teams %}
-    <div class="sixkampf-grid">
-        <div class="sixkampf-header">Klasse</div>
-        {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
-        <div class="sixkampf-header">Wert {{ value_index }}</div>
-        {% endfor %}
-        <div class="sixkampf-header">Gesamt</div>
-        <div class="sixkampf-header">Aktion</div>
-
+    <div class="six-class-cards">
         {% for team in teams %}
-        <div class="sixkampf-team"><strong>{{ team.name }}</strong></div>
-        {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
-        <div>
-            <input form="sixkampf-{{ team.id }}" type="number" step="any"
-                   name="value_{{ value_index }}"
-                   value="{{ values.get((team.id, selected_discipline.id, value_index), '') }}">
-        </div>
-        {% endfor %}
-        <div class="sixkampf-total">
-            {{ totals_by_team_discipline.get((team.id, selected_discipline.id), 0)|round(3) }}
-        </div>
-        <div>
-            <form id="sixkampf-{{ team.id }}" method="post"
+        <article class="six-class-card" data-six-card>
+            <header>
+                <div>
+                    <span class="muted">Klasse</span>
+                    <h3>{{ team.name }}</h3>
+                </div>
+                <div class="live-total">
+                    <span>Gesamt</span>
+                    <strong data-live-total>
+                        {{ totals_by_team_discipline.get((team.id, selected_discipline.id), 0)|round(3) }}
+                    </strong>
+                </div>
+            </header>
+
+            <form method="post"
                   action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results">
-                <button class="green" type="submit">Speichern</button>
+                <div class="value-fields">
+                    {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
+                    <label>
+                        <span>Wert {{ value_index }}</span>
+                        <input class="six-value" type="number" step="any"
+                               inputmode="decimal" name="value_{{ value_index }}"
+                               value="{{ values.get((team.id, selected_discipline.id, value_index), '') }}">
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <footer>
+                    <button class="green save-six" type="submit">Speichern</button>
+                    {% if saved_team_id == team.id and saved_at %}
+                    <span class="saved-at">{{ saved_at }} Uhr</span>
+                    {% endif %}
+                </footer>
             </form>
-        </div>
+        </article>
         {% endfor %}
     </div>
     {% else %}
@@ -88,41 +122,88 @@
 </section>
 {% endif %}
 
-<section class="panel">
-    <h2>Rangliste der Klassen</h2>
-    {% if ranking %}
-    <table>
-        <tr><th>Platz</th><th>Klasse</th><th>Gesamtsumme</th></tr>
-        {% for row in ranking %}
-        <tr>
-            <td>{{ row.placement }}</td>
-            <td><strong>{{ row.team.name }}</strong></td>
-            <td>{{ row.overall_total|round(3) }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% else %}
-    <p class="muted">Noch keine Klassen für die Rangliste vorhanden.</p>
-    {% endif %}
-</section>
-
 <style>
-.discipline-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.discipline-tabs {
+    display: flex; gap: 10px; flex-wrap: wrap;
+}
 .discipline-tabs a {
-    padding: 9px 13px; border: 1px solid var(--border); border-radius: 999px;
-    background: white; text-decoration: none; color: var(--text);
+    padding: 11px 16px; border: 1px solid var(--border); border-radius: 999px;
+    background: white; text-decoration: none; color: var(--text); font-weight: 700;
+    min-height: 44px; display: inline-flex; align-items: center;
 }
-.discipline-tabs a.active { background: var(--navy); color: white; border-color: var(--navy); }
-.sixkampf-grid {
-    display: grid;
-    grid-template-columns: minmax(90px, auto) repeat({{ selected_discipline.values_per_team if selected_discipline else 1 }}, minmax(90px, 1fr)) minmax(90px, auto) auto;
-    gap: 8px; align-items: center; overflow-x: auto;
+.discipline-tabs a.active {
+    background: var(--navy); color: white; border-color: var(--navy);
 }
-.sixkampf-header { font-weight: bold; color: var(--muted); }
-.sixkampf-grid input { min-width: 85px; width: 100%; }
-.sixkampf-total { font-weight: bold; }
-@media (max-width: 800px) { .sixkampf-grid { min-width: 760px; } }
+.six-class-cards {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;
+}
+.six-class-card {
+    border: 1px solid var(--border); border-radius: 16px; padding: 18px;
+    background: white; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.six-class-card header {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; margin-bottom: 16px;
+}
+.six-class-card h3 { margin: 2px 0 0; font-size: 24px; }
+.live-total { text-align: right; }
+.live-total span { display: block; color: var(--muted); font-size: 13px; }
+.live-total strong { font-size: 24px; }
+.value-fields {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+    gap: 12px;
+}
+.value-fields label span {
+    display: block; font-size: 13px; font-weight: 700; color: var(--muted);
+    margin-bottom: 5px;
+}
+.value-fields input {
+    width: 100%; min-height: 48px; font-size: 18px; text-align: center;
+}
+.six-class-card footer {
+    display: flex; align-items: center; gap: 12px; margin-top: 18px;
+}
+.save-six { min-height: 48px; padding-left: 22px; padding-right: 22px; }
+.saved-at { color: #166534; font-weight: 700; }
+.ranking-list { display: grid; gap: 10px; }
+.ranking-card {
+    display: grid; grid-template-columns: 54px 1fr auto; align-items: center;
+    gap: 14px; padding: 14px 16px; border: 1px solid var(--border);
+    border-radius: 12px; background: white;
+}
+.ranking-place {
+    display: grid; place-items: center; width: 38px; height: 38px;
+    border-radius: 999px; background: var(--navy); color: white; font-weight: 900;
+}
+@media (max-width: 1050px) {
+    .six-class-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .six-class-card { padding: 14px; }
+    .value-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ranking-card { grid-template-columns: 46px 1fr; }
+    .ranking-card > :last-child { grid-column: 2; }
+}
 </style>
+
+<script>
+function updateSixkampfTotal(card) {
+    const inputs = [...card.querySelectorAll(".six-value")];
+    const total = inputs.reduce((sum, input) => {
+        const value = Number.parseFloat(input.value.replace(",", "."));
+        return sum + (Number.isFinite(value) ? value : 0);
+    }, 0);
+    card.querySelector("[data-live-total]").textContent =
+        total.toLocaleString("de-DE", { maximumFractionDigits: 3 });
+}
+
+document.querySelectorAll("[data-six-card]").forEach(card => {
+    card.querySelectorAll(".six-value").forEach(input => {
+        input.addEventListener("input", () => updateSixkampfTotal(card));
+    });
+    updateSixkampfTotal(card);
+});
+</script>
 
 {% else %}
 <section class="panel">

@@ -73,46 +73,33 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
 def calculate_sixkampf_team_ranking(teams, disciplines, result_rows):
     totals_by_team_discipline = defaultdict(float)
     overall_totals = {team["id"]: 0.0 for team in teams}
-    ranking_scores = {team["id"]: 0.0 for team in teams}
-    result_keys = set()
 
     for result in result_rows:
         key = (result["team_id"], result["discipline_id"])
         totals_by_team_discipline[key] += result["value"]
-        result_keys.add(key)
 
+    ranking = []
     for team in teams:
-        for discipline in disciplines:
-            total = totals_by_team_discipline[(team["id"], discipline["id"])]
-            overall_totals[team["id"]] += total
-            if discipline["scoring_direction"] == "lower":
-                ranking_scores[team["id"]] -= total
-            else:
-                ranking_scores[team["id"]] += total
+        overall_total = sum(
+            totals_by_team_discipline[(team["id"], discipline["id"])]
+            for discipline in disciplines
+        )
+        overall_totals[team["id"]] = overall_total
+        ranking.append({
+            "team": team,
+            "overall_total": overall_total,
+            "placement": 0,
+        })
 
-    ranking = [{
-        "team": team,
-        "overall_total": overall_totals[team["id"]],
-        "ranking_score": ranking_scores[team["id"]],
-        "completed_disciplines": sum(
-            1 for discipline in disciplines
-            if (team["id"], discipline["id"]) in result_keys
-        ),
-        "placement": 0,
-    } for team in teams]
     ranking.sort(key=lambda row: (
-        -row["completed_disciplines"],
-        -row["ranking_score"],
-        row["team"]["name"].lower(),
+        -row["overall_total"], row["team"]["name"].lower()
     ))
-
-    previous_rank_key = None
+    previous_total = None
     placement = 0
     for index, row in enumerate(ranking, start=1):
-        rank_key = (row["completed_disciplines"], row["ranking_score"])
-        if previous_rank_key is None or rank_key != previous_rank_key:
+        if previous_total is None or row["overall_total"] != previous_total:
             placement = index
-            previous_rank_key = rank_key
+            previous_total = row["overall_total"]
         row["placement"] = placement
 
     return ranking, totals_by_team_discipline, overall_totals
@@ -1452,7 +1439,8 @@ def copy_slot(slot_id: int):
 
 @app.get("/ergebnisse")
 def ergebnisse(
-    request: Request, competition_id: str = "", discipline_id: str = ""
+    request: Request, competition_id: str = "", discipline_id: str = "",
+    saved_team_id: str = "", saved_at: str = "",
 ):
     selected_competition_id = parse_competition_id(competition_id)
     competitions = get_active_competitions()
@@ -1482,15 +1470,30 @@ def ergebnisse(
                 WHERE competition_id = ?
             """, (selected_competition_id,)).fetchall()
 
-        try:
-            selected_discipline_id = int(discipline_id) if discipline_id else None
-        except ValueError:
-            selected_discipline_id = None
-        selected_discipline = next(
+        show_evaluation = discipline_id == "auswertung"
+        selected_discipline_id = None
+        if not show_evaluation:
+            try:
+                selected_discipline_id = int(discipline_id) if discipline_id else None
+            except ValueError:
+                selected_discipline_id = None
+        selected_discipline = None if show_evaluation else next(
             (discipline for discipline in disciplines
              if discipline["id"] == selected_discipline_id),
             disciplines[0] if disciplines else None,
         )
+        try:
+            saved_team_id_value = int(saved_team_id) if saved_team_id else None
+        except ValueError:
+            saved_team_id_value = None
+        try:
+            saved_at_value = (
+                datetime.strptime(saved_at, "%H:%M").strftime("%H:%M")
+                if saved_at else ""
+            )
+        except ValueError:
+            saved_at_value = ""
+
         ranking, totals_by_team_discipline, overall_totals = (
             calculate_sixkampf_team_ranking(teams, disciplines, result_rows)
         )
@@ -1507,11 +1510,14 @@ def ergebnisse(
                 "selected_competition": selected_competition,
                 "disciplines": disciplines,
                 "selected_discipline": selected_discipline,
+                "show_evaluation": show_evaluation,
                 "teams": teams,
                 "values": values,
                 "totals_by_team_discipline": totals_by_team_discipline,
                 "overall_totals": overall_totals,
                 "ranking": ranking,
+                "saved_team_id": saved_team_id_value,
+                "saved_at": saved_at_value,
                 "slots": [],
                 "archived_slots": [],
             }
@@ -1536,7 +1542,6 @@ def ergebnisse(
             "selected_competition_id": selected_competition_id,
         }
     )
-
 
 @app.post("/competition/{competition_id}/discipline/{discipline_id}/team/{team_id}/results")
 async def sixkampf_team_results_save(
@@ -1589,8 +1594,12 @@ async def sixkampf_team_results_save(
                     competition_id, discipline_id, team_id, value_index, value,
                 ))
         conn.commit()
+
+    saved_at = datetime.now().strftime("%H:%M")
     return RedirectResponse(
-        f"/ergebnisse?competition_id={competition_id}&discipline_id={discipline_id}",
+        f"/ergebnisse?competition_id={competition_id}"
+        f"&discipline_id={discipline_id}"
+        f"&saved_team_id={team_id}&saved_at={saved_at}",
         status_code=303
     )
 
