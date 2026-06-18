@@ -194,6 +194,15 @@ Status: funktionsfähig
 * [ ] Timer in Beameransicht anzeigen
 * [ ] Schiedsrichteransicht für Handy ergänzen
 
+### Schiedsrichter-Uhr
+
+- [ ] Spielzeit pro Wettbewerb konfigurierbar
+- [ ] Start / Pause / Fortsetzen
+- [ ] Restzeit anzeigen
+- [ ] Ablaufsignal bei Spielende
+- [ ] Schiedsrichter-Handyansicht
+- [ ] Beameransicht mit laufender Uhr
+- [ ] Mehrere gleichzeitig laufende Spiele unterstützen
 ---
 
 ## 8. Sechskampf-Modul
