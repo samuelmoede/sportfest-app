@@ -118,6 +118,7 @@ Wichtig:
 
 Ziel: Klassen robust, kompakt und sicher verwalten.
 
+
 * [ ] Teamansicht von Kartenlayout auf Tabellenlayout umstellen
 * [ ] Teams zeilenweise anzeigen
 * [ ] Teamname bearbeiten
@@ -238,6 +239,7 @@ Grundprinzip:
 Beispiele:
 
 * Medizinballweitwurf: 10 Werte
+
 * Standweitsprung: 15 Werte
 * Torwandschießen: 5 Werte
 * Tischtennis-Challenge: 5 Werte
@@ -358,6 +360,7 @@ Beispiel Bewegungsfest:
 * Volleyball/Zweifelderball
 
 Aufgaben:
+
 
 * [ ] Wertungssystem definieren
 * [ ] Wettbewerbsergebnisse in Punkte umrechnen
