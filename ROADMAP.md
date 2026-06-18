@@ -52,12 +52,13 @@ Status: weitgehend erledigt
 * [x] CHANGELOG.md regelmäßig pflegen
 * [x] Backup-Konzept für SQLite-Datenbank dokumentieren
 * [x] später: Zugriffsschutz / Admin-Login
-* [ ] später: CSRF-Schutz
+* [x] später: CSRF-Schutz
 * [ ] später: Tests und CI ergänzen
 * Hinweis: App verwendet jetzt relative Pfade für Templates, statische Assets und `VERSION`.
 * Hinweis: Erste Changelog-Einträge dokumentieren Projektstatus und implementierte Infrastrukturänderungen.
 * Hinweis: SQLite-Backup erfolgt automatisch in `data/backups/` mit Zeitstempel.
 * Hinweis: Admin-Login ergänzt; Standard-Credentials sind `admin` / `admin`.
+* Hinweis: CSRF-Schutz implementiert; POST-Formulare erfordern nun ein gültiges Token.
 
 ---
 

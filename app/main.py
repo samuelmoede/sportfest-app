@@ -23,7 +23,7 @@ ROOT_DIR = APP_DIR.parent
 SECRET_KEY = os.getenv("APP_SECRET_KEY", "sportfest-secret-key")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
-CSRF_EXEMPT_PATHS = {"/logout", "/beamer"}
+CSRF_EXEMPT_PATHS = {"/beamer"}
 
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
@@ -60,9 +60,6 @@ def get_csrf_token(request: Request):
     return token
 
 
-templates.env.globals["app_version"] = get_app_version
-templates.env.globals["csrf_token"] = get_csrf_token
-
 def get_app_version():
     try:
         with open(ROOT_DIR / "VERSION", "r", encoding="utf-8") as version_file:
@@ -71,6 +68,7 @@ def get_app_version():
         return "dev"
 
 templates.env.globals["app_version"] = get_app_version
+templates.env.globals["csrf_token"] = get_csrf_token
 
 
 def parse_competition_id(value):
@@ -188,21 +186,10 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     )
 
 
-@app.post("/login")
-def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        request.session["logged_in"] = True
-        return RedirectResponse(url="/", status_code=303)
-
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request, "error": "Ungültige Zugangsdaten."},
-        status_code=401,
-    )
-
-
-@app.get("/logout")
-def logout(request: Request):
+@app.post("/logout")
+def logout(request: Request, csrf_token: str = Form(None)):
+    if csrf_token != get_csrf_token(request):
+        return JSONResponse({"detail": "CSRF validation failed."}, status_code=403)
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
 

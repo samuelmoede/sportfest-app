@@ -17,21 +17,29 @@
         </div>
 
         <nav>
+            <div class="nav-group">Allgemein</div>
             <a href="/">Dashboard</a>
-            <a href="/spielplan-bearbeiten">Spielplan bearbeiten</a>
-            <a href="/spielplan">Spielplan</a>
-            <a href="/ergebnisse">Ergebnisse</a>
-            <a href="/tabellen">Tabellen</a>
-            <a href="/teams">Teams</a>
             <a href="/events">Veranstaltungen</a>
             <a href="/wettbewerbe">Wettbewerbe</a>
+
+            <div class="nav-group">Wettbewerb</div>
+            <a href="/spielplan">Spielplan</a>
+            <a href="/spielplan-bearbeiten">Spielplan bearbeiten</a>
+            <a href="/ergebnisse">Ergebnisse</a>
+            <a href="/tabellen">Tabellen</a>
+
+            <div class="nav-group">Verwaltung</div>
+            <a href="/teams">Teams</a>
             <a href="/spielfelder">Spielfelder</a>
             <a href="/einstellungen">Einstellungen</a>
         </nav>
 
         <div class="sidebar-footer">
             <a class="beamer-link" href="/beamer" target="_blank">⚡ Beamer-Ansicht öffnen</a>
-            <a class="logout-link" href="/logout">Abmelden</a>
+            <form method="post" action="/logout" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                <button type="submit" class="logout-link">Abmelden</button>
+            </form>
             <div class="app-version">Version {{ app_version() }}</div>
         </div>
     </aside>

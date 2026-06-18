@@ -94,6 +94,7 @@ Sie unterstützt Wettbewerbe, Sechskampf, Spielpläne, Teams, Ergebnisse und gru
 - Standard-Credentials: `admin` / `admin`.
 - Für Produktion sollten `APP_SECRET_KEY`, `ADMIN_USERNAME` und `ADMIN_PASSWORD` als Umgebungsvariablen gesetzt werden.
 - Nicht-öffentliche Routen leiten nicht angemeldete Benutzer auf `/login` um.
+- CSRF-Schutz ist aktiviert; POST-Formulare benötigen einen versteckten `csrf_token`.
 
 ## Bekannte offene Punkte
 
