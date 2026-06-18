@@ -524,7 +524,11 @@
                         )">
                     Bearbeiten
                 </button>
-
+                
+                <form method="post" action="/slot/{{ s.id }}/copy">
+                    <button type="submit" onclick="event.stopPropagation();">Kopieren</button>
+                </form>
+                
                 <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
                     <button type="submit" onclick="event.stopPropagation();">Löschen</button>
                 </form>
@@ -612,9 +616,13 @@ async function persistSlotMove(slotCard, zone) {
     const timeInput = slotCard.querySelector(".time-input");
     const startzeit = timeInput ? timeInput.value : slotCard.dataset.time;
 
+    const slotCards = [...zone.querySelectorAll(".slot-card")];
+    const sortOrder = (slotCards.indexOf(slotCard) + 1) * 10;
+
     const formData = new FormData();
     formData.append("court_id", courtId);
     formData.append("startzeit", startzeit);
+    formData.append("sort_order", sortOrder);
 
     await fetch(`/slot/${slotId}/move`, {
         method: "POST",

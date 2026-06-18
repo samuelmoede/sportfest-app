@@ -45,6 +45,7 @@ def init_db():
             competition_id INTEGER NOT NULL,
             court_id INTEGER,
             startzeit TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
             slot_typ TEXT NOT NULL,
             phase TEXT NOT NULL,
             gruppe TEXT,
@@ -60,3 +61,21 @@ def init_db():
             FOREIGN KEY (team_b_id) REFERENCES teams(id)
         );
         """)
+
+        columns = [
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(slots)").fetchall()
+        ]
+
+        if "sort_order" not in columns:
+            conn.execute("""
+                ALTER TABLE slots
+                ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0
+            """)
+
+            conn.execute("""
+                UPDATE slots
+                SET sort_order = id
+            """)
+
+        conn.commit()

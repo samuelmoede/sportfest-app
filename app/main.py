@@ -131,7 +131,13 @@ def get_all_slots(competition_id: Optional[int] = None):
         query += " AND slots.competition_id = ?"
         params.append(competition_id)
 
-    query += " ORDER BY slots.startzeit, slots.court_id, slots.id"
+    query += """
+    ORDER BY
+        slots.court_id,
+        slots.sort_order,
+        slots.startzeit,
+        slots.id
+    """
 
     with get_conn() as conn:
         return conn.execute(query, params).fetchall()
@@ -1129,19 +1135,97 @@ def delete_slot(slot_id: int):
 
 
 @app.post("/slot/{slot_id}/move")
-def move_slot(slot_id: int, court_id: str = Form(""), startzeit: str = Form(...)):
+def move_slot(
+    slot_id: int,
+    court_id: str = Form(""),
+    startzeit: str = Form(...),
+    sort_order: int = Form(0)
+):
     court_value = int(court_id) if court_id else None
 
     with get_conn() as conn:
         conn.execute("""
             UPDATE slots
-            SET court_id = ?, startzeit = ?
+            SET court_id = ?,
+                startzeit = ?,
+                sort_order = ?
             WHERE id = ?
-        """, (court_value, startzeit, slot_id))
+        """, (
+            court_value,
+            startzeit,
+            sort_order,
+            slot_id
+        ))
         conn.commit()
 
     return JSONResponse({"success": True})
 
+@app.post("/slot/{slot_id}/copy")
+def copy_slot(slot_id: int):
+    with get_conn() as conn:
+        slot = conn.execute("""
+            SELECT *
+            FROM slots
+            WHERE id = ?
+        """, (slot_id,)).fetchone()
+
+        if slot is None:
+            return RedirectResponse("/spielplan-bearbeiten", status_code=303)
+
+        try:
+            new_time = (
+                datetime.strptime(slot["startzeit"], "%H:%M")
+                + timedelta(minutes=10)
+            ).strftime("%H:%M")
+        except ValueError:
+            new_time = slot["startzeit"]
+
+        max_sort_order = conn.execute("""
+            SELECT COALESCE(MAX(sort_order), 0) AS max_sort_order
+            FROM slots
+            WHERE competition_id = ?
+              AND court_id IS ?
+        """, (
+            slot["competition_id"],
+            slot["court_id"]
+        )).fetchone()["max_sort_order"]
+
+        conn.execute("""
+            INSERT INTO slots (
+                competition_id,
+                court_id,
+                startzeit,
+                sort_order,
+                slot_typ,
+                phase,
+                gruppe,
+                team_a_id,
+                team_b_id,
+                score_a,
+                score_b,
+                status,
+                note
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'geplant', ?)
+        """, (
+            slot["competition_id"],
+            slot["court_id"],
+            new_time,
+            max_sort_order + 10,
+            slot["slot_typ"],
+            slot["phase"],
+            slot["gruppe"],
+            slot["team_a_id"],
+            slot["team_b_id"],
+            slot["note"],
+        ))
+
+        conn.commit()
+
+    return RedirectResponse(
+        f"/spielplan-bearbeiten?competition_id={slot['competition_id']}",
+        status_code=303
+    )
 
 @app.get("/ergebnisse")
 def ergebnisse(request: Request, competition_id: str = ""):
