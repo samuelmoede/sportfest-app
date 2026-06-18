@@ -36,7 +36,7 @@ def parse_competition_id(value):
 
 
 def get_unique_competition_name(conn, original_name: str):
-    base_name = f"{original_name} Kopie"
+    base_name = f"{original_name} (Kopie)"
     candidate = base_name
     copy_number = 2
     while conn.execute("SELECT 1 FROM competitions WHERE name = ?", (candidate,)).fetchone():

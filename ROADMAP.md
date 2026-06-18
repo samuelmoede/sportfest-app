@@ -94,7 +94,7 @@ Status: teilweise umgesetzt
 
 * [x] Wettbewerb anlegen
 * [x] Wettbewerb bearbeiten
-* [x] Wettbewerb duplizieren
+* [x] Wettbewerb duplizieren (als Kopie mit Disziplinenübernahme)
 * [x] Wettbewerb zurücksetzen
 * [x] Wettbewerb archivieren
 * [x] Wettbewerb löschen

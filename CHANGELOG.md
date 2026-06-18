@@ -1,14 +1,16 @@
 # Changelog
 
-Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
+Alle bemerkenswerten ï¿½nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
 - Initiales Changelog erstellt.
-- README.md ergänzt.
-- PROJECT_CONTEXT.md ergänzt.
-- Relative Pfade für Templates, statische Assets und VERSION eingeführt.
-- Datenbankinitialisierung und App-Import geprüft.
+- README.md ergï¿½nzt.
+- PROJECT_CONTEXT.md ergï¿½nzt.
+- Relative Pfade fï¿½r Templates, statische Assets und VERSION eingefï¿½hrt.
+- Datenbankinitialisierung und App-Import geprÃ¼ft.
+- Wettbewerbsauswahlfilter auf /tabellen ergÃ¤nzt.
+- Wettbewerbe kÃ¶nnen als Kopie mit dem Zusatz "(Kopie)" dupliziert werden.
 
 ## [0.1.1-dev] - 2026-06-18
 

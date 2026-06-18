@@ -3,6 +3,18 @@
 <h1>Tabellen</h1>
 <p class="muted">Automatisch berechnete Ranglisten</p>
 
+<form method="get" action="/tabellen" class="filter-row">
+    <select name="competition_id">
+        <option value="">Alle Wettbewerbe anzeigen</option>
+        {% for c in competitions %}
+        <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit">Anzeigen</button>
+</form>
+
 {% for t in tables %}
 <section class="panel">
     <h2>{{ t.competition.name }}</h2>
