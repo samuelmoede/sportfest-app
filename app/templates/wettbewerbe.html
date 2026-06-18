@@ -16,6 +16,20 @@
         <label>Jahrgang</label>
         <input type="number" name="jahrgang" value="11" min="1" max="13" required>
 
+        <label>Typ</label>
+        <select name="competition_type" required>
+            <option value="Turnier">Turnier</option>
+            <option value="Sechskampf">Sechskampf</option>
+        </select>
+
+        <label>Veranstaltung</label>
+        <select name="event_id">
+            <option value="">Ohne Veranstaltung</option>
+            {% for event in events %}
+            <option value="{{ event.id }}">{{ event.name }}</option>
+            {% endfor %}
+        </select>
+
         <label>Punkte Sieg</label>
         <input type="number" step="0.5" name="points_win" value="3" required>
 
@@ -35,7 +49,10 @@
         <span class="badge {{ c.status }}">{{ c.status }}</span>
 
         <h2>{{ c.name }}</h2>
-        <p>{{ c.sportart }} · Jahrgang {{ c.jahrgang }}</p>
+        <p>{{ c.sportart }} · Jahrgang {{ c.jahrgang }} · {{ c.competition_type }}</p>
+        {% if c.event_id and events_by_id.get(c.event_id) %}
+        <p class="muted">Veranstaltung: {{ events_by_id[c.event_id].name }}</p>
+        {% endif %}
 
         <form method="post" action="/competition/{{ c.id }}/update" class="points-form">
             <label>Name</label>
@@ -46,6 +63,20 @@
 
             <label>Jahrgang</label>
             <input type="number" name="jahrgang" value="{{ c.jahrgang }}" min="1" max="13" required>
+
+            <label>Typ</label>
+            <select name="competition_type" required>
+                <option value="Turnier" {% if c.competition_type == "Turnier" %}selected{% endif %}>Turnier</option>
+                <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
+            </select>
+
+            <label>Veranstaltung</label>
+            <select name="event_id">
+                <option value="">Ohne Veranstaltung</option>
+                {% for event in events %}
+                <option value="{{ event.id }}" {% if c.event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
+                {% endfor %}
+            </select>
 
             <label>Status</label>
             <select name="status" required>
@@ -67,6 +98,7 @@
             <button class="green" type="submit">Speichern</button>
         </form>
 
+        {% if c.competition_type == "Sechskampf" %}
         {% set disciplines = disciplines_by_competition.get(c.id, []) %}
         <div class="discipline-section">
             <h3>Sechskampf-Disziplinen</h3>
@@ -77,6 +109,10 @@
                     <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
                     <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
                     <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
+                    <select name="scoring_direction" aria-label="Bewertung">
+                        <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
+                        <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
+                    </select>
                     <button type="submit">Speichern</button>
                 </form>
 
@@ -93,9 +129,16 @@
                 <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
                 <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
                 <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
+                <select name="scoring_direction" aria-label="Bewertung">
+                    <option value="higher">Höher ist besser</option>
+                    <option value="lower">Niedriger ist besser</option>
+                </select>
                 <button class="green" type="submit">Hinzufügen</button>
             </form>
         </div>
+
+            <p><a href="/competition/{{ c.id }}/sechskampf"><strong>Teilnehmer, Ergebnisse und Rangliste öffnen →</strong></a></p>
+        {% endif %}
 
         <div class="competition-actions">
             {% if c.status == "archiviert" %}
@@ -162,7 +205,7 @@
 
     .discipline-form {
         display: grid;
-        grid-template-columns: 80px minmax(140px, 1fr) minmax(120px, 1fr) auto;
+        grid-template-columns: 70px minmax(130px, 1fr) minmax(100px, 1fr) minmax(150px, 1fr) auto;
         gap: 8px;
         align-items: center;
         flex: 1;

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ competition.name }} – Sechskampf</h1>
+<p class="muted">Teilnehmer werden klassenweise ohne Personennamen verwaltet.</p>
+<p><a href="/wettbewerbe">← Wettbewerbe und Disziplinen verwalten</a></p>
+
+<section class="panel">
+    <h2>Teilnehmer erzeugen</h2>
+    <div class="participant-tools">
+        <form method="post" action="/competition/{{ competition.id }}/participants/generate" class="compact-form">
+            <input type="text" name="class_name" placeholder="Klasse, z. B. 7a" required>
+            <input type="number" name="participant_count" min="1" placeholder="Anzahl" required>
+            <button class="green" type="submit">Klasse automatisch erzeugen</button>
+        </form>
+        <form method="post" action="/competition/{{ competition.id }}/participants/create" class="compact-form">
+            <input type="text" name="class_name" placeholder="Klasse" required>
+            <input type="number" name="participant_number" min="1" placeholder="Schüler-Nr." required>
+            <button type="submit">Teilnehmer ergänzen</button>
+        </form>
+    </div>
+    <p class="muted">{{ participant_count }} Teilnehmer insgesamt. Erneutes Erzeugen ergänzt nur fehlende Nummern.</p>
+</section>
+
+{% if not disciplines %}
+<section class="panel">
+    <p><strong>Noch keine Disziplinen definiert.</strong> Lege sie zuerst in der Wettbewerbsverwaltung an.</p>
+</section>
+{% endif %}
+
+{% for class_name, participants in participants_by_class.items() %}
+<section class="panel result-panel">
+    <h2>Klasse {{ class_name }}</h2>
+    <div class="table-scroll">
+    <table>
+        <tr>
+            <th>Teilnehmer</th>
+            {% for discipline in disciplines %}
+            <th>{{ discipline.name }}{% if discipline.unit %} ({{ discipline.unit }}){% endif %}</th>
+            {% endfor %}
+            <th>Aktionen</th>
+        </tr>
+        {% for participant in participants %}
+        <tr>
+            <td><strong>{{ participant.class_name }} - S{{ participant.participant_number }}</strong></td>
+            {% for discipline in disciplines %}
+            <td>
+                <input form="results-{{ participant.id }}" type="number" step="any"
+                       name="discipline_{{ discipline.id }}"
+                       value="{{ results.get((participant.id, discipline.id), '') }}">
+            </td>
+            {% endfor %}
+            <td class="row-actions">
+                <form id="results-{{ participant.id }}" method="post"
+                      action="/participants/{{ participant.id }}/results">
+                    <button class="green" type="submit">Ergebnisse speichern</button>
+                </form>
+                <form method="post" action="/participants/{{ participant.id }}/delete"
+                      onsubmit="return confirm('Teilnehmer und Ergebnisse löschen?');">
+                    <button type="submit">Löschen</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+</section>
+{% else %}
+<section class="panel"><p class="muted">Noch keine Teilnehmer angelegt.</p></section>
+{% endfor %}
+
+<section class="panel">
+    <h2>Einzelwertung</h2>
+    {% if ranking %}
+    <table>
+        <tr><th>Platz</th><th>Teilnehmer</th><th>Gesamtpunkte</th></tr>
+        {% for row in ranking %}
+        <tr>
+            <td>{{ row.placement }}</td>
+            <td>{{ row.participant.class_name }} - S{{ row.participant.participant_number }}</td>
+            <td><strong>{{ row.total_points }}</strong></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Rangliste vorhanden.</p>
+    {% endif %}
+</section>
+
+<style>
+.participant-tools { display: grid; gap: 14px; }
+.compact-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.table-scroll { overflow-x: auto; }
+.result-panel input { min-width: 100px; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+</style>
+{% endblock %}
