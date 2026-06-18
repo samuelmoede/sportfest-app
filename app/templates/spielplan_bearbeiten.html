@@ -572,6 +572,9 @@
 
             <div class="slot-footer">
                 <span>{{ s.phase }}{% if s.gruppe %} ({{ s.gruppe }}){% endif %}</span>
+                {% if s.started_at %}
+                <span class="slot-started">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+                {% endif %}
                 <span class="badge {{ s.status }}">{{ s.status }}</span>
             </div>
 

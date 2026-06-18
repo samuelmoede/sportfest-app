@@ -145,6 +145,9 @@ def init_db():
                 SET sort_order = id
             """)
 
+        if "started_at" not in columns:
+            conn.execute("ALTER TABLE slots ADD COLUMN started_at TEXT")
+
         competition_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(competitions)").fetchall()
@@ -176,6 +179,12 @@ def init_db():
                 )
                 WHERE competition_type = 'Sechskampf'
             """)
+
+        if "start_time" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN start_time TEXT")
+
+        if "end_time" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN end_time TEXT")
 
         conn.execute("""
             UPDATE competitions

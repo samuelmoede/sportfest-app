@@ -15,6 +15,8 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 - Teams / Klassenverwaltung auf /teams wurde auf eine kompakte Tabellenansicht umgestellt; Name, Jahrgang und Aktivität lassen sich direkt bearbeiten.
 - Fix: /teams lädt jetzt auch auf Datenbanken ohne `discipline_results.team_id` und verhindert falsche Löschrechte.
 - Erste Veranstaltungs-Übergreifende Gesamtwertung auf der Event-Detailseite hinzugefügt.
+- Gesamtwertung auf der Event-Detailseite als Matrix dargestellt: eigene Spalten je Wettbewerb und Gesamtpunkte.
+- Sechskampf-Ergebniseingabe auf `/ergebnisse` für die Klassenansicht verbessert: breitere Karten, horizontale Werteingabe und responsive Darstellung.
 - Responsive Layout für Smartphones und Tablets verbessert: Formulare, Tabellen und Seitenleiste angepasst.
 
 ## [0.1.1-dev] - 2026-06-18

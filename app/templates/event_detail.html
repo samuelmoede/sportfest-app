@@ -16,13 +16,16 @@
     <h2>Zugehörige Wettbewerbe</h2>
     {% if competitions %}
     <table>
-        <tr><th>Name</th><th>Typ</th><th>Sportart</th><th>Jahrgang</th><th>Status</th><th></th></tr>
+        <tr><th>Name</th><th>Typ</th><th>Sportart</th><th>Jahrgang</th><th>Startzeit</th><th>Endzeit</th><th>Dauer</th><th>Status</th><th></th></tr>
         {% for competition in competitions %}
         <tr>
             <td><strong>{{ competition.name }}</strong></td>
             <td>{{ competition.competition_type }}</td>
             <td>{{ competition.sportart }}</td>
             <td>{{ competition.jahrgang }}</td>
+            <td>{{ competition.start_time or '–' }}</td>
+            <td>{{ competition.end_time or '–' }}</td>
+            <td>{{ competition.duration or '–' }}</td>
             <td>{{ competition.status }}</td>
             <td>
                 {% if competition.competition_type == "Sechskampf" %}
@@ -48,8 +51,10 @@
                 <tr>
                     <th>Platz</th>
                     <th>Klasse</th>
+                    {% for competition in competitions %}
+                    <th>{{ competition.name }}</th>
+                    {% endfor %}
                     <th>Gesamtpunkte</th>
-                    <th>Punkte je Wettbewerb</th>
                 </tr>
             </thead>
             <tbody>
@@ -57,15 +62,11 @@
                 <tr>
                     <td>{{ row.place }}</td>
                     <td>{{ row.team }}</td>
+                    {% for competition in competitions %}
+                    {% set points = row.points_by_competition.get(competition.id) %}
+                    <td>{{ points if points is not none else '–' }}</td>
+                    {% endfor %}
                     <td>{{ row.total_points }}</td>
-                    <td>
-                        {% for competition in competitions %}
-                            {% set points = row.points_by_competition.get(competition.id) %}
-                            {% if points is not none %}
-                                <div>{{ competition.name }}: {{ points }}</div>
-                            {% endif %}
-                        {% endfor %}
-                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

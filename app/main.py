@@ -457,6 +457,27 @@ def calculate_tournament_points(competition):
     return rows
 
 
+def format_duration(start_time: str, end_time: str):
+    if not start_time or not end_time:
+        return None
+    for time_format in ("%H:%M", "%H:%M:%S"):
+        try:
+            start = datetime.strptime(start_time, time_format)
+            end = datetime.strptime(end_time, time_format)
+            break
+        except ValueError:
+            start = end = None
+    if not start or not end:
+        return None
+    duration = end - start
+    if duration.total_seconds() < 0:
+        return None
+    minutes = int(duration.total_seconds() // 60)
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours}h {minutes}m" if hours else f"{minutes} min"
+
+
 def calculate_event_overall_ranking(event_id: int):
     with get_conn() as conn:
         competitions = conn.execute("""
@@ -1413,6 +1434,16 @@ def update_slot(
     note: str = Form("")
 ):
     with get_conn() as conn:
+        slot = conn.execute(
+            "SELECT started_at FROM slots WHERE id = ?",
+            (slot_id,)
+        ).fetchone()
+        started_at_value = slot["started_at"] if slot else None
+        if status == "läuft" and not started_at_value:
+            started_at_value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if status == "geplant":
+            started_at_value = None
+
         conn.execute("""
             UPDATE slots
             SET competition_id = ?,
@@ -1424,7 +1455,8 @@ def update_slot(
                 team_a_id = ?,
                 team_b_id = ?,
                 status = ?,
-                note = ?
+                note = ?,
+                started_at = ?
             WHERE id = ?
         """, (
             competition_id,
@@ -1437,6 +1469,7 @@ def update_slot(
             int(team_b_id) if team_b_id else None,
             status,
             note or None,
+            started_at_value,
             slot_id,
         ))
         conn.commit()
@@ -1740,7 +1773,11 @@ async def sixkampf_team_results_save(
 @app.post("/slot/{slot_id}/start")
 def start_slot(slot_id: int):
     with get_conn() as conn:
-        conn.execute("UPDATE slots SET status = 'läuft' WHERE id = ?", (slot_id,))
+        started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE slots SET status = 'läuft', started_at = ? WHERE id = ?",
+            (started_at, slot_id),
+        )
         conn.commit()
 
     return RedirectResponse("/ergebnisse", status_code=303)
@@ -1773,16 +1810,28 @@ def save_slot(
     new_status = "beendet" if finish == "1" else "läuft"
 
     with get_conn() as conn:
+        slot = conn.execute(
+            "SELECT status, started_at FROM slots WHERE id = ?",
+            (slot_id,)
+        ).fetchone()
+        started_at_value = slot["started_at"] if slot else None
+        if new_status == "läuft" and not started_at_value:
+            started_at_value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if new_status == "geplant":
+            started_at_value = None
+
         conn.execute("""
             UPDATE slots
             SET score_a = ?,
                 score_b = ?,
-                status = ?
+                status = ?,
+                started_at = ?
             WHERE id = ?
         """, (
             score_a,
             score_b,
             new_status,
+            started_at_value,
             slot_id
         ))
         conn.commit()
@@ -1806,8 +1855,8 @@ def clear_slot_result(slot_id: int):
             UPDATE slots
             SET score_a = NULL,
                 score_b = NULL,
-
-                status = 'geplant'
+                status = 'geplant',
+                started_at = NULL
             WHERE id = ?
         """, (slot_id,))
         conn.commit()
@@ -2029,6 +2078,7 @@ def wettbewerbe(request: Request):
 def create_competition(
     name: str = Form(...), sportart: str = Form(...), jahrgang: int = Form(...),
     points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
+    start_time: str = Form(""), end_time: str = Form(""),
 
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form(""),
@@ -2059,11 +2109,13 @@ def create_competition(
         conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, points_first_place, event_id, competition_type
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?)
+                points_loss, points_first_place, event_id, competition_type,
+                start_time, end_time
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
             points_first_place_value, event_id_value, competition_type,
+            start_time.strip() or None, end_time.strip() or None,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -2080,14 +2132,16 @@ def duplicate_competition(competition_id: int):
         cursor = conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, points_first_place, event_id, competition_type
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?)
+                points_loss, points_first_place, event_id, competition_type,
+                start_time, end_time
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             get_unique_competition_name(conn, competition["name"]),
             competition["sportart"], competition["jahrgang"], competition["points_win"],
             competition["points_draw"], competition["points_loss"],
             competition["points_first_place"],
             competition["event_id"], competition["competition_type"],
+            competition["start_time"], competition["end_time"],
         ))
         copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
         conn.commit()
@@ -2098,6 +2152,7 @@ def update_competition(
     competition_id: int, name: str = Form(...), sportart: str = Form(...),
     jahrgang: str = Form(...), status: str = Form(...),
     points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
+    start_time: str = Form(""), end_time: str = Form(""),
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form("7"),
 ):
@@ -2137,12 +2192,15 @@ def update_competition(
             UPDATE competitions
             SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                 points_win = ?, points_draw = ?, points_loss = ?,
-                points_first_place = ?, event_id = ?, competition_type = ?
+                points_first_place = ?, event_id = ?, competition_type = ?,
+                start_time = ?, end_time = ?
             WHERE id = ?
         """, (
             name_value, sportart_value, jahrgang_value, status,
             points_win_value, points_draw_value, points_loss_value,
-            points_first_place_value, event_id_value, competition_type, competition_id,
+            points_first_place_value, event_id_value, competition_type,
+            start_time.strip() or None, end_time.strip() or None,
+            competition_id,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -2446,14 +2504,15 @@ def event_duplicate(event_id: int):
             competition_cursor = conn.execute("""
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
-                    points_loss, event_id, competition_type
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
+                    points_loss, event_id, competition_type, start_time, end_time
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"],
                 competition["points_win"], competition["points_draw"],
                 competition["points_loss"], new_event_id,
-                competition["competition_type"],
+                competition["competition_type"], competition["start_time"],
+                competition["end_time"],
             ))
             copy_competition_disciplines(
                 conn, competition["id"], competition_cursor.lastrowid
@@ -2466,13 +2525,19 @@ def event_duplicate(event_id: int):
 def event_detail(request: Request, event_id: int):
     with get_conn() as conn:
         event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-        competitions = conn.execute("""
+        competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
             ORDER BY jahrgang, name
-        """, (event_id,)).fetchall()
+        """, (event_id,)).fetchall()]
     if event is None:
         return RedirectResponse("/events", status_code=303)
+
+    for competition in competitions:
+        competition["duration"] = format_duration(
+            competition.get("start_time"), competition.get("end_time")
+        )
+
     overall_ranking = calculate_event_overall_ranking(event_id)
     return templates.TemplateResponse(
         request=request, name="event_detail.html",

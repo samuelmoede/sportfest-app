@@ -136,48 +136,98 @@
     background: var(--navy); color: white; border-color: var(--navy);
 }
 .six-class-cards {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;
+    display: grid; gap: 18px;
 }
 .six-class-card {
-    border: 1px solid var(--border); border-radius: 16px; padding: 18px;
-    background: white; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    background: white;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 .six-class-card header {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 16px; margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 0;
 }
 .six-class-card h3 { margin: 2px 0 0; font-size: 24px; }
 .live-total { text-align: right; }
 .live-total span { display: block; color: var(--muted); font-size: 13px; }
 .live-total strong { font-size: 24px; }
 .value-fields {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 8px;
+}
+.value-fields label {
+    display: grid;
+    gap: 4px;
 }
 .value-fields label span {
-    display: block; font-size: 13px; font-weight: 700; color: var(--muted);
-    margin-bottom: 5px;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
 }
 .value-fields input {
-    width: 100%; min-height: 48px; font-size: 18px; text-align: center;
+    width: 100%;
+    min-height: 40px;
+    font-size: 16px;
+    text-align: center;
+    padding: 8px 10px;
 }
 .six-class-card footer {
-    display: flex; align-items: center; gap: 12px; margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
 }
 .save-six { min-height: 48px; padding-left: 22px; padding-right: 22px; }
 .saved-at { color: #166534; font-weight: 700; }
 .ranking-list { display: grid; gap: 10px; }
 .ranking-card {
-    display: grid; grid-template-columns: 54px 1fr auto; align-items: center;
-    gap: 14px; padding: 14px 16px; border: 1px solid var(--border);
-    border-radius: 12px; background: white;
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: white;
 }
 .ranking-place {
-    display: grid; place-items: center; width: 38px; height: 38px;
-    border-radius: 999px; background: var(--navy); color: white; font-weight: 900;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--navy);
+    color: white;
+    font-weight: 900;
 }
-@media (max-width: 1050px) {
-    .six-class-cards { grid-template-columns: 1fr; }
+@media (min-width: 900px) {
+    .six-class-card {
+        grid-template-columns: minmax(240px, 320px) 1fr;
+        align-items: start;
+    }
+    .six-class-card header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .six-class-card footer {
+        justify-content: flex-end;
+    }
+}
+@media (max-width: 900px) {
+    .six-class-card {
+        grid-template-columns: 1fr;
+    }
 }
 @media (max-width: 640px) {
     .six-class-card { padding: 14px; }
@@ -215,6 +265,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <strong>{{ s.startzeit }}</strong>
             <span class="pill">{{ s.court_name }}</span>
             <span>{{ s.competition_name }}</span>
+            {% if s.started_at %}
+            <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+            {% endif %}
             <span class="badge {{ s.status }}">{{ s.status }}</span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
@@ -253,6 +306,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <strong>{{ s.startzeit }}</strong>
             <span class="pill">{{ s.court_name }}</span>
             <span>{{ s.competition_name }}</span>
+            {% if s.started_at %}
+            <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+            {% endif %}
             <span class="badge {{ s.status }}">{{ s.status }}</span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">

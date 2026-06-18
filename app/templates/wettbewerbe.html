@@ -13,6 +13,12 @@
         <label>Sportart</label>
         <input type="text" name="sportart" placeholder="z. B. Volleyball, Fußball, Zweifelderball" required>
 
+        <label>Startzeit</label>
+        <input type="time" name="start_time" value="">
+
+        <label>Endzeit</label>
+        <input type="time" name="end_time" value="">
+
         <label>Jahrgang</label>
         <input type="number" name="jahrgang" value="11" min="1" max="13" required>
 
@@ -73,6 +79,12 @@
                 <option value="Turnier" {% if c.competition_type == "Turnier" %}selected{% endif %}>Turnier</option>
                 <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
             </select>
+
+            <label>Startzeit</label>
+            <input type="time" name="start_time" value="{{ c.start_time or '' }}">
+
+            <label>Endzeit</label>
+            <input type="time" name="end_time" value="{{ c.end_time or '' }}">
 
             <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
             <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
