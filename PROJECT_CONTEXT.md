@@ -42,7 +42,8 @@ Der Fokus liegt auf Wettbewerben wie Turnieren, Sechskämpfen und anderen schuli
 
 ## Bekannte Einschränkungen
 
-- Kein Benutzer-Login / kein Zugriffsschutz
+- Zugriffsschutz wird erst später als eigenes Feature implementiert.
+- Bis dahin keine Login-, SessionMiddleware- oder Session-Funktionen einbauen.
 - Kein CSRF-Schutz
 - Tests und CI fehlen noch
 - Die Veranstaltungshierarchie ist geplant, aber nicht vollständig als zentrale Navigation implementiert
