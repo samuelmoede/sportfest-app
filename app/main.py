@@ -7,7 +7,6 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
 from app.database import init_db, get_conn
 from pathlib import Path
 
@@ -116,7 +115,6 @@ def calculate_sixkampf_team_ranking(
 @app.on_event("startup")
 def startup():
     init_db()
-
 
 
 def get_active_competitions():
@@ -239,7 +237,6 @@ def get_slots_grouped_by_court(competition_id: Optional[int] = None):
     for slot in slots:
         if slot["court_id"] in grouped:
             grouped[slot["court_id"]]["slots"].append(slot)
-
         else:
             without_court["slots"].append(slot)
 
@@ -360,7 +357,6 @@ def calculate_table(competition_id: int):
             "team_id": team["id"],
             "team": team["name"],
             "sp": 0,
-
             "s": 0,
             "u": 0,
             "n": 0,
@@ -481,7 +477,6 @@ def calculate_group_table(competition_id: int, gruppe: str):
             table[team_a]["pkt"] += competition["points_win"]
             table[team_b]["pkt"] += competition["points_loss"]
         elif score_a < score_b:
-
             table[team_b]["s"] += 1
             table[team_a]["n"] += 1
             table[team_b]["pkt"] += competition["points_win"]
@@ -602,7 +597,6 @@ def fetch_beamer_data():
         court_slots = [
             slot for slot in slots
             if slot["court_id"] == court["id"] and slot["slot_typ"] == "Spiel"
-
         ]
         open_slots = [
             slot for slot in court_slots
@@ -724,7 +718,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
         for court_id in court_ids:
             selected_index = None
 
-
             for index, (team_a, team_b, gruppe) in enumerate(remaining_pairings):
                 if team_a not in used_teams and team_b not in used_teams:
                     selected_index = index
@@ -845,7 +838,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
         add_empty_slots_for_unused_courts(used_courts, final_time, phase="Finale")
 
-
     return proposed_slots
 
 def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int):
@@ -965,7 +957,6 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
     with get_conn() as conn:
         groups = get_slots_grouped_by_court(selected_competition_id)
         competitions = conn.execute("""
-
             SELECT *
             FROM competitions
             WHERE status != 'archiviert'
@@ -1086,7 +1077,6 @@ def plan_generator_apply(
                     team_a_id, team_b_id, status, note
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'geplant', ?)
-
             """, (
                 competition_id[i],
                 int(court_id[i]) if court_id[i] else None,
@@ -1207,7 +1197,6 @@ def generate_finals(competition_id: int):
             conn.execute("""
                 UPDATE slots
                 SET team_a_id = ?,
-
                     team_b_id = ?,
                     score_a = NULL,
                     score_b = NULL,
@@ -1328,7 +1317,6 @@ def update_slot(
             WHERE id = ?
         """, (
             competition_id,
-
             int(court_id) if court_id else None,
             startzeit,
             slot_typ,
@@ -1449,7 +1437,6 @@ def copy_slot(slot_id: int):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'geplant', ?)
         """, (
             slot["competition_id"],
-
             slot["court_id"],
             new_time,
             max_sort_order + 10,
@@ -1570,7 +1557,6 @@ def ergebnisse(
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
-
             "is_sixkampf": False,
             "slots": active_slots,
             "archived_slots": list(reversed(archived_slots))[:20],
@@ -1693,7 +1679,6 @@ def save_slot(
     return RedirectResponse("/ergebnisse", status_code=303)
 
 
-
 @app.post("/slot/{slot_id}/reactivate")
 def reactivate_slot(slot_id: int):
     with get_conn() as conn:
@@ -1812,7 +1797,6 @@ def wettbewerbe(request: Request):
             GROUP BY jahrgang
         """).fetchall()
     disciplines_by_competition = defaultdict(list)
-
     for discipline in disciplines:
         disciplines_by_competition[discipline["competition_id"]].append(discipline)
     return templates.TemplateResponse(
@@ -1933,7 +1917,6 @@ def update_competition(
         if duplicate_name:
             return RedirectResponse("/wettbewerbe", status_code=303)
         if event_id_value is not None and conn.execute(
-
             "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
         ).fetchone() is None:
             return RedirectResponse("/wettbewerbe", status_code=303)
@@ -2054,7 +2037,6 @@ def restore_competition(competition_id: int):
         conn.execute("""
             UPDATE competitions
             SET status = 'geplant'
-
             WHERE id = ?
         """, (competition_id,))
         conn.commit()
@@ -2175,7 +2157,6 @@ def event_edit(request: Request, event_id: int):
 @app.post("/events/{event_id}/update")
 def event_update(
     event_id: int, name: str = Form(...), description: str = Form(""),
-
     event_date: str = Form(""), status: str = Form("geplant"),
 ):
     if not name.strip() or status not in {"geplant", "läuft", "beendet", "archiviert"}:
@@ -2296,7 +2277,6 @@ def spielfelder(request: Request):
 @app.post("/court/create")
 def create_court(name: str = Form(...), sportart: str = Form("")):
     with get_conn() as conn:
-
         conn.execute("""
             INSERT INTO courts (name, sportart, active)
             VALUES (?, ?, 1)
@@ -2339,5 +2319,4 @@ def einstellungen(request: Request):
 def beamer(request: Request):
     data = fetch_beamer_data()
     return templates.TemplateResponse(request=request, name="beamer.html", context=data)
-
 
