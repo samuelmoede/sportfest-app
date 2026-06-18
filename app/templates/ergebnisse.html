@@ -52,7 +52,7 @@
         <div class="ranking-card">
             <span class="ranking-place">{{ row.placement }}</span>
             <strong>{{ row.team.name }}</strong>
-            <span>{{ row.overall_total|round(3) }} Gesamt</span>
+            <span>{{ row.overall_total|round(3) }} Gesamt · <strong>{{ row.scoring_points }} Wertungspunkte</strong></span>
         </div>
         {% endfor %}
     </div>
@@ -275,3 +275,4 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 </section>
 {% endif %}
 {% endblock %}
+
