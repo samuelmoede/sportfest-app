@@ -47,13 +47,17 @@ Status: weitgehend erledigt
 * [x] Versionsanzeige in der App
 * [x] `.gitignore` eingerichtet
 * [x] Codex mit GitHub verbunden
-* [ ] README.md ergänzen
-* [ ] PROJECT_CONTEXT.md ergänzen
-* [ ] CHANGELOG.md regelmäßig pflegen
-* [ ] Backup-Konzept für SQLite-Datenbank dokumentieren
-* [ ] später: Zugriffsschutz / Admin-Login
+* [x] README.md ergänzen
+* [x] PROJECT_CONTEXT.md ergänzen
+* [x] CHANGELOG.md regelmäßig pflegen
+* [x] Backup-Konzept für SQLite-Datenbank dokumentieren
+* [x] später: Zugriffsschutz / Admin-Login
 * [ ] später: CSRF-Schutz
 * [ ] später: Tests und CI ergänzen
+* Hinweis: App verwendet jetzt relative Pfade für Templates, statische Assets und `VERSION`.
+* Hinweis: Erste Changelog-Einträge dokumentieren Projektstatus und implementierte Infrastrukturänderungen.
+* Hinweis: SQLite-Backup erfolgt automatisch in `data/backups/` mit Zeitstempel.
+* Hinweis: Admin-Login ergänzt; Standard-Credentials sind `admin` / `admin`.
 
 ---
 

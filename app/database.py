@@ -1,7 +1,8 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("/app/data/sportfest.db")
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DB_PATH = ROOT_DIR / "data" / "sportfest.db"
 
 
 def get_conn():
