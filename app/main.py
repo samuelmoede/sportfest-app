@@ -1471,6 +1471,52 @@ def create_competition(
     return RedirectResponse("/wettbewerbe", status_code=303)
 
 
+@app.post("/competition/{competition_id}/duplicate")
+def duplicate_competition(competition_id: int):
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?",
+            (competition_id,)
+        ).fetchone()
+
+        if competition is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+
+        base_name = f"{competition['name']} Kopie"
+        new_name = base_name
+        copy_number = 2
+
+        while conn.execute(
+            "SELECT 1 FROM competitions WHERE name = ?",
+            (new_name,)
+        ).fetchone():
+            new_name = f"{base_name} {copy_number}"
+            copy_number += 1
+
+        conn.execute("""
+            INSERT INTO competitions (
+                name,
+                sportart,
+                jahrgang,
+                status,
+                points_win,
+                points_draw,
+                points_loss
+            )
+            VALUES (?, ?, ?, 'geplant', ?, ?, ?)
+        """, (
+            new_name,
+            competition["sportart"],
+            competition["jahrgang"],
+            competition["points_win"],
+            competition["points_draw"],
+            competition["points_loss"],
+        ))
+        conn.commit()
+
+    return RedirectResponse("/wettbewerbe", status_code=303)
+
+
 @app.post("/competition/{competition_id}/update")
 def update_competition(
     competition_id: int,

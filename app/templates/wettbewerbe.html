@@ -70,6 +70,10 @@
                 </form>
             {% endif %}
 
+            <form method="post" action="/competition/{{ c.id }}/duplicate">
+                <button type="submit">Duplizieren</button>
+            </form>
+
             <form method="post" action="/competition/{{ c.id }}/delete"
                   onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
                 <button type="submit">Löschen</button>
