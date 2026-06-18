@@ -118,6 +118,7 @@
                     <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
                     <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
                     <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
+
                     <select name="scoring_direction" aria-label="Bewertung">
                         <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
                         <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
@@ -238,6 +239,7 @@
 
     .competition-actions {
         display: flex;
+
         gap: 10px;
         margin-top: 14px;
         flex-wrap: wrap;
