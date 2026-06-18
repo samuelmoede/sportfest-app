@@ -531,7 +531,6 @@ def fetch_beamer_data():
         "court_summaries": court_summaries,
     }
 
-
 def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: str, slot_minutes: int, games_per_team: int, include_ko: bool):
     with get_conn() as conn:
         competition = conn.execute("SELECT * FROM competitions WHERE id = ?", (competition_id,)).fetchone()
@@ -563,11 +562,14 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
         pairings = [
             (group_a[0], group_a[1], "A"),
-            (group_a[0], group_a[2], "A"),
-            (group_a[1], group_a[2], "A"),
             (group_b[0], group_b[1], "B"),
+
+            (group_a[0], group_a[2], "A"),
             (group_b[2], group_b[3], "B"),
+
+            (group_a[1], group_a[2], "A"),
             (group_b[0], group_b[2], "B"),
+
             (group_b[1], group_b[3], "B"),
         ]
 
@@ -577,10 +579,12 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
         pairings = [
             (group_a[0], group_a[1], "A"),
-            (group_a[0], group_a[2], "A"),
-            (group_a[1], group_a[2], "A"),
             (group_b[0], group_b[1], "B"),
+
+            (group_a[0], group_a[2], "A"),
             (group_b[0], group_b[2], "B"),
+
+            (group_a[1], group_a[2], "A"),
             (group_b[1], group_b[2], "B"),
         ]
 
@@ -616,17 +620,26 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
                     "note": "Feld frei / Puffer",
                 })
 
-    index = 0
+    remaining_pairings = pairings[:]
 
-    while index < len(pairings):
+    while remaining_pairings:
         time_value = current_time.strftime("%H:%M")
         used_courts = []
+        used_teams = set()
+        scheduled_indices = []
 
         for court_id in court_ids:
-            if index >= len(pairings):
+            selected_index = None
+
+            for index, (team_a, team_b, gruppe) in enumerate(remaining_pairings):
+                if team_a not in used_teams and team_b not in used_teams:
+                    selected_index = index
+                    break
+
+            if selected_index is None:
                 break
 
-            team_a, team_b, gruppe = pairings[index]
+            team_a, team_b, gruppe = remaining_pairings[selected_index]
 
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -645,7 +658,12 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
             })
 
             used_courts.append(court_id)
-            index += 1
+            used_teams.add(team_a)
+            used_teams.add(team_b)
+            scheduled_indices.append(selected_index)
+
+        for index in sorted(scheduled_indices, reverse=True):
+            remaining_pairings.pop(index)
 
         add_empty_slots_for_unused_courts(used_courts, time_value, phase="Gruppenphase")
         current_time += timedelta(minutes=slot_minutes)
@@ -733,7 +751,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
         add_empty_slots_for_unused_courts(used_courts, final_time, phase="Finale")
 
     return proposed_slots
-
 
 @app.get("/")
 def dashboard(request: Request):
@@ -1132,6 +1149,25 @@ def delete_slot(slot_id: int):
         conn.commit()
 
     return RedirectResponse("/spielplan-bearbeiten", status_code=303)
+
+@app.post("/slots/delete")
+def delete_multiple_slots(
+    slot_ids: List[int] = Form(...)
+):
+    with get_conn() as conn:
+        placeholders = ",".join("?" for _ in slot_ids)
+
+        conn.execute(
+            f"DELETE FROM slots WHERE id IN ({placeholders})",
+            slot_ids
+        )
+
+        conn.commit()
+
+    return RedirectResponse(
+        "/spielplan-bearbeiten",
+        status_code=303
+    )
 
 
 @app.post("/slot/{slot_id}/move")

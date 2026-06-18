@@ -457,6 +457,19 @@
     </div>
 </div>
 
+<form method="post" action="/slots/delete"
+      onsubmit="return confirm('Markierte Slots löschen?');">
+
+    <div class="toolbar">
+        <button type="button" onclick="toggleAllSlots()">
+            Alle markieren
+        </button>
+
+        <button type="submit">
+            Markierte löschen
+        </button>
+    </div>
+
 <section class="schedule-board">
     {% for group in groups %}
     <div class="court-column dropzone" data-court-id="{{ group.court.id }}">
@@ -474,6 +487,17 @@
              draggable="true"
              data-slot-id="{{ s.id }}"
              data-time="{{ s.startzeit }}">
+
+            <label class="slot-select">
+                <input
+                    type="checkbox"
+                    class="slot-checkbox"
+                    name="slot_ids"
+                    value="{{ s.id }}"
+                    onclick="event.stopPropagation();"
+                >
+                auswählen
+            </label>
 
             <div class="slot-time">
                 <input class="time-input" type="time" value="{{ s.startzeit }}" onclick="event.stopPropagation();">
@@ -540,6 +564,8 @@
     </div>
     {% endfor %}
 </section>
+
+</form>
 
 <script>
 let draggedSlot = null;
@@ -691,5 +717,15 @@ document.querySelectorAll(".time-input").forEach(input => {
         await persistSlotMove(card, zone);
     });
 });
+
+function toggleAllSlots() {
+    const checkboxes = document.querySelectorAll(".slot-checkbox");
+    const allSelected = [...checkboxes].every(cb => cb.checked);
+
+    checkboxes.forEach(cb => {
+        cb.checked = !allSelected;
+    });
+}
+
 </script>
 {% endblock %}

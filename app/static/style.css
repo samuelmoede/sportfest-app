@@ -351,6 +351,22 @@ pre {
     cursor: grab;
 }
 
+.slot-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.slot-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
 .slot-card.dragging {
     opacity: 0.5;
 }
