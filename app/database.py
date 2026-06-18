@@ -46,6 +46,7 @@ def init_db():
             points_win REAL NOT NULL DEFAULT 3,
             points_draw REAL NOT NULL DEFAULT 1,
             points_loss REAL NOT NULL DEFAULT 0,
+            points_first_place INTEGER NOT NULL DEFAULT 7,
             event_id INTEGER,
             competition_type TEXT NOT NULL DEFAULT 'Turnier',
             FOREIGN KEY (event_id) REFERENCES events(id)
@@ -156,6 +157,24 @@ def init_db():
                 ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
             """)
 
+        if "points_first_place" not in competition_columns:
+            conn.execute("""
+                ALTER TABLE competitions
+                ADD COLUMN points_first_place INTEGER NOT NULL DEFAULT 7
+            """)
+            conn.execute("""
+                UPDATE competitions
+                SET points_first_place = COALESCE(
+                    NULLIF((
+                        SELECT COUNT(*) FROM teams
+                        WHERE teams.active = 1
+                          AND teams.jahrgang = competitions.jahrgang
+                    ), 0),
+                    7
+                )
+                WHERE competition_type = 'Sechskampf'
+            """)
+
         conn.execute("""
             UPDATE competitions
             SET competition_type = 'Turnier'
@@ -180,3 +199,4 @@ def init_db():
             """)
 
         conn.commit()
+
