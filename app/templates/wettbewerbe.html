@@ -38,6 +38,15 @@
         <p>{{ c.sportart }} · Jahrgang {{ c.jahrgang }}</p>
 
         <form method="post" action="/competition/{{ c.id }}/update" class="points-form">
+            <label>Name</label>
+            <input type="text" name="name" value="{{ c.name }}" required>
+
+            <label>Sportart</label>
+            <input type="text" name="sportart" value="{{ c.sportart }}" required>
+
+            <label>Jahrgang</label>
+            <input type="number" name="jahrgang" value="{{ c.jahrgang }}" min="1" max="13" required>
+
             <label>Status</label>
             <select name="status" required>
                 <option value="geplant" {% if c.status == "geplant" %}selected{% endif %}>geplant</option>
@@ -69,6 +78,15 @@
                     <button type="submit">Archivieren</button>
                 </form>
             {% endif %}
+
+            <form method="post" action="/competition/{{ c.id }}/duplicate">
+                <button type="submit">Duplizieren</button>
+            </form>
+
+            <form method="post" action="/competition/{{ c.id }}/reset"
+                  onsubmit="return confirm('Wettbewerb wirklich zurücksetzen? Alle zugehörigen Slots und Ergebnisse werden gelöscht.');">
+                <button type="submit">Zurücksetzen</button>
+            </form>
 
             <form method="post" action="/competition/{{ c.id }}/delete"
                   onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
