@@ -14,6 +14,15 @@ app = FastAPI(title="Sportfest-App")
 app.mount("/static", StaticFiles(directory="/app/app/static"), name="static")
 templates = Jinja2Templates(directory="/app/app/templates")
 
+def get_app_version():
+    try:
+        with open("/app/VERSION", "r", encoding="utf-8") as version_file:
+            return version_file.read().strip()
+    except FileNotFoundError:
+        return "dev"
+
+templates.env.globals["app_version"] = get_app_version
+
 
 def parse_competition_id(value):
     if value in (None, "", "None"):
