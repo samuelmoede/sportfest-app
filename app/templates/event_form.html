@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{% if event %}Veranstaltung bearbeiten{% else %}Veranstaltung anlegen{% endif %}</h1>
+
+<section class="panel">
+<form method="post" action="{{ form_action }}" class="admin-form">
+    <label>Name</label>
+    <input type="text" name="name" value="{{ event.name if event else '' }}" required>
+
+    <label>Beschreibung</label>
+    <textarea name="description" rows="4">{{ event.description or '' if event else '' }}</textarea>
+
+    <label>Datum</label>
+    <input type="date" name="event_date" value="{{ event.event_date or '' if event else '' }}">
+
+    <label>Status</label>
+    <select name="status" required>
+        {% for status in ["geplant", "läuft", "beendet", "archiviert"] %}
+        <option value="{{ status }}" {% if event and event.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+    </select>
+
+    <button class="green" type="submit">Speichern</button>
+</form>
+</section>
+
+<p><a href="/events">← Zurück zu Veranstaltungen</a></p>
+{% endblock %}

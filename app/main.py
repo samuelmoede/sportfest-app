@@ -31,6 +31,102 @@ def parse_competition_id(value):
     return int(value)
 
 
+def get_unique_competition_name(conn, original_name: str):
+    base_name = f"{original_name} Kopie"
+    candidate = base_name
+    copy_number = 2
+    while conn.execute("SELECT 1 FROM competitions WHERE name = ?", (candidate,)).fetchone():
+        candidate = f"{base_name} {copy_number}"
+        copy_number += 1
+    return candidate
+
+
+def get_unique_event_name(conn, original_name: str):
+    base_name = f"{original_name} Kopie"
+    candidate = base_name
+    copy_number = 2
+    while conn.execute("SELECT 1 FROM events WHERE name = ?", (candidate,)).fetchone():
+        candidate = f"{base_name} {copy_number}"
+        copy_number += 1
+    return candidate
+
+
+def copy_competition_disciplines(conn, source_competition_id: int, target_competition_id: int):
+    disciplines = conn.execute("""
+        SELECT name, sort_order, unit, scoring_direction
+        FROM competition_disciplines
+        WHERE competition_id = ?
+        ORDER BY sort_order, id
+    """, (source_competition_id,)).fetchall()
+    for discipline in disciplines:
+        conn.execute("""
+            INSERT INTO competition_disciplines (
+                competition_id, name, sort_order, unit, scoring_direction
+            ) VALUES (?, ?, ?, ?, ?)
+        """, (
+            target_competition_id, discipline["name"], discipline["sort_order"],
+            discipline["unit"], discipline["scoring_direction"],
+        ))
+
+
+def calculate_sixkampf_ranking(competition_id: int):
+    with get_conn() as conn:
+        participants = conn.execute("""
+            SELECT * FROM sixkampf_participants
+            WHERE competition_id = ?
+            ORDER BY class_name, participant_number
+        """, (competition_id,)).fetchall()
+        disciplines = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE competition_id = ?
+            ORDER BY sort_order, id
+        """, (competition_id,)).fetchall()
+        results = conn.execute("""
+            SELECT dr.* FROM discipline_results dr
+            JOIN sixkampf_participants p ON p.id = dr.participant_id
+            WHERE p.competition_id = ?
+        """, (competition_id,)).fetchall()
+
+    participant_count = len(participants)
+    totals = {participant["id"]: 0 for participant in participants}
+    values_by_discipline = defaultdict(list)
+    for result in results:
+        values_by_discipline[result["discipline_id"]].append(
+            (result["participant_id"], result["value"])
+        )
+
+    for discipline in disciplines:
+        discipline_values = values_by_discipline[discipline["id"]]
+        reverse = discipline["scoring_direction"] == "higher"
+        discipline_values.sort(key=lambda item: item[1], reverse=reverse)
+        previous_value = None
+        rank = 0
+        for index, (participant_id, value) in enumerate(discipline_values, start=1):
+            if previous_value is None or value != previous_value:
+                rank = index
+                previous_value = value
+            totals[participant_id] += max(participant_count - rank + 1, 1)
+
+    ranking = [{
+        "participant": participant,
+        "total_points": totals[participant["id"]],
+        "placement": 0,
+    } for participant in participants]
+    ranking.sort(key=lambda row: (
+        -row["total_points"],
+        row["participant"]["class_name"].lower(),
+        row["participant"]["participant_number"],
+    ))
+    previous_points = None
+    placement = 0
+    for index, row in enumerate(ranking, start=1):
+        if previous_points is None or row["total_points"] != previous_points:
+            placement = index
+            previous_points = row["total_points"]
+        row["placement"] = placement
+    return ranking
+
+
 @app.on_event("startup")
 def startup():
     init_db()
@@ -1529,261 +1625,205 @@ def delete_team(team_id: int):
 @app.get("/wettbewerbe")
 def wettbewerbe(request: Request):
     competitions = get_all_competitions()
-
     with get_conn() as conn:
         disciplines = conn.execute("""
-            SELECT *
-            FROM competition_disciplines
+            SELECT * FROM competition_disciplines
             ORDER BY competition_id, sort_order, id
         """).fetchall()
-
+        events = conn.execute("""
+            SELECT * FROM events
+            ORDER BY CASE WHEN status = 'archiviert' THEN 1 ELSE 0 END,
+                     event_date, name
+        """).fetchall()
     disciplines_by_competition = defaultdict(list)
     for discipline in disciplines:
         disciplines_by_competition[discipline["competition_id"]].append(discipline)
-
     return templates.TemplateResponse(
-        request=request,
-        name="wettbewerbe.html",
+        request=request, name="wettbewerbe.html",
         context={
             "competitions": competitions,
             "disciplines_by_competition": disciplines_by_competition,
+            "events": events,
+            "events_by_id": {event["id"]: event for event in events},
         }
     )
 
-
 @app.post("/competition/create")
 def create_competition(
-    name: str = Form(...),
-    sportart: str = Form(...),
-    jahrgang: int = Form(...),
-    points_win: float = Form(3),
-    points_draw: float = Form(1),
-    points_loss: float = Form(0),
+    name: str = Form(...), sportart: str = Form(...), jahrgang: int = Form(...),
+    points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
+    event_id: str = Form(""), competition_type: str = Form("Turnier"),
 ):
+    if competition_type not in {"Turnier", "Sechskampf"}:
+        return RedirectResponse("/wettbewerbe", status_code=303)
+    try:
+        event_id_value = int(event_id) if event_id else None
+    except ValueError:
+        return RedirectResponse("/wettbewerbe", status_code=303)
     with get_conn() as conn:
+        if event_id_value is not None and conn.execute(
+            "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
+        ).fetchone() is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("""
             INSERT INTO competitions (
-                name,
-                sportart,
-                jahrgang,
-                status,
-                points_win,
-                points_draw,
-                points_loss
-            )
-            VALUES (?, ?, ?, 'geplant', ?, ?, ?)
+                name, sportart, jahrgang, status, points_win, points_draw,
+                points_loss, event_id, competition_type
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
         """, (
-            name.strip(),
-            sportart.strip(),
-            jahrgang,
-            points_win,
-            points_draw,
-            points_loss,
+            name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
+            event_id_value, competition_type,
         ))
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/competition/{competition_id}/duplicate")
 def duplicate_competition(competition_id: int):
     with get_conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
-
         competition = conn.execute(
-            "SELECT * FROM competitions WHERE id = ?",
-            (competition_id,)
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
         ).fetchone()
-
         if competition is None:
             return RedirectResponse("/wettbewerbe", status_code=303)
-
-        base_name = f"{competition['name']} Kopie"
-        new_name = base_name
-        copy_number = 2
-
-        while conn.execute(
-            "SELECT 1 FROM competitions WHERE name = ?",
-            (new_name,)
-        ).fetchone():
-            new_name = f"{base_name} {copy_number}"
-            copy_number += 1
-
-        conn.execute("""
+        cursor = conn.execute("""
             INSERT INTO competitions (
-                name,
-                sportart,
-                jahrgang,
-                status,
-                points_win,
-                points_draw,
-                points_loss
-            )
-            VALUES (?, ?, ?, 'geplant', ?, ?, ?)
+                name, sportart, jahrgang, status, points_win, points_draw,
+                points_loss, event_id, competition_type
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
         """, (
-            new_name,
-            competition["sportart"],
-            competition["jahrgang"],
-            competition["points_win"],
-            competition["points_draw"],
-            competition["points_loss"],
+            get_unique_competition_name(conn, competition["name"]),
+            competition["sportart"], competition["jahrgang"], competition["points_win"],
+            competition["points_draw"], competition["points_loss"],
+            competition["event_id"], competition["competition_type"],
         ))
+        copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/competition/{competition_id}/update")
 def update_competition(
-    competition_id: int,
-    name: str = Form(...),
-    sportart: str = Form(...),
-    jahrgang: str = Form(...),
-    status: str = Form(...),
-    points_win: str = Form(...),
-    points_draw: str = Form(...),
-    points_loss: str = Form(...)
+    competition_id: int, name: str = Form(...), sportart: str = Form(...),
+    jahrgang: str = Form(...), status: str = Form(...),
+    points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
+    event_id: str = Form(""), competition_type: str = Form("Turnier"),
 ):
     try:
         jahrgang_value = int(jahrgang)
         points_win_value = float(points_win.strip().replace(",", "."))
         points_draw_value = float(points_draw.strip().replace(",", "."))
         points_loss_value = float(points_loss.strip().replace(",", "."))
+        event_id_value = int(event_id) if event_id else None
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     name_value = name.strip()
     sportart_value = sportart.strip()
     valid_statuses = {"geplant", "läuft", "beendet", "archiviert"}
-    point_values = (points_win_value, points_draw_value, points_loss_value)
-
     if (
-        not name_value
-        or not sportart_value
-        or not 1 <= jahrgang_value <= 13
+        not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
         or status not in valid_statuses
-        or not all(isfinite(value) for value in point_values)
+        or competition_type not in {"Turnier", "Sechskampf"}
+        or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
     ):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     with get_conn() as conn:
         conn.execute("BEGIN IMMEDIATE")
-
-        duplicate_name = conn.execute("""
-            SELECT 1
-            FROM competitions
-            WHERE name = ?
-              AND id != ?
-        """, (name_value, competition_id)).fetchone()
-
+        duplicate_name = conn.execute(
+            "SELECT 1 FROM competitions WHERE name = ? AND id != ?",
+            (name_value, competition_id)
+        ).fetchone()
         if duplicate_name:
             return RedirectResponse("/wettbewerbe", status_code=303)
-
+        if event_id_value is not None and conn.execute(
+            "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
+        ).fetchone() is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("""
             UPDATE competitions
-            SET name = ?,
-                sportart = ?,
-                jahrgang = ?,
-                status = ?,
-                points_win = ?,
-                points_draw = ?,
-                points_loss = ?
+            SET name = ?, sportart = ?, jahrgang = ?, status = ?,
+                points_win = ?, points_draw = ?, points_loss = ?,
+                event_id = ?, competition_type = ?
             WHERE id = ?
         """, (
-            name_value,
-            sportart_value,
-            jahrgang_value,
-            status,
-            points_win_value,
-            points_draw_value,
-            points_loss_value,
-            competition_id
+            name_value, sportart_value, jahrgang_value, status,
+            points_win_value, points_draw_value, points_loss_value,
+            event_id_value, competition_type, competition_id,
         ))
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/competition/{competition_id}/discipline/create")
 def create_competition_discipline(
-    competition_id: int,
-    name: str = Form(...),
-    sort_order: str = Form(...),
-    unit: str = Form(""),
+    competition_id: int, name: str = Form(...), sort_order: str = Form(...),
+    unit: str = Form(""), scoring_direction: str = Form("higher"),
 ):
     try:
         sort_order_value = int(sort_order)
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     name_value = name.strip()
-    unit_value = unit.strip() or None
-
-    if not name_value or sort_order_value < 1:
+    if (
+        not name_value or sort_order_value < 1
+        or scoring_direction not in {"higher", "lower"}
+    ):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     with get_conn() as conn:
-        competition_exists = conn.execute(
-            "SELECT 1 FROM competitions WHERE id = ?",
-            (competition_id,)
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
         ).fetchone()
-
-        if competition_exists is None:
+        if competition is None or competition["competition_type"] != "Sechskampf":
             return RedirectResponse("/wettbewerbe", status_code=303)
-
         conn.execute("""
             INSERT INTO competition_disciplines (
-                competition_id, name, sort_order, unit
-            )
-            VALUES (?, ?, ?, ?)
-        """, (competition_id, name_value, sort_order_value, unit_value))
+                competition_id, name, sort_order, unit, scoring_direction
+            ) VALUES (?, ?, ?, ?, ?)
+        """, (
+            competition_id, name_value, sort_order_value,
+            unit.strip() or None, scoring_direction,
+        ))
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/discipline/{discipline_id}/update")
 def update_competition_discipline(
-    discipline_id: int,
-    name: str = Form(...),
-    sort_order: str = Form(...),
-    unit: str = Form(""),
+    discipline_id: int, name: str = Form(...), sort_order: str = Form(...),
+    unit: str = Form(""), scoring_direction: str = Form("higher"),
 ):
     try:
         sort_order_value = int(sort_order)
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     name_value = name.strip()
-    unit_value = unit.strip() or None
-
-    if not name_value or sort_order_value < 1:
+    if (
+        not name_value or sort_order_value < 1
+        or scoring_direction not in {"higher", "lower"}
+    ):
         return RedirectResponse("/wettbewerbe", status_code=303)
-
     with get_conn() as conn:
         conn.execute("""
             UPDATE competition_disciplines
-            SET name = ?,
-                sort_order = ?,
-                unit = ?
+            SET name = ?, sort_order = ?, unit = ?, scoring_direction = ?
             WHERE id = ?
-        """, (name_value, sort_order_value, unit_value, discipline_id))
+        """, (
+            name_value, sort_order_value, unit.strip() or None,
+            scoring_direction, discipline_id,
+        ))
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/discipline/{discipline_id}/delete")
 def delete_competition_discipline(discipline_id: int):
     with get_conn() as conn:
         conn.execute(
+            "DELETE FROM discipline_results WHERE discipline_id = ?",
+            (discipline_id,)
+        )
+        conn.execute(
             "DELETE FROM competition_disciplines WHERE id = ?",
             (discipline_id,)
         )
         conn.commit()
-
     return RedirectResponse("/wettbewerbe", status_code=303)
-
 
 @app.post("/competition/{competition_id}/archive")
 def archive_competition(competition_id: int):
@@ -1828,6 +1868,19 @@ def reset_competition(competition_id: int):
 @app.post("/competition/{competition_id}/delete")
 def delete_competition(competition_id: int):
     with get_conn() as conn:
+        conn.execute("""
+            DELETE FROM discipline_results
+            WHERE participant_id IN (
+                SELECT id FROM sixkampf_participants WHERE competition_id = ?
+            )
+        """, (competition_id,))
+        conn.execute("""
+            DELETE FROM discipline_results
+            WHERE discipline_id IN (
+                SELECT id FROM competition_disciplines WHERE competition_id = ?
+            )
+        """, (competition_id,))
+        conn.execute("DELETE FROM sixkampf_participants WHERE competition_id = ?", (competition_id,))
         conn.execute("DELETE FROM slots WHERE competition_id = ?", (competition_id,))
         conn.execute("DELETE FROM competition_disciplines WHERE competition_id = ?", (competition_id,))
         conn.execute("DELETE FROM competitions WHERE id = ?", (competition_id,))
@@ -1847,6 +1900,318 @@ def delete_planned_slots(competition_id: int):
         conn.commit()
 
     return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+
+
+@app.get("/events")
+def events_list(request: Request):
+    with get_conn() as conn:
+        events = conn.execute("""
+            SELECT e.*, COUNT(c.id) AS competition_count
+            FROM events e
+            LEFT JOIN competitions c ON c.event_id = e.id
+            GROUP BY e.id
+            ORDER BY CASE WHEN e.status = 'archiviert' THEN 1 ELSE 0 END,
+                     e.event_date, e.name
+        """).fetchall()
+    return templates.TemplateResponse(
+        request=request, name="events.html", context={"events": events}
+    )
+
+
+@app.get("/events/new")
+def event_new(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="event_form.html",
+        context={"event": None, "form_action": "/events/create"}
+    )
+
+
+@app.post("/events/create")
+def event_create(
+    name: str = Form(...), description: str = Form(""),
+    event_date: str = Form(""), status: str = Form("geplant"),
+):
+    if not name.strip() or status not in {"geplant", "läuft", "beendet", "archiviert"}:
+        return RedirectResponse("/events", status_code=303)
+    with get_conn() as conn:
+        if conn.execute("SELECT 1 FROM events WHERE name = ?", (name.strip(),)).fetchone():
+            return RedirectResponse("/events", status_code=303)
+        conn.execute("""
+            INSERT INTO events (name, description, event_date, status)
+            VALUES (?, ?, ?, ?)
+        """, (name.strip(), description.strip() or None, event_date or None, status))
+        conn.commit()
+    return RedirectResponse("/events", status_code=303)
+
+
+@app.get("/events/{event_id}/edit")
+def event_edit(request: Request, event_id: int):
+    with get_conn() as conn:
+        event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+    if event is None:
+        return RedirectResponse("/events", status_code=303)
+    return templates.TemplateResponse(
+        request=request, name="event_form.html",
+        context={"event": event, "form_action": f"/events/{event_id}/update"}
+    )
+
+
+@app.post("/events/{event_id}/update")
+def event_update(
+    event_id: int, name: str = Form(...), description: str = Form(""),
+    event_date: str = Form(""), status: str = Form("geplant"),
+):
+    if not name.strip() or status not in {"geplant", "läuft", "beendet", "archiviert"}:
+        return RedirectResponse("/events", status_code=303)
+    with get_conn() as conn:
+        duplicate = conn.execute(
+            "SELECT 1 FROM events WHERE name = ? AND id != ?",
+            (name.strip(), event_id)
+        ).fetchone()
+        if duplicate:
+            return RedirectResponse(f"/events/{event_id}/edit", status_code=303)
+        conn.execute("""
+            UPDATE events
+            SET name = ?, description = ?, event_date = ?, status = ?
+            WHERE id = ?
+        """, (
+            name.strip(), description.strip() or None,
+            event_date or None, status, event_id,
+        ))
+        conn.commit()
+    return RedirectResponse(f"/events/{event_id}", status_code=303)
+
+
+@app.post("/events/{event_id}/archive")
+def event_archive(event_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE events SET status = 'archiviert' WHERE id = ?", (event_id,))
+        conn.commit()
+    return RedirectResponse("/events", status_code=303)
+
+
+@app.post("/events/{event_id}/restore")
+def event_restore(event_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE events SET status = 'geplant' WHERE id = ?", (event_id,))
+        conn.commit()
+    return RedirectResponse("/events", status_code=303)
+
+
+@app.post("/events/{event_id}/delete")
+def event_delete(event_id: int):
+    with get_conn() as conn:
+        competition_count = conn.execute(
+            "SELECT COUNT(*) FROM competitions WHERE event_id = ?", (event_id,)
+        ).fetchone()[0]
+        if competition_count:
+            return RedirectResponse(f"/events/{event_id}", status_code=303)
+        conn.execute("DELETE FROM events WHERE id = ?", (event_id,))
+        conn.commit()
+    return RedirectResponse("/events", status_code=303)
+
+
+@app.post("/events/{event_id}/duplicate")
+def event_duplicate(event_id: int):
+    with get_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+        if event is None:
+            return RedirectResponse("/events", status_code=303)
+        cursor = conn.execute("""
+            INSERT INTO events (name, description, event_date, status)
+            VALUES (?, ?, ?, 'geplant')
+        """, (
+            get_unique_event_name(conn, event["name"]),
+            event["description"], event["event_date"],
+        ))
+        new_event_id = cursor.lastrowid
+        competitions = conn.execute(
+            "SELECT * FROM competitions WHERE event_id = ? ORDER BY id",
+            (event_id,)
+        ).fetchall()
+        for competition in competitions:
+            competition_cursor = conn.execute("""
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, points_win, points_draw,
+                    points_loss, event_id, competition_type
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
+            """, (
+                get_unique_competition_name(conn, competition["name"]),
+                competition["sportart"], competition["jahrgang"],
+                competition["points_win"], competition["points_draw"],
+                competition["points_loss"], new_event_id,
+                competition["competition_type"],
+            ))
+            copy_competition_disciplines(
+                conn, competition["id"], competition_cursor.lastrowid
+            )
+        conn.commit()
+    return RedirectResponse(f"/events/{new_event_id}", status_code=303)
+
+
+@app.get("/events/{event_id}")
+def event_detail(request: Request, event_id: int):
+    with get_conn() as conn:
+        event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+        competitions = conn.execute("""
+            SELECT * FROM competitions
+            WHERE event_id = ?
+            ORDER BY jahrgang, name
+        """, (event_id,)).fetchall()
+    if event is None:
+        return RedirectResponse("/events", status_code=303)
+    return templates.TemplateResponse(
+        request=request, name="event_detail.html",
+        context={"event": event, "competitions": competitions}
+    )
+
+
+@app.get("/competition/{competition_id}/sechskampf")
+def sechskampf_detail(request: Request, competition_id: int):
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+        ).fetchone()
+        disciplines = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE competition_id = ?
+            ORDER BY sort_order, id
+        """, (competition_id,)).fetchall()
+        participants = conn.execute("""
+            SELECT * FROM sixkampf_participants
+            WHERE competition_id = ?
+            ORDER BY class_name, participant_number
+        """, (competition_id,)).fetchall()
+        result_rows = conn.execute("""
+            SELECT dr.* FROM discipline_results dr
+            JOIN sixkampf_participants p ON p.id = dr.participant_id
+            WHERE p.competition_id = ?
+        """, (competition_id,)).fetchall()
+    if competition is None or competition["competition_type"] != "Sechskampf":
+        return RedirectResponse("/wettbewerbe", status_code=303)
+    participants_by_class = defaultdict(list)
+    for participant in participants:
+        participants_by_class[participant["class_name"]].append(participant)
+    results = {
+        (row["participant_id"], row["discipline_id"]): row["value"]
+        for row in result_rows
+    }
+    return templates.TemplateResponse(
+        request=request, name="sechskampf.html",
+        context={
+            "competition": competition, "disciplines": disciplines,
+            "participants_by_class": participants_by_class,
+            "participant_count": len(participants), "results": results,
+            "ranking": calculate_sixkampf_ranking(competition_id),
+        }
+    )
+
+
+@app.post("/competition/{competition_id}/participants/create")
+def participant_create(
+    competition_id: int, class_name: str = Form(...),
+    participant_number: int = Form(...),
+):
+    if not class_name.strip() or participant_number < 1:
+        return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+        ).fetchone()
+        if competition is None or competition["competition_type"] != "Sechskampf":
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        conn.execute("""
+            INSERT OR IGNORE INTO sixkampf_participants (
+                competition_id, class_name, participant_number
+            ) VALUES (?, ?, ?)
+        """, (competition_id, class_name.strip(), participant_number))
+        conn.commit()
+    return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
+
+
+@app.post("/competition/{competition_id}/participants/generate")
+def participants_generate(
+    competition_id: int, class_name: str = Form(...),
+    participant_count: int = Form(...),
+):
+    if not class_name.strip() or participant_count < 1:
+        return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+        ).fetchone()
+        if competition is None or competition["competition_type"] != "Sechskampf":
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        for number in range(1, participant_count + 1):
+            conn.execute("""
+                INSERT OR IGNORE INTO sixkampf_participants (
+                    competition_id, class_name, participant_number
+                ) VALUES (?, ?, ?)
+            """, (competition_id, class_name.strip(), number))
+        conn.commit()
+    return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
+
+
+@app.post("/participants/{participant_id}/delete")
+def participant_delete(participant_id: int):
+    with get_conn() as conn:
+        participant = conn.execute(
+            "SELECT * FROM sixkampf_participants WHERE id = ?", (participant_id,)
+        ).fetchone()
+        if participant is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        conn.execute("DELETE FROM discipline_results WHERE participant_id = ?", (participant_id,))
+        conn.execute("DELETE FROM sixkampf_participants WHERE id = ?", (participant_id,))
+        conn.commit()
+    return RedirectResponse(
+        f"/competition/{participant['competition_id']}/sechskampf", status_code=303
+    )
+
+
+@app.post("/participants/{participant_id}/results")
+async def participant_results_save(request: Request, participant_id: int):
+    form = await request.form()
+    with get_conn() as conn:
+        participant = conn.execute(
+            "SELECT * FROM sixkampf_participants WHERE id = ?", (participant_id,)
+        ).fetchone()
+        if participant is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        disciplines = conn.execute("""
+            SELECT id FROM competition_disciplines
+            WHERE competition_id = ?
+        """, (participant["competition_id"],)).fetchall()
+        parsed_values = []
+        try:
+            for discipline in disciplines:
+                raw_value = str(form.get(f"discipline_{discipline['id']}", "")).strip()
+                value = None if raw_value == "" else float(raw_value.replace(",", "."))
+                if value is not None and not isfinite(value):
+                    raise ValueError
+                parsed_values.append((discipline["id"], value))
+        except ValueError:
+            return RedirectResponse(
+                f"/competition/{participant['competition_id']}/sechskampf",
+                status_code=303
+            )
+        for discipline_id, value in parsed_values:
+            if value is None:
+                conn.execute("""
+                    DELETE FROM discipline_results
+                    WHERE participant_id = ? AND discipline_id = ?
+                """, (participant_id, discipline_id))
+            else:
+                conn.execute("""
+                    INSERT INTO discipline_results (participant_id, discipline_id, value)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(participant_id, discipline_id)
+                    DO UPDATE SET value = excluded.value
+                """, (participant_id, discipline_id, value))
+        conn.commit()
+    return RedirectResponse(
+        f"/competition/{participant['competition_id']}/sechskampf", status_code=303
+    )
 
 
 @app.get("/spielfelder")

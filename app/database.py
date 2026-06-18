@@ -29,6 +29,14 @@ def init_db():
             active INTEGER NOT NULL DEFAULT 1
         );
 
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            event_date TEXT,
+            status TEXT NOT NULL DEFAULT 'geplant'
+        );
+
         CREATE TABLE IF NOT EXISTS competitions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -37,7 +45,10 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'geplant',
             points_win REAL NOT NULL DEFAULT 3,
             points_draw REAL NOT NULL DEFAULT 1,
-            points_loss REAL NOT NULL DEFAULT 0
+            points_loss REAL NOT NULL DEFAULT 0,
+            event_id INTEGER,
+            competition_type TEXT NOT NULL DEFAULT 'Turnier',
+            FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
         CREATE TABLE IF NOT EXISTS competition_disciplines (
@@ -46,11 +57,36 @@ def init_db():
             name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             unit TEXT,
+            scoring_direction TEXT NOT NULL DEFAULT 'higher',
             FOREIGN KEY (competition_id) REFERENCES competitions(id)
         );
 
         CREATE INDEX IF NOT EXISTS idx_competition_disciplines_order
             ON competition_disciplines (competition_id, sort_order, id);
+
+        CREATE TABLE IF NOT EXISTS sixkampf_participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            competition_id INTEGER NOT NULL,
+            class_name TEXT NOT NULL,
+            participant_number INTEGER NOT NULL,
+            FOREIGN KEY (competition_id) REFERENCES competitions(id),
+            UNIQUE (competition_id, class_name, participant_number)
+        );
+
+        CREATE TABLE IF NOT EXISTS discipline_results (
+            participant_id INTEGER NOT NULL,
+            discipline_id INTEGER NOT NULL,
+            value REAL NOT NULL,
+            PRIMARY KEY (participant_id, discipline_id),
+            FOREIGN KEY (participant_id) REFERENCES sixkampf_participants(id),
+            FOREIGN KEY (discipline_id) REFERENCES competition_disciplines(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sixkampf_participants_competition
+            ON sixkampf_participants (competition_id, class_name, participant_number);
+
+        CREATE INDEX IF NOT EXISTS idx_discipline_results_discipline
+            ON discipline_results (discipline_id, participant_id);
 
         CREATE TABLE IF NOT EXISTS slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,6 +124,37 @@ def init_db():
             conn.execute("""
                 UPDATE slots
                 SET sort_order = id
+            """)
+
+        competition_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(competitions)").fetchall()
+        }
+
+        if "event_id" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN event_id INTEGER")
+
+        if "competition_type" not in competition_columns:
+            conn.execute("""
+                ALTER TABLE competitions
+                ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
+            """)
+
+        conn.execute("""
+            UPDATE competitions
+            SET competition_type = 'Turnier'
+            WHERE competition_type IS NULL OR competition_type = ''
+        """)
+
+        discipline_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(competition_disciplines)").fetchall()
+        }
+
+        if "scoring_direction" not in discipline_columns:
+            conn.execute("""
+                ALTER TABLE competition_disciplines
+                ADD COLUMN scoring_direction TEXT NOT NULL DEFAULT 'higher'
             """)
 
         conn.commit()

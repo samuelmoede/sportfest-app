@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Veranstaltungen</h1>
+<p class="muted">Events bündeln mehrere Turnier- und Sechskampf-Wettbewerbe.</p>
+
+<div class="toolbar">
+    <a class="button green" href="/events/new">+ Veranstaltung anlegen</a>
+</div>
+
+<section class="cards">
+{% for event in events %}
+    <div class="card column {% if event.status == 'archiviert' %}archived-card{% endif %}">
+        <span class="badge {{ event.status }}">{{ event.status }}</span>
+        <h2><a href="/events/{{ event.id }}">{{ event.name }}</a></h2>
+        <p>{{ event.event_date or "Kein Datum" }} · {{ event.competition_count }} Wettbewerbe</p>
+        {% if event.description %}<p class="muted">{{ event.description }}</p>{% endif %}
+
+        <div class="event-actions">
+            <a href="/events/{{ event.id }}">Details</a>
+            <a href="/events/{{ event.id }}/edit">Bearbeiten</a>
+            <form method="post" action="/events/{{ event.id }}/duplicate">
+                <button type="submit">Duplizieren</button>
+            </form>
+            {% if event.status == "archiviert" %}
+            <form method="post" action="/events/{{ event.id }}/restore">
+                <button type="submit">Wiederherstellen</button>
+            </form>
+            {% else %}
+            <form method="post" action="/events/{{ event.id }}/archive">
+                <button type="submit">Archivieren</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/events/{{ event.id }}/delete"
+                  onsubmit="return confirm('Veranstaltung wirklich löschen? Das ist nur ohne Wettbewerbe möglich.');">
+                <button type="submit" {% if event.competition_count %}disabled{% endif %}>Löschen</button>
+            </form>
+        </div>
+    </div>
+{% else %}
+    <p class="muted">Noch keine Veranstaltungen vorhanden.</p>
+{% endfor %}
+</section>
+
+<style>
+.toolbar { margin-bottom: 24px; }
+.button { display: inline-block; padding: 10px 14px; border-radius: 8px; text-decoration: none; }
+.button.green { background: #16a34a; color: white; }
+.event-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.archived-card { opacity: 0.6; }
+</style>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ event.name }}</h1>
+<p>
+    <span class="badge {{ event.status }}">{{ event.status }}</span>
+    {% if event.event_date %} · {{ event.event_date }}{% endif %}
+</p>
+{% if event.description %}<p>{{ event.description }}</p>{% endif %}
+
+<div class="toolbar">
+    <a href="/events/{{ event.id }}/edit">Veranstaltung bearbeiten</a>
+    <a href="/wettbewerbe">Wettbewerbe verwalten</a>
+</div>
+
+<section class="panel">
+    <h2>Zugehörige Wettbewerbe</h2>
+    {% if competitions %}
+    <table>
+        <tr><th>Name</th><th>Typ</th><th>Sportart</th><th>Jahrgang</th><th>Status</th><th></th></tr>
+        {% for competition in competitions %}
+        <tr>
+            <td><strong>{{ competition.name }}</strong></td>
+            <td>{{ competition.competition_type }}</td>
+            <td>{{ competition.sportart }}</td>
+            <td>{{ competition.jahrgang }}</td>
+            <td>{{ competition.status }}</td>
+            <td>
+                {% if competition.competition_type == "Sechskampf" %}
+                <a href="/competition/{{ competition.id }}/sechskampf">Sechskampf öffnen</a>
+                {% else %}
+                <a href="/spielplan?competition_id={{ competition.id }}">Spielplan</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Dieser Veranstaltung sind noch keine Wettbewerbe zugeordnet.</p>
+    {% endif %}
+</section>
+<p><a href="/events">← Zurück zu Veranstaltungen</a></p>
+{% endblock %}
