@@ -42,6 +42,32 @@
         margin-top: 18px;
     }
 
+    .validation-box {
+        margin-top: 18px;
+        padding: 16px 18px;
+        border: 1px solid #facc15;
+        border-radius: 12px;
+        background: #fefce8;
+    }
+
+    .validation-box.has-errors {
+        border-color: #fca5a5;
+        background: #fef2f2;
+    }
+
+    .validation-box ul {
+        margin: 10px 0 0;
+        padding-left: 22px;
+    }
+
+    .validation-error {
+        color: #b91c1c;
+    }
+
+    .validation-warning {
+        color: #92400e;
+    }
+
     .filter-row {
         display: flex;
         gap: 12px;
@@ -250,6 +276,20 @@
         <button class="green" type="submit">Vorschau erzeugen</button>
     </form>
 
+    {% if plan_warnings %}
+    <div class="validation-box {% if has_plan_errors %}has-errors{% endif %}">
+        <strong>Prüfung des Vorschlags</strong>
+        <ul>
+            {% for warning in plan_warnings %}
+            <li class="{% if warning.level == 'error' %}validation-error{% else %}validation-warning{% endif %}">
+                <strong>{% if warning.level == "error" %}Fehler{% else %}Hinweis{% endif %}:</strong>
+                {{ warning.message }}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     {% if proposed_slots %}
     <form method="post" action="/plan-generator/apply" class="preview-table">
         <h3>Vorschau</h3>
@@ -294,7 +334,11 @@
             {% endfor %}
         </table>
 
+        {% if has_plan_errors %}
+        <p class="validation-error"><strong>Der Vorschlag kann wegen der oben genannten Fehler nicht übernommen werden.</strong></p>
+        {% else %}
         <button class="green" type="submit">Vorschlag übernehmen</button>
+        {% endif %}
     </form>
     {% endif %}
 </section>

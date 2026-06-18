@@ -753,6 +753,91 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
     return proposed_slots
 
+def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int):
+    warnings = []
+    game_slots = [slot for slot in proposed_slots if slot["slot_typ"] == "Spiel"]
+    group_games = [slot for slot in game_slots if slot["phase"] == "Gruppenphase"]
+
+    games_by_time_and_team = defaultdict(list)
+    game_times_by_team = defaultdict(set)
+    team_names = {team["id"]: team["name"] for team in expected_teams}
+
+    for slot in game_slots:
+        for team_id_key, team_name_key in (("team_a_id", "team_a"), ("team_b_id", "team_b")):
+            team_id = slot[team_id_key]
+            if team_id in (None, ""):
+                continue
+
+            team_names.setdefault(team_id, slot[team_name_key])
+            games_by_time_and_team[(slot["startzeit"], team_id)].append(slot)
+            game_times_by_team[team_id].add(slot["startzeit"])
+
+    for (startzeit, team_id), slots in games_by_time_and_team.items():
+        if len(slots) > 1:
+            warnings.append({
+                "level": "error",
+                "message": f'{team_names[team_id]} ist um {startzeit} gleichzeitig für mehrere Spiele eingeplant.',
+            })
+
+    all_times = sorted({slot["startzeit"] for slot in proposed_slots})
+    time_positions = {startzeit: index for index, startzeit in enumerate(all_times)}
+
+    for team_id, startzeiten in game_times_by_team.items():
+        positions = sorted(time_positions[startzeit] for startzeit in startzeiten)
+
+        for previous, current in zip(positions, positions[1:]):
+            if current == previous + 1:
+                warnings.append({
+                    "level": "warning",
+                    "message": f'{team_names[team_id]} spielt in zwei direkt aufeinanderfolgenden Zeitslots.',
+                })
+                break
+
+    group_game_counts = defaultdict(int)
+
+    for slot in group_games:
+        for team_id_key in ("team_a_id", "team_b_id"):
+            team_id = slot[team_id_key]
+            if team_id not in (None, ""):
+                group_game_counts[team_id] += 1
+
+    for team in expected_teams:
+        actual_games = group_game_counts[team["id"]]
+        if actual_games != games_per_team:
+            warnings.append({
+                "level": "error",
+                "message": (
+                    f'{team["name"]} erhält {actual_games} statt der geforderten '
+                    f'{games_per_team} Gruppenspiele.'
+                ),
+            })
+
+    semifinals = [slot for slot in game_slots if slot["phase"] == "Halbfinale"]
+    groups = {slot["gruppe"] for slot in group_games if slot["gruppe"]}
+
+    if semifinals and len(groups) < 2:
+        warnings.append({
+            "level": "error",
+            "message": "Halbfinals können nur mit mindestens zwei Gruppen erzeugt werden.",
+        })
+
+    if semifinals and len(semifinals) != 2:
+        warnings.append({
+            "level": "error",
+            "message": f"Für die Finalrunde werden genau zwei Halbfinals benötigt; geplant sind {len(semifinals)}.",
+        })
+
+    if len(semifinals) >= 2:
+        semifinal_times = {slot["startzeit"] for slot in semifinals}
+        if len(semifinal_times) != 1:
+            warnings.append({
+                "level": "error",
+                "message": "Beide Halbfinals müssen zur gleichen Uhrzeit stattfinden.",
+            })
+
+    return warnings
+
+
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
@@ -815,6 +900,8 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
             "teams": teams,
             "selected_competition_id": selected_competition_id,
             "proposed_slots": [],
+            "plan_warnings": [],
+            "has_plan_errors": False,
             "ko_hint": ko_hint,
             "can_generate_semifinals": can_generate_semifinals,
             "can_generate_finals": can_generate_finals,
@@ -851,6 +938,16 @@ def plan_generator_preview(
         """).fetchall()
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
         teams = conn.execute("SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name").fetchall()
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?",
+            (competition_id,)
+        ).fetchone()
+    expected_teams = [
+        team for team in teams
+        if competition is not None and team["jahrgang"] == competition["jahrgang"]
+    ]
+    plan_warnings = validate_generated_plan(proposed_slots, expected_teams, games_per_team)
+    has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
 
     return templates.TemplateResponse(
         request=request,
@@ -862,6 +959,8 @@ def plan_generator_preview(
             "teams": teams,
             "selected_competition_id": competition_id,
             "proposed_slots": proposed_slots,
+            "plan_warnings": plan_warnings,
+            "has_plan_errors": has_plan_errors,
             "ko_hint": None,
             "can_generate_semifinals": False,
             "can_generate_finals": False,
