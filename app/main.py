@@ -1867,14 +1867,14 @@ def teams(request: Request):
     with get_conn() as conn:
         has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
         query = """
-            SELECT t.*, 
-                   EXISTS(SELECT 1 FROM slots WHERE team_a_id = t.id OR team_b_id = t.id) AS has_slots,
-                   EXISTS(SELECT 1 FROM sixkampf_team_results WHERE team_id = t.id) AS has_sixkampf,
+            SELECT t.*,
+                   (SELECT COUNT(*) FROM slots WHERE team_a_id = t.id OR team_b_id = t.id) AS slots_count,
+                   (SELECT COUNT(*) FROM sixkampf_team_results WHERE team_id = t.id) AS sixkampf_count,
         """
         if has_discipline_team:
-            query += "                   EXISTS(SELECT 1 FROM discipline_results WHERE team_id = t.id) AS has_discipline_results\n"
+            query += "                   (SELECT COUNT(*) FROM discipline_results WHERE team_id = t.id) AS discipline_count\n"
         else:
-            query += "                   0 AS has_discipline_results\n"
+            query += "                   0 AS discipline_count\n"
         query += """
             FROM teams t
             ORDER BY jahrgang, name
@@ -1884,9 +1884,13 @@ def teams(request: Request):
     teams = []
     for row in team_rows:
         team = dict(row)
-        team["deletable"] = not (
-            row["has_slots"] or row["has_sixkampf"] or row["has_discipline_results"]
+        team["dependent_count"] = (
+            row["slots_count"] + row["sixkampf_count"] + row["discipline_count"]
         )
+        team["has_slots"] = row["slots_count"] > 0
+        team["has_sixkampf"] = row["sixkampf_count"] > 0
+        team["has_discipline_results"] = row["discipline_count"] > 0
+        team["deletable"] = team["dependent_count"] == 0
         teams.append(team)
 
     return templates.TemplateResponse(request=request, name="teams.html", context={"teams": teams})
@@ -1923,28 +1927,65 @@ def update_team(
 @app.post("/team/{team_id}/delete")
 def delete_team(team_id: int):
     with get_conn() as conn:
-        has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
-        query = """
-            SELECT 1 FROM (
-                SELECT team_a_id AS team_id FROM slots WHERE team_a_id = ?
-                UNION ALL
-                SELECT team_b_id FROM slots WHERE team_b_id = ?
-                UNION ALL
-                SELECT team_id FROM sixkampf_team_results WHERE team_id = ?
-        """
-        params = [team_id, team_id, team_id]
-        if has_discipline_team:
-            query += "                UNION ALL SELECT team_id FROM discipline_results WHERE team_id = ?\n"
-            params.append(team_id)
-        query += """
+        try:
+            conn.execute("BEGIN")
+            has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
+            if has_discipline_team:
+                conn.execute("DELETE FROM discipline_results WHERE team_id = ?", (team_id,))
+            conn.execute("DELETE FROM sixkampf_team_results WHERE team_id = ?", (team_id,))
+            conn.execute(
+                "DELETE FROM slots WHERE team_a_id = ? OR team_b_id = ?",
+                (team_id, team_id),
             )
-            LIMIT 1
-        """
-        dependency = conn.execute(query, tuple(params)).fetchone()
-        if dependency:
-            return RedirectResponse("/teams", status_code=303)
-        conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
-        conn.commit()
+            conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return RedirectResponse("/teams", status_code=303)
+
+
+@app.post("/teams/bulk-action")
+def teams_bulk_action(
+    team_ids: List[int] = Form([]),
+    action: str = Form(...),
+):
+    if not team_ids:
+        return RedirectResponse("/teams", status_code=303)
+
+    placeholders = ",".join("?" for _ in team_ids)
+    with get_conn() as conn:
+        try:
+            conn.execute("BEGIN")
+            if action == "deactivate":
+                conn.execute(
+                    f"UPDATE teams SET active = 0 WHERE id IN ({placeholders})",
+                    tuple(team_ids),
+                )
+            elif action == "delete":
+                has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
+                if has_discipline_team:
+                    conn.execute(
+                        f"DELETE FROM discipline_results WHERE team_id IN ({placeholders})",
+                        tuple(team_ids),
+                    )
+                conn.execute(
+                    f"DELETE FROM sixkampf_team_results WHERE team_id IN ({placeholders})",
+                    tuple(team_ids),
+                )
+                conn.execute(
+                    f"DELETE FROM slots WHERE team_a_id IN ({placeholders}) OR team_b_id IN ({placeholders})",
+                    tuple(team_ids) + tuple(team_ids),
+                )
+                conn.execute(
+                    f"DELETE FROM teams WHERE id IN ({placeholders})",
+                    tuple(team_ids),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     return RedirectResponse("/teams", status_code=303)
 

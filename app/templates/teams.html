@@ -19,47 +19,83 @@
 
 <section class="panel team-panel">
     <h2>Bestehende Teams</h2>
-    <div class="table-scroll">
-        <table class="team-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Jahrgang</th>
-                    <th>Status</th>
-                    <th>Aktionen</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for t in teams %}
-                <tr>
-                    <td>
-                        <form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
-                        <input form="team-update-{{ t.id }}" type="text" name="name" value="{{ t.name }}" required>
-                    </td>
-                    <td>
-                        <input form="team-update-{{ t.id }}" type="number" name="jahrgang" min="1" max="13" value="{{ t.jahrgang }}" required>
-                    </td>
-                    <td>
-                        <input form="team-update-{{ t.id }}" type="hidden" name="active" value="0">
-                        <label class="checkbox-label">
-                            <input form="team-update-{{ t.id }}" type="checkbox" name="active" value="1" {% if t.active == 1 %}checked{% endif %}>
-                            Aktiv
-                        </label>
-                    </td>
-                    <td class="team-actions">
-                        <button form="team-update-{{ t.id }}" class="green" type="submit">Speichern</button>
-                        {% if t.deletable %}
-                        <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
-                            <button type="submit">Löschen</button>
-                        </form>
-                        {% else %}
-                        <span class="muted small">In Verwendung; nur Deaktivierung möglich</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <form method="post" action="/teams/bulk-action" id="team-bulk-form">
+        <div class="bulk-actions">
+            <button class="green" type="submit" name="action" value="deactivate">Ausgewählte deaktivieren</button>
+            <button class="red" type="submit" name="action" value="delete" onclick="return confirmBulkDelete();">Ausgewählte löschen</button>
+        </div>
+        <div class="table-scroll">
+            <table class="team-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                        <th>Name</th>
+                        <th>Jahrgang</th>
+                        <th>Status</th>
+                        <th>Verwendet in</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in teams %}
+                    <tr>
+                        <td><input type="checkbox" name="team_ids" value="{{ t.id }}"></td>
+                        <td>
+                            <form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
+                            <input form="team-update-{{ t.id }}" type="text" name="name" value="{{ t.name }}" required>
+                        </td>
+                        <td>
+                            <input form="team-update-{{ t.id }}" type="number" name="jahrgang" min="1" max="13" value="{{ t.jahrgang }}" required>
+                        </td>
+                        <td>
+                            <input form="team-update-{{ t.id }}" type="hidden" name="active" value="0">
+                            <label class="checkbox-label">
+                                <input form="team-update-{{ t.id }}" type="checkbox" name="active" value="1" {% if t.active == 1 %}checked{% endif %}>
+                                Aktiv
+                            </label>
+                        </td>
+                        <td>
+                            {% if t.dependent_count > 0 %}
+                            {{ t.dependent_count }} abhängige Datensätze
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td class="team-actions">
+                            <button form="team-update-{{ t.id }}" class="green" type="submit">Speichern</button>
+                            {% if t.deletable %}
+                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
+                                <button type="submit">Löschen</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team inkl. aller zugehörigen Daten löschen? {{ t.dependent_count }} abhängige Datensätze werden entfernt.');">
+                                <button type="submit" class="red">Team inkl. aller Daten löschen</button>
+                            </form>
+                            <span class="muted small">In Verwendung; Deaktivierung oder Komplettlöschung möglich</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
 </section>
+
+<script>
+function toggleSelectAll(checkbox) {
+    document.querySelectorAll('#team-bulk-form input[name="team_ids"]').forEach(function(input) {
+        input.checked = checkbox.checked;
+    });
+}
+
+function confirmBulkDelete() {
+    const selected = document.querySelectorAll('#team-bulk-form input[name="team_ids"]:checked');
+    if (selected.length === 0) {
+        alert('Bitte wählen Sie zuerst mindestens ein Team aus.');
+        return false;
+    }
+    return confirm('Ausgewählte Teams inklusive aller zugehörigen Daten löschen? Dies kann nicht rückgängig gemacht werden.');
+}
+</script>
 {% endblock %}
