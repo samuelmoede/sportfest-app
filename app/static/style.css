@@ -274,6 +274,62 @@ button.outline {
     gap: 18px;
 }
 
+.team-panel {
+    padding: 18px;
+}
+
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.team-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+
+.team-table th,
+.team-table td {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.team-table th {
+    background: #f8fafc;
+    color: var(--muted);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.team-table input[type="text"],
+.team-table input[type="number"] {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.team-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.team-actions .muted.small {
+    display: block;
+}
+
 section.cards.competition-list {
     display: grid;
     grid-template-columns: 1fr;

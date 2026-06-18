@@ -122,14 +122,14 @@ Wichtig:
 Ziel: Klassen robust, kompakt und sicher verwalten.
 
 
-* [ ] Teamansicht von Kartenlayout auf Tabellenlayout umstellen
-* [ ] Teams zeilenweise anzeigen
-* [ ] Teamname bearbeiten
-* [ ] Jahrgang bearbeiten
-* [ ] Team aktiv/inaktiv setzen
-* [ ] Löschen nur erlauben, wenn keine abhängigen Daten existieren
-* [ ] Bei vorhandenen Ergebnissen nicht löschen, sondern deaktivieren
-* [ ] Konsistenz sicherstellen, wenn Teams bereits in Slots, Ergebnissen oder Sechskampfwerten verwendet wurden
+* [x] Teamansicht von Kartenlayout auf Tabellenlayout umstellen
+* [x] Teams zeilenweise anzeigen
+* [x] Teamname bearbeiten
+* [x] Jahrgang bearbeiten
+* [x] Team aktiv/inaktiv setzen
+* [x] Löschen nur erlauben, wenn keine abhängigen Daten existieren
+* [x] Bei vorhandenen Ergebnissen nicht löschen, sondern deaktivieren
+* [x] Konsistenz sicherstellen, wenn Teams bereits in Slots, Ergebnissen oder Sechskampfwerten verwendet wurden
 * [ ] optional: Jahrgangsgruppen besser abbilden, z. B. GOST
 
 Regel:

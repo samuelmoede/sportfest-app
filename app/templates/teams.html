@@ -17,19 +17,49 @@
     </form>
 </section>
 
-<section class="cards">
-{% for t in teams %}
-    <div class="card">
-        <div class="avatar">{{ t.name.upper() }}</div>
-        <div>
-            <strong>{{ t.name }}</strong><br>
-            <span>Jahrgang {{ t.jahrgang }}</span>
-        </div>
-
-        <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
-            <button type="submit">Löschen</button>
-        </form>
+<section class="panel team-panel">
+    <h2>Bestehende Teams</h2>
+    <div class="table-scroll">
+        <table class="team-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Jahrgang</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in teams %}
+                <tr>
+                    <td>
+                        <form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
+                        <input form="team-update-{{ t.id }}" type="text" name="name" value="{{ t.name }}" required>
+                    </td>
+                    <td>
+                        <input form="team-update-{{ t.id }}" type="number" name="jahrgang" min="1" max="13" value="{{ t.jahrgang }}" required>
+                    </td>
+                    <td>
+                        <input form="team-update-{{ t.id }}" type="hidden" name="active" value="0">
+                        <label class="checkbox-label">
+                            <input form="team-update-{{ t.id }}" type="checkbox" name="active" value="1" {% if t.active == 1 %}checked{% endif %}>
+                            Aktiv
+                        </label>
+                    </td>
+                    <td class="team-actions">
+                        <button form="team-update-{{ t.id }}" class="green" type="submit">Speichern</button>
+                        {% if t.deletable %}
+                        <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
+                            <button type="submit">Löschen</button>
+                        </form>
+                        {% else %}
+                        <span class="muted small">In Verwendung; nur Deaktivierung möglich</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-{% endfor %}
 </section>
 {% endblock %}

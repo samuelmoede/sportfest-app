@@ -1754,9 +1754,24 @@ def tabellen(request: Request, competition_id: str = ""):
 @app.get("/teams")
 def teams(request: Request):
     with get_conn() as conn:
-        team_rows = conn.execute("SELECT * FROM teams ORDER BY jahrgang, name").fetchall()
+        team_rows = conn.execute("""
+            SELECT t.*, 
+                   EXISTS(SELECT 1 FROM slots WHERE team_a_id = t.id OR team_b_id = t.id) AS has_slots,
+                   EXISTS(SELECT 1 FROM sixkampf_team_results WHERE team_id = t.id) AS has_sixkampf,
+                   EXISTS(SELECT 1 FROM discipline_results WHERE team_id = t.id) AS has_discipline_results
+            FROM teams t
+            ORDER BY jahrgang, name
+        """).fetchall()
 
-    return templates.TemplateResponse(request=request, name="teams.html", context={"teams": team_rows})
+    teams = []
+    for row in team_rows:
+        team = dict(row)
+        team["deletable"] = not (
+            row["has_slots"] or row["has_sixkampf"] or row["has_discipline_results"]
+        )
+        teams.append(team)
+
+    return templates.TemplateResponse(request=request, name="teams.html", context={"teams": teams})
 
 
 @app.post("/team/create")
@@ -1768,9 +1783,42 @@ def create_team(name: str = Form(...), jahrgang: int = Form(...)):
     return RedirectResponse("/teams", status_code=303)
 
 
+@app.post("/team/{team_id}/update")
+def update_team(
+    team_id: int,
+    name: str = Form(...),
+    jahrgang: int = Form(...),
+    active: int = Form(0),
+):
+    name_value = name.strip()
+    if not name_value or not 1 <= jahrgang <= 13:
+        return RedirectResponse("/teams", status_code=303)
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE teams SET name = ?, jahrgang = ?, active = ? WHERE id = ?",
+            (name_value, jahrgang, 1 if active else 0, team_id),
+        )
+        conn.commit()
+    return RedirectResponse("/teams", status_code=303)
+
+
 @app.post("/team/{team_id}/delete")
 def delete_team(team_id: int):
     with get_conn() as conn:
+        dependency = conn.execute("""
+            SELECT 1 FROM (
+                SELECT team_a_id AS team_id FROM slots WHERE team_a_id = ?
+                UNION ALL
+                SELECT team_b_id FROM slots WHERE team_b_id = ?
+                UNION ALL
+                SELECT team_id FROM sixkampf_team_results WHERE team_id = ?
+                UNION ALL
+                SELECT team_id FROM discipline_results WHERE team_id = ?
+            )
+            LIMIT 1
+        """, (team_id, team_id, team_id, team_id)).fetchone()
+        if dependency:
+            return RedirectResponse("/teams", status_code=303)
         conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
         conn.commit()
 
