@@ -58,6 +58,7 @@ def init_db():
             sort_order INTEGER NOT NULL DEFAULT 0,
             unit TEXT,
             scoring_direction TEXT NOT NULL DEFAULT 'higher',
+            values_per_team INTEGER NOT NULL DEFAULT 1,
             FOREIGN KEY (competition_id) REFERENCES competitions(id)
         );
 
@@ -87,6 +88,21 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_discipline_results_discipline
             ON discipline_results (discipline_id, participant_id);
+
+        CREATE TABLE IF NOT EXISTS sixkampf_team_results (
+            competition_id INTEGER NOT NULL,
+            discipline_id INTEGER NOT NULL,
+            team_id INTEGER NOT NULL,
+            value_index INTEGER NOT NULL,
+            value REAL NOT NULL,
+            PRIMARY KEY (competition_id, discipline_id, team_id, value_index),
+            FOREIGN KEY (competition_id) REFERENCES competitions(id),
+            FOREIGN KEY (discipline_id) REFERENCES competition_disciplines(id),
+            FOREIGN KEY (team_id) REFERENCES teams(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sixkampf_team_results_lookup
+            ON sixkampf_team_results (competition_id, discipline_id, team_id);
 
         CREATE TABLE IF NOT EXISTS slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,6 +171,12 @@ def init_db():
             conn.execute("""
                 ALTER TABLE competition_disciplines
                 ADD COLUMN scoring_direction TEXT NOT NULL DEFAULT 'higher'
+            """)
+
+        if "values_per_team" not in discipline_columns:
+            conn.execute("""
+                ALTER TABLE competition_disciplines
+                ADD COLUMN values_per_team INTEGER NOT NULL DEFAULT 1
             """)
 
         conn.commit()

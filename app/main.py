@@ -53,7 +53,7 @@ def get_unique_event_name(conn, original_name: str):
 
 def copy_competition_disciplines(conn, source_competition_id: int, target_competition_id: int):
     disciplines = conn.execute("""
-        SELECT name, sort_order, unit, scoring_direction
+        SELECT name, sort_order, unit, scoring_direction, values_per_team
         FROM competition_disciplines
         WHERE competition_id = ?
         ORDER BY sort_order, id
@@ -61,70 +61,61 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
     for discipline in disciplines:
         conn.execute("""
             INSERT INTO competition_disciplines (
-                competition_id, name, sort_order, unit, scoring_direction
-            ) VALUES (?, ?, ?, ?, ?)
+                competition_id, name, sort_order, unit, scoring_direction, values_per_team
+            ) VALUES (?, ?, ?, ?, ?, ?)
         """, (
             target_competition_id, discipline["name"], discipline["sort_order"],
             discipline["unit"], discipline["scoring_direction"],
+            discipline["values_per_team"],
         ))
 
 
-def calculate_sixkampf_ranking(competition_id: int):
-    with get_conn() as conn:
-        participants = conn.execute("""
-            SELECT * FROM sixkampf_participants
-            WHERE competition_id = ?
-            ORDER BY class_name, participant_number
-        """, (competition_id,)).fetchall()
-        disciplines = conn.execute("""
-            SELECT * FROM competition_disciplines
-            WHERE competition_id = ?
-            ORDER BY sort_order, id
-        """, (competition_id,)).fetchall()
-        results = conn.execute("""
-            SELECT dr.* FROM discipline_results dr
-            JOIN sixkampf_participants p ON p.id = dr.participant_id
-            WHERE p.competition_id = ?
-        """, (competition_id,)).fetchall()
+def calculate_sixkampf_team_ranking(teams, disciplines, result_rows):
+    totals_by_team_discipline = defaultdict(float)
+    overall_totals = {team["id"]: 0.0 for team in teams}
+    ranking_scores = {team["id"]: 0.0 for team in teams}
+    result_keys = set()
 
-    participant_count = len(participants)
-    totals = {participant["id"]: 0 for participant in participants}
-    values_by_discipline = defaultdict(list)
-    for result in results:
-        values_by_discipline[result["discipline_id"]].append(
-            (result["participant_id"], result["value"])
-        )
+    for result in result_rows:
+        key = (result["team_id"], result["discipline_id"])
+        totals_by_team_discipline[key] += result["value"]
+        result_keys.add(key)
 
-    for discipline in disciplines:
-        discipline_values = values_by_discipline[discipline["id"]]
-        reverse = discipline["scoring_direction"] == "higher"
-        discipline_values.sort(key=lambda item: item[1], reverse=reverse)
-        previous_value = None
-        rank = 0
-        for index, (participant_id, value) in enumerate(discipline_values, start=1):
-            if previous_value is None or value != previous_value:
-                rank = index
-                previous_value = value
-            totals[participant_id] += max(participant_count - rank + 1, 1)
+    for team in teams:
+        for discipline in disciplines:
+            total = totals_by_team_discipline[(team["id"], discipline["id"])]
+            overall_totals[team["id"]] += total
+            if discipline["scoring_direction"] == "lower":
+                ranking_scores[team["id"]] -= total
+            else:
+                ranking_scores[team["id"]] += total
 
     ranking = [{
-        "participant": participant,
-        "total_points": totals[participant["id"]],
+        "team": team,
+        "overall_total": overall_totals[team["id"]],
+        "ranking_score": ranking_scores[team["id"]],
+        "completed_disciplines": sum(
+            1 for discipline in disciplines
+            if (team["id"], discipline["id"]) in result_keys
+        ),
         "placement": 0,
-    } for participant in participants]
+    } for team in teams]
     ranking.sort(key=lambda row: (
-        -row["total_points"],
-        row["participant"]["class_name"].lower(),
-        row["participant"]["participant_number"],
+        -row["completed_disciplines"],
+        -row["ranking_score"],
+        row["team"]["name"].lower(),
     ))
-    previous_points = None
+
+    previous_rank_key = None
     placement = 0
     for index, row in enumerate(ranking, start=1):
-        if previous_points is None or row["total_points"] != previous_points:
+        rank_key = (row["completed_disciplines"], row["ranking_score"])
+        if previous_rank_key is None or rank_key != previous_rank_key:
             placement = index
-            previous_points = row["total_points"]
+            previous_rank_key = rank_key
         row["placement"] = placement
-    return ranking
+
+    return ranking, totals_by_team_discipline, overall_totals
 
 
 @app.on_event("startup")
@@ -1460,35 +1451,148 @@ def copy_slot(slot_id: int):
     )
 
 @app.get("/ergebnisse")
-def ergebnisse(request: Request, competition_id: str = ""):
+def ergebnisse(
+    request: Request, competition_id: str = "", discipline_id: str = ""
+):
     selected_competition_id = parse_competition_id(competition_id)
+    competitions = get_active_competitions()
+    selected_competition = next(
+        (competition for competition in competitions
+         if competition["id"] == selected_competition_id),
+        None,
+    )
+
+    if (
+        selected_competition is not None
+        and selected_competition["competition_type"] == "Sechskampf"
+    ):
+        with get_conn() as conn:
+            teams = conn.execute("""
+                SELECT * FROM teams
+                WHERE active = 1 AND jahrgang = ?
+                ORDER BY name
+            """, (selected_competition["jahrgang"],)).fetchall()
+            disciplines = conn.execute("""
+                SELECT * FROM competition_disciplines
+                WHERE competition_id = ?
+                ORDER BY sort_order, id
+            """, (selected_competition_id,)).fetchall()
+            result_rows = conn.execute("""
+                SELECT * FROM sixkampf_team_results
+                WHERE competition_id = ?
+            """, (selected_competition_id,)).fetchall()
+
+        try:
+            selected_discipline_id = int(discipline_id) if discipline_id else None
+        except ValueError:
+            selected_discipline_id = None
+        selected_discipline = next(
+            (discipline for discipline in disciplines
+             if discipline["id"] == selected_discipline_id),
+            disciplines[0] if disciplines else None,
+        )
+        ranking, totals_by_team_discipline, overall_totals = (
+            calculate_sixkampf_team_ranking(teams, disciplines, result_rows)
+        )
+        values = {
+            (row["team_id"], row["discipline_id"], row["value_index"]): row["value"]
+            for row in result_rows
+        }
+        return templates.TemplateResponse(
+            request=request, name="ergebnisse.html",
+            context={
+                "is_sixkampf": True,
+                "competitions": competitions,
+                "selected_competition_id": selected_competition_id,
+                "selected_competition": selected_competition,
+                "disciplines": disciplines,
+                "selected_discipline": selected_discipline,
+                "teams": teams,
+                "values": values,
+                "totals_by_team_discipline": totals_by_team_discipline,
+                "overall_totals": overall_totals,
+                "ranking": ranking,
+                "slots": [],
+                "archived_slots": [],
+            }
+        )
 
     slots = get_all_slots(selected_competition_id)
-
     active_slots = [
         slot for slot in slots
         if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
     ]
-
     archived_slots = [
         slot for slot in slots
         if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
     ]
-
-    archived_slots = list(reversed(archived_slots))[:20]
-    competitions = get_active_competitions()
-
     return templates.TemplateResponse(
-        request=request,
-        name="ergebnisse.html",
+        request=request, name="ergebnisse.html",
         context={
+            "is_sixkampf": False,
             "slots": active_slots,
-            "archived_slots": archived_slots,
+            "archived_slots": list(reversed(archived_slots))[:20],
             "competitions": competitions,
             "selected_competition_id": selected_competition_id,
         }
     )
 
+
+@app.post("/competition/{competition_id}/discipline/{discipline_id}/team/{team_id}/results")
+async def sixkampf_team_results_save(
+    request: Request, competition_id: int, discipline_id: int, team_id: int
+):
+    form = await request.form()
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+        ).fetchone()
+        discipline = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE id = ? AND competition_id = ?
+        """, (discipline_id, competition_id)).fetchone()
+        team = conn.execute(
+            "SELECT * FROM teams WHERE id = ? AND active = 1", (team_id,)
+        ).fetchone()
+        if (
+            competition is None or competition["competition_type"] != "Sechskampf"
+            or discipline is None or team is None
+            or team["jahrgang"] != competition["jahrgang"]
+        ):
+            return RedirectResponse("/ergebnisse", status_code=303)
+
+        parsed_values = []
+        try:
+            for value_index in range(1, discipline["values_per_team"] + 1):
+                raw_value = str(form.get(f"value_{value_index}", "")).strip()
+                value = None if raw_value == "" else float(raw_value.replace(",", "."))
+                if value is not None and not isfinite(value):
+                    raise ValueError
+                parsed_values.append((value_index, value))
+        except ValueError:
+            return RedirectResponse(
+                f"/ergebnisse?competition_id={competition_id}&discipline_id={discipline_id}",
+                status_code=303
+            )
+
+        conn.execute("""
+            DELETE FROM sixkampf_team_results
+            WHERE competition_id = ? AND discipline_id = ? AND team_id = ?
+        """, (competition_id, discipline_id, team_id))
+        for value_index, value in parsed_values:
+            if value is not None:
+                conn.execute("""
+                    INSERT INTO sixkampf_team_results (
+                        competition_id, discipline_id, team_id, value_index, value
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (
+                    competition_id, discipline_id, team_id, value_index, value,
+                ))
+        conn.commit()
+    return RedirectResponse(
+        f"/ergebnisse?competition_id={competition_id}&discipline_id={discipline_id}",
+        status_code=303
+    )
 
 @app.post("/slot/{slot_id}/start")
 def start_slot(slot_id: int):
@@ -1756,14 +1860,16 @@ def update_competition(
 def create_competition_discipline(
     competition_id: int, name: str = Form(...), sort_order: str = Form(...),
     unit: str = Form(""), scoring_direction: str = Form("higher"),
+    values_per_team: str = Form("1"),
 ):
     try:
         sort_order_value = int(sort_order)
+        values_per_team_value = int(values_per_team)
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
     name_value = name.strip()
     if (
-        not name_value or sort_order_value < 1
+        not name_value or sort_order_value < 1 or values_per_team_value < 1
         or scoring_direction not in {"higher", "lower"}
     ):
         return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1775,11 +1881,12 @@ def create_competition_discipline(
             return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("""
             INSERT INTO competition_disciplines (
-                competition_id, name, sort_order, unit, scoring_direction
-            ) VALUES (?, ?, ?, ?, ?)
+                competition_id, name, sort_order, unit,
+                scoring_direction, values_per_team
+            ) VALUES (?, ?, ?, ?, ?, ?)
         """, (
-            competition_id, name_value, sort_order_value,
-            unit.strip() or None, scoring_direction,
+            competition_id, name_value, sort_order_value, unit.strip() or None,
+            scoring_direction, values_per_team_value,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1788,25 +1895,28 @@ def create_competition_discipline(
 def update_competition_discipline(
     discipline_id: int, name: str = Form(...), sort_order: str = Form(...),
     unit: str = Form(""), scoring_direction: str = Form("higher"),
+    values_per_team: str = Form("1"),
 ):
     try:
         sort_order_value = int(sort_order)
+        values_per_team_value = int(values_per_team)
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
     name_value = name.strip()
     if (
-        not name_value or sort_order_value < 1
+        not name_value or sort_order_value < 1 or values_per_team_value < 1
         or scoring_direction not in {"higher", "lower"}
     ):
         return RedirectResponse("/wettbewerbe", status_code=303)
     with get_conn() as conn:
         conn.execute("""
             UPDATE competition_disciplines
-            SET name = ?, sort_order = ?, unit = ?, scoring_direction = ?
+            SET name = ?, sort_order = ?, unit = ?,
+                scoring_direction = ?, values_per_team = ?
             WHERE id = ?
         """, (
             name_value, sort_order_value, unit.strip() or None,
-            scoring_direction, discipline_id,
+            scoring_direction, values_per_team_value, discipline_id,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1814,6 +1924,10 @@ def update_competition_discipline(
 @app.post("/discipline/{discipline_id}/delete")
 def delete_competition_discipline(discipline_id: int):
     with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM sixkampf_team_results WHERE discipline_id = ?",
+            (discipline_id,)
+        )
         conn.execute(
             "DELETE FROM discipline_results WHERE discipline_id = ?",
             (discipline_id,)
@@ -1868,6 +1982,10 @@ def reset_competition(competition_id: int):
 @app.post("/competition/{competition_id}/delete")
 def delete_competition(competition_id: int):
     with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM sixkampf_team_results WHERE competition_id = ?",
+            (competition_id,)
+        )
         conn.execute("""
             DELETE FROM discipline_results
             WHERE participant_id IN (
@@ -2064,153 +2182,6 @@ def event_detail(request: Request, event_id: int):
     return templates.TemplateResponse(
         request=request, name="event_detail.html",
         context={"event": event, "competitions": competitions}
-    )
-
-
-@app.get("/competition/{competition_id}/sechskampf")
-def sechskampf_detail(request: Request, competition_id: int):
-    with get_conn() as conn:
-        competition = conn.execute(
-            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
-        ).fetchone()
-        disciplines = conn.execute("""
-            SELECT * FROM competition_disciplines
-            WHERE competition_id = ?
-            ORDER BY sort_order, id
-        """, (competition_id,)).fetchall()
-        participants = conn.execute("""
-            SELECT * FROM sixkampf_participants
-            WHERE competition_id = ?
-            ORDER BY class_name, participant_number
-        """, (competition_id,)).fetchall()
-        result_rows = conn.execute("""
-            SELECT dr.* FROM discipline_results dr
-            JOIN sixkampf_participants p ON p.id = dr.participant_id
-            WHERE p.competition_id = ?
-        """, (competition_id,)).fetchall()
-    if competition is None or competition["competition_type"] != "Sechskampf":
-        return RedirectResponse("/wettbewerbe", status_code=303)
-    participants_by_class = defaultdict(list)
-    for participant in participants:
-        participants_by_class[participant["class_name"]].append(participant)
-    results = {
-        (row["participant_id"], row["discipline_id"]): row["value"]
-        for row in result_rows
-    }
-    return templates.TemplateResponse(
-        request=request, name="sechskampf.html",
-        context={
-            "competition": competition, "disciplines": disciplines,
-            "participants_by_class": participants_by_class,
-            "participant_count": len(participants), "results": results,
-            "ranking": calculate_sixkampf_ranking(competition_id),
-        }
-    )
-
-
-@app.post("/competition/{competition_id}/participants/create")
-def participant_create(
-    competition_id: int, class_name: str = Form(...),
-    participant_number: int = Form(...),
-):
-    if not class_name.strip() or participant_number < 1:
-        return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
-    with get_conn() as conn:
-        competition = conn.execute(
-            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
-        ).fetchone()
-        if competition is None or competition["competition_type"] != "Sechskampf":
-            return RedirectResponse("/wettbewerbe", status_code=303)
-        conn.execute("""
-            INSERT OR IGNORE INTO sixkampf_participants (
-                competition_id, class_name, participant_number
-            ) VALUES (?, ?, ?)
-        """, (competition_id, class_name.strip(), participant_number))
-        conn.commit()
-    return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
-
-
-@app.post("/competition/{competition_id}/participants/generate")
-def participants_generate(
-    competition_id: int, class_name: str = Form(...),
-    participant_count: int = Form(...),
-):
-    if not class_name.strip() or participant_count < 1:
-        return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
-    with get_conn() as conn:
-        competition = conn.execute(
-            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
-        ).fetchone()
-        if competition is None or competition["competition_type"] != "Sechskampf":
-            return RedirectResponse("/wettbewerbe", status_code=303)
-        for number in range(1, participant_count + 1):
-            conn.execute("""
-                INSERT OR IGNORE INTO sixkampf_participants (
-                    competition_id, class_name, participant_number
-                ) VALUES (?, ?, ?)
-            """, (competition_id, class_name.strip(), number))
-        conn.commit()
-    return RedirectResponse(f"/competition/{competition_id}/sechskampf", status_code=303)
-
-
-@app.post("/participants/{participant_id}/delete")
-def participant_delete(participant_id: int):
-    with get_conn() as conn:
-        participant = conn.execute(
-            "SELECT * FROM sixkampf_participants WHERE id = ?", (participant_id,)
-        ).fetchone()
-        if participant is None:
-            return RedirectResponse("/wettbewerbe", status_code=303)
-        conn.execute("DELETE FROM discipline_results WHERE participant_id = ?", (participant_id,))
-        conn.execute("DELETE FROM sixkampf_participants WHERE id = ?", (participant_id,))
-        conn.commit()
-    return RedirectResponse(
-        f"/competition/{participant['competition_id']}/sechskampf", status_code=303
-    )
-
-
-@app.post("/participants/{participant_id}/results")
-async def participant_results_save(request: Request, participant_id: int):
-    form = await request.form()
-    with get_conn() as conn:
-        participant = conn.execute(
-            "SELECT * FROM sixkampf_participants WHERE id = ?", (participant_id,)
-        ).fetchone()
-        if participant is None:
-            return RedirectResponse("/wettbewerbe", status_code=303)
-        disciplines = conn.execute("""
-            SELECT id FROM competition_disciplines
-            WHERE competition_id = ?
-        """, (participant["competition_id"],)).fetchall()
-        parsed_values = []
-        try:
-            for discipline in disciplines:
-                raw_value = str(form.get(f"discipline_{discipline['id']}", "")).strip()
-                value = None if raw_value == "" else float(raw_value.replace(",", "."))
-                if value is not None and not isfinite(value):
-                    raise ValueError
-                parsed_values.append((discipline["id"], value))
-        except ValueError:
-            return RedirectResponse(
-                f"/competition/{participant['competition_id']}/sechskampf",
-                status_code=303
-            )
-        for discipline_id, value in parsed_values:
-            if value is None:
-                conn.execute("""
-                    DELETE FROM discipline_results
-                    WHERE participant_id = ? AND discipline_id = ?
-                """, (participant_id, discipline_id))
-            else:
-                conn.execute("""
-                    INSERT INTO discipline_results (participant_id, discipline_id, value)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(participant_id, discipline_id)
-                    DO UPDATE SET value = excluded.value
-                """, (participant_id, discipline_id, value))
-        conn.commit()
-    return RedirectResponse(
-        f"/competition/{participant['competition_id']}/sechskampf", status_code=303
     )
 
 
