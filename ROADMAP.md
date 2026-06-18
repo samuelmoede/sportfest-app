@@ -379,12 +379,12 @@ Aufgaben:
 
 ## 12. Responsive Design
 
-* [ ] Smartphone-Bedienung verbessern
-* [ ] Tablet-Bedienung verbessern
+* [x] Smartphone-Bedienung verbessern
+* [x] Tablet-Bedienung verbessern
 * [ ] Navigation mobil einklappbar machen
-* [ ] Ergebniseingabe mobil optimieren
-* [ ] Sechskampf-Eingabe tabletfreundlich gestalten
-* [ ] Spielplan mobil besser lesbar machen
+* [x] Ergebniseingabe mobil optimieren
+* [x] Sechskampf-Eingabe tabletfreundlich gestalten
+* [x] Spielplan mobil besser lesbar machen
 * [ ] Drag & Drop touchfähig machen
 
 ---

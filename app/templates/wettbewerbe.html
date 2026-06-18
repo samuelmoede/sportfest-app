@@ -47,9 +47,9 @@
     </form>
 </section>
 
-<section class="cards">
+<section class="cards competition-list">
 {% for c in competitions %}
-    <div class="card column {% if c.status == 'archiviert' %}archived-card{% endif %}">
+    <div class="card competition-card column {% if c.status == 'archiviert' %}archived-card{% endif %}">
         <span class="badge {{ c.status }}">{{ c.status }}</span>
 
         <h2>{{ c.name }}</h2>

@@ -274,6 +274,93 @@ button.outline {
     gap: 18px;
 }
 
+section.cards.competition-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+.competition-card {
+    width: 100%;
+}
+
+.competition-card h2,
+.competition-card p,
+.competition-card label {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.competition-card .points-form {
+    display: grid;
+    grid-template-columns: minmax(140px, 200px) 1fr;
+    gap: 12px;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.competition-card .points-form button {
+    grid-column: 2;
+    width: auto;
+    min-width: 140px;
+}
+
+.competition-card .discipline-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.competition-card .discipline-row > form {
+    min-width: 0;
+    flex: 1 1 1fr;
+}
+
+.competition-card .discipline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.competition-card .discipline-form > input,
+.competition-card .discipline-form > select {
+    min-width: 0;
+    flex: 1 1 140px;
+}
+
+.competition-card .discipline-form > input[name="sort_order"] {
+    flex: 0 0 70px;
+}
+
+.competition-card .discipline-form > button {
+    flex: 0 0 auto;
+}
+
+.competition-card .discipline-create-form {
+    margin-top: 14px;
+}
+
+.competition-card .competition-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.competition-card .competition-actions form {
+    width: 100%;
+    min-width: 0;
+}
+
+.competition-card .competition-actions button {
+    width: 100%;
+}
+
 .card {
     display: flex;
     gap: 14px;
@@ -696,4 +783,161 @@ pre {
 
 .beamer-table td span {
     color: #22c55e;
+}
+
+/* Responsive layout */
+html,
+body {
+    min-width: 0;
+}
+
+.filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) {
+    .sidebar {
+        width: 220px;
+    }
+    .content {
+        margin-left: 220px;
+        width: calc(100% - 220px);
+        padding: 36px 24px;
+    }
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .cards {
+        grid-template-columns: repeat(2, minmax(240px, 1fr));
+    }
+}
+
+@media (max-width: 860px) {
+    .layout {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        position: relative;
+        height: auto;
+        padding: 14px 12px;
+    }
+    .content {
+        margin-left: 0;
+        width: 100%;
+        padding: 20px 14px;
+    }
+    .sidebar nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .sidebar nav a {
+        flex: 1 1 calc(50% - 8px);
+        max-width: calc(50% - 8px);
+        margin-bottom: 8px;
+        padding: 10px 12px;
+    }
+    .sidebar .nav-group {
+        width: 100%;
+        margin-top: 16px;
+    }
+    .sidebar-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 18px;
+    }
+    .beamer-link {
+        width: 100%;
+        text-align: center;
+    }
+    .stats {
+        grid-template-columns: 1fr;
+    }
+    .grid {
+        grid-template-columns: 1fr;
+    }
+    .cards {
+        grid-template-columns: 1fr;
+    }
+    .panel,
+    .card,
+    .result-card,
+    .court-column,
+    .ko-box,
+    .generator-box {
+        padding: 18px;
+    }
+    .admin-form,
+    .points-form,
+    .generator-grid,
+    .court-form,
+    .discipline-form,
+    .compact-form,
+    .filter-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: stretch;
+    }
+    .admin-form button,
+    .points-form button,
+    .court-form button,
+    .filter-row button {
+        width: 100%;
+        grid-column: auto;
+    }
+    .card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .table-scroll,
+    .panel table {
+        display: block;
+        overflow-x: auto;
+        width: 100%;
+        min-width: 100%;
+    }
+    .panel th,
+    .panel td {
+        white-space: nowrap;
+    }
+    .result-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .result-form input {
+        width: 100%;
+    }
+    .slot-teams,
+    .slot-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .discipline-row {
+        flex-direction: column;
+    }
+    .save-six {
+        width: 100%;
+    }
+}
+
+@media (max-width: 520px) {
+    .sidebar nav a {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
+    .logo {
+        padding: 10px;
+        font-size: 18px;
+    }
+    .brand span {
+        font-size: 12px;
+    }
 }
