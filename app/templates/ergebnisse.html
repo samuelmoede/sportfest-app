@@ -136,12 +136,12 @@
     background: var(--navy); color: white; border-color: var(--navy);
 }
 .six-class-cards {
-    display: grid; gap: 18px;
+    display: grid; gap: 10px;
 }
 .six-class-card {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 10px;
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 18px;
@@ -152,7 +152,7 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 16px;
+    gap: 12px;
     margin-bottom: 0;
 }
 .six-class-card h3 { margin: 2px 0 0; font-size: 24px; }
@@ -200,6 +200,11 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     background: white;
+}
+.slot-duration {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-weight: 700;
 }
 .ranking-place {
     display: grid;
@@ -265,7 +270,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <strong>{{ s.startzeit }}</strong>
             <span class="pill">{{ s.court_name }}</span>
             <span>{{ s.competition_name }}</span>
-            {% if s.started_at %}
+            {% if s.started_at and s.status == 'läuft' %}
+            <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+            {% elif s.started_at %}
             <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
             {% endif %}
             <span class="badge {{ s.status }}">{{ s.status }}</span>
@@ -285,7 +292,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             {% endif %}
             {% if s.status == "läuft" %}
             <form method="post" action="/slot/{{ s.id }}/unstart"
-                  onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten.');">
+                  onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten, der Timer wird jedoch zurückgesetzt.');">
                 <button class="outline">Start rückgängig</button>
             </form>
             {% endif %}
@@ -332,5 +339,93 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     {% endfor %}
 </section>
 {% endif %}
+
+<script>
+function parseTimestamp(timestamp) {
+    const cleaned = String(timestamp).trim();
+    const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|(?:([+-])(\d{2}):?(\d{2})))?$/);
+    if (!match) {
+        return new Date(cleaned.replace(' ', 'T'));
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = Number(match[6] || '0');
+
+    if (match[7]) {
+        const sign = match[7] === '-' ? -1 : 1;
+        const offsetMinutes = sign * (Number(match[8]) * 60 + Number(match[9]));
+        const date = new Date(Date.UTC(year, month, day, hour, minute, second));
+        date.setUTCMinutes(date.getUTCMinutes() - offsetMinutes);
+        return date;
+    }
+
+    return new Date(year, month, day, hour, minute, second);
+}
+
+function formatLocalTimestamp(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function formatDuration(seconds) {
+    const absSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(absSeconds / 3600);
+    const minutes = Math.floor((absSeconds % 3600) / 60);
+    const remainingSeconds = absSeconds % 60;
+    return (hours ? `${hours}h ` : '') + `${String(minutes).padStart(2, '0')}m ` + `${String(remainingSeconds).padStart(2, '0')}s`;
+}
+
+function updateResultTimers() {
+    const now = new Date();
+    document.querySelectorAll('.slot-duration').forEach(el => {
+        const startedAt = el.dataset.startedAt;
+        if (!startedAt) return;
+
+        const started = parseTimestamp(startedAt);
+        if (Number.isNaN(started.getTime())) return;
+
+        const seconds = Math.max(0, Math.floor((now - started) / 1000));
+        const planned = Number(el.dataset.plannedDuration || 0);
+        const runtime = formatDuration(seconds);
+
+        el.classList.remove('on-time', 'near-end', 'overrun');
+        if (planned > 0) {
+            const delta = seconds - planned;
+            if (delta >= 0) {
+                el.textContent = `Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
+                el.classList.add('overrun');
+            } else if (planned - seconds <= 60) {
+                el.textContent = `Laufzeit ${runtime} · Ende in ${formatDuration(planned - seconds)}`;
+                el.classList.add('near-end');
+            } else {
+                el.textContent = `Laufzeit ${runtime} · geplant ${formatDuration(planned)}`;
+                el.classList.add('on-time');
+            }
+        } else {
+            el.textContent = `Laufzeit ${runtime}`;
+        }
+    });
+}
+
+updateResultTimers();
+setInterval(updateResultTimers, 1000);
+
+document.querySelectorAll('form[action$="/start"]').forEach(form => {
+    form.addEventListener('submit', () => {
+        let startedInput = form.querySelector('input[name="started_at"]');
+        if (!startedInput) {
+            startedInput = document.createElement('input');
+            startedInput.type = 'hidden';
+            startedInput.name = 'started_at';
+            form.appendChild(startedInput);
+        }
+        startedInput.value = formatLocalTimestamp(new Date());
+    });
+});
+</script>
 {% endblock %}
 

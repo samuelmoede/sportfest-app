@@ -26,13 +26,34 @@ def get_app_version():
     except FileNotFoundError:
         return "dev"
 
+
+def get_style_version():
+    style_path = APP_DIR / "static" / "style.css"
+    try:
+        return str(int(style_path.stat().st_mtime))
+    except FileNotFoundError:
+        return get_app_version()
+
+
 templates.env.globals["app_version"] = get_app_version
+templates.env.globals["style_version"] = get_style_version
 
 
 def parse_competition_id(value):
     if value in (None, "", "None"):
         return None
     return int(value)
+
+
+def parse_slot_time(value: str):
+    if not value:
+        return None
+    for time_format in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(value, time_format)
+        except ValueError:
+            continue
+    return None
 
 
 def get_unique_competition_name(conn, original_name: str):
@@ -207,6 +228,9 @@ def fetch_dashboard_data():
 def get_all_slots(competition_id: Optional[int] = None):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
+               c.competition_type,
+               c.start_time AS competition_start_time,
+               c.end_time AS competition_end_time,
                co.name AS court_name, ta.name AS team_a, tb.name AS team_b
         FROM slots
         JOIN competitions c ON c.id = slots.competition_id
@@ -230,14 +254,52 @@ def get_all_slots(competition_id: Optional[int] = None):
     """
 
     with get_conn() as conn:
-        return conn.execute(query, params).fetchall()
+        rows = conn.execute(query, params).fetchall()
+
+    slots = [dict(row) for row in rows]
+    groups = {}
+    for slot in slots:
+        court_key = slot["court_id"] if slot["court_id"] is not None else ""
+        groups.setdefault(court_key, []).append(slot)
+
+    for group_slots in groups.values():
+        group_slots.sort(key=lambda slot: (
+            slot["sort_order"] if slot["sort_order"] is not None else 0,
+            slot["startzeit"] or "",
+            slot["id"],
+        ))
+
+        for index, slot in enumerate(group_slots):
+            slot["planned_duration_seconds"] = None
+            if slot["slot_typ"] != "Spiel":
+                continue
+
+            start = parse_slot_time(slot["startzeit"])
+            if not start:
+                continue
+
+            next_slot = group_slots[index + 1] if index + 1 < len(group_slots) else None
+            planned_seconds = None
+            if next_slot:
+                next_start = parse_slot_time(next_slot["startzeit"])
+                if next_start:
+                    planned_seconds = int((next_start - start).total_seconds())
+            elif slot.get("competition_end_time"):
+                comp_end = parse_slot_time(slot["competition_end_time"])
+                if comp_end:
+                    planned_seconds = int((comp_end - start).total_seconds())
+
+            if planned_seconds and planned_seconds > 0:
+                slot["planned_duration_seconds"] = planned_seconds
+
+    return slots
 
 
 def get_slots_grouped_by_court(competition_id: Optional[int] = None):
     with get_conn() as conn:
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
 
-    slots = get_all_slots(competition_id)
+    slots = [dict(slot) for slot in get_all_slots(competition_id)]
     grouped = {court["id"]: {"court": court, "slots": []} for court in courts}
     without_court = {"court": {"id": "", "name": "Ohne Feld"}, "slots": []}
 
@@ -246,6 +308,28 @@ def get_slots_grouped_by_court(competition_id: Optional[int] = None):
             grouped[slot["court_id"]]["slots"].append(slot)
         else:
             without_court["slots"].append(slot)
+
+    for group in grouped.values():
+        for index, slot in enumerate(group["slots"]):
+            if slot["slot_typ"] != "Spiel":
+                continue
+            start = parse_slot_time(slot["startzeit"])
+            if not start:
+                continue
+
+            next_slot = group["slots"][index + 1] if index + 1 < len(group["slots"]) else None
+            planned_seconds = None
+            if next_slot:
+                next_start = parse_slot_time(next_slot["startzeit"])
+                if next_start:
+                    planned_seconds = int((next_start - start).total_seconds())
+            elif slot.get("competition_end_time"):
+                comp_end = parse_slot_time(slot["competition_end_time"])
+                if comp_end:
+                    planned_seconds = int((comp_end - start).total_seconds())
+
+            if planned_seconds and planned_seconds > 0:
+                slot["planned_duration_seconds"] = planned_seconds
 
     return list(grouped.values()) + [without_court]
 
@@ -1771,30 +1855,45 @@ async def sixkampf_team_results_save(
     )
 
 @app.post("/slot/{slot_id}/start")
-def start_slot(slot_id: int):
+def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(None)):
     with get_conn() as conn:
-        started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        started_at_value = started_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
-            "UPDATE slots SET status = 'läuft', started_at = ? WHERE id = ?",
-            (started_at, slot_id),
+            "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
+            (started_at_value, slot_id),
         )
         conn.commit()
 
-    return RedirectResponse("/ergebnisse", status_code=303)
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
+
+
+@app.post("/slot/{slot_id}/finish")
+def finish_slot(slot_id: int):
+    with get_conn() as conn:
+        finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE slots SET status = 'beendet', finished_at = ? WHERE id = ?",
+            (finished_at, slot_id),
+        )
+        conn.commit()
+
+    return RedirectResponse("/spielplan", status_code=303)
 
 
 @app.post("/slot/{slot_id}/unstart")
-def unstart_slot(slot_id: int):
+def unstart_slot(slot_id: int, request: Request):
     with get_conn() as conn:
         conn.execute("""
             UPDATE slots
-            SET status = 'geplant'
+            SET status = 'geplant', started_at = NULL, finished_at = NULL
             WHERE id = ?
               AND status = 'läuft'
         """, (slot_id,))
         conn.commit()
 
-    return RedirectResponse("/ergebnisse", status_code=303)
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
 
 
 @app.post("/slot/{slot_id}/save")

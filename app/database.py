@@ -148,6 +148,9 @@ def init_db():
         if "started_at" not in columns:
             conn.execute("ALTER TABLE slots ADD COLUMN started_at TEXT")
 
+        if "finished_at" not in columns:
+            conn.execute("ALTER TABLE slots ADD COLUMN finished_at TEXT")
+
         competition_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(competitions)").fetchall()

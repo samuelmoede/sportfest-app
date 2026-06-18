@@ -560,6 +560,37 @@ pre {
     font-size: 14px;
 }
 
+.slot-duration,
+.slot-started {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    background: #eef6ff;
+    color: #0f2f66;
+    border: 1px solid #c7ddff;
+    white-space: nowrap;
+    font-size: 0.85rem;
+}
+
+.slot-duration.on-time {
+    background: #eef6ff;
+    color: #0f2f66;
+    border-color: #c7ddff;
+}
+
+.slot-duration.near-end {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.slot-duration.overrun {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+
 .beamer {
     padding: 40px;
     background: #0f172a;

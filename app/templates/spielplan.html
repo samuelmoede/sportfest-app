@@ -10,7 +10,6 @@
 
         {% for s in group.slots %}
         <div class="slot-card {{ s.status }}">
-            <div class="slot-time">{{ s.startzeit }}</div>
             <div class="slot-type">{{ s.slot_typ }}</div>
 
             {% if s.slot_typ == "Spiel" %}
@@ -33,8 +32,11 @@
 
             <div class="slot-footer">
                 <span>{{ s.competition_name }}</span>
-                {% if s.started_at %}
-                <span class="slot-started">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+                {% if s.started_at and s.status == 'läuft' %}
+                <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+                {% endif %}
+                {% if s.finished_at and s.status == 'beendet' %}
+                <span class="pill">Beendet {{ s.finished_at.split(' ')[1] if ' ' in s.finished_at else s.finished_at }}</span>
                 {% endif %}
                 <span class="badge {{ s.status }}">{{ s.status }}</span>
             </div>
@@ -45,4 +47,74 @@
     </div>
     {% endfor %}
 </section>
+
+<script>
+function parseTimestamp(timestamp) {
+    const cleaned = String(timestamp).trim();
+    const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|(?:([+-])(\d{2}):?(\d{2})))?$/);
+    if (!match) {
+        return new Date(cleaned.replace(' ', 'T'));
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    const second = Number(match[6] || '0');
+
+    if (match[7]) {
+        const sign = match[7] === '-' ? -1 : 1;
+        const offsetMinutes = sign * (Number(match[8]) * 60 + Number(match[9]));
+        const date = new Date(Date.UTC(year, month, day, hour, minute, second));
+        date.setUTCMinutes(date.getUTCMinutes() - offsetMinutes);
+        return date;
+    }
+
+    return new Date(year, month, day, hour, minute, second);
+}
+
+function formatDuration(seconds) {
+    const absSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(absSeconds / 3600);
+    const minutes = Math.floor((absSeconds % 3600) / 60);
+    const remainingSeconds = absSeconds % 60;
+    return (hours ? `${hours}h ` : '') + `${String(minutes).padStart(2, '0')}m ` + `${String(remainingSeconds).padStart(2, '0')}s`;
+}
+
+function updateScheduleTimers() {
+    const now = new Date();
+    document.querySelectorAll('.slot-duration').forEach(el => {
+        const startedAt = el.dataset.startedAt;
+        if (!startedAt) return;
+
+        const started = parseTimestamp(startedAt);
+        if (Number.isNaN(started.getTime())) return;
+
+        const seconds = Math.max(0, Math.floor((now - started) / 1000));
+        const planned = Number(el.dataset.plannedDuration || 0);
+        const runtime = formatDuration(seconds);
+
+        el.classList.remove('on-time', 'near-end', 'overrun');
+        if (planned > 0) {
+            const delta = seconds - planned;
+            if (delta >= 0) {
+                el.textContent = `Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
+                el.classList.add('overrun');
+            } else if (planned - seconds <= 60) {
+                el.textContent = `Laufzeit ${runtime} · Ende in ${formatDuration(planned - seconds)}`;
+                el.classList.add('near-end');
+            } else {
+                el.textContent = `Laufzeit ${runtime} · geplant ${formatDuration(planned)}`;
+                el.classList.add('on-time');
+            }
+        } else {
+            el.textContent = `Laufzeit ${runtime}`;
+        }
+    });
+}
+
+updateScheduleTimers();
+setInterval(updateScheduleTimers, 1000);
+</script>
 {% endblock %}
