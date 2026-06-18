@@ -1525,6 +1525,20 @@ def restore_competition(competition_id: int):
     return RedirectResponse("/wettbewerbe", status_code=303)
 
 
+@app.post("/competition/{competition_id}/reset")
+def reset_competition(competition_id: int):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM slots WHERE competition_id = ?", (competition_id,))
+        conn.execute("""
+            UPDATE competitions
+            SET status = 'geplant'
+            WHERE id = ?
+        """, (competition_id,))
+        conn.commit()
+
+    return RedirectResponse("/wettbewerbe", status_code=303)
+
+
 @app.post("/competition/{competition_id}/delete")
 def delete_competition(competition_id: int):
     with get_conn() as conn:
