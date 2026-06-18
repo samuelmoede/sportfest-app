@@ -528,7 +528,7 @@
                 <form method="post" action="/slot/{{ s.id }}/copy">
                     <button type="submit" onclick="event.stopPropagation();">Kopieren</button>
                 </form>
-                
+
                 <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
                     <button type="submit" onclick="event.stopPropagation();">Löschen</button>
                 </form>
@@ -611,23 +611,28 @@ function getDragAfterElement(container, y) {
 }
 
 async function persistSlotMove(slotCard, zone) {
-    const slotId = slotCard.dataset.slotId;
     const courtId = zone.dataset.courtId || "";
-    const timeInput = slotCard.querySelector(".time-input");
-    const startzeit = timeInput ? timeInput.value : slotCard.dataset.time;
-
     const slotCards = [...zone.querySelectorAll(".slot-card")];
-    const sortOrder = (slotCards.indexOf(slotCard) + 1) * 10;
 
-    const formData = new FormData();
-    formData.append("court_id", courtId);
-    formData.append("startzeit", startzeit);
-    formData.append("sort_order", sortOrder);
+    for (let index = 0; index < slotCards.length; index++) {
+        const card = slotCards[index];
+        const slotId = card.dataset.slotId;
+        const timeInput = card.querySelector(".time-input");
+        const startzeit = timeInput ? timeInput.value : card.dataset.time;
+        const sortOrder = (index + 1) * 10;
 
-    await fetch(`/slot/${slotId}/move`, {
-        method: "POST",
-        body: formData
-    });
+        const formData = new FormData();
+        formData.append("court_id", courtId);
+        formData.append("startzeit", startzeit);
+        formData.append("sort_order", sortOrder);
+
+        await fetch(`/slot/${slotId}/move`, {
+            method: "POST",
+            body: formData
+        });
+    }
+
+    window.location.reload();
 }
 
 document.querySelectorAll(".draggable").forEach(card => {
