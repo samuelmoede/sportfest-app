@@ -22,6 +22,10 @@
             <option value="Sechskampf">Sechskampf</option>
         </select>
 
+        <label class="sixkampf-points" hidden>Punkte für Platz 1</label>
+        <input class="sixkampf-points" hidden type="number" name="points_first_place"
+               value="{{ team_counts_by_year.get(11, 7) }}" min="1" required>
+
         <label>Veranstaltung</label>
         <select name="event_id">
             <option value="">Ohne Veranstaltung</option>
@@ -70,6 +74,10 @@
                 <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
             </select>
 
+            <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
+            <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
+                   type="number" name="points_first_place" value="{{ c.points_first_place }}" min="1" required>
+
             <label>Veranstaltung</label>
             <select name="event_id">
                 <option value="">Ohne Veranstaltung</option>
@@ -110,6 +118,7 @@
                     <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
                     <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
                     <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
+
                     <select name="scoring_direction" aria-label="Bewertung">
                         <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
                         <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
@@ -230,9 +239,37 @@
 
     .competition-actions {
         display: flex;
+
         gap: 10px;
         margin-top: 14px;
         flex-wrap: wrap;
     }
 </style>
+<script>
+const teamCountsByYear = {{ team_counts_by_year|tojson }};
+
+document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
+    const typeSelect = form.querySelector('[name="competition_type"]');
+    if (!typeSelect) return;
+
+    const toggleSixkampfPoints = () => {
+        const isSixkampf = typeSelect.value === "Sechskampf";
+        form.querySelectorAll('.sixkampf-points').forEach(element => {
+            element.hidden = !isSixkampf;
+        });
+    };
+    typeSelect.addEventListener("change", toggleSixkampfPoints);
+    toggleSixkampfPoints();
+});
+
+const createForm = document.querySelector('form[action="/competition/create"]');
+if (createForm) {
+    const yearInput = createForm.querySelector('[name="jahrgang"]');
+    const pointsInput = createForm.querySelector('[name="points_first_place"]');
+    yearInput.addEventListener("change", () => {
+        pointsInput.value = teamCountsByYear[yearInput.value] || 7;
+    });
+}
+</script>
 {% endblock %}
+

@@ -118,6 +118,7 @@ Wichtig:
 
 Ziel: Klassen robust, kompakt und sicher verwalten.
 
+
 * [ ] Teamansicht von Kartenlayout auf Tabellenlayout umstellen
 * [ ] Teams zeilenweise anzeigen
 * [ ] Teamname bearbeiten
@@ -238,6 +239,7 @@ Grundprinzip:
 Beispiele:
 
 * Medizinballweitwurf: 10 Werte
+
 * Standweitsprung: 15 Werte
 * Torwandschießen: 5 Werte
 * Tischtennis-Challenge: 5 Werte
@@ -291,6 +293,14 @@ Keine Teilnehmerverwaltung mit Namen.
 - [ ] Gleiche Punktzahlen erhalten denselben Rang
 - [ ] Nach Änderung von Ergebnissen automatisch neu berechnen
 - [ ] Platzierung in Beameransicht anzeigen
+
+### Sechskampf-Wertungspunkte
+
+- [x] Punkte für Platz 1 konfigurierbar machen
+- [x] absteigende Punktevergabe je Platz
+- [x] gleiche Platzierungen erhalten gleiche Punkte
+- [x] Wertungspunkte in `/ergebnisse` und `/tabellen` anzeigen
+- [x] Grundlage für spätere Gesamtwertung schaffen
 ---
 
 ## 9. Zeitplan-Modul
@@ -350,6 +360,7 @@ Beispiel Bewegungsfest:
 * Volleyball/Zweifelderball
 
 Aufgaben:
+
 
 * [ ] Wertungssystem definieren
 * [ ] Wettbewerbsergebnisse in Punkte umrechnen
@@ -420,3 +431,4 @@ Keine parallelen großen PRs, wenn dieselben Dateien betroffen sind.
 4. Teams/Klassenverwaltung auf Tabellenlayout umstellen.
 5. Zeitfenster für Wettbewerbe ergänzen.
 6. Zeitplan-Modul vorbereiten.
+

@@ -6,14 +6,36 @@
 {% for t in tables %}
 <section class="panel">
     <h2>{{ t.competition.name }}</h2>
+    {% if t.competition.competition_type == "Sechskampf" %}
+    <p class="muted">
+        Höchste Gesamtsumme zuerst · Platz 1 erhält {{ t.competition.points_first_place }} Wertungspunkte
+    </p>
+    {% else %}
     <p class="muted">
         Sieg: {{ t.competition.points_win }} ·
         Remis: {{ t.competition.points_draw }} ·
         Niederlage: {{ t.competition.points_loss }}
     </p>
+    {% endif %}
 
     {% if t.rows %}
     <table>
+        {% if t.competition.competition_type == "Sechskampf" %}
+        <tr>
+            <th>Platz</th>
+            <th>Klasse</th>
+            <th>Gesamtsumme</th>
+            <th>Wertungspunkte</th>
+        </tr>
+        {% for r in t.rows %}
+        <tr>
+            <td>{{ r.placement }}</td>
+            <td><strong>{{ r.team.name }}</strong></td>
+            <td>{{ r.overall_total|round(3) }}</td>
+            <td><strong>{{ r.scoring_points }}</strong></td>
+        </tr>
+        {% endfor %}
+        {% else %}
         <tr>
             <th>#</th>
             <th>Team</th>
@@ -40,6 +62,7 @@
             <td><strong>{{ r.pkt_display }}</strong></td>
         </tr>
         {% endfor %}
+        {% endif %}
     </table>
     {% else %}
     <p class="muted">Noch keine Ergebnisse.</p>
@@ -47,3 +70,4 @@
 </section>
 {% endfor %}
 {% endblock %}
+

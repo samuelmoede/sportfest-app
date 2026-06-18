@@ -52,7 +52,7 @@
         <div class="ranking-card">
             <span class="ranking-place">{{ row.placement }}</span>
             <strong>{{ row.team.name }}</strong>
-            <span>{{ row.overall_total|round(3) }} Gesamt</span>
+            <span>{{ row.overall_total|round(3) }} Gesamt · <strong>{{ row.scoring_points }} Wertungspunkte</strong></span>
         </div>
         {% endfor %}
     </div>
@@ -118,6 +118,7 @@
     </div>
     {% else %}
     <p class="muted">Für Jahrgang {{ selected_competition.jahrgang }} sind keine aktiven Teams/Klassen angelegt.</p>
+
     {% endif %}
 </section>
 {% endif %}
@@ -238,6 +239,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         </div>
     </section>
     {% else %}
+
     <p class="muted">Keine aktiven Spiele vorhanden.</p>
     {% endfor %}
 </section>
@@ -275,3 +277,4 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 </section>
 {% endif %}
 {% endblock %}
+

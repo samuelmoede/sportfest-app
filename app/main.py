@@ -70,7 +70,9 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
         ))
 
 
-def calculate_sixkampf_team_ranking(teams, disciplines, result_rows):
+def calculate_sixkampf_team_ranking(
+    teams, disciplines, result_rows, points_first_place: int = 7
+):
     totals_by_team_discipline = defaultdict(float)
     overall_totals = {team["id"]: 0.0 for team in teams}
 
@@ -101,6 +103,7 @@ def calculate_sixkampf_team_ranking(teams, disciplines, result_rows):
             placement = index
             previous_total = row["overall_total"]
         row["placement"] = placement
+        row["scoring_points"] = max(points_first_place - placement + 1, 0)
 
     return ranking, totals_by_team_discipline, overall_totals
 
@@ -115,6 +118,7 @@ def get_active_competitions():
         return conn.execute("""
             SELECT *
             FROM competitions
+
             WHERE status != 'archiviert'
             ORDER BY jahrgang, name
         """).fetchall()
@@ -233,6 +237,7 @@ def get_slots_grouped_by_court(competition_id: Optional[int] = None):
             without_court["slots"].append(slot)
 
     return list(grouped.values()) + [without_court]
+
 
 
 def calculate_direct_comparison(team_a: str, team_b: str, slots, competition):
@@ -355,6 +360,7 @@ def calculate_table(competition_id: int):
             "minus": 0,
             "diff": 0,
             "pkt": 0.0,
+
         }
 
     for slot in slots:
@@ -475,6 +481,7 @@ def calculate_group_table(competition_id: int, gruppe: str):
             table[team_a]["u"] += 1
             table[team_b]["u"] += 1
             table[team_a]["pkt"] += competition["points_draw"]
+
             table[team_b]["pkt"] += competition["points_draw"]
 
     rows = []
@@ -595,6 +602,7 @@ def fetch_beamer_data():
         court_summaries.append({
             "court": court,
             "open_count": len(open_slots),
+
             "next": open_slots[0] if open_slots else None,
         })
 
@@ -716,6 +724,7 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
             team_a, team_b, gruppe = remaining_pairings[selected_index]
 
+
             proposed_slots.append({
                 "competition_id": competition_id,
                 "competition_name": competition["name"],
@@ -836,6 +845,7 @@ def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int)
     game_times_by_team = defaultdict(set)
     team_names = {team["id"]: team["name"] for team in expected_teams}
 
+
     for slot in game_slots:
         for team_id_key, team_name_key in (("team_a_id", "team_a"), ("team_b_id", "team_b")):
             team_id = slot[team_id_key]
@@ -954,6 +964,7 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
     ko_hint = None
     can_generate_semifinals = False
     can_generate_finals = False
+
 
     if selected_competition_id:
         can_generate_semifinals = group_phase_finished(selected_competition_id)
@@ -1076,6 +1087,7 @@ def plan_generator_apply(
 
         conn.commit()
 
+
     return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id[0]}", status_code=303)
 
 
@@ -1195,6 +1207,7 @@ def generate_finals(competition_id: int):
                 SET team_a_id = ?,
                     team_b_id = ?,
                     score_a = NULL,
+
                     score_b = NULL,
                     status = 'geplant',
                     note = 'Spiel um Platz 3: Verlierer HF1 gegen Verlierer HF2'
@@ -1316,6 +1329,7 @@ def update_slot(
     return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
 
 
+
 @app.post("/slot/{slot_id}/delete")
 def delete_slot(slot_id: int):
     with get_conn() as conn:
@@ -1435,6 +1449,7 @@ def copy_slot(slot_id: int):
     return RedirectResponse(
         f"/spielplan-bearbeiten?competition_id={slot['competition_id']}",
         status_code=303
+
     )
 
 @app.get("/ergebnisse")
@@ -1495,7 +1510,10 @@ def ergebnisse(
             saved_at_value = ""
 
         ranking, totals_by_team_discipline, overall_totals = (
-            calculate_sixkampf_team_ranking(teams, disciplines, result_rows)
+            calculate_sixkampf_team_ranking(
+                teams, disciplines, result_rows,
+                selected_competition["points_first_place"],
+            )
         )
         values = {
             (row["team_id"], row["discipline_id"], row["value_index"]): row["value"]
@@ -1552,6 +1570,7 @@ async def sixkampf_team_results_save(
         competition = conn.execute(
             "SELECT * FROM competitions WHERE id = ?", (competition_id,)
         ).fetchone()
+
         discipline = conn.execute("""
             SELECT * FROM competition_disciplines
             WHERE id = ? AND competition_id = ?
@@ -1672,6 +1691,7 @@ def clear_slot_result(slot_id: int):
             UPDATE slots
             SET score_a = NULL,
                 score_b = NULL,
+
                 status = 'geplant'
             WHERE id = ?
         """, (slot_id,))
@@ -1690,13 +1710,31 @@ def tabellen(request: Request, competition_id: str = ""):
         if selected_competition_id is None or c["id"] == selected_competition_id
     ]
 
-    tables = [
-        {
-            "competition": competition,
-            "rows": calculate_table(competition["id"])
-        }
-        for competition in visible_competitions
-    ]
+    tables = []
+    with get_conn() as conn:
+        for competition in visible_competitions:
+            if competition["competition_type"] == "Sechskampf":
+                teams = conn.execute("""
+                    SELECT * FROM teams
+                    WHERE active = 1 AND jahrgang = ?
+                    ORDER BY name
+                """, (competition["jahrgang"],)).fetchall()
+                disciplines = conn.execute("""
+                    SELECT * FROM competition_disciplines
+                    WHERE competition_id = ?
+                    ORDER BY sort_order, id
+                """, (competition["id"],)).fetchall()
+                result_rows = conn.execute("""
+                    SELECT * FROM sixkampf_team_results
+                    WHERE competition_id = ?
+                """, (competition["id"],)).fetchall()
+                rows, _, _ = calculate_sixkampf_team_ranking(
+                    teams, disciplines, result_rows,
+                    competition["points_first_place"],
+                )
+            else:
+                rows = calculate_table(competition["id"])
+            tables.append({"competition": competition, "rows": rows})
 
     return templates.TemplateResponse(
         request=request,
@@ -1748,6 +1786,12 @@ def wettbewerbe(request: Request):
             ORDER BY CASE WHEN status = 'archiviert' THEN 1 ELSE 0 END,
                      event_date, name
         """).fetchall()
+        team_counts = conn.execute("""
+            SELECT jahrgang, COUNT(*) AS count
+            FROM teams
+            WHERE active = 1
+            GROUP BY jahrgang
+        """).fetchall()
     disciplines_by_competition = defaultdict(list)
     for discipline in disciplines:
         disciplines_by_competition[discipline["competition_id"]].append(discipline)
@@ -1758,6 +1802,9 @@ def wettbewerbe(request: Request):
             "disciplines_by_competition": disciplines_by_competition,
             "events": events,
             "events_by_id": {event["id"]: event for event in events},
+            "team_counts_by_year": {
+                row["jahrgang"]: row["count"] for row in team_counts
+            },
         }
     )
 
@@ -1765,7 +1812,9 @@ def wettbewerbe(request: Request):
 def create_competition(
     name: str = Form(...), sportart: str = Form(...), jahrgang: int = Form(...),
     points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
+
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
+    points_first_place: str = Form(""),
 ):
     if competition_type not in {"Turnier", "Sechskampf"}:
         return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1778,14 +1827,26 @@ def create_competition(
             "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
         ).fetchone() is None:
             return RedirectResponse("/wettbewerbe", status_code=303)
+        try:
+            points_first_place_value = (
+                int(points_first_place) if points_first_place else
+                conn.execute("""
+                    SELECT COUNT(*) AS count FROM teams
+                    WHERE active = 1 AND jahrgang = ?
+                """, (jahrgang,)).fetchone()["count"] or 7
+            )
+        except (TypeError, ValueError):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        if points_first_place_value < 1:
+            return RedirectResponse("/wettbewerbe", status_code=303)
         conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, event_id, competition_type
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
+                points_loss, points_first_place, event_id, competition_type
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?)
         """, (
             name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
-            event_id_value, competition_type,
+            points_first_place_value, event_id_value, competition_type,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1802,12 +1863,13 @@ def duplicate_competition(competition_id: int):
         cursor = conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, event_id, competition_type
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?)
+                points_loss, points_first_place, event_id, competition_type
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?)
         """, (
             get_unique_competition_name(conn, competition["name"]),
             competition["sportart"], competition["jahrgang"], competition["points_win"],
             competition["points_draw"], competition["points_loss"],
+            competition["points_first_place"],
             competition["event_id"], competition["competition_type"],
         ))
         copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
@@ -1820,12 +1882,14 @@ def update_competition(
     jahrgang: str = Form(...), status: str = Form(...),
     points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
+    points_first_place: str = Form("7"),
 ):
     try:
         jahrgang_value = int(jahrgang)
         points_win_value = float(points_win.strip().replace(",", "."))
         points_draw_value = float(points_draw.strip().replace(",", "."))
         points_loss_value = float(points_loss.strip().replace(",", "."))
+        points_first_place_value = int(points_first_place)
         event_id_value = int(event_id) if event_id else None
     except (TypeError, ValueError):
         return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1836,6 +1900,7 @@ def update_competition(
         not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
         or status not in valid_statuses
         or competition_type not in {"Turnier", "Sechskampf"}
+        or points_first_place_value < 1
         or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
     ):
         return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1855,12 +1920,12 @@ def update_competition(
             UPDATE competitions
             SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                 points_win = ?, points_draw = ?, points_loss = ?,
-                event_id = ?, competition_type = ?
+                points_first_place = ?, event_id = ?, competition_type = ?
             WHERE id = ?
         """, (
             name_value, sportart_value, jahrgang_value, status,
             points_win_value, points_draw_value, points_loss_value,
-            event_id_value, competition_type, competition_id,
+            points_first_place_value, event_id_value, competition_type, competition_id,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -1868,6 +1933,7 @@ def update_competition(
 @app.post("/competition/{competition_id}/discipline/create")
 def create_competition_discipline(
     competition_id: int, name: str = Form(...), sort_order: str = Form(...),
+
     unit: str = Form(""), scoring_direction: str = Form("higher"),
     values_per_team: str = Form("1"),
 ):
@@ -1986,6 +2052,7 @@ def reset_competition(competition_id: int):
         conn.commit()
 
     return RedirectResponse("/wettbewerbe", status_code=303)
+
 
 
 @app.post("/competition/{competition_id}/delete")
@@ -2109,6 +2176,7 @@ def event_update(
     return RedirectResponse(f"/events/{event_id}", status_code=303)
 
 
+
 @app.post("/events/{event_id}/archive")
 def event_archive(event_id: int):
     with get_conn() as conn:
@@ -2228,6 +2296,7 @@ def update_court(court_id: int, name: str = Form(...), sportart: str = Form(""))
 
 
 @app.post("/court/{court_id}/delete")
+
 def delete_court(court_id: int):
     with get_conn() as conn:
         conn.execute("UPDATE slots SET court_id = NULL WHERE court_id = ?", (court_id,))
@@ -2246,3 +2315,4 @@ def einstellungen(request: Request):
 def beamer(request: Request):
     data = fetch_beamer_data()
     return templates.TemplateResponse(request=request, name="beamer.html", context=data)
+
