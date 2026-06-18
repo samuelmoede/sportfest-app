@@ -109,6 +109,7 @@
                     <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
                     <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
                     <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
+                    <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
                     <select name="scoring_direction" aria-label="Bewertung">
                         <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
                         <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
@@ -129,6 +130,7 @@
                 <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
                 <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
                 <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
+                <input type="number" name="values_per_team" value="1" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
                 <select name="scoring_direction" aria-label="Bewertung">
                     <option value="higher">Höher ist besser</option>
                     <option value="lower">Niedriger ist besser</option>
@@ -137,7 +139,7 @@
             </form>
         </div>
 
-            <p><a href="/competition/{{ c.id }}/sechskampf"><strong>Teilnehmer, Ergebnisse und Rangliste öffnen →</strong></a></p>
+            <p><a href="/ergebnisse?competition_id={{ c.id }}"><strong>Ergebnisse klassenweise erfassen →</strong></a></p>
         {% endif %}
 
         <div class="competition-actions">
@@ -205,7 +207,7 @@
 
     .discipline-form {
         display: grid;
-        grid-template-columns: 70px minmax(130px, 1fr) minmax(100px, 1fr) minmax(150px, 1fr) auto;
+        grid-template-columns: 65px minmax(120px, 1fr) minmax(90px, 1fr) 120px minmax(145px, 1fr) auto;
         gap: 8px;
         align-items: center;
         flex: 1;

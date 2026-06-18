@@ -1,23 +1,132 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Ergebniseingabe</h1>
-<p class="muted">Aktive Spiele erfassen. Beendete Spiele erscheinen unten im Archiv und können korrigiert werden.</p>
+<p class="muted">
+    {% if is_sixkampf %}
+    Klassenwerte für {{ selected_competition.name }} erfassen.
+    {% else %}
+    Aktive Spiele erfassen. Beendete Spiele erscheinen unten im Archiv und können korrigiert werden.
+    {% endif %}
+</p>
 
 <form method="get" action="/ergebnisse" class="filter-row">
     <select name="competition_id">
-        <option value="">Alle Turniere anzeigen</option>
+        <option value="">Alle Wettbewerbe anzeigen</option>
         {% for c in competitions %}
         <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
-            {{ c.name }}
+            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}
         </option>
         {% endfor %}
     </select>
     <button type="submit">Anzeigen</button>
 </form>
 
+{% if is_sixkampf %}
+<section class="panel">
+    <h2>Disziplinen</h2>
+    {% if disciplines %}
+    <nav class="discipline-tabs">
+        {% for discipline in disciplines %}
+        <a href="/ergebnisse?competition_id={{ selected_competition_id }}&discipline_id={{ discipline.id }}"
+           class="{% if selected_discipline and selected_discipline.id == discipline.id %}active{% endif %}">
+            {{ discipline.name }}
+        </a>
+        {% endfor %}
+    </nav>
+    {% else %}
+    <p class="muted">Für diesen Wettbewerb sind noch keine Disziplinen konfiguriert.</p>
+    {% endif %}
+</section>
+
+{% if selected_discipline %}
+<section class="panel">
+    <h2>
+        {{ selected_discipline.name }}
+        {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
+    </h2>
+    <p class="muted">
+        {{ selected_discipline.values_per_team }} Werte je Klasse ·
+        {% if selected_discipline.scoring_direction == "lower" %}
+        Niedriger ist besser
+        {% else %}
+        Höher ist besser
+        {% endif %}
+    </p>
+
+    {% if teams %}
+    <div class="sixkampf-grid">
+        <div class="sixkampf-header">Klasse</div>
+        {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
+        <div class="sixkampf-header">Wert {{ value_index }}</div>
+        {% endfor %}
+        <div class="sixkampf-header">Gesamt</div>
+        <div class="sixkampf-header">Aktion</div>
+
+        {% for team in teams %}
+        <div class="sixkampf-team"><strong>{{ team.name }}</strong></div>
+        {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
+        <div>
+            <input form="sixkampf-{{ team.id }}" type="number" step="any"
+                   name="value_{{ value_index }}"
+                   value="{{ values.get((team.id, selected_discipline.id, value_index), '') }}">
+        </div>
+        {% endfor %}
+        <div class="sixkampf-total">
+            {{ totals_by_team_discipline.get((team.id, selected_discipline.id), 0)|round(3) }}
+        </div>
+        <div>
+            <form id="sixkampf-{{ team.id }}" method="post"
+                  action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results">
+                <button class="green" type="submit">Speichern</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Für Jahrgang {{ selected_competition.jahrgang }} sind keine aktiven Teams/Klassen angelegt.</p>
+    {% endif %}
+</section>
+{% endif %}
+
+<section class="panel">
+    <h2>Rangliste der Klassen</h2>
+    {% if ranking %}
+    <table>
+        <tr><th>Platz</th><th>Klasse</th><th>Gesamtsumme</th></tr>
+        {% for row in ranking %}
+        <tr>
+            <td>{{ row.placement }}</td>
+            <td><strong>{{ row.team.name }}</strong></td>
+            <td>{{ row.overall_total|round(3) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="muted">Noch keine Klassen für die Rangliste vorhanden.</p>
+    {% endif %}
+</section>
+
+<style>
+.discipline-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.discipline-tabs a {
+    padding: 9px 13px; border: 1px solid var(--border); border-radius: 999px;
+    background: white; text-decoration: none; color: var(--text);
+}
+.discipline-tabs a.active { background: var(--navy); color: white; border-color: var(--navy); }
+.sixkampf-grid {
+    display: grid;
+    grid-template-columns: minmax(90px, auto) repeat({{ selected_discipline.values_per_team if selected_discipline else 1 }}, minmax(90px, 1fr)) minmax(90px, auto) auto;
+    gap: 8px; align-items: center; overflow-x: auto;
+}
+.sixkampf-header { font-weight: bold; color: var(--muted); }
+.sixkampf-grid input { min-width: 85px; width: 100%; }
+.sixkampf-total { font-weight: bold; }
+@media (max-width: 800px) { .sixkampf-grid { min-width: 760px; } }
+</style>
+
+{% else %}
 <section class="panel">
     <h2>Aktive Spiele</h2>
-
     {% for s in slots %}
     <section class="result-card">
         <div class="result-meta">
@@ -26,27 +135,22 @@
             <span>{{ s.competition_name }}</span>
             <span class="badge {{ s.status }}">{{ s.status }}</span>
         </div>
-
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <strong>{{ s.team_a or "?" }}</strong>
             <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
             <span>:</span>
             <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
             <strong>{{ s.team_b or "?" }}</strong>
-
             <button name="finish" value="0">Zwischenspeichern</button>
             <button class="green" name="finish" value="1">Beenden & Speichern</button>
         </form>
-
         <div class="result-actions">
             {% if s.status == "geplant" %}
-            <form method="post" action="/slot/{{ s.id }}/start">
-                <button class="outline">Starten</button>
-            </form>
+            <form method="post" action="/slot/{{ s.id }}/start"><button class="outline">Starten</button></form>
             {% endif %}
-
             {% if s.status == "läuft" %}
-            <form method="post" action="/slot/{{ s.id }}/unstart" onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten.');">
+            <form method="post" action="/slot/{{ s.id }}/unstart"
+                  onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten.');">
                 <button class="outline">Start rückgängig</button>
             </form>
             {% endif %}
@@ -59,10 +163,7 @@
 
 <section class="panel archive-panel">
     <h2>Archiv zuletzt gespeicherter Ergebnisse</h2>
-    <p class="muted">
-        Diese Spiele zählen aktuell zur Tabelle. Du kannst sie reaktivieren, bearbeiten oder das Ergebnis löschen.
-    </p>
-
+    <p class="muted">Diese Spiele zählen aktuell zur Tabelle und können korrigiert werden.</p>
     {% for s in archived_slots %}
     <section class="result-card archived">
         <div class="result-meta">
@@ -71,23 +172,18 @@
             <span>{{ s.competition_name }}</span>
             <span class="badge {{ s.status }}">{{ s.status }}</span>
         </div>
-
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <strong>{{ s.team_a or "?" }}</strong>
             <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
             <span>:</span>
             <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
             <strong>{{ s.team_b or "?" }}</strong>
-
             <button class="green" name="finish" value="1">Korrigieren & beendet speichern</button>
         </form>
-
         <div class="archive-actions">
-            <form method="post" action="/slot/{{ s.id }}/reactivate">
-                <button type="submit">Reaktivieren</button>
-            </form>
-
-            <form method="post" action="/slot/{{ s.id }}/clear-result" onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+            <form method="post" action="/slot/{{ s.id }}/reactivate"><button type="submit">Reaktivieren</button></form>
+            <form method="post" action="/slot/{{ s.id }}/clear-result"
+                  onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
                 <button type="submit">Ergebnis löschen</button>
             </form>
         </div>
@@ -96,4 +192,5 @@
     <p class="muted">Noch keine gespeicherten Ergebnisse im Archiv.</p>
     {% endfor %}
 </section>
+{% endif %}
 {% endblock %}

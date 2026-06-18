@@ -26,7 +26,7 @@
             <td>{{ competition.status }}</td>
             <td>
                 {% if competition.competition_type == "Sechskampf" %}
-                <a href="/competition/{{ competition.id }}/sechskampf">Sechskampf öffnen</a>
+                <a href="/ergebnisse?competition_id={{ competition.id }}">Ergebnisse erfassen</a>
                 {% else %}
                 <a href="/spielplan?competition_id={{ competition.id }}">Spielplan</a>
                 {% endif %}
