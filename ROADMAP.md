@@ -246,16 +246,25 @@ Beispiele:
 
 ### 8.2 Ergebniseingabe
 
-* [ ] Sechskampf-Erfassung auf `/ergebnisse` integrieren
-* [ ] Wenn Sechskampf ausgewählt ist: keine aktiven Spiele anzeigen
-* [ ] Disziplin-Tabs anzeigen
-* [ ] Klassen automatisch aus Jahrgang laden
-* [ ] pro Klasse eine Zeile/Karte anzeigen
-* [ ] pro Klasse automatisch die konfigurierte Anzahl Werte anzeigen
-* [ ] Werte je Klasse speichern
-* [ ] Gesamtwert je Klasse live anzeigen
-* [ ] bestehende Werte wieder laden
-* [ ] Eingabe tabletfreundlich gestalten
+- [ ] Sechskampf-Erfassung auf /ergebnisse integrieren
+- [ ] Wenn Sechskampf ausgewählt ist: keine aktiven Spiele anzeigen
+- [ ] Disziplin-Tabs anzeigen
+
+### Automatische Klassenauswahl
+
+- [ ] Bei Sechskampf automatisch alle Klassen des gewählten Jahrgangs laden
+- [ ] Keine manuelle Auswahl von 7A, 7B, 7C usw.
+- [ ] Neue Klassen automatisch berücksichtigen
+- [ ] Klassen alphabetisch sortieren
+- [ ] Eingabemasken automatisch erzeugen
+
+### Eingabe
+
+- [ ] Pro Klasse automatisch die konfigurierte Anzahl Werte anzeigen
+- [ ] Werte je Klasse speichern
+- [ ] Gesamtwert je Klasse live anzeigen
+- [ ] Letzte Speicherung je Klasse mit Uhrzeit anzeigen
+- [ ] Fehlgeschlagene Speicherung sichtbar machen
 
 Keine Teilnehmerverwaltung mit Namen.
 
