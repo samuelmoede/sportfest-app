@@ -40,6 +40,18 @@ def init_db():
             points_loss REAL NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS competition_disciplines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            competition_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            unit TEXT,
+            FOREIGN KEY (competition_id) REFERENCES competitions(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_competition_disciplines_order
+            ON competition_disciplines (competition_id, sort_order, id);
+
         CREATE TABLE IF NOT EXISTS slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             competition_id INTEGER NOT NULL,
