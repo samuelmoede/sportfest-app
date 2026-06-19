@@ -45,6 +45,15 @@ def parse_competition_id(value):
     return int(value)
 
 
+def parse_jahrgang_filter(value):
+    if value in (None, "", "None"):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_slot_time(value: str):
     if not value:
         return None
@@ -485,7 +494,10 @@ def fetch_dashboard_data():
     }
 
 
-def get_all_slots(competition_id: Optional[int] = None):
+def get_all_slots(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
                c.competition_type,
@@ -504,6 +516,10 @@ def get_all_slots(competition_id: Optional[int] = None):
     if competition_id:
         query += " AND slots.competition_id = ?"
         params.append(competition_id)
+
+    if jahrgang is not None:
+        query += " AND c.jahrgang = ?"
+        params.append(jahrgang)
 
     query += """
     ORDER BY
@@ -555,11 +571,14 @@ def get_all_slots(competition_id: Optional[int] = None):
     return slots
 
 
-def get_slots_grouped_by_court(competition_id: Optional[int] = None):
+def get_slots_grouped_by_court(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+):
     with get_conn() as conn:
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
 
-    slots = [dict(slot) for slot in get_all_slots(competition_id)]
+    slots = [dict(slot) for slot in get_all_slots(competition_id, jahrgang)]
     grouped = {court["id"]: {"court": court, "slots": []} for court in courts}
     without_court = {"court": {"id": "", "name": "Ohne Feld"}, "slots": []}
 
@@ -1531,11 +1550,13 @@ def dashboard(request: Request):
 
 
 @app.get("/spielplan")
-def spielplan(request: Request, competition_id: str = ""):
+def spielplan(request: Request, competition_id: str = "", jahrgang: str = ""):
     selected_competition_id = parse_competition_id(competition_id)
+    selected_jahrgang = parse_jahrgang_filter(jahrgang)
 
     competitions = get_active_competitions()
-    groups = get_slots_grouped_by_court(selected_competition_id)
+    groups = get_slots_grouped_by_court(selected_competition_id, selected_jahrgang)
+    available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
 
     return templates.TemplateResponse(
         request=request,
@@ -1544,6 +1565,8 @@ def spielplan(request: Request, competition_id: str = ""):
             "groups": groups,
             "competitions": competitions,
             "selected_competition_id": selected_competition_id,
+            "selected_jahrgang": selected_jahrgang,
+            "available_jahrgaenge": available_jahrgaenge,
         }
     )
 

@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Dashboard</h1>
+<div class="dashboard-head">
+    <h1>Dashboard</h1>
+    <div class="dashboard-clock" id="dashboard-clock" aria-label="Aktuelle Uhrzeit">--:--</div>
+</div>
 <p class="muted">Übersicht des aktuellen Sportfests</p>
 
 <div class="stats">
@@ -130,4 +133,19 @@
         {% endfor %}
     </table>
 </section>
+
+<script>
+function updateDashboardClock() {
+    const clock = document.getElementById("dashboard-clock");
+    if (!clock) return;
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    clock.textContent = `${hh}:${mm}`;
+}
+
+updateDashboardClock();
+setInterval(updateDashboardClock, 1000);
+</script>
 {% endblock %}

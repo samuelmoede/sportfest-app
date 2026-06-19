@@ -3,6 +3,24 @@
 <h1>Spielplan</h1>
 <p class="muted">Nach Spielfeldern gruppierte Übersicht</p>
 
+<form method="get" action="/spielplan" class="filter-row">
+    <select name="competition_id">
+        <option value="">Alle Wettbewerbe</option>
+        {% for c in competitions %}
+        <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+    </select>
+
+    <select name="jahrgang">
+        <option value="">Alle Jahrgänge</option>
+        {% for year in available_jahrgaenge %}
+        <option value="{{ year }}" {% if selected_jahrgang == year %}selected{% endif %}>Jahrgang {{ year }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Filtern</button>
+</form>
+
 <section class="schedule-board">
     {% for group in groups %}
     <div class="court-column">

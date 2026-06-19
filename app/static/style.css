@@ -175,6 +175,20 @@ h1 {
     color: var(--muted);
 }
 
+.dashboard-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.dashboard-clock {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--navy2);
+    white-space: nowrap;
+}
+
 .stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
