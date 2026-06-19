@@ -2473,14 +2473,37 @@ def clear_slot_result(slot_id: int):
 
 
 @app.get("/tabellen")
-def tabellen(request: Request, competition_id: str = ""):
+def tabellen(
+    request: Request,
+    event_id: str = "",
+    jahrgang: str = "",
+    competition_id: str = "",
+):
+    selected_event_id = parse_competition_id(event_id)
+    selected_jahrgang = parse_jahrgang_filter(jahrgang)
     selected_competition_id = parse_competition_id(competition_id)
     competitions = get_active_competitions()
 
-    visible_competitions = [
-        c for c in competitions
-        if selected_competition_id is None or c["id"] == selected_competition_id
-    ]
+    visible_competitions = []
+    for competition in competitions:
+        if selected_event_id is not None and competition["event_id"] != selected_event_id:
+            continue
+        if selected_jahrgang is not None and competition["jahrgang"] != selected_jahrgang:
+            continue
+        if selected_competition_id is not None and competition["id"] != selected_competition_id:
+            continue
+        visible_competitions.append(competition)
+
+    events_by_id = {}
+    year_options = sorted({c["jahrgang"] for c in competitions if c["jahrgang"] is not None})
+
+    with get_conn() as conn:
+        event_rows = conn.execute("""
+            SELECT id, name
+            FROM events
+            ORDER BY event_date, name
+        """).fetchall()
+        events_by_id = {event_row["id"]: event_row["name"] for event_row in event_rows}
 
     tables = []
     with get_conn() as conn:
@@ -2515,6 +2538,10 @@ def tabellen(request: Request, competition_id: str = ""):
         context={
             "tables": tables,
             "competitions": competitions,
+            "events_by_id": events_by_id,
+            "year_options": year_options,
+            "selected_event_id": selected_event_id,
+            "selected_jahrgang": selected_jahrgang,
             "selected_competition_id": selected_competition_id,
         }
     )

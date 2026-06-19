@@ -118,6 +118,7 @@ Status: teilweise umgesetzt
   * Sechskampf
   * Lauf / Einzelwettbewerb später optional
 * [x] Wettbewerbe mit Zeitfenster in Veranstaltungszeitplan einbauen
+* [x] Tabellenansicht mit kombinierbaren Filtern fuer Veranstaltung, Jahrgang und Wettbewerb erweitert
 * [ ] Wettbewerbe nach Jahrgang und Veranstaltung gruppieren
 * [ ] Wettbewerbe in Veranstaltungen kopieren
 

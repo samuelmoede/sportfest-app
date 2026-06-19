@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Tabellen-Seite erweitert: kombinierbare GET-Filter fuer Veranstaltung, Jahrgang und Wettbewerb ergaenzt (`/tabellen?event_id=...&jahrgang=...&competition_id=...`); ausgewaehlte Filter bleiben sichtbar und bei leerem Ergebnis erscheint der Hinweis "Keine Tabellen für diese Auswahl vorhanden.".
 - Veranstaltungsdetailseite als zentraler Einstieg ausgebaut: Zugehoerige Wettbewerbe werden jetzt als kompakte Liste mit Name, Sportart, Jahrgang und Status angezeigt; pro Wettbewerb stehen direkte Aktionen fuer Bearbeiten, Spielplan und Ergebnisse zur Verfuegung.
 - Spielfelder-Loeschschutz ergaenzt: Loeschen wird verhindert, wenn das Spielfeld in Slots verwendet wird (Spiele werden separat gezaehlt); stattdessen erscheint auf /spielfelder eine klare Fehlermeldung mit Nutzungsanzahl. Inaktive Spielfelder bleiben bestehenden Zuordnungen erhalten und werden weiterhin nicht fuer neue Planungen vorgeschlagen.
 - Spielfelder-Seite auf kompakte Tabellenansicht umgestellt: Name und Sportart sind direkt in der Zeile bearbeitbar, Aktiv/Inaktiv ist pro Zeile umschaltbar, und bestehende Speichern-/Loeschen-Aktionen bleiben erhalten (inklusive horizontalem Scrollen auf kleinen Bildschirmen).

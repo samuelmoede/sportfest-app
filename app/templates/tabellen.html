@@ -4,16 +4,37 @@
 <p class="muted">Automatisch berechnete Ranglisten</p>
 
 <form method="get" action="/tabellen" class="filter-row">
+    <select name="event_id">
+        <option value="">Alle Veranstaltungen</option>
+        {% for event_id, event_name in events_by_id.items() %}
+        <option value="{{ event_id }}" {% if selected_event_id == event_id %}selected{% endif %}>{{ event_name }}</option>
+        {% endfor %}
+    </select>
+
+    <select name="jahrgang">
+        <option value="">Alle Jahrgänge</option>
+        {% for year in year_options %}
+        <option value="{{ year }}" {% if selected_jahrgang == year %}selected{% endif %}>Jahrgang {{ year }}</option>
+        {% endfor %}
+    </select>
+
     <select name="competition_id">
         <option value="">Alle Wettbewerbe anzeigen</option>
         {% for c in competitions %}
         <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
-            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}
+            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}{% if c.event_id and events_by_id.get(c.event_id) %} · {{ events_by_id[c.event_id] }}{% endif %}
         </option>
         {% endfor %}
     </select>
+
     <button type="submit">Anzeigen</button>
 </form>
+
+{% if not tables %}
+<section class="panel">
+    <p class="muted">Keine Tabellen für diese Auswahl vorhanden.</p>
+</section>
+{% endif %}
 
 {% for t in tables %}
 <section class="panel">
