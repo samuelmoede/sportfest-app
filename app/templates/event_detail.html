@@ -16,32 +16,29 @@
 <section class="panel">
     <h2>Wettbewerbe dieser Veranstaltung</h2>
     <p class="muted">Eine Veranstaltung bündelt mehrere Wettbewerbe, z. B. Fußball, Sechskampf oder Zweifelderball.</p>
-    <p><a href="/wettbewerbe?event_id={{ event.id }}"><strong>+ Wettbewerb hinzufügen</strong></a></p>
+    <p><a class="button green" href="/wettbewerbe?event_id={{ event.id }}">+ Wettbewerb hinzufügen</a></p>
     {% if competitions %}
-    <table>
-        <tr><th>Name</th><th>Typ</th><th>Sportart</th><th>Jahrgang</th><th>Startzeit</th><th>Endzeit</th><th>Dauer</th><th>Status</th><th></th></tr>
+    <div class="event-competition-list" role="list">
         {% for competition in competitions %}
-        <tr>
-            <td><strong>{{ competition.name }}</strong></td>
-            <td>{{ competition.competition_type }}</td>
-            <td>{{ competition.sportart }}</td>
-            <td>{{ competition.jahrgang }}</td>
-            <td>{{ competition.start_time or '–' }}</td>
-            <td>{{ competition.end_time or '–' }}</td>
-            <td>{{ competition.duration or '–' }}</td>
-            <td>{{ competition.status }}</td>
-            <td>
-                {% if competition.competition_type == "Sechskampf" %}
-                <a href="/ergebnisse?competition_id={{ competition.id }}">Ergebnisse erfassen</a>
-                {% else %}
-                <a href="/spielplan?competition_id={{ competition.id }}">Spielplan</a>
-                {% endif %}
-            </td>
-        </tr>
+        <article class="event-competition-item" role="listitem">
+            <div class="event-competition-main">
+                <h3>{{ competition.name }}</h3>
+                <div class="event-competition-meta">
+                    <span><strong>Sportart:</strong> {{ competition.sportart }}</span>
+                    <span><strong>Jahrgang:</strong> {{ competition.jahrgang }}</span>
+                    <span><strong>Status:</strong> <span class="badge {{ competition.status }}">{{ competition.status }}</span></span>
+                </div>
+            </div>
+            <div class="event-competition-actions">
+                <a href="/wettbewerbe#competition-{{ competition.id }}">Bearbeiten</a>
+                <a href="/spielplan?competition_id={{ competition.id }}">Spielplan öffnen</a>
+                <a href="/ergebnisse?competition_id={{ competition.id }}">Ergebnisse öffnen</a>
+            </div>
+        </article>
         {% endfor %}
-    </table>
+    </div>
     {% else %}
-    <p class="muted">Dieser Veranstaltung sind noch keine Wettbewerbe zugeordnet.</p>
+    <p class="muted">Noch keine Wettbewerbe angelegt.</p>
     {% endif %}
 </section>
 

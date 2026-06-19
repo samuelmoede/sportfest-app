@@ -79,7 +79,7 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [x] Detailseite einer Veranstaltung verbessern
 * [x] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
 * [ ] Wettbewerbe direkt innerhalb einer Veranstaltung anlegen
-* [ ] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden
+* [~] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden (Wettbewerbsliste auf Detailseite mit Direktaktionen umgesetzt)
 * [x] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
 
 Zielbild:
@@ -95,6 +95,7 @@ Zielbild:
 Vorbereitung umgesetzt:
 
 * Veranstaltungstyp kann bereits an Veranstaltungen gepflegt und angezeigt werden.
+* Veranstaltungsdetailseite zeigt zugeordnete Wettbewerbe jetzt kompakt mit Direktaktionen fuer Bearbeiten, Spielplan und Ergebnisse.
 * Noch keine eigene Käthelauf-Logik, keine Einzelturnier-Speziallogik und keine Schnellanlage; außerdem keine Änderung an Gesamtwertung, Sechskampf, Ergebnissen oder Spielplan.
 
 ---

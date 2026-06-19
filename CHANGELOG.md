@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Veranstaltungsdetailseite als zentraler Einstieg ausgebaut: Zugehoerige Wettbewerbe werden jetzt als kompakte Liste mit Name, Sportart, Jahrgang und Status angezeigt; pro Wettbewerb stehen direkte Aktionen fuer Bearbeiten, Spielplan und Ergebnisse zur Verfuegung.
 - Spielfelder-Loeschschutz ergaenzt: Loeschen wird verhindert, wenn das Spielfeld in Slots verwendet wird (Spiele werden separat gezaehlt); stattdessen erscheint auf /spielfelder eine klare Fehlermeldung mit Nutzungsanzahl. Inaktive Spielfelder bleiben bestehenden Zuordnungen erhalten und werden weiterhin nicht fuer neue Planungen vorgeschlagen.
 - Spielfelder-Seite auf kompakte Tabellenansicht umgestellt: Name und Sportart sind direkt in der Zeile bearbeitbar, Aktiv/Inaktiv ist pro Zeile umschaltbar, und bestehende Speichern-/Loeschen-Aktionen bleiben erhalten (inklusive horizontalem Scrollen auf kleinen Bildschirmen).
 - Veranstaltungsduplikate wurden vervollstaendigt: Neue Veranstaltungen erhalten automatisch den Namenszusatz `(Kopie)`, uebernehmen den Veranstaltungstyp, lassen das Datum leer und kopieren zugehoerige Wettbewerbe inklusive Punkte-Einstellungen und Sechskampf-Disziplinen ohne Spielplaene oder Ergebnisse.
