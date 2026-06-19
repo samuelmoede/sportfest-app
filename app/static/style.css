@@ -1019,45 +1019,41 @@ body {
 }
 
 @media (max-width: 860px) {
-    .layout {
-        flex-direction: column;
-    }
     .sidebar {
-        width: 100%;
-        position: relative;
-        height: auto;
+        width: 200px;
+        min-width: 0;
+        position: fixed;
+        top: 0;
+        bottom: 0;
         padding: 14px 12px;
     }
     .content {
-        margin-left: 0;
-        width: 100%;
+        margin-left: 200px;
+        width: calc(100% - 200px);
         padding: 20px 14px;
     }
     .sidebar nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        display: block;
     }
     .sidebar nav a {
-        flex: 1 1 calc(50% - 8px);
-        max-width: calc(50% - 8px);
-        margin-bottom: 8px;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 6px;
         padding: 10px 12px;
     }
     .sidebar .nav-group {
-        width: 100%;
+        width: auto;
         margin-top: 16px;
     }
     .sidebar-footer {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
+        display: block;
         margin-top: 18px;
     }
     .beamer-link {
-        width: 100%;
-        text-align: center;
+        width: auto;
+        text-align: left;
+        margin-top: 16px;
     }
     .stats {
         grid-template-columns: 1fr;
@@ -1130,11 +1126,40 @@ body {
     }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 700px) {
+    .layout {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        min-width: 0;
+        position: relative;
+        top: auto;
+        bottom: auto;
+        height: auto;
+    }
+    .content {
+        margin-left: 0;
+        width: 100%;
+        padding: 20px 14px;
+    }
+    .sidebar nav {
+        display: block;
+    }
     .sidebar nav a {
-        flex: 1 1 100%;
+        width: 100%;
         max-width: 100%;
     }
+    .sidebar-footer {
+        display: block;
+    }
+    .beamer-link {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 520px) {
     .logo {
         padding: 10px;
         font-size: 18px;
