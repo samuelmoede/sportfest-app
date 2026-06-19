@@ -109,7 +109,7 @@
                 <footer>
                     <button class="green save-six" type="submit">Speichern</button>
                     {% if saved_team_id == team.id and saved_at %}
-                    <span class="saved-at">{{ saved_at }} Uhr</span>
+                    <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
                     {% endif %}
                 </footer>
             </form>

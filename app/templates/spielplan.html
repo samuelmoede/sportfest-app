@@ -28,6 +28,7 @@
 
         {% for s in group.slots %}
         <div class="slot-card {{ s.status }}">
+            <div class="slot-time">Geplant {{ s.startzeit }}</div>
             <div class="slot-type">{{ s.slot_typ }}</div>
 
             {% if s.slot_typ == "Spiel" %}

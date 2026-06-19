@@ -675,6 +675,20 @@ section.cards.competition-list {
     color: var(--muted);
 }
 
+.save-feedback-inline {
+    font-size: 0.82rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.form-submit-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
 .competition-card-details .discipline-section {
     margin-top: 22px;
     padding-top: 18px;
@@ -993,8 +1007,10 @@ pre {
 }
 
 .slot-time {
-    font-weight: bold;
+    font-weight: 800;
+    color: var(--navy2);
     margin-bottom: 8px;
+    font-size: 0.95rem;
 }
 
 .time-input {
@@ -1529,6 +1545,9 @@ body {
     .competition-save-feedback {
         grid-column: auto;
         margin-top: -4px;
+    }
+    .form-submit-row {
+        align-items: flex-start;
     }
     .competition-card-details .discipline-row,
     .discipline-row {

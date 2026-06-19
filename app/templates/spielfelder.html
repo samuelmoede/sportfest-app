@@ -60,6 +60,9 @@
                     </td>
                     <td class="team-actions court-actions">
                         <button form="court-update-{{ c.id }}" class="green" type="submit">Speichern</button>
+                        {% if saved_court_id == c.id and saved_at %}
+                        <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+                        {% endif %}
                         <form method="post" action="/court/{{ c.id }}/delete" onsubmit="return confirm('Spielfeld wirklich löschen? Das Löschen ist nur möglich, wenn keine Verknüpfungen in Spielen oder Zeitslots bestehen.');">
                             <button type="submit">Spielfeld löschen</button>
                         </form>

@@ -27,7 +27,12 @@
         {% endfor %}
     </select>
 
-    <button class="green" type="submit">Speichern</button>
+    <div class="form-submit-row">
+        <button class="green" type="submit">Speichern</button>
+        {% if saved_at %}
+        <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+        {% endif %}
+    </div>
 </form>
 </section>
 

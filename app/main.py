@@ -1630,6 +1630,8 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
                 })
 
     remaining_pairings = pairings[:]
+    last_round_by_team = {team_name: -1000 for team_name in team_names}
+    round_index = 0
 
     while remaining_pairings:
         time_value = current_time.strftime("%H:%M")
@@ -1640,10 +1642,26 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
         for court_id in court_ids:
             selected_index = None
 
-            for index, (team_a, team_b, gruppe) in enumerate(remaining_pairings):
-                if team_a not in used_teams and team_b not in used_teams:
-                    selected_index = index
-                    break
+            candidate_scores = []
+            for index, (team_a, team_b, _gruppe) in enumerate(remaining_pairings):
+                if team_a in used_teams or team_b in used_teams:
+                    continue
+
+                gap_a = round_index - last_round_by_team.get(team_a, -1000)
+                gap_b = round_index - last_round_by_team.get(team_b, -1000)
+                consecutive_count = int(gap_a == 1) + int(gap_b == 1)
+                # Bevorzuge Paarungen ohne direkte Folgespiele; falls nicht moeglich,
+                # bleibt die Planung bewusst permissiv.
+                candidate_scores.append((
+                    consecutive_count,
+                    -min(gap_a, gap_b),
+                    -(gap_a + gap_b),
+                    index,
+                ))
+
+            if candidate_scores:
+                candidate_scores.sort()
+                selected_index = candidate_scores[0][3]
 
             if selected_index is None:
                 break
@@ -1670,6 +1688,8 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
             used_courts.append(court_id)
             used_teams.add(team_a)
             used_teams.add(team_b)
+            last_round_by_team[team_a] = round_index
+            last_round_by_team[team_b] = round_index
             scheduled_indices.append(selected_index)
 
         for index in sorted(scheduled_indices, reverse=True):
@@ -1677,6 +1697,7 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
 
         add_empty_slots_for_unused_courts(used_courts, time_value, phase="Gruppenphase")
         current_time += timedelta(minutes=slot_minutes)
+        round_index += 1
 
     if include_ko:
         hf_time = current_time.strftime("%H:%M")
@@ -2719,6 +2740,9 @@ def tabellen_csv_export(
 
 @app.get("/teams")
 def teams(request: Request):
+    saved_team_id = request.query_params.get("saved_team_id", "").strip()
+    saved_at = request.query_params.get("saved_at", "").strip()
+
     with get_conn() as conn:
         has_discipline_team = table_has_column(conn, "discipline_results", "team_id")
         query = """
@@ -2748,7 +2772,24 @@ def teams(request: Request):
         team["deletable"] = team["dependent_count"] == 0
         teams.append(team)
 
-    return templates.TemplateResponse(request=request, name="teams.html", context={"teams": teams})
+    try:
+        saved_team_id_value = int(saved_team_id) if saved_team_id else None
+    except ValueError:
+        saved_team_id_value = None
+    try:
+        saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
+    except ValueError:
+        saved_at_value = ""
+
+    return templates.TemplateResponse(
+        request=request,
+        name="teams.html",
+        context={
+            "teams": teams,
+            "saved_team_id": saved_team_id_value,
+            "saved_at": saved_at_value,
+        },
+    )
 
 
 @app.post("/team/create")
@@ -2776,7 +2817,8 @@ def update_team(
             (name_value, jahrgang, 1 if active else 0, team_id),
         )
         conn.commit()
-    return RedirectResponse("/teams", status_code=303)
+    saved_at = datetime.now().strftime("%H:%M")
+    return RedirectResponse(f"/teams?saved_team_id={team_id}&saved_at={saved_at}", status_code=303)
 
 
 @app.post("/team/{team_id}/delete")
@@ -3270,6 +3312,11 @@ def event_create(
 
 @app.get("/events/{event_id}/edit")
 def event_edit(request: Request, event_id: int):
+    saved_at = request.query_params.get("saved_at", "").strip()
+    try:
+        saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
+    except ValueError:
+        saved_at_value = ""
     with get_conn() as conn:
         event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if event is None:
@@ -3280,6 +3327,7 @@ def event_edit(request: Request, event_id: int):
             "event": event,
             "event_types": EVENT_TYPES,
             "form_action": f"/events/{event_id}/update",
+            "saved_at": saved_at_value,
         }
     )
 
@@ -3312,7 +3360,8 @@ def event_update(
             event_date or None, status, event_type, event_id,
         ))
         conn.commit()
-    return RedirectResponse(f"/events/{event_id}", status_code=303)
+    saved_at = datetime.now().strftime("%H:%M")
+    return RedirectResponse(f"/events/{event_id}/edit?saved_at={saved_at}", status_code=303)
 
 
 
@@ -3423,6 +3472,16 @@ def spielfelder(request: Request):
     used_games = parse_positive_int(request.query_params.get("used_games"), 0)
     used_slots = parse_positive_int(request.query_params.get("used_slots"), 0)
     used_other_links = parse_positive_int(request.query_params.get("used_other_links"), 0)
+    saved_court_id = request.query_params.get("saved_court_id", "").strip()
+    saved_at = request.query_params.get("saved_at", "").strip()
+    try:
+        saved_court_id_value = int(saved_court_id) if saved_court_id else None
+    except ValueError:
+        saved_court_id_value = None
+    try:
+        saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
+    except ValueError:
+        saved_at_value = ""
 
     with get_conn() as conn:
         courts = conn.execute("SELECT * FROM courts ORDER BY name").fetchall()
@@ -3436,6 +3495,8 @@ def spielfelder(request: Request):
             "used_games": used_games,
             "used_slots": used_slots,
             "used_other_links": used_other_links,
+            "saved_court_id": saved_court_id_value,
+            "saved_at": saved_at_value,
         },
     )
 
@@ -3467,7 +3528,11 @@ def update_court(
         """, (name.strip(), sportart.strip() or None, 1 if active else 0, court_id))
         conn.commit()
 
-    return RedirectResponse("/spielfelder", status_code=303)
+    saved_at = datetime.now().strftime("%H:%M")
+    return RedirectResponse(
+        f"/spielfelder?saved_court_id={court_id}&saved_at={saved_at}",
+        status_code=303,
+    )
 
 
 @app.post("/court/{court_id}/delete")
@@ -3527,12 +3592,19 @@ def einstellungen(
     backup_status: str = "",
     backup_file: str = "",
     settings_status: str = "",
+    saved_at: str = "",
 ):
+    try:
+        saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
+    except ValueError:
+        saved_at_value = ""
+
     context = collect_system_info()
     context.update({
         "backup_status": backup_status,
         "backup_file": backup_file,
         "settings_status": settings_status,
+        "saved_at": saved_at_value,
     })
     return templates.TemplateResponse(
         request=request,
@@ -3598,8 +3670,9 @@ def update_beamer_interval(beamer_refresh_seconds: int = Form(...)):
         """, (str(beamer_refresh_seconds),))
         conn.commit()
 
+    saved_at = datetime.now().strftime("%H:%M")
     return RedirectResponse(
-        "/einstellungen?settings_status=saved",
+        f"/einstellungen?settings_status=saved&saved_at={saved_at}",
         status_code=303,
     )
 

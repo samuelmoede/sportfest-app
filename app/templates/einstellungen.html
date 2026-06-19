@@ -52,10 +52,11 @@
             required
         >
         <button type="submit">Intervall speichern</button>
+        {% if settings_status == "saved" and saved_at %}
+        <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+        {% endif %}
     </form>
-    {% if settings_status == "saved" %}
-        <p class="success-text">Intervall erfolgreich gespeichert.</p>
-    {% elif settings_status == "invalid" %}
+    {% if settings_status == "invalid" %}
         <p class="error-text">Bitte eine Zahl größer als 0 eingeben.</p>
     {% endif %}
 </section>
