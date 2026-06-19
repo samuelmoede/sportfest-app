@@ -3049,7 +3049,7 @@ def event_new(request: Request):
 def event_create(
     name: str = Form(...), description: str = Form(""),
     event_date: str = Form(""), status: str = Form("geplant"),
-    event_type: str = Form("Sonstiges"),
+    event_type: str = Form(...),
 ):
     if (
         not name.strip()
@@ -3091,7 +3091,7 @@ def event_edit(request: Request, event_id: int):
 def event_update(
     event_id: int, name: str = Form(...), description: str = Form(""),
     event_date: str = Form(""), status: str = Form("geplant"),
-    event_type: str = Form("Sonstiges"),
+    event_type: str = Form(...),
 ):
     if (
         not name.strip()
@@ -3222,10 +3222,25 @@ def event_detail(request: Request, event_id: int):
 
 @app.get("/spielfelder")
 def spielfelder(request: Request):
+    delete_status = request.query_params.get("delete_status", "").strip()
+    used_games = parse_positive_int(request.query_params.get("used_games"), 0)
+    used_slots = parse_positive_int(request.query_params.get("used_slots"), 0)
+    used_other_links = parse_positive_int(request.query_params.get("used_other_links"), 0)
+
     with get_conn() as conn:
         courts = conn.execute("SELECT * FROM courts ORDER BY name").fetchall()
 
-    return templates.TemplateResponse(request=request, name="spielfelder.html", context={"courts": courts})
+    return templates.TemplateResponse(
+        request=request,
+        name="spielfelder.html",
+        context={
+            "courts": courts,
+            "delete_status": delete_status,
+            "used_games": used_games,
+            "used_slots": used_slots,
+            "used_other_links": used_other_links,
+        },
+    )
 
 
 @app.post("/court/create")
@@ -3241,13 +3256,18 @@ def create_court(name: str = Form(...), sportart: str = Form("")):
 
 
 @app.post("/court/{court_id}/update")
-def update_court(court_id: int, name: str = Form(...), sportart: str = Form("")):
+def update_court(
+    court_id: int,
+    name: str = Form(...),
+    sportart: str = Form(""),
+    active: int = Form(0),
+):
     with get_conn() as conn:
         conn.execute("""
             UPDATE courts
-            SET name = ?, sportart = ?
+            SET name = ?, sportart = ?, active = ?
             WHERE id = ?
-        """, (name.strip(), sportart.strip() or None, court_id))
+        """, (name.strip(), sportart.strip() or None, 1 if active else 0, court_id))
         conn.commit()
 
     return RedirectResponse("/spielfelder", status_code=303)
@@ -3257,11 +3277,51 @@ def update_court(court_id: int, name: str = Form(...), sportart: str = Form(""))
 
 def delete_court(court_id: int):
     with get_conn() as conn:
-        conn.execute("UPDATE slots SET court_id = NULL WHERE court_id = ?", (court_id,))
+        usage = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS used_slots,
+                SUM(CASE WHEN slot_typ = 'Spiel' THEN 1 ELSE 0 END) AS used_games
+            FROM slots
+            WHERE court_id = ?
+            """,
+            (court_id,),
+        ).fetchone()
+        used_slots = int(usage["used_slots"] or 0)
+        used_games = int(usage["used_games"] or 0)
+        used_other_links = 0
+
+        table_rows = conn.execute("""
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name NOT LIKE 'sqlite_%'
+              AND name <> 'slots'
+        """).fetchall()
+
+        for table_row in table_rows:
+            table_name = table_row["name"]
+            table_columns = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+            has_court_id = any(column["name"] == "court_id" for column in table_columns)
+            if not has_court_id:
+                continue
+
+            ref_count = conn.execute(
+                f"SELECT COUNT(*) AS n FROM {table_name} WHERE court_id = ?",
+                (court_id,),
+            ).fetchone()["n"]
+            used_other_links += int(ref_count or 0)
+
+        if used_slots > 0 or used_other_links > 0:
+            return RedirectResponse(
+                f"/spielfelder?delete_status=blocked&used_games={used_games}&used_slots={used_slots}&used_other_links={used_other_links}",
+                status_code=303,
+            )
+
         conn.execute("DELETE FROM courts WHERE id = ?", (court_id,))
         conn.commit()
 
-    return RedirectResponse("/spielfelder", status_code=303)
+    return RedirectResponse("/spielfelder?delete_status=deleted", status_code=303)
 
 
 @app.get("/einstellungen")

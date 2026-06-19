@@ -95,8 +95,7 @@ Zielbild:
 Vorbereitung umgesetzt:
 
 * Veranstaltungstyp kann bereits an Veranstaltungen gepflegt und angezeigt werden.
-* `Einzelturnier` zeigt auf der Detailseite einen einfachen Schnellstart zur bestehenden Wettbewerbsanlage.
-* Noch keine eigene Käthelauf-Logik, keine Änderung an Gesamtwertung, Sechskampf, Ergebnissen oder Spielplan.
+* Noch keine eigene Käthelauf-Logik, keine Einzelturnier-Speziallogik und keine Schnellanlage; außerdem keine Änderung an Gesamtwertung, Sechskampf, Ergebnissen oder Spielplan.
 
 ---
 

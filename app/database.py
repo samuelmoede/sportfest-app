@@ -168,17 +168,7 @@ def init_db():
 
         conn.execute("""
             UPDATE events
-            SET event_type = CASE
-                WHEN LOWER(COALESCE(name, '')) LIKE '%bewegungsfest%'
-                     OR EXISTS (
-                         SELECT 1
-                         FROM competitions c
-                         WHERE c.event_id = events.id
-                           AND c.competition_type = 'Sechskampf'
-                     )
-                THEN 'Bewegungsfest'
-                ELSE 'Sonstiges'
-            END
+            SET event_type = 'Sonstiges'
             WHERE event_type IS NULL OR TRIM(event_type) = ''
         """)
 

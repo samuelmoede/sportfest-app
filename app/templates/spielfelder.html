@@ -3,6 +3,16 @@
 <h1>Spielfelder</h1>
 <p class="muted">Spielfelder hinzufügen, umbenennen oder löschen.</p>
 
+{% if delete_status == "blocked" %}
+<p class="error-text">Spielfeld kann nicht gelöscht werden, da es bereits verwendet wird.</p>
+<p class="muted">Spielfeld wird aktuell von {{ used_games }} Spielen und insgesamt {{ used_slots }} Zeitslots verwendet.</p>
+{% if used_other_links > 0 %}
+<p class="muted">Weitere Verknüpfungen mit court_id: {{ used_other_links }}</p>
+{% endif %}
+{% elif delete_status == "deleted" %}
+<p class="success-text">Spielfeld wurde gelöscht.</p>
+{% endif %}
+
 <section class="panel">
     <h2>Spielfeld hinzufügen</h2>
 
@@ -17,25 +27,47 @@
     </form>
 </section>
 
-<section class="cards court-cards">
-{% for c in courts %}
-    <div class="card column court-card">
-        <span class="badge geplant">Aktiv</span>
-
-        <form method="post" action="/court/{{ c.id }}/update" class="court-form">
-            <label>Name</label>
-            <input type="text" name="name" value="{{ c.name }}" required>
-
-            <label>Sportart</label>
-            <input type="text" name="sportart" value="{{ c.sportart or '' }}">
-
-            <button class="green" type="submit">Speichern</button>
-        </form>
-
-        <form method="post" action="/court/{{ c.id }}/delete" onsubmit="return confirm('Spielfeld wirklich löschen? Zugeordnete Spiele behalten ihre Uhrzeit, liegen danach aber unter Ohne Feld.');">
-            <button type="submit">Spielfeld löschen</button>
-        </form>
+<section class="panel team-panel">
+    <h2>Bestehende Spielfelder</h2>
+    <div class="table-scroll">
+        <table class="team-table court-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Sportart</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in courts %}
+                <tr>
+                    <td>
+                        <form id="court-update-{{ c.id }}" method="post" action="/court/{{ c.id }}/update"></form>
+                        <input form="court-update-{{ c.id }}" type="text" name="name" value="{{ c.name }}" required>
+                    </td>
+                    <td>
+                        <input form="court-update-{{ c.id }}" type="text" name="sportart" value="{{ c.sportart or '' }}">
+                    </td>
+                    <td>
+                        <input form="court-update-{{ c.id }}" type="hidden" name="active" value="0">
+                        <label class="checkbox-label">
+                            <input form="court-update-{{ c.id }}" type="checkbox" name="active" value="1" {% if c.active == 1 %}checked{% endif %}>
+                            <span class="court-status {% if c.active == 1 %}is-active{% else %}is-inactive{% endif %}">
+                                {% if c.active == 1 %}Aktiv{% else %}Inaktiv{% endif %}
+                            </span>
+                        </label>
+                    </td>
+                    <td class="team-actions court-actions">
+                        <button form="court-update-{{ c.id }}" class="green" type="submit">Speichern</button>
+                        <form method="post" action="/court/{{ c.id }}/delete" onsubmit="return confirm('Spielfeld wirklich löschen? Das Löschen ist nur möglich, wenn keine Verknüpfungen in Spielen oder Zeitslots bestehen.');">
+                            <button type="submit">Spielfeld löschen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-{% endfor %}
 </section>
 {% endblock %}

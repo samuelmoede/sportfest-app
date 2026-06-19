@@ -4,13 +4,15 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Spielfelder-Loeschschutz ergaenzt: Loeschen wird verhindert, wenn das Spielfeld in Slots verwendet wird (Spiele werden separat gezaehlt); stattdessen erscheint auf /spielfelder eine klare Fehlermeldung mit Nutzungsanzahl. Inaktive Spielfelder bleiben bestehenden Zuordnungen erhalten und werden weiterhin nicht fuer neue Planungen vorgeschlagen.
+- Spielfelder-Seite auf kompakte Tabellenansicht umgestellt: Name und Sportart sind direkt in der Zeile bearbeitbar, Aktiv/Inaktiv ist pro Zeile umschaltbar, und bestehende Speichern-/Loeschen-Aktionen bleiben erhalten (inklusive horizontalem Scrollen auf kleinen Bildschirmen).
 - Veranstaltungsduplikate wurden vervollstaendigt: Neue Veranstaltungen erhalten automatisch den Namenszusatz `(Kopie)`, uebernehmen den Veranstaltungstyp, lassen das Datum leer und kopieren zugehoerige Wettbewerbe inklusive Punkte-Einstellungen und Sechskampf-Disziplinen ohne Spielplaene oder Ergebnisse.
 - Wettbewerbe zeigen nach dem Speichern jetzt direkt an der betroffenen Karte eine dezente Rueckmeldung "Gespeichert um HH:MM"; die soeben gespeicherte Karte bleibt nach dem Redirect geoeffnet.
 - Layout-Fix fuer aufgeklappte Wettbewerbskarten: Detailbereiche liegen jetzt stets unterhalb der kompakten Zusammenfassung; auf Mobilgeraeten werden Formularfelder in eine Spalte umgestellt, damit nichts seitlich herausragt.
 - Wettbewerbe-Seite auf kompakte Aufklapp-Karten umgestellt: Jeder Wettbewerb zeigt zuerst nur Kerndaten, waehrend Bearbeitungsformular, Zeiten, Punktefelder, Aktionen und Sechskampf-Disziplinen erst nach Klick per nativen `details/summary` sichtbar werden.
 - Darstellung von Wettbewerben und Sechskampf-Disziplinen auf Mobilgeraeten verbessert: volle Breite, keine herausragenden Eingabefelder und sauberes Umbrechen in den Detailbereichen.
-- Veranstaltungen haben jetzt einen einfachen `Veranstaltungstyp` (`Bewegungsfest`, `Einzelturnier`, `Käthelauf`, `Sonstiges`) mit Auswahl in Anlegen/Bearbeiten, Anzeige in Übersicht/Detail und minimalem Schnellstart-Hinweis für `Einzelturnier`.
-- Datenbank: `events.event_type` wird beim Start bei Bedarf ergänzt; bestehende Veranstaltungen werden ohne weitere Logik minimal auf `Bewegungsfest` oder `Sonstiges` zurückgefüllt.
+- Veranstaltungen haben jetzt einen einfachen `Veranstaltungstyp` (`Bewegungsfest`, `Einzelturnier`, `Käthelauf`, `Sonstiges`) mit Auswahl in Anlegen/Bearbeiten sowie Anzeige in Übersicht und Detailseite.
+- Datenbank: `events.event_type` wird beim Start bei Bedarf ergänzt; bestehende Veranstaltungen ohne Typ werden automatisch auf `Sonstiges` gesetzt.
 - Initiales Changelog erstellt.
 - README.md erg�nzt.
 - PROJECT_CONTEXT.md erg�nzt.

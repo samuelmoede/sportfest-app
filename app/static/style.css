@@ -475,6 +475,44 @@ button.outline {
     display: block;
 }
 
+.court-table {
+    min-width: 700px;
+}
+
+.court-table td {
+    vertical-align: middle;
+}
+
+.court-actions {
+    min-width: 210px;
+}
+
+.court-table .checkbox-label {
+    white-space: nowrap;
+}
+
+.court-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.court-status.is-active {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.court-status.is-inactive {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
 .overall-table {
     min-width: 700px;
 }
