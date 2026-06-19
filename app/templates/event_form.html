@@ -13,6 +13,13 @@
     <label>Datum</label>
     <input type="date" name="event_date" value="{{ event.event_date or '' if event else '' }}">
 
+    <label>Veranstaltungstyp</label>
+    <select name="event_type" required>
+        {% for event_type in event_types %}
+        <option value="{{ event_type }}" {% if (event.event_type if event else 'Sonstiges') == event_type %}selected{% endif %}>{{ event_type }}</option>
+        {% endfor %}
+    </select>
+
     <label>Status</label>
     <select name="status" required>
         {% for status in ["geplant", "läuft", "beendet", "archiviert"] %}

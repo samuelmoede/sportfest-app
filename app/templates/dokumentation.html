@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Dokumentation</h1>
+<p class="muted">Diese Seite zeigt die aktuelle Projektdokumentation aus <strong>DOKUMENTATION.md</strong>.</p>
+
+<section class="panel documentation-panel">
+    <pre class="documentation-content">{{ documentation_text }}</pre>
+</section>
+
+<style>
+.documentation-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+.documentation-content {
+    margin: 0;
+    padding: 20px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 14px/1.6 Consolas, "Courier New", monospace;
+    background: transparent;
+}
+</style>
+{% endblock %}

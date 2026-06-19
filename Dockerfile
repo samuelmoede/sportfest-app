@@ -5,6 +5,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir fastapi uvicorn jinja2 python-multipart itsdangerous
 
 COPY app /app/app
+COPY DOKUMENTATION.md /app/DOKUMENTATION.md
 
 EXPOSE 8500
 

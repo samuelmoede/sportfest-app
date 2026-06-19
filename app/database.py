@@ -35,7 +35,8 @@ def init_db():
             name TEXT NOT NULL UNIQUE,
             description TEXT,
             event_date TEXT,
-            status TEXT NOT NULL DEFAULT 'geplant'
+            status TEXT NOT NULL DEFAULT 'geplant',
+            event_type TEXT NOT NULL DEFAULT 'Sonstiges'
         );
 
         CREATE TABLE IF NOT EXISTS competitions (
@@ -156,6 +157,30 @@ def init_db():
 
         if "finished_at" not in columns:
             conn.execute("ALTER TABLE slots ADD COLUMN finished_at TEXT")
+
+        event_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(events)").fetchall()
+        }
+
+        if "event_type" not in event_columns:
+            conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT DEFAULT 'Sonstiges'")
+
+        conn.execute("""
+            UPDATE events
+            SET event_type = CASE
+                WHEN LOWER(COALESCE(name, '')) LIKE '%bewegungsfest%'
+                     OR EXISTS (
+                         SELECT 1
+                         FROM competitions c
+                         WHERE c.event_id = events.id
+                           AND c.competition_type = 'Sechskampf'
+                     )
+                THEN 'Bewegungsfest'
+                ELSE 'Sonstiges'
+            END
+            WHERE event_type IS NULL OR TRIM(event_type) = ''
+        """)
 
         competition_columns = {
             row["name"]

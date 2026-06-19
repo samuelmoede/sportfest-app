@@ -44,7 +44,7 @@
         <select name="event_id">
             <option value="">Ohne Veranstaltung</option>
             {% for event in events %}
-            <option value="{{ event.id }}">{{ event.name }}</option>
+            <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
             {% endfor %}
         </select>
 
@@ -63,218 +63,168 @@
 
 <section class="cards competition-list">
 {% for c in competitions %}
-    <div class="card competition-card column {% if c.status == 'archiviert' %}archived-card{% endif %}">
-        <span class="badge {{ c.status }}">{{ c.status }}</span>
+    <details id="competition-{{ c.id }}" class="competition-card-details {% if c.status == 'archiviert' %}archived-card{% endif %}" {% if saved_competition_id == c.id %}open{% endif %}>
+        <summary class="competition-summary">
+            <div class="competition-summary-head">
+                <span class="badge {{ c.status }}">{{ c.status }}</span>
+                <span class="competition-toggle-indicator" aria-hidden="true">▾</span>
+            </div>
+            <h2>{{ c.name }}</h2>
+            <div class="competition-summary-meta">
+                <span class="competition-meta-item"><strong>Sportart:</strong> {{ c.sportart }}</span>
+                <span class="competition-meta-item"><strong>Jahrgang:</strong> {{ c.jahrgang }}</span>
+                <span class="competition-meta-item"><strong>Typ:</strong> {{ c.competition_type }}</span>
+                <span class="competition-meta-item"><strong>Veranstaltung:</strong> {{ events_by_id[c.event_id].name if c.event_id and events_by_id.get(c.event_id) else 'Ohne Veranstaltung' }}</span>
+            </div>
+            <span class="competition-summary-action">Details anzeigen</span>
+        </summary>
 
-        <h2>{{ c.name }}</h2>
-        <p>{{ c.sportart }} · Jahrgang {{ c.jahrgang }} · {{ c.competition_type }}</p>
-        {% if c.event_id and events_by_id.get(c.event_id) %}
-        <p class="muted">Veranstaltung: {{ events_by_id[c.event_id].name }}</p>
-        {% endif %}
+        <div class="competition-details-body">
+            <form method="post" action="/competition/{{ c.id }}/update" class="points-form competition-edit-form">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ c.name }}" required>
 
-        <form method="post" action="/competition/{{ c.id }}/update" class="points-form">
-            <label>Name</label>
-            <input type="text" name="name" value="{{ c.name }}" required>
+                <label>Sportart</label>
+                <input type="text" name="sportart" value="{{ c.sportart }}" required>
 
-            <label>Sportart</label>
-            <input type="text" name="sportart" value="{{ c.sportart }}" required>
+                <label>Jahrgang</label>
+                <select name="jahrgang" required>
+                    {% for year in team_years %}
+                    <option value="{{ year }}" {% if c.jahrgang == year %}selected{% endif %}>
+                        Jahrgang {{ year }}
+                    </option>
+                    {% endfor %}
+                </select>
 
-            <label>Jahrgang</label>
-            <select name="jahrgang" required>
-                {% for year in team_years %}
-                <option value="{{ year }}" {% if c.jahrgang == year %}selected{% endif %}>
-                    Jahrgang {{ year }}
-                </option>
+                <label>Typ</label>
+                <select name="competition_type" required>
+                    <option value="Turnier" {% if c.competition_type == "Turnier" %}selected{% endif %}>Turnier</option>
+                    <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
+                </select>
+
+                <label>Startzeit</label>
+                <input type="time" name="start_time" value="{{ c.start_time or '' }}">
+
+                <label>Endzeit</label>
+                <input type="time" name="end_time" value="{{ c.end_time or '' }}">
+
+                <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
+                <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
+                       type="number" name="points_first_place" value="{{ c.points_first_place }}" min="1" required>
+
+                <label>Platzpunkte</label>
+                <input type="text" name="placement_points" value="{{ c.placement_points or '' }}"
+                    placeholder="z. B. 7,6,5,4,3,2,1">
+
+                <label>Veranstaltung</label>
+                <select name="event_id">
+                    <option value="">Ohne Veranstaltung</option>
+                    {% for event in events %}
+                    <option value="{{ event.id }}" {% if c.event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <label>Status</label>
+                <select name="status" required>
+                    <option value="geplant" {% if c.status == "geplant" %}selected{% endif %}>geplant</option>
+                    <option value="läuft" {% if c.status == "läuft" %}selected{% endif %}>läuft</option>
+                    <option value="beendet" {% if c.status == "beendet" %}selected{% endif %}>beendet</option>
+                    <option value="archiviert" {% if c.status == "archiviert" %}selected{% endif %}>archiviert</option>
+                </select>
+
+                <label>Sieg</label>
+                <input type="number" step="0.5" name="points_win" value="{{ c.points_win }}" required>
+
+                <label>Remis</label>
+                <input type="number" step="0.5" name="points_draw" value="{{ c.points_draw }}" required>
+
+                <label>Niederlage</label>
+                <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
+
+                <button class="green" type="submit">Speichern</button>
+                {% if saved_competition_id == c.id and saved_at %}
+                <p class="competition-save-feedback">Gespeichert um {{ saved_at }}</p>
+                {% endif %}
+            </form>
+
+            {% if c.competition_type == "Sechskampf" %}
+            {% set disciplines = disciplines_by_competition.get(c.id, []) %}
+            <div class="discipline-section">
+                <h3>Sechskampf-Disziplinen</h3>
+
+                {% for discipline in disciplines %}
+                <div class="discipline-row">
+                    <form method="post" action="/discipline/{{ discipline.id }}/update" class="discipline-form">
+                        <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
+                        <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
+                        <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
+                        <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
+
+                        <select name="scoring_direction" aria-label="Bewertung">
+                            <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
+                            <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
+                        </select>
+                        <button type="submit">Speichern</button>
+                    </form>
+
+                    <form method="post" action="/discipline/{{ discipline.id }}/delete"
+                        onsubmit="return confirm('Disziplin wirklich löschen?');"
+                        class="discipline-delete-form">
+                        <button type="submit">Löschen</button>
+                    </form>
+                </div>
+                {% else %}
+                <p class="muted">Noch keine Disziplinen definiert.</p>
                 {% endfor %}
-            </select>
 
-            <label>Typ</label>
-            <select name="competition_type" required>
-                <option value="Turnier" {% if c.competition_type == "Turnier" %}selected{% endif %}>Turnier</option>
-                <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
-            </select>
-
-            <label>Startzeit</label>
-            <input type="time" name="start_time" value="{{ c.start_time or '' }}">
-
-            <label>Endzeit</label>
-            <input type="time" name="end_time" value="{{ c.end_time or '' }}">
-
-            <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
-            <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
-                   type="number" name="points_first_place" value="{{ c.points_first_place }}" min="1" required>
-
-                 <label>Platzpunkte</label>
-                 <input type="text" name="placement_points" value="{{ c.placement_points or '' }}"
-                     placeholder="z. B. 7,6,5,4,3,2,1">
-
-            <label>Veranstaltung</label>
-            <select name="event_id">
-                <option value="">Ohne Veranstaltung</option>
-                {% for event in events %}
-                <option value="{{ event.id }}" {% if c.event_id == event.id %}selected{% endif %}>{{ event.name }}</option>
-                {% endfor %}
-            </select>
-
-            <label>Status</label>
-            <select name="status" required>
-                <option value="geplant" {% if c.status == "geplant" %}selected{% endif %}>geplant</option>
-                <option value="läuft" {% if c.status == "läuft" %}selected{% endif %}>läuft</option>
-                <option value="beendet" {% if c.status == "beendet" %}selected{% endif %}>beendet</option>
-                <option value="archiviert" {% if c.status == "archiviert" %}selected{% endif %}>archiviert</option>
-            </select>
-
-            <label>Sieg</label>
-            <input type="number" step="0.5" name="points_win" value="{{ c.points_win }}" required>
-
-            <label>Remis</label>
-            <input type="number" step="0.5" name="points_draw" value="{{ c.points_draw }}" required>
-
-            <label>Niederlage</label>
-            <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
-
-            <button class="green" type="submit">Speichern</button>
-        </form>
-
-        {% if c.competition_type == "Sechskampf" %}
-        {% set disciplines = disciplines_by_competition.get(c.id, []) %}
-        <div class="discipline-section">
-            <h3>Sechskampf-Disziplinen</h3>
-
-            {% for discipline in disciplines %}
-            <div class="discipline-row">
-                <form method="post" action="/discipline/{{ discipline.id }}/update" class="discipline-form">
-                    <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
-                    <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
-                    <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
-                    <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
-
+                <form method="post" action="/competition/{{ c.id }}/discipline/create" class="discipline-form discipline-create-form">
+                    <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
+                    <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
+                    <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
+                    <input type="number" name="values_per_team" value="1" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
                     <select name="scoring_direction" aria-label="Bewertung">
-                        <option value="higher" {% if discipline.scoring_direction == "higher" %}selected{% endif %}>Höher ist besser</option>
-                        <option value="lower" {% if discipline.scoring_direction == "lower" %}selected{% endif %}>Niedriger ist besser</option>
+                        <option value="higher">Höher ist besser</option>
+                        <option value="lower">Niedriger ist besser</option>
                     </select>
-                    <button type="submit">Speichern</button>
+                    <button class="green" type="submit">Hinzufügen</button>
+                </form>
+            </div>
+
+            <p><a href="/ergebnisse?competition_id={{ c.id }}"><strong>Ergebnisse klassenweise erfassen →</strong></a></p>
+            {% endif %}
+
+            <div class="competition-actions">
+                {% if c.status == "archiviert" %}
+                    <form method="post" action="/competition/{{ c.id }}/restore">
+                        <button type="submit">Wiederherstellen</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="/competition/{{ c.id }}/archive"
+                        onsubmit="return confirm('Turnier archivieren? Es verschwindet dann aus Spielplan, Ergebnissen und Tabellen.');">
+                        <button type="submit">Archivieren</button>
+                    </form>
+                {% endif %}
+
+                <form method="post" action="/competition/{{ c.id }}/duplicate">
+                    <button type="submit">Duplizieren</button>
                 </form>
 
-                <form method="post" action="/discipline/{{ discipline.id }}/delete"
-                      onsubmit="return confirm('Disziplin wirklich löschen?');">
+                <form method="post" action="/competition/{{ c.id }}/reset"
+                    onsubmit="return confirm('Wettbewerb wirklich zurücksetzen? Alle zugehörigen Slots und Ergebnisse werden gelöscht.');">
+                    <button type="submit">Zurücksetzen</button>
+                </form>
+
+                <form method="post" action="/competition/{{ c.id }}/delete"
+                    onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
                     <button type="submit">Löschen</button>
                 </form>
             </div>
-            {% else %}
-            <p class="muted">Noch keine Disziplinen definiert.</p>
-            {% endfor %}
-
-            <form method="post" action="/competition/{{ c.id }}/discipline/create" class="discipline-form discipline-create-form">
-                <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
-                <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
-                <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
-                <input type="number" name="values_per_team" value="1" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
-                <select name="scoring_direction" aria-label="Bewertung">
-                    <option value="higher">Höher ist besser</option>
-                    <option value="lower">Niedriger ist besser</option>
-                </select>
-                <button class="green" type="submit">Hinzufügen</button>
-            </form>
         </div>
-
-            <p><a href="/ergebnisse?competition_id={{ c.id }}"><strong>Ergebnisse klassenweise erfassen →</strong></a></p>
-        {% endif %}
-
-        <div class="competition-actions">
-            {% if c.status == "archiviert" %}
-                <form method="post" action="/competition/{{ c.id }}/restore">
-                    <button type="submit">Wiederherstellen</button>
-                </form>
-            {% else %}
-                <form method="post" action="/competition/{{ c.id }}/archive"
-                      onsubmit="return confirm('Turnier archivieren? Es verschwindet dann aus Spielplan, Ergebnissen und Tabellen.');">
-                    <button type="submit">Archivieren</button>
-                </form>
-            {% endif %}
-
-            <form method="post" action="/competition/{{ c.id }}/duplicate">
-                <button type="submit">Duplizieren</button>
-            </form>
-
-            <form method="post" action="/competition/{{ c.id }}/reset"
-                  onsubmit="return confirm('Wettbewerb wirklich zurücksetzen? Alle zugehörigen Slots und Ergebnisse werden gelöscht.');">
-                <button type="submit">Zurücksetzen</button>
-            </form>
-
-            <form method="post" action="/competition/{{ c.id }}/delete"
-                  onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
-                <button type="submit">Löschen</button>
-            </form>
-        </div>
-    </div>
+    </details>
+{% else %}
+    <p class="muted">Noch keine Wettbewerbe vorhanden.</p>
 {% endfor %}
 </section>
-
-<style>
-    .archived-card {
-        opacity: 0.55;
-        filter: grayscale(0.4);
-    }
-
-    .badge.archiviert {
-        background: #e5e7eb;
-        color: #4b5563;
-    }
-
-    .badge.beendet {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .discipline-section {
-        margin-top: 20px;
-        padding-top: 18px;
-        border-top: 1px solid var(--border);
-    }
-
-    .discipline-section h3 {
-        margin-top: 0;
-    }
-
-    .discipline-row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-
-    .discipline-form {
-        display: grid;
-        grid-template-columns: 65px minmax(120px, 1fr) minmax(90px, 1fr) 120px minmax(145px, 1fr) auto;
-        gap: 8px;
-        align-items: center;
-        flex: 1;
-    }
-
-    .discipline-create-form {
-        margin-top: 14px;
-    }
-
-    @media (max-width: 760px) {
-        .discipline-row {
-            align-items: stretch;
-            flex-direction: column;
-        }
-
-        .discipline-form {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .competition-actions {
-        display: flex;
-
-        gap: 10px;
-        margin-top: 14px;
-        flex-wrap: wrap;
-    }
-</style>
 <script>
 const teamCountsByYear = {{ team_counts_by_year|tojson }};
 

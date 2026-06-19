@@ -17,6 +17,8 @@ APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
 BACKUP_DIR = ROOT_DIR / "backups"
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
+EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
+EVENT_TYPES_SET = set(EVENT_TYPES)
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -36,6 +38,14 @@ def get_style_version():
         return str(int(style_path.stat().st_mtime))
     except FileNotFoundError:
         return get_app_version()
+
+
+def load_documentation_text():
+    documentation_path = ROOT_DIR / "DOKUMENTATION.md"
+    try:
+        return documentation_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "Die Dokumentation wurde nicht gefunden."
 
 
 templates.env.globals["app_version"] = get_app_version
@@ -395,7 +405,7 @@ def get_unique_competition_name(conn, original_name: str):
 
 
 def get_unique_event_name(conn, original_name: str):
-    base_name = f"{original_name} Kopie"
+    base_name = f"{original_name} (Kopie)"
     candidate = base_name
     copy_number = 2
     while conn.execute("SELECT 1 FROM events WHERE name = ?", (candidate,)).fetchone():
@@ -2641,6 +2651,15 @@ def teams_bulk_action(
 @app.get("/wettbewerbe")
 def wettbewerbe(request: Request):
     competitions = get_all_competitions()
+    selected_event_id = request.query_params.get("event_id", "").strip()
+    saved_competition_id = request.query_params.get("saved_competition_id", "").strip()
+    saved_at = request.query_params.get("saved_at", "").strip()
+    selected_event_id_value = None
+    saved_competition_id_value = None
+    if selected_event_id.isdigit():
+        selected_event_id_value = int(selected_event_id)
+    if saved_competition_id.isdigit():
+        saved_competition_id_value = int(saved_competition_id)
     with get_conn() as conn:
         disciplines = conn.execute("""
             SELECT * FROM competition_disciplines
@@ -2669,6 +2688,9 @@ def wettbewerbe(request: Request):
             "disciplines_by_competition": disciplines_by_competition,
             "events": events,
             "events_by_id": {event["id"]: event for event in events},
+            "selected_event_id": selected_event_id_value,
+            "saved_competition_id": saved_competition_id_value,
+            "saved_at": saved_at,
             "team_counts_by_year": {
                 row["jahrgang"]: row["count"] for row in team_counts
             },
@@ -2823,7 +2845,11 @@ def update_competition(
             competition_id,
         ))
         conn.commit()
-    return RedirectResponse("/wettbewerbe", status_code=303)
+    saved_at = datetime.now().strftime("%H:%M")
+    return RedirectResponse(
+        f"/wettbewerbe?saved_competition_id={competition_id}&saved_at={saved_at}#competition-{competition_id}",
+        status_code=303,
+    )
 
 @app.post("/competition/{competition_id}/discipline/create")
 def create_competition_discipline(
@@ -3011,7 +3037,11 @@ def events_list(request: Request):
 def event_new(request: Request):
     return templates.TemplateResponse(
         request=request, name="event_form.html",
-        context={"event": None, "form_action": "/events/create"}
+        context={
+            "event": None,
+            "event_types": EVENT_TYPES,
+            "form_action": "/events/create",
+        }
     )
 
 
@@ -3019,16 +3049,24 @@ def event_new(request: Request):
 def event_create(
     name: str = Form(...), description: str = Form(""),
     event_date: str = Form(""), status: str = Form("geplant"),
+    event_type: str = Form("Sonstiges"),
 ):
-    if not name.strip() or status not in {"geplant", "läuft", "beendet", "archiviert"}:
+    if (
+        not name.strip()
+        or status not in {"geplant", "läuft", "beendet", "archiviert"}
+        or event_type not in EVENT_TYPES_SET
+    ):
         return RedirectResponse("/events", status_code=303)
     with get_conn() as conn:
         if conn.execute("SELECT 1 FROM events WHERE name = ?", (name.strip(),)).fetchone():
             return RedirectResponse("/events", status_code=303)
         conn.execute("""
-            INSERT INTO events (name, description, event_date, status)
-            VALUES (?, ?, ?, ?)
-        """, (name.strip(), description.strip() or None, event_date or None, status))
+            INSERT INTO events (name, description, event_date, status, event_type)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            name.strip(), description.strip() or None,
+            event_date or None, status, event_type,
+        ))
         conn.commit()
     return RedirectResponse("/events", status_code=303)
 
@@ -3041,7 +3079,11 @@ def event_edit(request: Request, event_id: int):
         return RedirectResponse("/events", status_code=303)
     return templates.TemplateResponse(
         request=request, name="event_form.html",
-        context={"event": event, "form_action": f"/events/{event_id}/update"}
+        context={
+            "event": event,
+            "event_types": EVENT_TYPES,
+            "form_action": f"/events/{event_id}/update",
+        }
     )
 
 
@@ -3049,8 +3091,13 @@ def event_edit(request: Request, event_id: int):
 def event_update(
     event_id: int, name: str = Form(...), description: str = Form(""),
     event_date: str = Form(""), status: str = Form("geplant"),
+    event_type: str = Form("Sonstiges"),
 ):
-    if not name.strip() or status not in {"geplant", "läuft", "beendet", "archiviert"}:
+    if (
+        not name.strip()
+        or status not in {"geplant", "läuft", "beendet", "archiviert"}
+        or event_type not in EVENT_TYPES_SET
+    ):
         return RedirectResponse("/events", status_code=303)
     with get_conn() as conn:
         duplicate = conn.execute(
@@ -3061,11 +3108,11 @@ def event_update(
             return RedirectResponse(f"/events/{event_id}/edit", status_code=303)
         conn.execute("""
             UPDATE events
-            SET name = ?, description = ?, event_date = ?, status = ?
+            SET name = ?, description = ?, event_date = ?, status = ?, event_type = ?
             WHERE id = ?
         """, (
             name.strip(), description.strip() or None,
-            event_date or None, status, event_id,
+            event_date or None, status, event_type, event_id,
         ))
         conn.commit()
     return RedirectResponse(f"/events/{event_id}", status_code=303)
@@ -3109,11 +3156,11 @@ def event_duplicate(event_id: int):
         if event is None:
             return RedirectResponse("/events", status_code=303)
         cursor = conn.execute("""
-            INSERT INTO events (name, description, event_date, status)
-            VALUES (?, ?, ?, 'geplant')
+            INSERT INTO events (name, description, event_date, status, event_type)
+            VALUES (?, ?, ?, 'geplant', ?)
         """, (
             get_unique_event_name(conn, event["name"]),
-            event["description"], event["event_date"],
+            event["description"], None, event["event_type"],
         ))
         new_event_id = cursor.lastrowid
         competitions = conn.execute(
@@ -3124,13 +3171,15 @@ def event_duplicate(event_id: int):
             competition_cursor = conn.execute("""
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
-                    points_loss, event_id, competition_type, start_time, end_time
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?)
+                    points_loss, points_first_place, placement_points,
+                    event_id, competition_type, start_time, end_time
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"],
                 competition["points_win"], competition["points_draw"],
-                competition["points_loss"], new_event_id,
+                competition["points_loss"], competition["points_first_place"],
+                competition["placement_points"], new_event_id,
                 competition["competition_type"], competition["start_time"],
                 competition["end_time"],
             ))
@@ -3232,6 +3281,15 @@ def einstellungen(
         request=request,
         name="einstellungen.html",
         context=context,
+    )
+
+
+@app.get("/dokumentation")
+def dokumentation(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="dokumentation.html",
+        context={"documentation_text": load_documentation_text()},
     )
 
 

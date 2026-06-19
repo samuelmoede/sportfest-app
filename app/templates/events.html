@@ -12,6 +12,7 @@
     <div class="card column {% if event.status == 'archiviert' %}archived-card{% endif %}">
         <span class="badge {{ event.status }}">{{ event.status }}</span>
         <h2><a href="/events/{{ event.id }}">{{ event.name }}</a></h2>
+        <p class="muted">Typ: {{ event.event_type or "Sonstiges" }}</p>
         <p>{{ event.event_date or "Kein Datum" }} · {{ event.competition_count }} Wettbewerbe</p>
         {% if event.description %}<p class="muted">{{ event.description }}</p>{% endif %}
 

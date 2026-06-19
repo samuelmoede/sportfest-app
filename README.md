@@ -11,6 +11,10 @@ Sie unterstützt Wettbewerbe, Sechskampf, Spielpläne, Teams, Ergebnisse und gru
 - Version: aus der Datei `VERSION`
 - Docker-optimiert, kann aber auch lokal ausgeführt werden
 
+Weiterführende Inhalte:
+
+- `DOKUMENTATION.md` beschreibt Veranstaltungstypen, bestehende Funktionen und den aktuellen Fachstand der App.
+
 ## Projektstruktur
 
 - `app/`
@@ -21,6 +25,7 @@ Sie unterstützt Wettbewerbe, Sechskampf, Spielpläne, Teams, Ergebnisse und gru
   - `templates/` - HTML-Templates
 - `data/` - persistente SQLite-Datenbank
 - `VERSION` - App-Version
+- `DOKUMENTATION.md` - fachliche Dokumentation der App
 - `CHANGELOG.md` - Änderungsverlauf
 - `ROADMAP.md` - Projektplan und offene Entwicklungspunkte
 
@@ -87,6 +92,32 @@ Sie unterstützt Wettbewerbe, Sechskampf, Spielpläne, Teams, Ergebnisse und gru
 - Jeder Backup-Dateiname enthält einen Zeitstempel im Format `sportfest-YYYYMMDD-HHMMSS.db`.
 - Das Skript `backup_database.py` kopiert die aktuelle Datenbankdatei unter Wahrung von Zeitstempel und Dateiattributen.
 - Für regelmäßige Sicherungen kann das Skript in einen Cron-Job, Windows Task Scheduler oder CI/CD-Workflow eingebunden werden.
+
+## Wiederherstellung aus Backup (manuell)
+
+1. Container stoppen:
+
+   ```powershell
+   docker compose down
+   ```
+
+2. Aktuelle Datenbank zusätzlich sichern:
+
+   ```powershell
+   copy data\sportfest.db data\sportfest.db.before-restore
+   ```
+
+3. Gewünschte Backup-Datei nach `data/sportfest.db` kopieren:
+
+   ```powershell
+   copy backups\sportfest_backup_YYYY-MM-DD_HHMM.db data\sportfest.db
+   ```
+
+4. Container wieder starten:
+
+   ```powershell
+   docker compose up -d
+   ```
 
 ## Zugriffsschutz
 

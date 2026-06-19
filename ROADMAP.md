@@ -59,7 +59,7 @@ Status: weitgehend erledigt
 * [ ] später: Tests und CI ergänzen
 * Hinweis: App verwendet jetzt relative Pfade für Templates, statische Assets und `VERSION`.
 * Hinweis: Erste Changelog-Einträge dokumentieren Projektstatus und implementierte Infrastrukturänderungen.
-* Hinweis: SQLite-Backup erfolgt automatisch in `data/backups/` mit Zeitstempel.
+* Hinweis: Backup über /einstellungen wird in `backups/` mit Zeitstempel gespeichert.
 
 ---
 
@@ -68,6 +68,7 @@ Status: weitgehend erledigt
 Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 
 * [x] Veranstaltungsseite vorhanden
+* [x] Einfachen Veranstaltungstyp vorbereitend eingeführt (Bewegungsfest, Einzelturnier, Käthelauf, Sonstiges)
 * [ ] Navigation langfristig vereinfachen
 * [ ] Seitenleistenpunkt „Wettbewerbe“ später entfernen oder nur noch als Unterseite der Veranstaltungen verwenden
 * [ ] Veranstaltung anlegen
@@ -90,6 +91,12 @@ Zielbild:
    * Fußball Jahrgang 7
    * Zweifelderball Jahrgang 7
 3. Veranstaltung oder Wettbewerbsstruktur für weitere Jahrgänge duplizieren
+
+Vorbereitung umgesetzt:
+
+* Veranstaltungstyp kann bereits an Veranstaltungen gepflegt und angezeigt werden.
+* `Einzelturnier` zeigt auf der Detailseite einen einfachen Schnellstart zur bestehenden Wettbewerbsanlage.
+* Noch keine eigene Käthelauf-Logik, keine Änderung an Gesamtwertung, Sechskampf, Ergebnissen oder Spielplan.
 
 ---
 
