@@ -10,32 +10,66 @@
     <aside class="sidebar">
         <div class="brand">
             <div class="logo">⚡</div>
-            <div>
+            <div class="brand-text">
                 <strong>Sportfest</strong>
                 <span>Manager</span>
             </div>
+            <button type="button" class="sidebar-toggle" aria-label="Seitenleiste umschalten" aria-expanded="true">◀</button>
         </div>
 
         <nav>
             <div class="nav-group">Allgemein</div>
-            <a href="/">Dashboard</a>
-            <a href="/events">Veranstaltungen</a>
-            <a href="/wettbewerbe">Wettbewerbe</a>
+            <a class="nav-link" href="/">
+                <span class="nav-icon" aria-hidden="true">🏠</span>
+                <span class="nav-text">Dashboard</span>
+            </a>
+            <a class="nav-link" href="/events">
+                <span class="nav-icon" aria-hidden="true">📅</span>
+                <span class="nav-text">Veranstaltungen</span>
+            </a>
+            <a class="nav-link" href="/wettbewerbe">
+                <span class="nav-icon" aria-hidden="true">🏆</span>
+                <span class="nav-text">Wettbewerbe</span>
+            </a>
 
             <div class="nav-group">Wettbewerb</div>
-            <a href="/spielplan">Spielplan</a>
-            <a href="/spielplan-bearbeiten">Spielplan bearbeiten</a>
-            <a href="/ergebnisse">Ergebnisse</a>
-            <a href="/tabellen">Tabellen</a>
+            <a class="nav-link" href="/spielplan">
+                <span class="nav-icon" aria-hidden="true">🗓</span>
+                <span class="nav-text">Spielplan</span>
+            </a>
+            <a class="nav-link" href="/spielplan-bearbeiten">
+                <span class="nav-icon" aria-hidden="true">✏️</span>
+                <span class="nav-text">Spielplan bearbeiten</span>
+            </a>
+            <a class="nav-link" href="/ergebnisse">
+                <span class="nav-icon" aria-hidden="true">✅</span>
+                <span class="nav-text">Ergebnisse</span>
+            </a>
+            <a class="nav-link" href="/tabellen">
+                <span class="nav-icon" aria-hidden="true">📊</span>
+                <span class="nav-text">Tabellen</span>
+            </a>
 
             <div class="nav-group">Verwaltung</div>
-            <a href="/teams">Teams</a>
-            <a href="/spielfelder">Spielfelder</a>
-            <a href="/einstellungen">Einstellungen</a>
+            <a class="nav-link" href="/teams">
+                <span class="nav-icon" aria-hidden="true">👥</span>
+                <span class="nav-text">Teams</span>
+            </a>
+            <a class="nav-link" href="/spielfelder">
+                <span class="nav-icon" aria-hidden="true">📍</span>
+                <span class="nav-text">Spielfelder</span>
+            </a>
+            <a class="nav-link" href="/einstellungen">
+                <span class="nav-icon" aria-hidden="true">⚙️</span>
+                <span class="nav-text">Einstellungen</span>
+            </a>
         </nav>
 
         <div class="sidebar-footer">
-            <a class="beamer-link" href="/beamer" target="_blank">⚡ Beamer-Ansicht öffnen</a>
+            <a class="beamer-link" href="/beamer" target="_blank">
+                <span class="beamer-icon" aria-hidden="true">⚡</span>
+                <span class="beamer-text">Beamer-Ansicht öffnen</span>
+            </a>
             <div class="app-version">Version {{ app_version() }}</div>
         </div>
     </aside>
@@ -44,5 +78,54 @@
         {% block content %}{% endblock %}
     </main>
 </div>
+<script>
+(() => {
+    const key = "sidebar-collapsed";
+    const body = document.body;
+    const toggle = document.querySelector(".sidebar-toggle");
+    if (!toggle) return;
+
+    const isDesktopSidebar = () => window.matchMedia("(min-width: 701px)").matches;
+
+    const applyState = (collapsed) => {
+        const enabled = Boolean(collapsed) && isDesktopSidebar();
+        body.classList.toggle("sidebar-collapsed", enabled);
+        toggle.setAttribute("aria-expanded", enabled ? "false" : "true");
+        toggle.textContent = enabled ? "▶" : "◀";
+    };
+
+    let savedCollapsed = false;
+    try {
+        savedCollapsed = localStorage.getItem(key) === "1";
+    } catch (_) {
+        savedCollapsed = false;
+    }
+    applyState(savedCollapsed);
+
+    toggle.addEventListener("click", () => {
+        const next = !body.classList.contains("sidebar-collapsed");
+        applyState(next);
+        try {
+            localStorage.setItem(key, next ? "1" : "0");
+        } catch (_) {
+            // Ignore storage errors.
+        }
+    });
+
+    window.addEventListener("resize", () => {
+        if (!isDesktopSidebar()) {
+            applyState(false);
+            return;
+        }
+        let keepCollapsed = false;
+        try {
+            keepCollapsed = localStorage.getItem(key) === "1";
+        } catch (_) {
+            keepCollapsed = false;
+        }
+        applyState(keepCollapsed);
+    });
+})();
+</script>
 </body>
 </html>

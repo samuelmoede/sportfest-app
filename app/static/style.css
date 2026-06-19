@@ -42,6 +42,9 @@ body {
     align-items: center;
     margin-bottom: 36px;
 }
+.brand-text {
+    min-width: 0;
+}
 
 .brand span {
     display: block;
@@ -74,6 +77,41 @@ nav a,
     border-radius: 10px;
     margin-bottom: 6px;
 }
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-icon {
+    width: 1.4rem;
+    text-align: center;
+    flex: 0 0 1.4rem;
+}
+.nav-text {
+    min-width: 0;
+}
+.sidebar-toggle {
+    margin-left: auto;
+    padding: 6px 10px;
+    min-height: 32px;
+    line-height: 1;
+    background: var(--navy2);
+    color: #cbd5e1;
+    border-color: #314167;
+}
+.sidebar-toggle:hover {
+    color: white;
+}
+.beamer-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.beamer-icon {
+    width: 1.4rem;
+    text-align: center;
+    flex: 0 0 1.4rem;
+}
 
 nav a:hover,
 .beamer-link {
@@ -92,6 +130,40 @@ nav a:hover,
     margin-left: 270px;
     padding: 48px;
     width: calc(100% - 270px);
+}
+@media (min-width: 701px) {
+    body.sidebar-collapsed .sidebar {
+        width: 76px;
+        padding: 18px 10px;
+    }
+
+    body.sidebar-collapsed .content {
+        margin-left: 76px;
+        width: calc(100% - 76px);
+    }
+
+    body.sidebar-collapsed .brand {
+        margin-bottom: 18px;
+        justify-content: center;
+    }
+
+    body.sidebar-collapsed .brand-text,
+    body.sidebar-collapsed .nav-text,
+    body.sidebar-collapsed .sidebar .nav-group,
+    body.sidebar-collapsed .beamer-text,
+    body.sidebar-collapsed .app-version {
+        display: none;
+    }
+
+    body.sidebar-collapsed .sidebar-toggle {
+        margin-left: 0;
+    }
+
+    body.sidebar-collapsed .nav-link,
+    body.sidebar-collapsed .beamer-link {
+        justify-content: center;
+        padding: 10px;
+    }
 }
 
 h1 {
@@ -1016,6 +1088,15 @@ body {
     .cards {
         grid-template-columns: repeat(2, minmax(240px, 1fr));
     }
+
+    body.sidebar-collapsed .sidebar {
+        width: 72px;
+    }
+
+    body.sidebar-collapsed .content {
+        margin-left: 72px;
+        width: calc(100% - 72px);
+    }
 }
 
 @media (max-width: 860px) {
@@ -1156,6 +1237,14 @@ body {
     .beamer-link {
         width: 100%;
         text-align: center;
+    }
+
+    .brand {
+        margin-bottom: 16px;
+    }
+
+    .sidebar-toggle {
+        display: none;
     }
 }
 
