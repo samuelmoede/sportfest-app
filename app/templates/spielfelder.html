@@ -17,9 +17,9 @@
     </form>
 </section>
 
-<section class="cards">
+<section class="cards court-cards">
 {% for c in courts %}
-    <div class="card column">
+    <div class="card column court-card">
         <span class="badge geplant">Aktiv</span>
 
         <form method="post" action="/court/{{ c.id }}/update" class="court-form">

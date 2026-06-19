@@ -44,7 +44,7 @@
             <td>{{ r.placement }}</td>
             <td><strong>{{ r.team.name }}</strong></td>
             <td>{{ r.overall_total|round(3) }}</td>
-            <td><strong>{{ r.scoring_points }}</strong></td>
+            <td><strong>{{ r.scoring_points_display }}</strong></td>
         </tr>
         {% endfor %}
         {% else %}

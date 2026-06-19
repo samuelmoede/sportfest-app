@@ -52,7 +52,7 @@
         <div class="ranking-card">
             <span class="ranking-place">{{ row.placement }}</span>
             <strong>{{ row.team.name }}</strong>
-            <span>{{ row.overall_total|round(3) }} Gesamt · <strong>{{ row.scoring_points }} Wertungspunkte</strong></span>
+            <span>{{ row.overall_total|round(3) }} Gesamt · <strong>{{ row.scoring_points_display }} Wertungspunkte</strong></span>
         </div>
         {% endfor %}
     </div>

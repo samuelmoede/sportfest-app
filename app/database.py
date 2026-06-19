@@ -48,6 +48,7 @@ def init_db():
             points_draw REAL NOT NULL DEFAULT 1,
             points_loss REAL NOT NULL DEFAULT 0,
             points_first_place INTEGER NOT NULL DEFAULT 7,
+            placement_points TEXT,
             event_id INTEGER,
             competition_type TEXT NOT NULL DEFAULT 'Turnier',
             FOREIGN KEY (event_id) REFERENCES events(id)
@@ -182,6 +183,9 @@ def init_db():
                 )
                 WHERE competition_type = 'Sechskampf'
             """)
+
+        if "placement_points" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN placement_points TEXT")
 
         if "start_time" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN start_time TEXT")

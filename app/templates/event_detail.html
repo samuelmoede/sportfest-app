@@ -108,18 +108,16 @@
                             <td class="overall-team">{{ row.team }}</td>
                             {% for competition in group.competitions %}
                             {% set points = row.points_by_competition.get(competition.id) %}
-                            {% set competition_meta = competitions | selectattr('id', 'equalto', competition.id) | first %}
-                            {% set is_sixkampf = competition_meta and competition_meta.competition_type == 'Sechskampf' %}
                             <td>
-                                {% if points is none or (is_sixkampf and points == 0) %}
+                                {% if points is none %}
                                 <span class="points-missing">–</span>
                                 {% else %}
-                                <span class="points-value">{{ points }}</span>
+                                <span class="points-value">{{ row.points_by_competition_display.get(competition.id) }}</span>
                                 {% endif %}
                             </td>
                             {% endfor %}
                             <td class="overall-total{% if top_points is not none and row.total_points == top_points %} is-top{% endif %}">
-                                <strong>{{ row.total_points }}</strong>
+                                <strong>{{ row.total_points_display }}</strong>
                             </td>
                         </tr>
                         {% endfor %}
@@ -129,7 +127,7 @@
         </div>
         {% endfor %}
     {% else %}
-    <p class="muted">Noch keine Punkte für die Gesamtwertung vorhanden.</p>
+        <p class="muted">Noch keine bewerteten Wettbewerbe für die Gesamtwertung vorhanden.</p>
     {% endif %}
 </section>
 

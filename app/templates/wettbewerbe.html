@@ -36,6 +36,10 @@
         <input class="sixkampf-points" hidden type="number" name="points_first_place"
                value="{{ team_counts_by_year.get(11, 7) }}" min="1" required>
 
+         <label>Platzpunkte</label>
+         <input type="text" name="placement_points" value="7,6,5,4,3,2,1"
+             placeholder="z. B. 7,6,5,4,3,2,1">
+
         <label>Veranstaltung</label>
         <select name="event_id">
             <option value="">Ohne Veranstaltung</option>
@@ -99,6 +103,10 @@
             <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
             <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
                    type="number" name="points_first_place" value="{{ c.points_first_place }}" min="1" required>
+
+                 <label>Platzpunkte</label>
+                 <input type="text" name="placement_points" value="{{ c.placement_points or '' }}"
+                     placeholder="z. B. 7,6,5,4,3,2,1">
 
             <label>Veranstaltung</label>
             <select name="event_id">

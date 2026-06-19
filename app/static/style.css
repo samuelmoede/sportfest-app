@@ -709,10 +709,35 @@ pre {
     gap: 10px;
     margin-top: 16px;
     margin-bottom: 16px;
+    width: 100%;
+    min-width: 0;
 }
 
 .court-form button {
     grid-column: 2;
+}
+
+.court-cards,
+.court-card,
+.court-card form,
+.court-card .court-form,
+.court-card .court-form label,
+.court-card .court-form input {
+    min-width: 0;
+}
+
+.court-card {
+    width: 100%;
+    overflow: hidden;
+}
+
+.court-card .court-form {
+    grid-template-columns: 90px minmax(0, 1fr);
+}
+
+.court-card .court-form input {
+    width: 100%;
+    max-width: 100%;
 }
 
 .beamer-v2 {

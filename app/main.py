@@ -87,6 +87,56 @@ def classify_yeargang(value):
     return None
 
 
+def parse_placement_points_config(raw_value: Optional[str]):
+    if raw_value is None:
+        return []
+
+    values = []
+    normalized = str(raw_value).replace("\n", ",").replace(";", ",")
+    for part in normalized.split(","):
+        cleaned = part.strip()
+        if not cleaned:
+            continue
+        try:
+            value = float(cleaned.replace(",", "."))
+        except ValueError:
+            return []
+        if not isfinite(value) or value < 0:
+            return []
+        values.append(value)
+    return values
+
+
+def build_default_placement_points(points_first_place: int):
+    try:
+        highest_points = int(points_first_place)
+    except (TypeError, ValueError):
+        highest_points = 0
+    highest_points = max(highest_points, 0)
+    return [float(value) for value in range(highest_points, 0, -1)]
+
+
+def get_competition_placement_points(competition):
+    configured_points = parse_placement_points_config(competition["placement_points"])
+    if configured_points:
+        return configured_points
+    return build_default_placement_points(competition["points_first_place"])
+
+
+def get_points_for_placement(placement_points, placement: int):
+    if placement < 1 or placement > len(placement_points):
+        return 0.0
+    return placement_points[placement - 1]
+
+
+def format_points_value(value):
+    if value is None:
+        return None
+    if float(value).is_integer():
+        return str(int(value))
+    return str(value).replace(".", ",")
+
+
 def combine_time_today(value: datetime):
     if value is None:
         return None
@@ -282,10 +332,13 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
 def calculate_sixkampf_team_ranking(
     teams, disciplines, result_rows, points_first_place: int = 7,
     require_result_entry: bool = False,
+    placement_points=None,
 ):
     totals_by_team_discipline = defaultdict(float)
     overall_totals = {team["id"]: 0.0 for team in teams}
     teams_with_results = {result["team_id"] for result in result_rows}
+    if placement_points is None:
+        placement_points = build_default_placement_points(points_first_place)
 
     for result in result_rows:
         key = (result["team_id"], result["discipline_id"])
@@ -321,7 +374,8 @@ def calculate_sixkampf_team_ranking(
             placement = index
             previous_total = row["overall_total"]
         row["placement"] = placement
-        row["scoring_points"] = max(points_first_place - placement + 1, 0)
+        row["scoring_points"] = get_points_for_placement(placement_points, placement)
+        row["scoring_points_display"] = format_points_value(row["scoring_points"])
 
     return ranking, totals_by_team_discipline, overall_totals
 
@@ -728,6 +782,7 @@ def calculate_tournament_points(competition):
         return []
 
     rows = calculate_table(competition["id"])
+    placement_points = get_competition_placement_points(competition)
 
     previous = None
     previous_place = 0
@@ -744,7 +799,8 @@ def calculate_tournament_points(competition):
             place = index
 
         row["placement"] = place
-        row["competition_points"] = max(len(rows) - place + 1, 0)
+        row["competition_points"] = get_points_for_placement(placement_points, place)
+        row["competition_points_display"] = format_points_value(row["competition_points"])
         previous = row
         previous_place = place
 
@@ -792,6 +848,7 @@ def calculate_event_overall_ranking(event_id: int):
             "id": competition["id"],
             "name": competition["name"],
             "jahrgang": competition["jahrgang"],
+            "competition_type": competition["competition_type"],
         })
 
     jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
@@ -814,7 +871,6 @@ def calculate_event_overall_ranking(event_id: int):
 
     overall = {}
     for competition in competitions:
-        default_points = 0
         for team in teams_by_jahrgang.get(competition["jahrgang"], []):
             record = overall.setdefault(team["id"], {
                 "team_id": team["id"],
@@ -822,14 +878,17 @@ def calculate_event_overall_ranking(event_id: int):
                 "jahrgang": team["jahrgang"],
                 "points_by_competition": {},
                 "total_points": 0.0,
+                "first_places": 0,
+                "second_places": 0,
             })
             record["points_by_competition"].setdefault(
                 competition["id"],
-                default_points,
+                None,
             )
 
     for competition in competitions:
         competition_id = competition["id"]
+        placement_points = get_competition_placement_points(competition)
         if competition["competition_type"] == "Sechskampf":
             competition_teams = teams_by_jahrgang.get(competition["jahrgang"], [])
             with get_conn() as conn:
@@ -852,6 +911,7 @@ def calculate_event_overall_ranking(event_id: int):
                 result_rows,
                 competition["points_first_place"],
                 require_result_entry=True,
+                placement_points=placement_points,
             )
             for row in ranking:
                 team_id = row["team"]["id"]
@@ -861,8 +921,14 @@ def calculate_event_overall_ranking(event_id: int):
                     "jahrgang": row["team"]["jahrgang"],
                     "points_by_competition": {},
                     "total_points": 0.0,
+                    "first_places": 0,
+                    "second_places": 0,
                 })
                 record["points_by_competition"][competition_id] = row["scoring_points"]
+                if row["placement"] == 1:
+                    record["first_places"] += 1
+                elif row["placement"] == 2:
+                    record["second_places"] += 1
         else:
             rows = calculate_tournament_points(competition)
             for row in rows:
@@ -873,8 +939,14 @@ def calculate_event_overall_ranking(event_id: int):
                     "jahrgang": competition["jahrgang"],
                     "points_by_competition": {},
                     "total_points": 0.0,
+                    "first_places": 0,
+                    "second_places": 0,
                 })
                 record["points_by_competition"][competition_id] = row.get("competition_points", 0)
+                if row["placement"] == 1:
+                    record["first_places"] += 1
+                elif row["placement"] == 2:
+                    record["second_places"] += 1
 
     for record in overall.values():
         record["total_points"] = sum(
@@ -882,34 +954,55 @@ def calculate_event_overall_ranking(event_id: int):
             for value in record["points_by_competition"].values()
             if isinstance(value, (int, float))
         )
-
-    ranked = sorted(overall.values(), key=lambda r: (-r["total_points"], r["team"].lower()))
+        record["total_points_display"] = format_points_value(record["total_points"])
+        record["points_by_competition_display"] = {
+            competition_id: format_points_value(value)
+            for competition_id, value in record["points_by_competition"].items()
+        }
 
     year_groups = {}
 
-    for row in ranked:
+    for row in overall.values():
         year_group = classify_yeargang(row["jahrgang"])
         if year_group is None:
             continue
         year_groups.setdefault(year_group, []).append(row)
 
     ordered_groups = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    display_year_groups = {
+        "Jahrgang 7": "Gesamtwertung Jahrgang 7",
+        "Jahrgang 8": "Gesamtwertung Jahrgang 8",
+        "Jahrgang 9": "Gesamtwertung Jahrgang 9",
+        "Oberstufe": "Gesamtwertung GOST",
+    }
     result = []
     for year_group in ordered_groups:
         rows = year_groups.get(year_group)
         if not rows:
             continue
 
+        rows.sort(key=lambda row: (
+            -row["total_points"],
+            -row["first_places"],
+            -row["second_places"],
+            row["team"].lower(),
+        ))
+
         place = 0
-        previous_total = None
+        previous_rank_key = None
         for index, row in enumerate(rows, start=1):
-            if previous_total is None or row["total_points"] != previous_total:
+            rank_key = (
+                row["total_points"],
+                row["first_places"],
+                row["second_places"],
+            )
+            if previous_rank_key is None or rank_key != previous_rank_key:
                 place = index
             row["place"] = place
-            previous_total = row["total_points"]
+            previous_rank_key = rank_key
 
         result.append({
-            "year_group": year_group,
+            "year_group": display_year_groups.get(year_group, year_group),
             "competitions": grouped_competitions.get(year_group, []),
             "rows": rows,
         })
@@ -2035,6 +2128,7 @@ def ergebnisse(
                 teams, disciplines, result_rows,
                 selected_competition["points_first_place"],
                 require_result_entry=show_evaluation,
+                placement_points=get_competition_placement_points(selected_competition),
             )
         )
         values = {
@@ -2284,6 +2378,7 @@ def tabellen(request: Request, competition_id: str = ""):
                 rows, _, _ = calculate_sixkampf_team_ranking(
                     teams, disciplines, result_rows,
                     competition["points_first_place"],
+                    placement_points=get_competition_placement_points(competition),
                 )
             else:
                 rows = calculate_table(competition["id"])
@@ -2474,6 +2569,7 @@ def create_competition(
 
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form(""),
+    placement_points: str = Form(""),
 ):
     if competition_type not in {"Turnier", "Sechskampf"}:
         return RedirectResponse("/wettbewerbe", status_code=303)
@@ -2496,6 +2592,9 @@ def create_competition(
             )
         except (TypeError, ValueError):
             return RedirectResponse("/wettbewerbe", status_code=303)
+        placement_points_value = placement_points.strip()
+        if placement_points_value and not parse_placement_points_config(placement_points_value):
+            return RedirectResponse("/wettbewerbe", status_code=303)
         if points_first_place_value < 1:
             return RedirectResponse("/wettbewerbe", status_code=303)
         if conn.execute(
@@ -2506,12 +2605,12 @@ def create_competition(
         conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, points_first_place, event_id, competition_type,
+                points_loss, points_first_place, placement_points, event_id, competition_type,
                 start_time, end_time
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
-            points_first_place_value, event_id_value, competition_type,
+            points_first_place_value, placement_points_value or None, event_id_value, competition_type,
             start_time.strip() or None, end_time.strip() or None,
         ))
         conn.commit()
@@ -2529,14 +2628,14 @@ def duplicate_competition(competition_id: int):
         cursor = conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
-                points_loss, points_first_place, event_id, competition_type,
+                points_loss, points_first_place, placement_points, event_id, competition_type,
                 start_time, end_time
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             get_unique_competition_name(conn, competition["name"]),
             competition["sportart"], competition["jahrgang"], competition["points_win"],
             competition["points_draw"], competition["points_loss"],
-            competition["points_first_place"],
+            competition["points_first_place"], competition["placement_points"],
             competition["event_id"], competition["competition_type"],
             competition["start_time"], competition["end_time"],
         ))
@@ -2552,6 +2651,7 @@ def update_competition(
     start_time: str = Form(""), end_time: str = Form(""),
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form("7"),
+    placement_points: str = Form(""),
 ):
     try:
         jahrgang_value = int(jahrgang)
@@ -2572,6 +2672,9 @@ def update_competition(
         or points_first_place_value < 1
         or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
     ):
+        return RedirectResponse("/wettbewerbe", status_code=303)
+    placement_points_value = placement_points.strip()
+    if placement_points_value and not parse_placement_points_config(placement_points_value):
         return RedirectResponse("/wettbewerbe", status_code=303)
     with get_conn() as conn:
         if conn.execute(
@@ -2594,13 +2697,13 @@ def update_competition(
             UPDATE competitions
             SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                 points_win = ?, points_draw = ?, points_loss = ?,
-                points_first_place = ?, event_id = ?, competition_type = ?,
+                points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
                 start_time = ?, end_time = ?
             WHERE id = ?
         """, (
             name_value, sportart_value, jahrgang_value, status,
             points_win_value, points_draw_value, points_loss_value,
-            points_first_place_value, event_id_value, competition_type,
+            points_first_place_value, placement_points_value or None, event_id_value, competition_type,
             start_time.strip() or None, end_time.strip() or None,
             competition_id,
         ))

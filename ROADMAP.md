@@ -72,11 +72,11 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [ ] Veranstaltung duplizieren
 * [ ] Veranstaltung archivieren
 * [ ] Veranstaltung löschen, nur wenn keine abhängigen Daten vorhanden sind
-* [ ] Detailseite einer Veranstaltung verbessern
-* [ ] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
+* [x] Detailseite einer Veranstaltung verbessern
+* [x] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
 * [ ] Wettbewerbe direkt innerhalb einer Veranstaltung anlegen
 * [ ] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden
-* [ ] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
+* [x] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
 
 Zielbild:
 
