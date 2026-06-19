@@ -204,6 +204,24 @@ h1 {
     color: var(--muted);
 }
 
+.next-event-panel {
+    border-color: #c7ddff;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.next-event-name {
+    margin: 0 0 12px;
+    font-size: 1.5rem;
+}
+
+.next-event-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
 .list-row {
     display: flex;
     justify-content: space-between;
@@ -369,6 +387,37 @@ button.outline {
 
 .team-actions .muted.small {
     display: block;
+}
+
+.overall-table {
+    min-width: 700px;
+}
+
+.overall-table th,
+.overall-table td {
+    white-space: nowrap;
+}
+
+.overall-table .overall-team {
+    min-width: 170px;
+}
+
+.overall-table .overall-total strong {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.overall-table .overall-total.is-top strong {
+    color: var(--navy);
+}
+
+.overall-table .points-missing {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.overall-table .points-value {
+    color: var(--text);
 }
 
 section.cards.competition-list {

@@ -4,13 +4,31 @@
 <p class="muted">Übersicht des aktuellen Sportfests</p>
 
 <div class="stats">
-    <div class="stat"><strong>{{ competitions|length }}</strong><span>Wettbewerbe</span></div>
+    <div class="stat"><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe der nächsten Veranstaltung</span></div>
     <div class="stat"><strong>{{ teams|length }}</strong><span>Teams</span></div>
     <div class="stat"><strong>{{ ended_count }}</strong><span>Spiele beendet</span></div>
     <div class="stat"><strong>{{ courts|length }}</strong><span>Spielfelder aktiv</span></div>
 </div>
 
 <div class="grid">
+    <section class="panel wide next-event-panel">
+        <h2>Nächste Veranstaltung</h2>
+        {% if next_event %}
+        <p class="next-event-name"><strong>{{ next_event.name }}</strong></p>
+        <div class="next-event-meta">
+            <span class="pill">{{ next_event.event_date }}</span>
+            <span class="badge {{ next_event.status }}">{{ next_event.status }}</span>
+            <span class="pill">{{ next_event.competition_count }} Wettbewerbe</span>
+        </div>
+        {% if next_event.description %}
+        <p class="muted">{{ next_event.description }}</p>
+        {% endif %}
+        <p><a href="/events/{{ next_event.id }}">Zur Detailseite</a></p>
+        {% else %}
+        <p class="muted">Keine kommende Veranstaltung mit Datum gefunden.</p>
+        {% endif %}
+    </section>
+
     <section class="panel wide">
         <h2>Laufende Spiele</h2>
         {% for s in running %}
@@ -83,12 +101,17 @@
     </section>
 
     <section class="panel">
-        <h2>Wettbewerbe</h2>
-        {% for c in competitions %}
+        <h2>Weitere kommende Veranstaltungen</h2>
+        {% for event in additional_upcoming_events %}
         <div class="list-row">
-            <div><strong>{{ c.name }}</strong><br><span>{{ c.sportart }} · Jg. {{ c.jahrgang }}</span></div>
-            <span class="badge {{ c.status }}">{{ c.status }}</span>
+            <div>
+                <strong>{{ event.name }}</strong><br>
+                <span>{{ event.event_date }} · {{ event.competition_count }} Wettbewerbe</span>
+            </div>
+            <a href="/events/{{ event.id }}">Details</a>
         </div>
+        {% else %}
+        <p class="muted">Keine weiteren kommenden Veranstaltungen.</p>
         {% endfor %}
     </section>
 </div>

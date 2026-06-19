@@ -280,17 +280,26 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
 
 
 def calculate_sixkampf_team_ranking(
-    teams, disciplines, result_rows, points_first_place: int = 7
+    teams, disciplines, result_rows, points_first_place: int = 7,
+    require_result_entry: bool = False,
 ):
     totals_by_team_discipline = defaultdict(float)
     overall_totals = {team["id"]: 0.0 for team in teams}
+    teams_with_results = {result["team_id"] for result in result_rows}
 
     for result in result_rows:
         key = (result["team_id"], result["discipline_id"])
         totals_by_team_discipline[key] += result["value"]
 
+    ranking_teams = teams
+    if require_result_entry:
+        ranking_teams = [
+            team for team in teams
+            if team["id"] in teams_with_results
+        ]
+
     ranking = []
-    for team in teams:
+    for team in ranking_teams:
         overall_total = sum(
             totals_by_team_discipline[(team["id"], discipline["id"])]
             for discipline in disciplines
@@ -392,6 +401,24 @@ def fetch_dashboard_data():
               AND c.status != 'archiviert'
         """).fetchone()["n"]
 
+        upcoming_events = [dict(row) for row in conn.execute("""
+            SELECT e.*,
+                   (
+                       SELECT COUNT(*)
+                       FROM competitions c
+                       WHERE c.event_id = e.id
+                   ) AS competition_count
+            FROM events e
+            WHERE e.event_date IS NOT NULL
+              AND TRIM(e.event_date) != ''
+              AND e.event_date >= date('now', 'localtime')
+            ORDER BY e.event_date ASC, e.name ASC
+            LIMIT 4
+        """).fetchall()]
+
+    next_event = upcoming_events[0] if upcoming_events else None
+    additional_upcoming_events = upcoming_events[1:4] if len(upcoming_events) > 1 else []
+
     return {
         "competitions": competitions,
         "teams": teams,
@@ -399,6 +426,8 @@ def fetch_dashboard_data():
         "running": running,
         "upcoming": upcoming,
         "ended_count": ended_count,
+        "next_event": next_event,
+        "additional_upcoming_events": additional_upcoming_events,
     }
 
 
@@ -751,29 +780,78 @@ def calculate_event_overall_ranking(event_id: int):
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()
 
+    if not competitions:
+        return []
+
+    grouped_competitions = {}
+    for competition in competitions:
+        year_group = classify_yeargang(competition["jahrgang"])
+        if year_group is None:
+            continue
+        grouped_competitions.setdefault(year_group, []).append({
+            "id": competition["id"],
+            "name": competition["name"],
+            "jahrgang": competition["jahrgang"],
+        })
+
+    jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
+    teams_by_jahrgang = {}
+    with get_conn() as conn:
+        if jahrgaenge:
+            placeholders = ", ".join(["?"] * len(jahrgaenge))
+            teams = conn.execute(f"""
+                SELECT id, name, jahrgang
+                FROM teams
+                WHERE active = 1
+                  AND jahrgang IN ({placeholders})
+                ORDER BY jahrgang, name
+            """, tuple(jahrgaenge)).fetchall()
+        else:
+            teams = []
+
+    for team in teams:
+        teams_by_jahrgang.setdefault(team["jahrgang"], []).append(team)
+
     overall = {}
     for competition in competitions:
+        default_points = 0
+        for team in teams_by_jahrgang.get(competition["jahrgang"], []):
+            record = overall.setdefault(team["id"], {
+                "team_id": team["id"],
+                "team": team["name"],
+                "jahrgang": team["jahrgang"],
+                "points_by_competition": {},
+                "total_points": 0.0,
+            })
+            record["points_by_competition"].setdefault(
+                competition["id"],
+                default_points,
+            )
+
+    for competition in competitions:
+        competition_id = competition["id"]
         if competition["competition_type"] == "Sechskampf":
+            competition_teams = teams_by_jahrgang.get(competition["jahrgang"], [])
             with get_conn() as conn:
-                teams = conn.execute("""
-                    SELECT * FROM teams
-                    WHERE active = 1 AND jahrgang = ?
-                    ORDER BY name
-                """, (competition["jahrgang"],)).fetchall()
                 disciplines = conn.execute("""
                     SELECT * FROM competition_disciplines
                     WHERE competition_id = ?
                     ORDER BY sort_order, id
-                """, (competition["id"],)).fetchall()
+                """, (competition_id,)).fetchall()
                 result_rows = conn.execute(
                     "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
-                    (competition["id"],)
+                    (competition_id,)
                 ).fetchall()
+
             if not result_rows:
                 continue
+
             ranking, _, _ = calculate_sixkampf_team_ranking(
-                teams, disciplines, result_rows,
+                competition_teams,
+                disciplines,
+                result_rows,
                 competition["points_first_place"],
+                require_result_entry=True,
             )
             for row in ranking:
                 team_id = row["team"]["id"]
@@ -784,8 +862,7 @@ def calculate_event_overall_ranking(event_id: int):
                     "points_by_competition": {},
                     "total_points": 0.0,
                 })
-                record["points_by_competition"][competition["id"]] = row["scoring_points"]
-                record["total_points"] += row["scoring_points"]
+                record["points_by_competition"][competition_id] = row["scoring_points"]
         else:
             rows = calculate_tournament_points(competition)
             for row in rows:
@@ -797,21 +874,18 @@ def calculate_event_overall_ranking(event_id: int):
                     "points_by_competition": {},
                     "total_points": 0.0,
                 })
-                record["points_by_competition"][competition["id"]] = row["competition_points"]
-                record["total_points"] += row["competition_points"]
+                record["points_by_competition"][competition_id] = row.get("competition_points", 0)
+
+    for record in overall.values():
+        record["total_points"] = sum(
+            value
+            for value in record["points_by_competition"].values()
+            if isinstance(value, (int, float))
+        )
 
     ranked = sorted(overall.values(), key=lambda r: (-r["total_points"], r["team"].lower()))
 
     year_groups = {}
-    grouped_competitions = {}
-    for competition in competitions:
-        year_group = classify_yeargang(competition["jahrgang"])
-        if year_group is None:
-            continue
-        grouped_competitions.setdefault(year_group, []).append({
-            "id": competition["id"],
-            "name": competition["name"],
-        })
 
     for row in ranked:
         year_group = classify_yeargang(row["jahrgang"])
@@ -1960,6 +2034,7 @@ def ergebnisse(
             calculate_sixkampf_team_ranking(
                 teams, disciplines, result_rows,
                 selected_competition["points_first_place"],
+                require_result_entry=show_evaluation,
             )
         )
         values = {

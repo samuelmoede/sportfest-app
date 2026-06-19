@@ -21,6 +21,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 - Referee-Timer für Turnierspiele in Spielplan und Ergebnisübersicht ergänzt; Spielstart und Spielende lassen sich jetzt direkt in der App steuern.
 - Tagesplanfunktion für Veranstaltungsdetail und Dashboard hinzugefügt; gemeinsame Logik für aktuelle/nächste Zeitblöcke verwendet.
 - Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppiert; Platzierung wird pro Jahrgang separat berechnet und Gleichstände überspringen Plätze.
+- Sechskampf-Wertung in der Gesamtwertung korrigiert: Klassen ohne echten Ergebniseintrag erhalten fuer diesen Wettbewerb keine Ranglistenwertung (Anzeige "-") und werden nicht als 0-Gleichstand gewertet.
+- Darstellung der Gesamtwertung auf der Veranstaltungsdetailseite verbessert: kuerzere Wettbewerbstitel ohne Jahrgang, fehlende Punkte als dezentes "-", Gesamtpunkte klarer hervorgehoben und Tabellen mobil besser horizontal scrollbar.
+- Dashboard auf kommende Veranstaltungen ausgerichtet: naechste Veranstaltung mit Datum, Status, Detail-Link und Wettbewerbsanzahl hervorgehoben; bis zu drei weitere kommende Veranstaltungen werden zusaetzlich gelistet.
 
 ## [0.1.1-dev] - 2026-06-18
 
