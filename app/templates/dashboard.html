@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="dashboard-page">
 <div class="dashboard-head">
     <h1>Dashboard</h1>
     <div class="dashboard-clock" id="dashboard-clock" aria-label="Aktuelle Uhrzeit">--:--</div>
@@ -148,4 +149,5 @@ function updateDashboardClock() {
 updateDashboardClock();
 setInterval(updateDashboardClock, 1000);
 </script>
+</div>
 {% endblock %}

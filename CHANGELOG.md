@@ -4,6 +4,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Dashboard mobil optimiert: zu breite Karten/Zeilen wurden fuer Smartphone-Breiten kompakter gemacht (insbesondere laufende Spiele und weitere kommende Veranstaltungen), damit Inhalte ohne seitliches Herausragen nutzbar bleiben.
+- Mobiles Navigationslayout ueberarbeitet: Auf Smartphone-Breite wird die Desktop-Sidebar ausgeblendet und durch eine kompakte Kopfzeile mit "☰ Menü" ersetzt; Navigation oeffnet als schliessbares Overlay-Drawer, waehrend der Seiteninhalt die volle Breite nutzt.
+- Mobile/Responsive Sechskampf-Ergebniseingabe auf /ergebnisse ueberarbeitet: kompakte Klassenkarten, Kopfbereich mit Klasse/Gesamt/Speichern plus kleine Speicherzeit (HH:MM), direkte Eingabefelder ohne grosse Luecke, dichter responsiver Werte-Grid (Handy/Tablet/Laptop), 16px-Inputs gegen Browser-Zoom sowie sticky Stationskopf beim Scrollen.
 - Einstellungen-Seite als zentrale Verwaltung erweitert: Systeminformationen enthalten jetzt auch Spielfeldanzahl; Backups zeigen letztes Backup und Gesamtanzahl als kompakte Karten; neuer Systemstatus-Bereich zeigt Datenbank-Erreichbarkeit und Schreibzugriff (Ja/Nein).
 - Projektpflege/Stabilisierung: ROADMAP.md auf den aktuellen Umsetzungsstand abgeglichen (erledigte Punkte abgehakt, offene naechste Schritte aktualisiert) und .gitignore um weitere IDE-Dateien erweitert.
 - CSV-Export fuer Auswertungen auf /tabellen hinzugefuegt: Per Button "CSV exportieren" werden die aktuell gefilterten Daten (Turniertabellen, Sechskampf-Ranglisten und bei Veranstaltungsfilter auch Gesamtwertungen) als UTF-8-CSV mit Semikolon-Trennzeichen exportiert.

@@ -62,39 +62,49 @@
 </section>
 
 {% elif selected_discipline %}
-<section class="panel">
-    <h2>
-        {{ selected_discipline.name }}
-        {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
-    </h2>
-    <p class="muted">
-        {{ selected_discipline.values_per_team }} Werte je Klasse ·
-        {% if selected_discipline.scoring_direction == "lower" %}
-        Niedriger ist besser
-        {% else %}
-        Höher ist besser
-        {% endif %}
-    </p>
+<section class="panel six-discipline-panel">
+    <header class="six-discipline-header">
+        <h2>
+            {{ selected_discipline.name }}
+            {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
+        </h2>
+        <p class="muted">
+            {{ selected_discipline.values_per_team }} Werte je Klasse ·
+            {% if selected_discipline.scoring_direction == "lower" %}
+            Niedriger ist besser
+            {% else %}
+            Höher ist besser
+            {% endif %}
+        </p>
+    </header>
 
     {% if teams %}
     <div class="six-class-cards">
         {% for team in teams %}
         <article class="six-class-card" data-six-card>
-            <header>
-                <div>
-                    <span class="muted">Klasse</span>
-                    <h3>{{ team.name }}</h3>
-                </div>
-                <div class="live-total">
-                    <span>Gesamt</span>
-                    <strong data-live-total>
-                        {{ totals_by_team_discipline.get((team.id, selected_discipline.id), 0)|round(3) }}
-                    </strong>
-                </div>
-            </header>
-
             <form method="post"
-                  action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results">
+                  action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results"
+                  class="six-class-form">
+                <header class="six-card-header">
+                    <div class="six-card-team">
+                        <span class="muted">Klasse</span>
+                        <h3>{{ team.name }}</h3>
+                    </div>
+                    <div class="live-total">
+                        <span>Gesamt</span>
+                        <strong data-live-total>
+                            {{ totals_by_team_discipline.get((team.id, selected_discipline.id), 0)|round(3) }}
+                        </strong>
+                    </div>
+                    <div class="six-card-actions">
+                        <button class="green save-six" type="submit">Speichern</button>
+                        {% if saved_team_id == team.id and saved_at %}
+                        {% set saved_time = saved_at.split(' ')[1][:5] if ' ' in saved_at else saved_at[:5] %}
+                        <span class="save-feedback-inline">{{ saved_time }}</span>
+                        {% endif %}
+                    </div>
+                </header>
+
                 <div class="value-fields">
                     {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
                     <label>
@@ -105,13 +115,6 @@
                     </label>
                     {% endfor %}
                 </div>
-
-                <footer>
-                    <button class="green save-six" type="submit">Speichern</button>
-                    {% if saved_team_id == team.id and saved_at %}
-                    <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
-                    {% endif %}
-                </footer>
             </form>
         </article>
         {% endfor %}
@@ -135,60 +138,110 @@
 .discipline-tabs a.active {
     background: var(--navy); color: white; border-color: var(--navy);
 }
+.six-discipline-panel {
+    overflow: visible;
+}
+.six-discipline-header {
+    position: sticky;
+    top: 10px;
+    z-index: 30;
+    margin: -4px -4px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(4px);
+}
+.six-discipline-header h2 {
+    margin: 0;
+    font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+}
+.six-discipline-header p {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+}
 .six-class-cards {
-    display: grid; gap: 10px;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
 .six-class-card {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 18px;
+    border-radius: 12px;
+    padding: 10px;
     background: white;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+    min-width: 0;
 }
-.six-class-card header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 0;
+.six-class-form {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
 }
-.six-class-card h3 { margin: 2px 0 0; font-size: 24px; }
-.live-total { text-align: right; }
-.live-total span { display: block; color: var(--muted); font-size: 13px; }
-.live-total strong { font-size: 24px; }
+.six-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+}
+.six-card-team {
+    min-width: 0;
+}
+.six-card-team h3 {
+    margin: 2px 0 0;
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.live-total {
+    text-align: right;
+}
+.live-total span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+}
+.live-total strong {
+    display: block;
+    font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+    line-height: 1.1;
+}
+.six-card-actions {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
+}
 .value-fields {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 6px;
+    min-width: 0;
 }
 .value-fields label {
     display: grid;
-    gap: 4px;
+    gap: 3px;
+    min-width: 0;
 }
 .value-fields label span {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--muted);
 }
 .value-fields input {
     width: 100%;
-    min-height: 40px;
+    min-height: 42px;
     font-size: 16px;
     text-align: center;
-    padding: 8px 10px;
+    padding: 7px 8px;
 }
-.six-class-card footer {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 12px;
-    margin-top: 8px;
+.save-six {
+    min-height: 42px;
+    padding: 8px 14px;
 }
-.save-six { min-height: 48px; padding-left: 22px; padding-right: 22px; }
 .saved-at { color: #166534; font-weight: 700; }
 .ranking-list { display: grid; gap: 10px; }
 .ranking-card {
@@ -216,27 +269,36 @@
     color: white;
     font-weight: 900;
 }
-@media (min-width: 900px) {
-    .six-class-card {
-        grid-template-columns: minmax(240px, 320px) 1fr;
-        align-items: start;
-    }
-    .six-class-card header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .six-class-card footer {
-        justify-content: flex-end;
+@media (min-width: 1024px) {
+    .value-fields {
+        grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
     }
 }
-@media (max-width: 900px) {
-    .six-class-card {
-        grid-template-columns: 1fr;
+@media (min-width: 641px) and (max-width: 1023px) {
+    .value-fields {
+        grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
     }
 }
 @media (max-width: 640px) {
-    .six-class-card { padding: 14px; }
-    .value-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .six-discipline-header {
+        top: 6px;
+        padding: 8px 10px;
+    }
+    .six-card-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: start;
+    }
+    .six-card-actions {
+        grid-column: 1 / -1;
+        justify-items: stretch;
+    }
+    .save-six {
+        width: 100%;
+    }
+    .value-fields {
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    }
     .ranking-card { grid-template-columns: 46px 1fr; }
     .ranking-card > :last-child { grid-column: 2; }
 }

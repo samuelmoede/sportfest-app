@@ -2,10 +2,82 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sportfest Manager</title>
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
 </head>
 <body>
+<header class="mobile-topbar" aria-label="Mobile Kopfzeile">
+    <div class="mobile-brand">
+        <strong>Sportfest</strong>
+        <span>Manager</span>
+    </div>
+    <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
+</header>
+
+<div class="mobile-menu-overlay" data-mobile-menu-close hidden></div>
+<aside id="mobile-menu-drawer" class="mobile-menu-drawer" aria-label="Mobile Navigation" aria-hidden="true">
+    <div class="mobile-menu-head">
+        <strong>Navigation</strong>
+        <button type="button" class="mobile-menu-close" data-mobile-menu-close aria-label="Menü schließen">Schließen</button>
+    </div>
+    <nav>
+        <div class="nav-group">Allgemein</div>
+        <a class="nav-link" href="/">
+            <span class="nav-icon" aria-hidden="true">🏠</span>
+            <span class="nav-text">Dashboard</span>
+        </a>
+        <a class="nav-link" href="/events">
+            <span class="nav-icon" aria-hidden="true">📅</span>
+            <span class="nav-text">Veranstaltungen</span>
+        </a>
+
+        <div class="nav-group">Wettbewerbe</div>
+        <a class="nav-link" href="/wettbewerbe">
+            <span class="nav-icon" aria-hidden="true">🏆</span>
+            <span class="nav-text">Wettbewerbe</span>
+        </a>
+        <a class="nav-link" href="/spielplan">
+            <span class="nav-icon" aria-hidden="true">🗓</span>
+            <span class="nav-text">Spielplan</span>
+        </a>
+        <a class="nav-link" href="/spielplan-bearbeiten">
+            <span class="nav-icon" aria-hidden="true">✏️</span>
+            <span class="nav-text">Spielplan bearbeiten</span>
+        </a>
+        <a class="nav-link" href="/ergebnisse">
+            <span class="nav-icon" aria-hidden="true">✅</span>
+            <span class="nav-text">Ergebnisse</span>
+        </a>
+        <a class="nav-link" href="/tabellen">
+            <span class="nav-icon" aria-hidden="true">📊</span>
+            <span class="nav-text">Tabellen</span>
+        </a>
+
+        <div class="nav-group">Verwaltung</div>
+        <a class="nav-link" href="/teams">
+            <span class="nav-icon" aria-hidden="true">👥</span>
+            <span class="nav-text">Teams</span>
+        </a>
+        <a class="nav-link" href="/spielfelder">
+            <span class="nav-icon" aria-hidden="true">📍</span>
+            <span class="nav-text">Spielfelder</span>
+        </a>
+        <a class="nav-link" href="/einstellungen">
+            <span class="nav-icon" aria-hidden="true">⚙️</span>
+            <span class="nav-text">Einstellungen</span>
+        </a>
+        <a class="nav-link" href="/dokumentation">
+            <span class="nav-icon" aria-hidden="true">📘</span>
+            <span class="nav-text">Dokumentation</span>
+        </a>
+        <a class="beamer-link" href="/beamer" target="_blank">
+            <span class="beamer-icon" aria-hidden="true">⚡</span>
+            <span class="beamer-text">Beamer-Ansicht öffnen</span>
+        </a>
+    </nav>
+</aside>
+
 <div class="layout">
     <aside class="sidebar">
         <div class="brand">
@@ -87,6 +159,45 @@
     const key = "sidebar-collapsed";
     const body = document.body;
     const toggle = document.querySelector(".sidebar-toggle");
+    const mobileToggle = document.querySelector(".mobile-menu-toggle");
+    const mobileDrawer = document.getElementById("mobile-menu-drawer");
+    const mobileOverlay = document.querySelector(".mobile-menu-overlay");
+    const mobileCloseButtons = document.querySelectorAll("[data-mobile-menu-close]");
+
+    if (mobileToggle && mobileDrawer && mobileOverlay) {
+        const setMobileMenuOpen = (open) => {
+            body.classList.toggle("mobile-menu-open", open);
+            mobileDrawer.setAttribute("aria-hidden", open ? "false" : "true");
+            mobileToggle.setAttribute("aria-expanded", open ? "true" : "false");
+            mobileOverlay.hidden = !open;
+        };
+
+        mobileToggle.addEventListener("click", () => {
+            const isOpen = body.classList.contains("mobile-menu-open");
+            setMobileMenuOpen(!isOpen);
+        });
+
+        mobileCloseButtons.forEach(btn => {
+            btn.addEventListener("click", () => setMobileMenuOpen(false));
+        });
+
+        mobileDrawer.querySelectorAll("a").forEach(link => {
+            link.addEventListener("click", () => setMobileMenuOpen(false));
+        });
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape") {
+                setMobileMenuOpen(false);
+            }
+        });
+
+        window.addEventListener("resize", () => {
+            if (window.matchMedia("(min-width: 701px)").matches) {
+                setMobileMenuOpen(false);
+            }
+        });
+    }
+
     if (!toggle) return;
 
     const isDesktopSidebar = () => window.matchMedia("(min-width: 701px)").matches;
