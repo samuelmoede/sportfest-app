@@ -4,6 +4,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Einstellungen-Seite als zentrale Verwaltung erweitert: Systeminformationen enthalten jetzt auch Spielfeldanzahl; Backups zeigen letztes Backup und Gesamtanzahl als kompakte Karten; neuer Systemstatus-Bereich zeigt Datenbank-Erreichbarkeit und Schreibzugriff (Ja/Nein).
+- Projektpflege/Stabilisierung: ROADMAP.md auf den aktuellen Umsetzungsstand abgeglichen (erledigte Punkte abgehakt, offene naechste Schritte aktualisiert) und .gitignore um weitere IDE-Dateien erweitert.
+- CSV-Export fuer Auswertungen auf /tabellen hinzugefuegt: Per Button "CSV exportieren" werden die aktuell gefilterten Daten (Turniertabellen, Sechskampf-Ranglisten und bei Veranstaltungsfilter auch Gesamtwertungen) als UTF-8-CSV mit Semikolon-Trennzeichen exportiert.
 - Tabellen-Seite erweitert: kombinierbare GET-Filter fuer Veranstaltung, Jahrgang und Wettbewerb ergaenzt (`/tabellen?event_id=...&jahrgang=...&competition_id=...`); ausgewaehlte Filter bleiben sichtbar und bei leerem Ergebnis erscheint der Hinweis "Keine Tabellen für diese Auswahl vorhanden.".
 - Veranstaltungsdetailseite als zentraler Einstieg ausgebaut: Zugehoerige Wettbewerbe werden jetzt als kompakte Liste mit Name, Sportart, Jahrgang und Status angezeigt; pro Wettbewerb stehen direkte Aktionen fuer Bearbeiten, Spielplan und Ergebnisse zur Verfuegung.
 - Spielfelder-Loeschschutz ergaenzt: Loeschen wird verhindert, wenn das Spielfeld in Slots verwendet wird (Spiele werden separat gezaehlt); stattdessen erscheint auf /spielfelder eine klare Fehlermeldung mit Nutzungsanzahl. Inaktive Spielfelder bleiben bestehenden Zuordnungen erhalten und werden weiterhin nicht fuer neue Planungen vorgeschlagen.

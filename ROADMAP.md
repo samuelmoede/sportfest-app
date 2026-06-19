@@ -54,6 +54,7 @@ Status: weitgehend erledigt
 * [x] Einstellungen-Seite mit globalen Systeminfos erweitert (Version, DB-Groesse, Kennzahlen)
 * [x] Manuelle Backup-Funktion auf /einstellungen inkl. Backup-Liste umgesetzt
 * [x] Globales Beamer-/Live-Aktualisierungsintervall (settings key/value, Standard 30s) umgesetzt
+* [x] Einstellungen als zentrale Verwaltungsseite ausgebaut (Systemstatus, Backup-Uebersicht, kompakte Info-Karten)
 * [ ] später: Zugriffsschutz / Admin-Login
 * [ ] später: CSRF-Schutz
 * [ ] später: Tests und CI ergänzen
@@ -71,14 +72,14 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [x] Einfachen Veranstaltungstyp vorbereitend eingeführt (Bewegungsfest, Einzelturnier, Käthelauf, Sonstiges)
 * [ ] Navigation langfristig vereinfachen
 * [ ] Seitenleistenpunkt „Wettbewerbe“ später entfernen oder nur noch als Unterseite der Veranstaltungen verwenden
-* [ ] Veranstaltung anlegen
-* [ ] Veranstaltung bearbeiten
-* [ ] Veranstaltung duplizieren
-* [ ] Veranstaltung archivieren
-* [ ] Veranstaltung löschen, nur wenn keine abhängigen Daten vorhanden sind
+* [x] Veranstaltung anlegen
+* [x] Veranstaltung bearbeiten
+* [x] Veranstaltung duplizieren
+* [x] Veranstaltung archivieren
+* [x] Veranstaltung löschen, nur wenn keine abhängigen Daten vorhanden sind
 * [x] Detailseite einer Veranstaltung verbessern
 * [x] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
-* [ ] Wettbewerbe direkt innerhalb einer Veranstaltung anlegen
+* [~] Wettbewerbe aus der Veranstaltung heraus anlegen (aktuell per vorgefiltertem Link)
 * [~] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden (Wettbewerbsliste auf Detailseite mit Direktaktionen umgesetzt)
 * [x] Erste einfache Gesamtwertung pro Veranstaltung anzeigen
 
@@ -111,7 +112,7 @@ Status: teilweise umgesetzt
 * [x] Wettbewerb archivieren
 * [x] Wettbewerb löschen
 * [ ] Wettbewerbe nur noch über Veranstaltungen erreichbar machen
-* [ ] Startzeit und Endzeit pro Wettbewerb ergänzen
+* [x] Startzeit und Endzeit pro Wettbewerb ergänzen
 * [ ] Wettbewerbstyp sauber unterscheiden:
 
   * Turnier
@@ -264,7 +265,7 @@ Beispiele:
 
 ### 8.2 Ergebniseingabe
 
-- [ ] Sechskampf-Erfassung auf /ergebnisse integrieren
+- [x] Sechskampf-Erfassung auf /ergebnisse integrieren
 - [ ] Wenn Sechskampf ausgewählt ist: keine aktiven Spiele anzeigen
 - [ ] Disziplin-Tabs anzeigen
 
@@ -379,14 +380,14 @@ Aufgaben:
 
 
 * [ ] Wertungssystem definieren
-* [ ] Wettbewerbsergebnisse in Punkte umrechnen
-* [ ] Sechskampf in Gesamtwertung einbeziehen
-* [ ] Turniere in Gesamtwertung einbeziehen
-* [ ] Gesamtwertung pro Jahrgang
+* [x] Wettbewerbsergebnisse in Punkte umrechnen
+* [x] Sechskampf in Gesamtwertung einbeziehen
+* [x] Turniere in Gesamtwertung einbeziehen
+* [x] Gesamtwertung pro Jahrgang
 * [ ] Gesamtwertung über alle Jahrgänge optional
-* [ ] Gleichstände behandeln
+* [x] Gleichstände behandeln
 * [ ] Beameransicht für Gesamtwertung
-* [ ] Export später optional
+* [x] CSV-Export für Tabellen und gefilterte Gesamtwertungen auf `/tabellen`
 
 ---
 
@@ -442,10 +443,9 @@ Keine parallelen großen PRs, wenn dieselben Dateien betroffen sind.
 
 ## Nächste konkrete Schritte
 
-1. Diese Roadmap als `ROADMAP.md` im Repository speichern.
-2. Eine `PROJECT_CONTEXT.md` ergänzen.
-3. Sechskampf-Erfassung auf `/ergebnisse` fertigstellen.
-4. Teams/Klassenverwaltung auf Tabellenlayout umstellen.
-5. Zeitfenster für Wettbewerbe ergänzen.
-6. Zeitplan-Modul vorbereiten.
+1. Navigation stärker auf Veranstaltungen als zentrale Einstiegsebene ausrichten.
+2. Wettbewerbe innerhalb einer Veranstaltung direkt erstellen/bearbeiten (ohne Seitenwechsel).
+3. Zeitplan-Modul als Veranstaltungsansicht weiter ausbauen.
+4. Beameransicht um Gesamtwertung und robustere Mehrfachansichten erweitern.
+5. Sicherheitsthemen (Login/CSRF) als eigenes Paket vorbereiten.
 

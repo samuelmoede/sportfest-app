@@ -10,14 +10,29 @@
         <div class="settings-item"><strong>Anzahl Veranstaltungen:</strong> {{ counts.events }}</div>
         <div class="settings-item"><strong>Anzahl Wettbewerbe:</strong> {{ counts.competitions }}</div>
         <div class="settings-item"><strong>Anzahl Teams:</strong> {{ counts.teams }}</div>
+        <div class="settings-item"><strong>Anzahl Spielfelder:</strong> {{ counts.courts }}</div>
         <div class="settings-item"><strong>Anzahl Spiele/Slots:</strong> {{ counts.slots }}</div>
         <div class="settings-item"><strong>Gespeicherte Ergebnisse:</strong> {{ results_count }}</div>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Systemstatus</h2>
+    <div class="settings-grid">
         <div class="settings-item">
-            <strong>Letztes Backup:</strong>
-            {% if last_backup %}
-                {{ last_backup.created_at_display }} ({{ last_backup.name }})
+            <strong>Datenbank erreichbar:</strong>
+            {% if db_reachable %}
+                <span class="status-pill ok">Ja</span>
             {% else %}
-                Noch kein Backup vorhanden
+                <span class="status-pill error">Nein</span>
+            {% endif %}
+        </div>
+        <div class="settings-item">
+            <strong>Schreibzugriff vorhanden:</strong>
+            {% if write_access %}
+                <span class="status-pill ok">Ja</span>
+            {% else %}
+                <span class="status-pill error">Nein</span>
             {% endif %}
         </div>
     </div>
@@ -46,9 +61,22 @@
 </section>
 
 <section class="panel">
-    <h2>Backup</h2>
+    <h2>Backups</h2>
     <p>Erstellt eine Kopie der aktuellen SQLite-Datenbank im Ordner <strong>backups/</strong>.</p>
     <p class="error-text">Wiederherstellung ist noch nicht über die Oberfläche möglich.</p>
+
+    <div class="settings-grid backup-summary-grid">
+        <div class="settings-item">
+            <strong>Letztes Backup:</strong>
+            {% if last_backup %}
+                {{ last_backup.created_at_display }}
+            {% else %}
+                Noch kein Backup vorhanden
+            {% endif %}
+        </div>
+        <div class="settings-item"><strong>Anzahl vorhandener Backups:</strong> {{ backup_count }}</div>
+    </div>
+
     <form method="post" action="/einstellungen/backup" class="inline-form">
         <button type="submit">Backup erstellen</button>
     </form>

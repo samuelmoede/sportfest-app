@@ -14,6 +14,10 @@
     box-sizing: border-box;
 }
 
+html {
+    overflow-y: scroll;
+}
+
 body {
     margin: 0;
     font-family: Arial, sans-serif;
@@ -845,6 +849,36 @@ pre {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
+}
+
+.settings-item strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.status-pill.ok {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.status-pill.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.backup-summary-grid {
+    margin-bottom: 12px;
 }
 
 .inline-form {

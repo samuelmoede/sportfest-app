@@ -1,11 +1,14 @@
 from collections import defaultdict
+import csv
 from datetime import date, datetime, timedelta
+import io
 from math import isfinite
+import re
 import shutil
 from typing import List, Optional
 
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.database import init_db, get_conn, DB_PATH
@@ -109,11 +112,17 @@ def get_beamer_refresh_seconds():
 
 
 def collect_system_info():
+    db_reachable = False
+    write_access = False
+
     with get_conn() as conn:
+        conn.execute("SELECT 1").fetchone()
+        db_reachable = True
         counts = {
             "events": conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()["n"],
             "competitions": conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"],
             "teams": conn.execute("SELECT COUNT(*) AS n FROM teams").fetchone()["n"],
+            "courts": conn.execute("SELECT COUNT(*) AS n FROM courts").fetchone()["n"],
             "slots": conn.execute("SELECT COUNT(*) AS n FROM slots").fetchone()["n"],
         }
         tournament_results_count = conn.execute("""
@@ -129,6 +138,21 @@ def collect_system_info():
     db_size_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
     backups = list_backup_files()
 
+    data_dir = DB_PATH.parent
+    data_dir.mkdir(parents=True, exist_ok=True)
+    write_probe_path = data_dir / f".write_probe_{int(datetime.now().timestamp() * 1000)}.tmp"
+    try:
+        write_probe_path.write_text("ok", encoding="utf-8")
+        write_access = True
+    except OSError:
+        write_access = False
+    finally:
+        try:
+            if write_probe_path.exists():
+                write_probe_path.unlink()
+        except OSError:
+            pass
+
     return {
         "app_version_value": get_app_version(),
         "db_size_bytes": db_size_bytes,
@@ -136,7 +160,10 @@ def collect_system_info():
         "counts": counts,
         "results_count": tournament_results_count + sixkampf_results_count,
         "last_backup": backups[0] if backups else None,
+        "backup_count": len(backups),
         "backups": backups,
+        "db_reachable": db_reachable,
+        "write_access": write_access,
         "beamer_refresh_seconds": get_beamer_refresh_seconds(),
     }
 
@@ -154,6 +181,183 @@ def parse_jahrgang_filter(value):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def slugify_filename_part(value: str):
+    normalized = (value or "").strip().lower()
+    replacements = {
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "ß": "ss",
+    }
+    for old_char, new_char in replacements.items():
+        normalized = normalized.replace(old_char, new_char)
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    return normalized.strip("_") or "export"
+
+
+def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competition_id: str = ""):
+    selected_event_id = parse_competition_id(event_id)
+    selected_jahrgang = parse_jahrgang_filter(jahrgang)
+    selected_competition_id = parse_competition_id(competition_id)
+    competitions = get_active_competitions()
+
+    visible_competitions = []
+    for competition in competitions:
+        if selected_event_id is not None and competition["event_id"] != selected_event_id:
+            continue
+        if selected_jahrgang is not None and competition["jahrgang"] != selected_jahrgang:
+            continue
+        if selected_competition_id is not None and competition["id"] != selected_competition_id:
+            continue
+        visible_competitions.append(competition)
+
+    year_options = sorted({c["jahrgang"] for c in competitions if c["jahrgang"] is not None})
+
+    with get_conn() as conn:
+        event_rows = conn.execute("""
+            SELECT id, name
+            FROM events
+            ORDER BY event_date, name
+        """).fetchall()
+        events_by_id = {event_row["id"]: event_row["name"] for event_row in event_rows}
+
+        tables = []
+        for competition in visible_competitions:
+            if competition["competition_type"] == "Sechskampf":
+                teams = conn.execute("""
+                    SELECT * FROM teams
+                    WHERE active = 1 AND jahrgang = ?
+                    ORDER BY name
+                """, (competition["jahrgang"],)).fetchall()
+                disciplines = conn.execute("""
+                    SELECT * FROM competition_disciplines
+                    WHERE competition_id = ?
+                    ORDER BY sort_order, id
+                """, (competition["id"],)).fetchall()
+                result_rows = conn.execute("""
+                    SELECT * FROM sixkampf_team_results
+                    WHERE competition_id = ?
+                """, (competition["id"],)).fetchall()
+                rows, _, _ = calculate_sixkampf_team_ranking(
+                    teams,
+                    disciplines,
+                    result_rows,
+                    competition["points_first_place"],
+                    placement_points=get_competition_placement_points(competition),
+                )
+            else:
+                rows = calculate_table(competition["id"])
+            tables.append({"competition": competition, "rows": rows})
+
+    overall_ranking = []
+    include_overall = selected_event_id is not None and selected_competition_id is None
+    if include_overall:
+        overall_ranking = calculate_event_overall_ranking(selected_event_id)
+        if selected_jahrgang is not None:
+            year_group_filter = classify_yeargang(selected_jahrgang)
+            if year_group_filter == "Oberstufe":
+                overall_ranking = [
+                    group for group in overall_ranking
+                    if "GOST" in group["year_group"] or "Oberstufe" in group["year_group"]
+                ]
+            elif year_group_filter:
+                overall_ranking = [
+                    group for group in overall_ranking
+                    if year_group_filter in group["year_group"]
+                ]
+
+    return {
+        "tables": tables,
+        "competitions": competitions,
+        "events_by_id": events_by_id,
+        "year_options": year_options,
+        "selected_event_id": selected_event_id,
+        "selected_jahrgang": selected_jahrgang,
+        "selected_competition_id": selected_competition_id,
+        "overall_ranking": overall_ranking,
+    }
+
+
+def build_tabellen_csv_filename(view_data):
+    selected_competition_id = view_data["selected_competition_id"]
+    selected_event_id = view_data["selected_event_id"]
+    selected_jahrgang = view_data["selected_jahrgang"]
+
+    if selected_competition_id is not None:
+        selected_competition = next(
+            (table["competition"] for table in view_data["tables"] if table["competition"]["id"] == selected_competition_id),
+            None,
+        )
+        if selected_competition:
+            if selected_competition["competition_type"] == "Sechskampf":
+                base_name = "sechskampf"
+            else:
+                base_name = selected_competition["sportart"] or selected_competition["name"]
+            return f"{slugify_filename_part(base_name)}_jg{selected_competition['jahrgang']}.csv"
+
+    if selected_event_id is not None and view_data["overall_ranking"]:
+        event_name = view_data["events_by_id"].get(selected_event_id, "veranstaltung")
+        return f"gesamtwertung_{slugify_filename_part(event_name)}.csv"
+
+    if selected_jahrgang is not None:
+        return f"tabellen_jg{selected_jahrgang}.csv"
+
+    return "tabellen_export.csv"
+
+
+def build_tabellen_csv_content(view_data):
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";", lineterminator="\n")
+
+    for table in view_data["tables"]:
+        competition = table["competition"]
+        rows = table["rows"]
+        writer.writerow(["Wettbewerb", competition["name"]])
+        writer.writerow(["Sportart", competition["sportart"], "Jahrgang", competition["jahrgang"], "Typ", competition["competition_type"]])
+        if competition["competition_type"] == "Sechskampf":
+            writer.writerow(["Platz", "Klasse", "Gesamtsumme", "Wertungspunkte"])
+            for row in rows:
+                writer.writerow([
+                    row["placement"],
+                    row["team"]["name"],
+                    f"{row['overall_total']:.3f}",
+                    row["scoring_points_display"],
+                ])
+        else:
+            writer.writerow(["Platz", "Team", "Sp", "S", "U", "N", "+", "-", "Diff", "Pkt"])
+            for index, row in enumerate(rows, start=1):
+                writer.writerow([
+                    index,
+                    row["team"],
+                    row["sp"],
+                    row["s"],
+                    row["u"],
+                    row["n"],
+                    row["plus"],
+                    row["minus"],
+                    row["diff"],
+                    row["pkt_display"],
+                ])
+        writer.writerow([])
+
+    for group in view_data["overall_ranking"]:
+        writer.writerow(["Gesamtwertung", group["year_group"]])
+        header = ["Platz", "Klasse"]
+        header.extend([competition["name"] for competition in group["competitions"]])
+        header.append("Gesamtpunkte")
+        writer.writerow(header)
+        for row in group["rows"]:
+            row_values = [row["place"], row["team"]]
+            for competition in group["competitions"]:
+                points_value = row["points_by_competition_display"].get(competition["id"]) or "-"
+                row_values.append(points_value)
+            row_values.append(row["total_points_display"])
+            writer.writerow(row_values)
+        writer.writerow([])
+
+    return output.getvalue()
 
 
 def parse_slot_time(value: str):
@@ -2479,71 +2683,37 @@ def tabellen(
     jahrgang: str = "",
     competition_id: str = "",
 ):
-    selected_event_id = parse_competition_id(event_id)
-    selected_jahrgang = parse_jahrgang_filter(jahrgang)
-    selected_competition_id = parse_competition_id(competition_id)
-    competitions = get_active_competitions()
-
-    visible_competitions = []
-    for competition in competitions:
-        if selected_event_id is not None and competition["event_id"] != selected_event_id:
-            continue
-        if selected_jahrgang is not None and competition["jahrgang"] != selected_jahrgang:
-            continue
-        if selected_competition_id is not None and competition["id"] != selected_competition_id:
-            continue
-        visible_competitions.append(competition)
-
-    events_by_id = {}
-    year_options = sorted({c["jahrgang"] for c in competitions if c["jahrgang"] is not None})
-
-    with get_conn() as conn:
-        event_rows = conn.execute("""
-            SELECT id, name
-            FROM events
-            ORDER BY event_date, name
-        """).fetchall()
-        events_by_id = {event_row["id"]: event_row["name"] for event_row in event_rows}
-
-    tables = []
-    with get_conn() as conn:
-        for competition in visible_competitions:
-            if competition["competition_type"] == "Sechskampf":
-                teams = conn.execute("""
-                    SELECT * FROM teams
-                    WHERE active = 1 AND jahrgang = ?
-                    ORDER BY name
-                """, (competition["jahrgang"],)).fetchall()
-                disciplines = conn.execute("""
-                    SELECT * FROM competition_disciplines
-                    WHERE competition_id = ?
-                    ORDER BY sort_order, id
-                """, (competition["id"],)).fetchall()
-                result_rows = conn.execute("""
-                    SELECT * FROM sixkampf_team_results
-                    WHERE competition_id = ?
-                """, (competition["id"],)).fetchall()
-                rows, _, _ = calculate_sixkampf_team_ranking(
-                    teams, disciplines, result_rows,
-                    competition["points_first_place"],
-                    placement_points=get_competition_placement_points(competition),
-                )
-            else:
-                rows = calculate_table(competition["id"])
-            tables.append({"competition": competition, "rows": rows})
+    view_data = collect_tabellen_view_data(event_id, jahrgang, competition_id)
 
     return templates.TemplateResponse(
         request=request,
         name="tabellen.html",
         context={
-            "tables": tables,
-            "competitions": competitions,
-            "events_by_id": events_by_id,
-            "year_options": year_options,
-            "selected_event_id": selected_event_id,
-            "selected_jahrgang": selected_jahrgang,
-            "selected_competition_id": selected_competition_id,
+            "tables": view_data["tables"],
+            "competitions": view_data["competitions"],
+            "events_by_id": view_data["events_by_id"],
+            "year_options": view_data["year_options"],
+            "selected_event_id": view_data["selected_event_id"],
+            "selected_jahrgang": view_data["selected_jahrgang"],
+            "selected_competition_id": view_data["selected_competition_id"],
         }
+    )
+
+
+@app.get("/tabellen/csv")
+def tabellen_csv_export(
+    event_id: str = "",
+    jahrgang: str = "",
+    competition_id: str = "",
+):
+    view_data = collect_tabellen_view_data(event_id, jahrgang, competition_id)
+    csv_content = build_tabellen_csv_content(view_data)
+    filename = build_tabellen_csv_filename(view_data)
+
+    return Response(
+        content=csv_content.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
