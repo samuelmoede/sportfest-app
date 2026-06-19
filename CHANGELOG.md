@@ -26,6 +26,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 - Dashboard auf kommende Veranstaltungen ausgerichtet: naechste Veranstaltung mit Datum, Status, Detail-Link und Wettbewerbsanzahl hervorgehoben; bis zu drei weitere kommende Veranstaltungen werden zusaetzlich gelistet.
 - Veranstaltungs-Gesamtwertung vervollstaendigt: Platzpunkte pro Wettbewerb konfigurierbar, Gleichstaende erhalten dieselben Platzpunkte, nicht bewertete Wettbewerbe erscheinen als "-", Sortierung erfolgt nach Gesamtpunkten sowie Anzahl erster und zweiter Plaetze.
 - Veranstaltungsdetailseite klarer als Ober-Ebene gemacht: Bereich "Wettbewerbe dieser Veranstaltung" mit Hilfetext und "+ Wettbewerb hinzufügen"-Link ergänzt; Sidebar-Gruppierung auf "Allgemein", "Wettbewerbe" und "Verwaltung" geschärft.
+- Seite /einstellungen um globale Systemfunktionen erweitert: Systeminfos (Version, Datenbankgroesse, Anzahl Datensaetze), Backup-Erstellung mit Backup-Liste und speicherbares Beamer-Refresh-Intervall.
+- Neue settings-Tabelle (key/value) fuer globale App-Einstellungen; Standardwert beamer_refresh_seconds=30 wird automatisch angelegt.
+- Beamerseite nutzt jetzt das globale Refresh-Intervall aus den Einstellungen statt festem Wert.
 
 ## [0.1.1-dev] - 2026-06-18
 

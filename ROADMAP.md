@@ -51,6 +51,9 @@ Status: weitgehend erledigt
 * [x] PROJECT_CONTEXT.md ergänzen
 * [x] CHANGELOG.md regelmäßig pflegen
 * [x] Backup-Konzept für SQLite-Datenbank dokumentieren
+* [x] Einstellungen-Seite mit globalen Systeminfos erweitert (Version, DB-Groesse, Kennzahlen)
+* [x] Manuelle Backup-Funktion auf /einstellungen inkl. Backup-Liste umgesetzt
+* [x] Globales Beamer-/Live-Aktualisierungsintervall (settings key/value, Standard 30s) umgesetzt
 * [ ] später: Zugriffsschutz / Admin-Login
 * [ ] später: CSRF-Schutz
 * [ ] später: Tests und CI ergänzen

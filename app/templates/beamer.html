@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Sportfest Live</title>
-    <meta http-equiv="refresh" content="15">
+    <meta http-equiv="refresh" content="{{ refresh_seconds }}">
     <style>
         * { box-sizing: border-box; }
 
@@ -284,7 +284,7 @@
 <body>
 <header class="top">
     <div class="brand">⚡ Sportfest</div>
-    <div>↻ Auto-Refresh alle 15 s</div>
+    <div>↻ Auto-Refresh alle {{ refresh_seconds }} s</div>
 </header>
 
 <div class="subbar">

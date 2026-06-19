@@ -619,6 +619,45 @@ pre {
     overflow-x: auto;
 }
 
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.settings-item {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.inline-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.inline-form label {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.success-text {
+    color: #166534;
+    font-weight: 700;
+}
+
+.error-text {
+    color: #b91c1c;
+    font-weight: 700;
+}
+
+.backup-table {
+    margin-top: 12px;
+}
+
 .admin-form {
     display: grid;
     grid-template-columns: 180px 1fr;
@@ -1173,7 +1212,8 @@ body {
     .court-form,
     .discipline-form,
     .compact-form,
-    .filter-row {
+    .filter-row,
+    .inline-form {
         display: grid;
         grid-template-columns: 1fr;
         gap: 12px;

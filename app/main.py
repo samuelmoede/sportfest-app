@@ -1,19 +1,22 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from math import isfinite
+import shutil
 from typing import List, Optional
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from app.database import init_db, get_conn
+from app.database import init_db, get_conn, DB_PATH
 from pathlib import Path
 
 app = FastAPI(title="Sportfest-App")
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
+BACKUP_DIR = ROOT_DIR / "backups"
+DEFAULT_BEAMER_REFRESH_SECONDS = 30
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -37,6 +40,95 @@ def get_style_version():
 
 templates.env.globals["app_version"] = get_app_version
 templates.env.globals["style_version"] = get_style_version
+
+
+def parse_positive_int(value, default: int):
+    try:
+        parsed = int(value)
+        if parsed > 0:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return default
+
+
+def format_bytes(byte_count: int):
+    value = float(max(byte_count, 0))
+    units = ["B", "KB", "MB", "GB"]
+    unit_index = 0
+    while value >= 1024 and unit_index < len(units) - 1:
+        value /= 1024
+        unit_index += 1
+    if unit_index == 0:
+        return f"{int(value)} {units[unit_index]}"
+    return f"{value:.1f} {units[unit_index]}"
+
+
+def list_backup_files():
+    if not BACKUP_DIR.exists():
+        return []
+
+    backups = []
+    for file_path in BACKUP_DIR.glob("*.db"):
+        stat = file_path.stat()
+        created_at = datetime.fromtimestamp(stat.st_ctime)
+        backups.append({
+            "name": file_path.name,
+            "size_bytes": stat.st_size,
+            "size_display": format_bytes(stat.st_size),
+            "created_at": created_at,
+            "created_at_display": created_at.strftime("%d.%m.%Y %H:%M"),
+        })
+    backups.sort(key=lambda item: item["created_at"], reverse=True)
+    return backups
+
+
+def get_beamer_refresh_seconds():
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT OR IGNORE INTO settings (key, value)
+            VALUES ('beamer_refresh_seconds', ?)
+        """, (str(DEFAULT_BEAMER_REFRESH_SECONDS),))
+        setting = conn.execute(
+            "SELECT value FROM settings WHERE key = 'beamer_refresh_seconds'"
+        ).fetchone()
+    return parse_positive_int(
+        setting["value"] if setting else None,
+        DEFAULT_BEAMER_REFRESH_SECONDS,
+    )
+
+
+def collect_system_info():
+    with get_conn() as conn:
+        counts = {
+            "events": conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()["n"],
+            "competitions": conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"],
+            "teams": conn.execute("SELECT COUNT(*) AS n FROM teams").fetchone()["n"],
+            "slots": conn.execute("SELECT COUNT(*) AS n FROM slots").fetchone()["n"],
+        }
+        tournament_results_count = conn.execute("""
+            SELECT COUNT(*) AS n
+            FROM slots
+            WHERE slot_typ = 'Spiel'
+              AND (score_a IS NOT NULL OR score_b IS NOT NULL)
+        """).fetchone()["n"]
+        sixkampf_results_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM sixkampf_team_results"
+        ).fetchone()["n"]
+
+    db_size_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+    backups = list_backup_files()
+
+    return {
+        "app_version_value": get_app_version(),
+        "db_size_bytes": db_size_bytes,
+        "db_size_display": format_bytes(db_size_bytes),
+        "counts": counts,
+        "results_count": tournament_results_count + sixkampf_results_count,
+        "last_backup": backups[0] if backups else None,
+        "backups": backups,
+        "beamer_refresh_seconds": get_beamer_refresh_seconds(),
+    }
 
 
 def parse_competition_id(value):
@@ -3124,12 +3216,82 @@ def delete_court(court_id: int):
 
 
 @app.get("/einstellungen")
-def einstellungen(request: Request):
-    return templates.TemplateResponse(request=request, name="einstellungen.html", context={})
+def einstellungen(
+    request: Request,
+    backup_status: str = "",
+    backup_file: str = "",
+    settings_status: str = "",
+):
+    context = collect_system_info()
+    context.update({
+        "backup_status": backup_status,
+        "backup_file": backup_file,
+        "settings_status": settings_status,
+    })
+    return templates.TemplateResponse(
+        request=request,
+        name="einstellungen.html",
+        context=context,
+    )
+
+
+@app.post("/einstellungen/backup")
+def create_backup():
+    if not DB_PATH.exists():
+        return RedirectResponse(
+            "/einstellungen?backup_status=error",
+            status_code=303,
+        )
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+    backup_name = f"sportfest_backup_{timestamp}.db"
+    backup_path = BACKUP_DIR / backup_name
+    suffix = 1
+    while backup_path.exists():
+        backup_name = f"sportfest_backup_{timestamp}_{suffix}.db"
+        backup_path = BACKUP_DIR / backup_name
+        suffix += 1
+
+    try:
+        shutil.copyfile(DB_PATH, backup_path)
+    except OSError:
+        return RedirectResponse(
+            "/einstellungen?backup_status=error",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        f"/einstellungen?backup_status=ok&backup_file={backup_name}",
+        status_code=303,
+    )
+
+
+@app.post("/einstellungen/beamer-intervall")
+def update_beamer_interval(beamer_refresh_seconds: int = Form(...)):
+    if beamer_refresh_seconds <= 0:
+        return RedirectResponse(
+            "/einstellungen?settings_status=invalid",
+            status_code=303,
+        )
+
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO settings (key, value)
+            VALUES ('beamer_refresh_seconds', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (str(beamer_refresh_seconds),))
+        conn.commit()
+
+    return RedirectResponse(
+        "/einstellungen?settings_status=saved",
+        status_code=303,
+    )
 
 
 @app.get("/beamer")
 def beamer(request: Request):
     data = fetch_beamer_data()
+    data["refresh_seconds"] = get_beamer_refresh_seconds()
     return templates.TemplateResponse(request=request, name="beamer.html", context=data)
 

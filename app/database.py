@@ -128,6 +128,11 @@ def init_db():
             FOREIGN KEY (team_a_id) REFERENCES teams(id),
             FOREIGN KEY (team_b_id) REFERENCES teams(id)
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
         """)
 
         columns = [
@@ -215,6 +220,11 @@ def init_db():
                 ALTER TABLE competition_disciplines
                 ADD COLUMN values_per_team INTEGER NOT NULL DEFAULT 1
             """)
+
+        conn.execute("""
+            INSERT OR IGNORE INTO settings (key, value)
+            VALUES ('beamer_refresh_seconds', '30')
+        """)
 
         conn.commit()
 
