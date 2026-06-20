@@ -50,12 +50,27 @@
             {% endif %}
         </div>
         <div class="settings-item">
-            <strong>Login vorbereitet:</strong>
+            <strong>Admin-Login vorbereitet:</strong>
             {% if login_prepared %}
                 <span class="status-pill ok">Ja</span>
             {% else %}
                 <span class="status-pill">Nein</span>
             {% endif %}
+        </div>
+        <div class="settings-item">
+            <strong>Helfer-Login vorbereitet:</strong>
+            {% if helper_login_prepared %}
+                <span class="status-pill ok">Ja</span>
+            {% else %}
+                <span class="status-pill">Nein</span>
+            {% endif %}
+        </div>
+        <div class="settings-item">
+            <strong>Aktuelle Rolle:</strong> {{ current_role_label }}
+        </div>
+        <div class="settings-item">
+            <strong>Rollenmodell vorbereitet:</strong>
+            <span class="status-pill ok">Ja</span>
         </div>
     </div>
     {% if security_status == "enabled" %}
@@ -73,11 +88,11 @@
     {% if security_requested and not login_prepared %}
         <p class="error-text">Sicherheit wurde angefordert, bleibt aber ohne Admin-Passwort automatisch deaktiviert.</p>
     {% elif logged_in %}
-        <p>Aktuelle Sitzung: als Admin angemeldet. <a href="/logout">Abmelden</a></p>
-    {% elif login_prepared %}
-        <p><a href="/login?next=/einstellungen">Admin-Login testen</a></p>
+        <p>Aktuelle Sitzung: als {{ current_role_label }} angemeldet. <a href="/logout">Abmelden</a></p>
+    {% elif login_prepared or helper_login_prepared %}
+        <p>Aktuelle Rolle: Viewer. <a href="/login?next=/einstellungen">Rechte erweitern</a></p>
     {% else %}
-        <p class="muted">Für die spätere Aktivierung zuerst ein Admin-Passwort konfigurieren.</p>
+        <p class="muted">Aktuelle Rolle: Viewer. Für eine Rechteerweiterung zuerst ein Helfer- oder Admin-Passwort konfigurieren.</p>
     {% endif %}
 
     {% if security_environment_override is not none %}

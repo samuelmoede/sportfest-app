@@ -1,34 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Admin-Login</h1>
+<h1>Rechte erweitern</h1>
 
 <section class="panel">
     {% if logged_out %}
         <p class="success-text">Du wurdest abgemeldet.</p>
     {% endif %}
 
-    {% if logged_in %}
-        <p>Du bist als Admin angemeldet.</p>
+    <p>Für die reine Anzeige ist keine Anmeldung nötig.</p>
+    <p>Aktuelle Rolle: <strong>{{ current_role_label }}</strong></p>
+
+    {% if not security_enabled %}
+        <p class="muted">Der Zugriffsschutz ist derzeit deaktiviert. Die Rechteerweiterung kann trotzdem getestet werden.</p>
+    {% endif %}
+
+    {% if current_role == "admin" %}
+        <p>Du besitzt bereits alle Verwaltungsrechte.</p>
         <p><a href="{{ next_url }}">Weiter</a> oder <a href="/logout">abmelden</a>.</p>
-    {% elif login_prepared %}
-        {% if not security_enabled %}
-            <p class="muted">Der Login kann bereits getestet werden. Der Zugriffsschutz ist derzeit deaktiviert.</p>
-        {% endif %}
+    {% else %}
+        {% if current_role == "viewer" and helper_login_prepared %}
+        <h2>Als Helfer anmelden</h2>
         <form method="post" action="/login" class="form-grid">
             <input type="hidden" name="next" value="{{ next_url }}">
-            <label for="password">Admin-Passwort</label>
+            <input type="hidden" name="target_role" value="referee">
+            <label for="helper_password">Helfer-Passwort</label>
             <input
-                id="password"
+                id="helper_password"
                 name="password"
                 type="password"
                 autocomplete="current-password"
                 required
                 autofocus
             >
-            <button type="submit">Anmelden</button>
+            <button type="submit">Als Helfer anmelden</button>
         </form>
-    {% else %}
-        <p>Noch kein Admin-Passwort konfiguriert. Der Zugriffsschutz bleibt automatisch deaktiviert.</p>
+        {% endif %}
+
+        <h2>Als Admin anmelden</h2>
+        <form method="post" action="/login" class="form-grid">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <input type="hidden" name="target_role" value="admin">
+            <label for="admin_password">Admin-Passwort</label>
+            <input
+                id="admin_password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                {% if current_role == "referee" %}autofocus{% endif %}
+            >
+            <button type="submit">Als Admin anmelden</button>
+        </form>
+        {% if not admin_login_prepared %}
+            <p class="muted">Noch kein Admin-Passwort konfiguriert. Der Verwaltungsschutz bleibt automatisch deaktiviert.</p>
+        {% endif %}
     {% endif %}
 
     {% if login_error %}

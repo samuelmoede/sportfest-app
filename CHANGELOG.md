@@ -4,6 +4,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Nicht angemeldete Nutzer erhalten automatisch die Rolle viewer und können die öffentlichen Seiten ohne vorgeschalteten Login öffnen.
+- /login dient jetzt als „Rechte erweitern“-Seite für Helfer (referee) und Admins; die Navigation zeigt die aktuelle Rolle sowie je nach Zustand Rechteerweiterung oder Logout.
+- Optionales Helfer-Passwort über SPORTFEST_REFEREE_PASSWORD oder den Settings-Key referee_password vorbereitet; Ergebnisrouten bleiben in dieser Phase unverändert und erhalten noch keinen neuen Schutz.
 - `/einstellungen` erhält einen Admin-Kennwort-geschützten Schalter zum Aktivieren und Deaktivieren der Sicherheit; ein Environment-Override bleibt vorrangig und sperrt den UI-Schalter.
 - Sicherheit auf zentralen Bereichsschutz umgestellt: `/einstellungen`, `/teams`, `/spielfelder` und `/wettbewerbe` werden bei aktiver Sicherheit einschließlich ihrer Verwaltungsaktionen durch eine gemeinsame Middleware geschützt; redundante Einzel-Guards wurden entfernt.
 - Erste optionale Sicherheitsschicht vorbereitet: neue globale Einstellung `security_enabled` mit Standardwert `false`, Admin-Passwort per Setting oder Umgebungsvariable und automatisch deaktivierter Schutz ohne Passwort.

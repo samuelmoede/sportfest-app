@@ -90,6 +90,12 @@ BACKUP_DIR = ROOT_DIR / "backups"
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
 DEFAULT_SECURITY_ENABLED = False
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
+ROLES = {"viewer", "referee", "admin"}
+ROLE_LABELS = {
+    "viewer": "Anzeige",
+    "referee": "Helfer",
+    "admin": "Admin",
+}
 EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
 
@@ -235,6 +241,13 @@ def get_admin_password():
     return get_setting("admin_password", "") or ""
 
 
+def get_referee_password():
+    environment_password = os.getenv("SPORTFEST_REFEREE_PASSWORD")
+    if environment_password:
+        return environment_password
+    return get_setting("referee_password", "") or ""
+
+
 def is_login_prepared():
     return bool(get_admin_password())
 
@@ -244,13 +257,53 @@ def is_security_enabled():
     return get_security_enabled_setting() and is_login_prepared()
 
 
+def get_current_role(request: Request):
+    role = request.session.get("role")
+    if role in ROLES:
+        return role
+
+    # Bestehende Sitzungen ohne Rollenfeld bleiben als Admin angemeldet.
+    if request.session.get("admin_logged_in") is True:
+        return "admin"
+    return "viewer"
+
+
+def get_current_role_label(request: Request):
+    return ROLE_LABELS[get_current_role(request)]
+
+
+def is_admin(request: Request):
+    return get_current_role(request) == "admin"
+
+
+def is_referee(request: Request):
+    return get_current_role(request) == "referee"
+
+
+def can_manage(request: Request):
+    return not is_security_enabled() or is_admin(request)
+
+
+def can_enter_results(request: Request):
+    return (
+        not is_security_enabled()
+        or is_admin(request)
+        or is_referee(request)
+    )
+
+
 def is_logged_in(request: Request):
-    return request.session.get("admin_logged_in") is True
+    return get_current_role(request) in {"referee", "admin"}
+
+
+templates.env.globals["get_current_role"] = get_current_role
+templates.env.globals["get_current_role_label"] = get_current_role_label
+templates.env.globals["is_logged_in"] = is_logged_in
 
 
 def require_admin(request: Request, next_url: Optional[str] = None):
     """Liefert bei aktivem Schutz einen Login-Redirect, sonst None."""
-    if not is_security_enabled() or is_logged_in(request):
+    if can_manage(request):
         return None
 
     if next_url is None:
@@ -2076,9 +2129,12 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
         name="login.html",
         context={
             "next_url": safe_next_url(next),
-            "login_prepared": is_login_prepared(),
+            "admin_login_prepared": is_login_prepared(),
+            "helper_login_prepared": bool(get_referee_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
+            "current_role": get_current_role(request),
+            "current_role_label": get_current_role_label(request),
             "logged_out": logged_out == "1",
             "login_error": "",
         },
@@ -2086,36 +2142,50 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
 
 
 @app.post("/login")
-def login(request: Request, password: str = Form(""), next: str = Form("/")):
-    admin_password = get_admin_password()
-    if admin_password and secrets.compare_digest(password, admin_password):
+def login(
+    request: Request,
+    password: str = Form(""),
+    next: str = Form("/"),
+    target_role: str = Form("admin"),
+):
+    role_passwords = {
+        "referee": get_referee_password(),
+        "admin": get_admin_password(),
+    }
+    configured_password = role_passwords.get(target_role, "")
+    if configured_password and secrets.compare_digest(password, configured_password):
         request.session.clear()
-        request.session["admin_logged_in"] = True
+        request.session["admin_logged_in"] = target_role == "admin"
+        request.session["role"] = target_role
         return RedirectResponse(safe_next_url(next), status_code=303)
 
+    role_label = ROLE_LABELS.get(target_role, "ausgewählte")
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
             "next_url": safe_next_url(next),
-            "login_prepared": bool(admin_password),
+            "admin_login_prepared": is_login_prepared(),
+            "helper_login_prepared": bool(get_referee_password()),
             "security_enabled": is_security_enabled(),
-            "logged_in": False,
+            "logged_in": is_logged_in(request),
+            "current_role": get_current_role(request),
+            "current_role_label": get_current_role_label(request),
             "logged_out": False,
             "login_error": (
-                "Das Admin-Passwort ist nicht korrekt."
-                if admin_password
-                else "Es ist noch kein Admin-Passwort konfiguriert."
+                f"Das {role_label}-Passwort ist nicht korrekt."
+                if configured_password
+                else f"Es ist noch kein Passwort für die Rolle {role_label} konfiguriert."
             ),
         },
-        status_code=401 if admin_password else 200,
+        status_code=401 if configured_password else 200,
     )
 
 
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
-    return RedirectResponse("/login?logged_out=1", status_code=303)
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/")
@@ -3866,7 +3936,10 @@ def einstellungen(
         "security_requested": get_security_enabled_setting(),
         "security_environment_override": get_security_environment_override(),
         "login_prepared": is_login_prepared(),
+        "helper_login_prepared": bool(get_referee_password()),
         "logged_in": is_logged_in(request),
+        "current_role": get_current_role(request),
+        "current_role_label": get_current_role_label(request),
     })
     return templates.TemplateResponse(
         request=request,
@@ -3915,6 +3988,7 @@ def update_security_setting(
 
     set_setting("security_enabled", target_value)
     request.session["admin_logged_in"] = True
+    request.session["role"] = "admin"
     return RedirectResponse(
         f"/einstellungen?security_status={'enabled' if target_value == 'true' else 'disabled'}",
         status_code=303,

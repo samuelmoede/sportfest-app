@@ -410,14 +410,12 @@ Nicht sofort, aber vor echter produktiver Nutzung außerhalb eines kleinen inter
 * [ ] Zugriffsschutz später sauber als eigenes Feature umsetzen
 * [x] kurzfristig: Cloudflare Access / App-Login optional vorbereiten (App-Login-Grundlage vorhanden, Cloudflare bleibt extern)
 * [~] mittelfristig: schreibende Aktionen schützen (Admin-Bereiche zentral geschützt; Ergebnis- und Spielplanaktionen bewusst noch offen)
-* [ ] langfristig: Rollen für Anzeige / Helfer / Admin einführen
+* [x] Rollenmodell Phase 1: Rollen technisch vorbereitet
+* [x] Nicht angemeldete Nutzung als viewer sowie Rechteerweiterung für Helfer und Admin vorbereitet
+* [~] Rollenmodell Phase 2: referee/Helfer-Anmeldung vorhanden; Freigabe für Ergebniseingabe folgt später
+* [ ] Rollenmodell Phase 3 später: Navigation rollenabhängig ausblenden
 * [~] Admin-Login (Grundlage und zentraler Bereichsschutz vorhanden; Rollen und weitere Schreibbereiche noch offen)
-* [ ] Rollen:
-
-  * Admin
-  * Helfer
-  * Schiedsrichter
-  * Anzeige/Beamer
+* [x] Technisch vorbereitete Rollen: viewer, referee, admin
 * [ ] CSRF-Schutz
 * [ ] SQLite-Fremdschlüssel aktivieren
 * [ ] WAL-Modus / Busy Timeout prüfen

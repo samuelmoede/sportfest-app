@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
 </head>
 <body>
+{% set access_role_label = get_current_role_label(request) %}
+{% set access_logged_in = is_logged_in(request) %}
 <header class="mobile-topbar" aria-label="Mobile Kopfzeile">
     <div class="mobile-brand">
         <strong>Sportfest</strong>
@@ -75,6 +77,22 @@
             <span class="beamer-icon" aria-hidden="true">⚡</span>
             <span class="beamer-text">Beamer-Ansicht öffnen</span>
         </a>
+        <div class="nav-group">Zugriff</div>
+        <div class="nav-link">
+            <span class="nav-icon" aria-hidden="true">👤</span>
+            <span class="nav-text">{{ access_role_label }}</span>
+        </div>
+        {% if access_logged_in %}
+        <a class="nav-link" href="/logout">
+            <span class="nav-icon" aria-hidden="true">↪</span>
+            <span class="nav-text">Abmelden</span>
+        </a>
+        {% else %}
+        <a class="nav-link" href="/login">
+            <span class="nav-icon" aria-hidden="true">🔑</span>
+            <span class="nav-text">Rechte erweitern</span>
+        </a>
+        {% endif %}
     </nav>
 </aside>
 
@@ -146,6 +164,12 @@
                 <span class="beamer-icon" aria-hidden="true">⚡</span>
                 <span class="beamer-text">Beamer-Ansicht öffnen</span>
             </a>
+            <div class="app-version">Rolle: {{ access_role_label }}</div>
+            {% if access_logged_in %}
+            <div class="app-version"><a href="/logout">Abmelden</a></div>
+            {% else %}
+            <div class="app-version"><a href="/login">Rechte erweitern</a></div>
+            {% endif %}
             <div class="app-version">Version {{ app_version() }}</div>
         </div>
     </aside>
