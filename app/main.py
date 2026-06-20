@@ -3812,7 +3812,14 @@ def create_backup(request: Request):
 
 
 @app.post("/einstellungen/beamer-intervall")
-def update_beamer_interval(beamer_refresh_seconds: int = Form(...)):
+def update_beamer_interval(
+    request: Request,
+    beamer_refresh_seconds: int = Form(...),
+):
+    admin_redirect = require_admin(request, next_url="/einstellungen")
+    if admin_redirect:
+        return admin_redirect
+
     if beamer_refresh_seconds <= 0:
         return RedirectResponse(
             "/einstellungen?settings_status=invalid",
