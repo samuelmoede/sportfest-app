@@ -52,6 +52,8 @@ def init_db():
             placement_points TEXT,
             event_id INTEGER,
             competition_type TEXT NOT NULL DEFAULT 'Turnier',
+            location TEXT,
+            location_subarea TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -212,6 +214,24 @@ def init_db():
 
         if "end_time" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN end_time TEXT")
+
+        if "location" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN location TEXT")
+
+        if "location_subarea" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN location_subarea TEXT")
+
+        conn.execute("""
+            UPDATE competitions
+            SET location = 'Fußballplatz'
+            WHERE location = 'Sportplatz'
+        """)
+
+        conn.execute("""
+            UPDATE competitions
+            SET location_subarea = NULL
+            WHERE location IS NULL OR location != 'Fußballplatz'
+        """)
 
         conn.execute("""
             UPDATE competitions

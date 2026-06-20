@@ -7,14 +7,22 @@
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
 </head>
 <body>
+{% set access_role = get_current_role(request) %}
 {% set access_role_label = get_current_role_label(request) %}
 {% set access_logged_in = is_logged_in(request) %}
+{% set can_view_results = can_access_role(request, "referee") %}
+{% set can_view_admin = can_access_role(request, "admin") %}
 <header class="mobile-topbar" aria-label="Mobile Kopfzeile">
     <div class="mobile-brand">
         <strong>Sportfest</strong>
         <span>Manager</span>
     </div>
-    <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
+    <div class="mobile-access">
+        <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
+            {{ access_role_label }}
+        </span>
+        <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
+    </div>
 </header>
 
 <div class="mobile-menu-overlay" data-mobile-menu-close hidden></div>
@@ -29,34 +37,40 @@
             <span class="nav-icon" aria-hidden="true">🏠</span>
             <span class="nav-text">Dashboard</span>
         </a>
-        <a class="nav-link" href="/events">
-            <span class="nav-icon" aria-hidden="true">📅</span>
-            <span class="nav-text">Veranstaltungen</span>
-        </a>
-
         <div class="nav-group">Wettbewerbe</div>
+        {% if can_view_admin %}
         <a class="nav-link" href="/wettbewerbe">
             <span class="nav-icon" aria-hidden="true">🏆</span>
             <span class="nav-text">Wettbewerbe</span>
         </a>
+        {% endif %}
         <a class="nav-link" href="/spielplan">
             <span class="nav-icon" aria-hidden="true">🗓</span>
             <span class="nav-text">Spielplan</span>
         </a>
+        {% if can_view_admin %}
         <a class="nav-link" href="/spielplan-bearbeiten">
             <span class="nav-icon" aria-hidden="true">✏️</span>
             <span class="nav-text">Spielplan bearbeiten</span>
         </a>
+        {% endif %}
+        {% if can_view_results %}
         <a class="nav-link" href="/ergebnisse">
             <span class="nav-icon" aria-hidden="true">✅</span>
             <span class="nav-text">Ergebnisse</span>
         </a>
+        {% endif %}
         <a class="nav-link" href="/tabellen">
             <span class="nav-icon" aria-hidden="true">📊</span>
             <span class="nav-text">Tabellen</span>
         </a>
 
+        {% if can_view_admin %}
         <div class="nav-group">Verwaltung</div>
+        <a class="nav-link" href="/events">
+            <span class="nav-icon" aria-hidden="true">📅</span>
+            <span class="nav-text">Veranstaltungen</span>
+        </a>
         <a class="nav-link" href="/teams">
             <span class="nav-icon" aria-hidden="true">👥</span>
             <span class="nav-text">Teams</span>
@@ -73,26 +87,21 @@
             <span class="nav-icon" aria-hidden="true">📘</span>
             <span class="nav-text">Dokumentation</span>
         </a>
+        {% endif %}
         <a class="beamer-link" href="/beamer" target="_blank">
             <span class="beamer-icon" aria-hidden="true">⚡</span>
             <span class="beamer-text">Beamer-Ansicht öffnen</span>
         </a>
-        <div class="nav-group">Zugriff</div>
-        <div class="nav-link">
-            <span class="nav-icon" aria-hidden="true">👤</span>
-            <span class="nav-text">{{ access_role_label }}</span>
-        </div>
+        <div class="access-strip mobile-access-strip" aria-label="Zugriff">
+            <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
+                {{ access_role_label }}
+            </span>
         {% if access_logged_in %}
-        <a class="nav-link" href="/logout">
-            <span class="nav-icon" aria-hidden="true">↪</span>
-            <span class="nav-text">Abmelden</span>
-        </a>
+            <a class="access-action" href="/logout">Abmelden</a>
         {% else %}
-        <a class="nav-link" href="/login">
-            <span class="nav-icon" aria-hidden="true">🔑</span>
-            <span class="nav-text">Rechte erweitern</span>
-        </a>
+            <a class="access-action" href="/login">Rechte erweitern</a>
         {% endif %}
+        </div>
     </nav>
 </aside>
 
@@ -113,34 +122,40 @@
                 <span class="nav-icon" aria-hidden="true">🏠</span>
                 <span class="nav-text">Dashboard</span>
             </a>
-            <a class="nav-link" href="/events">
-                <span class="nav-icon" aria-hidden="true">📅</span>
-                <span class="nav-text">Veranstaltungen</span>
-            </a>
-
             <div class="nav-group">Wettbewerbe</div>
+            {% if can_view_admin %}
             <a class="nav-link" href="/wettbewerbe">
                 <span class="nav-icon" aria-hidden="true">🏆</span>
                 <span class="nav-text">Wettbewerbe</span>
             </a>
+            {% endif %}
             <a class="nav-link" href="/spielplan">
                 <span class="nav-icon" aria-hidden="true">🗓</span>
                 <span class="nav-text">Spielplan</span>
             </a>
+            {% if can_view_admin %}
             <a class="nav-link" href="/spielplan-bearbeiten">
                 <span class="nav-icon" aria-hidden="true">✏️</span>
                 <span class="nav-text">Spielplan bearbeiten</span>
             </a>
+            {% endif %}
+            {% if can_view_results %}
             <a class="nav-link" href="/ergebnisse">
                 <span class="nav-icon" aria-hidden="true">✅</span>
                 <span class="nav-text">Ergebnisse</span>
             </a>
+            {% endif %}
             <a class="nav-link" href="/tabellen">
                 <span class="nav-icon" aria-hidden="true">📊</span>
                 <span class="nav-text">Tabellen</span>
             </a>
 
+            {% if can_view_admin %}
             <div class="nav-group">Verwaltung</div>
+            <a class="nav-link" href="/events">
+                <span class="nav-icon" aria-hidden="true">📅</span>
+                <span class="nav-text">Veranstaltungen</span>
+            </a>
             <a class="nav-link" href="/teams">
                 <span class="nav-icon" aria-hidden="true">👥</span>
                 <span class="nav-text">Teams</span>
@@ -157,6 +172,7 @@
                 <span class="nav-icon" aria-hidden="true">📘</span>
                 <span class="nav-text">Dokumentation</span>
             </a>
+            {% endif %}
         </nav>
 
         <div class="sidebar-footer">
@@ -164,12 +180,22 @@
                 <span class="beamer-icon" aria-hidden="true">⚡</span>
                 <span class="beamer-text">Beamer-Ansicht öffnen</span>
             </a>
-            <div class="app-version">Rolle: {{ access_role_label }}</div>
-            {% if access_logged_in %}
-            <div class="app-version"><a href="/logout">Abmelden</a></div>
-            {% else %}
-            <div class="app-version"><a href="/login">Rechte erweitern</a></div>
-            {% endif %}
+            <div class="access-strip" aria-label="Zugriff">
+                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
+                    {{ access_role_label }}
+                </span>
+                {% if access_logged_in %}
+                <a class="access-action" href="/logout" aria-label="Abmelden">
+                    <span class="access-action-icon" aria-hidden="true">↪</span>
+                    <span class="access-action-label">Abmelden</span>
+                </a>
+                {% else %}
+                <a class="access-action" href="/login" aria-label="Rechte erweitern">
+                    <span class="access-action-icon" aria-hidden="true">🔑</span>
+                    <span class="access-action-label">Rechte erweitern</span>
+                </a>
+                {% endif %}
+            </div>
             <div class="app-version">Version {{ app_version() }}</div>
         </div>
     </aside>

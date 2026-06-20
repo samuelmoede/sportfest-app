@@ -59,6 +59,12 @@ body {
     color: #b8c4d6;
 }
 
+.mobile-access {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .mobile-menu-toggle,
 .mobile-menu-close {
     min-height: 40px;
@@ -153,6 +159,16 @@ body.mobile-menu-open .mobile-menu-overlay {
     position: fixed;
     top: 0;
     bottom: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar > nav {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #314167 transparent;
 }
 
 .brand {
@@ -245,6 +261,96 @@ nav a:hover,
     font-weight: bold;
 }
 
+.sidebar-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #293957;
+}
+
+.sidebar-footer .beamer-link {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+}
+
+.access-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mobile-access-strip {
+    justify-content: space-between;
+    margin-top: 18px;
+    padding: 12px;
+    border: 1px solid #314167;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.role-viewer {
+    border-color: #52617a;
+    background: #25324a;
+    color: #d7deea;
+}
+
+.role-referee {
+    border-color: #3b82f6;
+    background: #173663;
+    color: #dbeafe;
+}
+
+.role-admin {
+    border-color: #f97316;
+    background: #4a2a24;
+    color: #ffedd5;
+}
+
+.access-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    min-width: 0;
+    padding: 5px 8px;
+    border-radius: 7px;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-decoration: none;
+    text-align: center;
+}
+
+.access-action:hover {
+    background: var(--navy2);
+    color: white;
+}
+
+.access-action-icon {
+    display: none;
+}
+
+.app-version {
+    margin-top: 8px;
+    color: #7f8da3;
+    font-size: 0.7rem;
+}
+
 .content {
     margin-left: 270px;
     padding: 48px;
@@ -282,6 +388,36 @@ nav a:hover,
     body.sidebar-collapsed .beamer-link {
         justify-content: center;
         padding: 10px;
+    }
+
+    body.sidebar-collapsed .sidebar-footer {
+        padding-top: 10px;
+    }
+
+    body.sidebar-collapsed .access-strip {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    body.sidebar-collapsed .role-badge {
+        max-width: 56px;
+        padding-inline: 6px;
+        font-size: 0.68rem;
+    }
+
+    body.sidebar-collapsed .access-action {
+        width: 34px;
+        min-height: 34px;
+        padding: 0;
+        border: 1px solid #314167;
+    }
+
+    body.sidebar-collapsed .access-action-icon {
+        display: inline;
+    }
+
+    body.sidebar-collapsed .access-action-label {
+        display: none;
     }
 }
 
@@ -360,6 +496,135 @@ h1 {
 
 .schedule-table tr.current-row {
     background: #f0f9ff;
+}
+
+.location-schedule {
+    margin: 24px 0;
+}
+
+.location-schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.location-schedule-group {
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: white;
+}
+
+.location-schedule-group h3 {
+    margin: 0 0 12px;
+    color: var(--navy2);
+}
+
+.location-subgroup-title {
+    margin: 14px 0 10px;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.location-competition-list {
+    display: grid;
+    gap: 10px;
+}
+
+.location-competition-card {
+    display: grid;
+    grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--orange);
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.location-competition-time {
+    color: var(--navy2);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.location-competition-content {
+    min-width: 0;
+}
+
+.location-competition-meta {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.location-station-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 14px;
+    margin: 9px 0 0;
+    padding-left: 18px;
+    font-size: 0.85rem;
+}
+
+.sportplatz-timeline {
+    margin: 24px 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: white;
+}
+
+.sportplatz-timeline h2 {
+    margin-top: 0;
+}
+
+.sportplatz-timeline-list {
+    display: grid;
+    gap: 10px;
+}
+
+.sportplatz-timeline-item {
+    display: grid;
+    grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+    gap: 16px;
+    align-items: center;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--green);
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.sportplatz-timeline-time {
+    display: flex;
+    gap: 5px;
+    color: var(--navy2);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.sportplatz-timeline-content {
+    min-width: 0;
+}
+
+.sportplatz-timeline-content > strong {
+    overflow-wrap: anywhere;
+}
+
+.sportplatz-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 14px;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.location-schedule-group + .location-schedule-group {
+    margin-top: 8px;
 }
 
 .schedule-list {
@@ -933,6 +1198,103 @@ section.cards.competition-list {
     background: #eef6ff;
 }
 
+.event-plan-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.event-plan-entry {
+    display: grid;
+    grid-template-columns: minmax(118px, 150px) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--blue);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.event-plan-entry.without-time {
+    border-left-color: #94a3b8;
+    background: #fbfcfe;
+}
+
+.event-plan-time {
+    color: var(--navy2);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.event-plan-entry.without-time .event-plan-time {
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.event-plan-content {
+    min-width: 0;
+}
+
+.event-plan-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.event-plan-heading h3 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.event-plan-type {
+    flex: 0 0 auto;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #e8eef8;
+    color: var(--navy2);
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.event-plan-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.event-plan-stations {
+    margin-top: 12px;
+}
+
+.event-plan-stations > strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+}
+
+.event-plan-stations ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 5px 20px;
+    margin: 0;
+    padding-left: 20px;
+}
+
+.event-plan-stations p {
+    margin: 0;
+}
+
+.event-plan-link {
+    display: inline-block;
+    margin-top: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
 .archived-card {
     opacity: 0.7;
     filter: grayscale(0.2);
@@ -1152,6 +1514,39 @@ pre {
     font-size: 20px;
     align-items: center;
     margin-bottom: 12px;
+}
+
+.slot-teams.tournament-match {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+}
+
+.tournament-team {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tournament-team-b {
+    text-align: right;
+}
+
+.tournament-score {
+    min-width: 42px;
+    padding: 3px 7px;
+    border-radius: 7px;
+    background: #eef2f7;
+    color: var(--muted);
+    font-size: 0.9em;
+    font-weight: 800;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.tournament-score.has-result {
+    background: var(--navy);
+    color: white;
 }
 
 .slot-footer {
@@ -1573,7 +1968,7 @@ body {
     }
     .sidebar-footer {
         display: block;
-        margin-top: 18px;
+        margin-top: auto;
     }
     .beamer-link {
         width: auto;
@@ -1691,6 +2086,33 @@ body {
     .event-competition-actions {
         min-width: 0;
         justify-content: flex-start;
+    }
+
+    .event-plan-entry {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .event-plan-heading {
+        flex-wrap: wrap;
+    }
+
+    .location-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .location-competition-card {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    .location-competition-time {
+        white-space: normal;
+    }
+
+    .sportplatz-timeline-item {
+        grid-template-columns: 1fr;
+        gap: 5px;
     }
 
     .dashboard-page,

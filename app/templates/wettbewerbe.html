@@ -19,6 +19,22 @@
         <label>Endzeit</label>
         <input type="time" name="end_time" value="">
 
+        <label>Ort</label>
+        <select name="location">
+            <option value="">Keine Angabe</option>
+            {% for location in competition_locations %}
+            <option value="{{ location }}">{{ location }}</option>
+            {% endfor %}
+        </select>
+
+        <label class="location-subarea-field" hidden>Unterbereich</label>
+        <select class="location-subarea-field" name="location_subarea" hidden>
+            <option value="">Keine Angabe</option>
+            {% for subarea in competition_location_subareas.get('Fußballplatz', []) %}
+            <option value="{{ subarea }}">{{ subarea }}</option>
+            {% endfor %}
+        </select>
+
         <label>Jahrgang</label>
         <select name="jahrgang" required>
             {% for year in team_years %}
@@ -74,6 +90,9 @@
                 <span class="competition-meta-item"><strong>Sportart:</strong> {{ c.sportart }}</span>
                 <span class="competition-meta-item"><strong>Jahrgang:</strong> {{ c.jahrgang }}</span>
                 <span class="competition-meta-item"><strong>Typ:</strong> {{ c.competition_type }}</span>
+                {% if c.location %}
+                <span class="competition-meta-item"><strong>Ort:</strong> {{ c.location }}{% if c.location_subarea %} / {{ c.location_subarea }}{% endif %}</span>
+                {% endif %}
                 <span class="competition-meta-item"><strong>Veranstaltung:</strong> {{ events_by_id[c.event_id].name if c.event_id and events_by_id.get(c.event_id) else 'Ohne Veranstaltung' }}</span>
             </div>
             <span class="competition-summary-action">Details anzeigen</span>
@@ -107,6 +126,22 @@
 
                 <label>Endzeit</label>
                 <input type="time" name="end_time" value="{{ c.end_time or '' }}">
+
+                <label>Ort</label>
+                <select name="location">
+                    <option value="">Keine Angabe</option>
+                    {% for location in competition_locations %}
+                    <option value="{{ location }}" {% if c.location == location %}selected{% endif %}>{{ location }}</option>
+                    {% endfor %}
+                </select>
+
+                <label class="location-subarea-field" {% if c.location != "Fußballplatz" %}hidden{% endif %}>Unterbereich</label>
+                <select class="location-subarea-field" name="location_subarea" {% if c.location != "Fußballplatz" %}hidden{% endif %}>
+                    <option value="">Keine Angabe</option>
+                    {% for subarea in competition_location_subareas.get('Fußballplatz', []) %}
+                    <option value="{{ subarea }}" {% if c.location_subarea == subarea %}selected{% endif %}>{{ subarea }}</option>
+                    {% endfor %}
+                </select>
 
                 <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
                 <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
@@ -250,6 +285,25 @@ if (createForm) {
         pointsInput.value = teamCountsByYear[yearInput.value] || 7;
     });
 }
+
+document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
+    const locationSelect = form.querySelector('[name="location"]');
+    const subareaControls = form.querySelectorAll('.location-subarea-field');
+    if (!locationSelect || !subareaControls.length) return;
+
+    const toggleLocationSubarea = () => {
+        const showSubarea = locationSelect.value === "Fußballplatz";
+        subareaControls.forEach(element => {
+            element.hidden = !showSubarea;
+            if (!showSubarea && element.tagName === "SELECT") {
+                element.value = "";
+            }
+        });
+    };
+
+    locationSelect.addEventListener("change", toggleLocationSubarea);
+    toggleLocationSubarea();
+});
 </script>
 {% endblock %}
 

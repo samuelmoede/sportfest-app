@@ -9,8 +9,6 @@ import re
 import secrets
 import shutil
 from typing import List, Optional
-from urllib.parse import quote, urlsplit
-
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -36,46 +34,63 @@ SESSION_HTTPS_ONLY = os.getenv(
     "SPORTFEST_SESSION_HTTPS_ONLY", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
 
-ADMIN_AREA_PREFIXES = (
-    "/einstellungen",
-    "/teams",
-    "/spielfelder",
-    "/wettbewerbe",
+AREA_ACCESS_RULES = (
+    ("/spielplan-bearbeiten", "admin"),
+    ("/einstellungen", "admin"),
+    ("/dokumentation", "admin"),
+    ("/spielfelder", "admin"),
+    ("/wettbewerbe", "admin"),
+    ("/events", "admin"),
+    ("/teams", "admin"),
+    ("/ergebnisse", "referee"),
 )
 
-# Einige bestehende Formularziele liegen historisch nicht unter dem
-# sichtbaren Bereichspfad. Ergebnis- und Spielplanaktionen sind bewusst
-# nicht Teil dieser Liste.
-ADMIN_ACTION_AREAS = (
-    (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "/teams"),
-    (re.compile(r"^/court(?:/create|/[^/]+/(?:update|delete))$"), "/spielfelder"),
-    (re.compile(r"^/competition/create$"), "/wettbewerbe"),
+# Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
+# Bereichspfads. Die Zuordnung hier hält auch direkte POST-Aufrufe im selben
+# zentralen Bereichsschutz.
+ACTION_ACCESS_RULES = (
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete)$"
+            r"^/competition/[^/]+/discipline/[^/]+/team/[^/]+/results$"
         ),
-        "/wettbewerbe",
+        "referee",
     ),
-    (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "/wettbewerbe"),
+    (
+        re.compile(
+            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result)$"
+        ),
+        "referee",
+    ),
+    (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
+    (re.compile(r"^/court(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
+    (re.compile(r"^/competition/create$"), "admin"),
+    (
+        re.compile(
+            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete|delete-planned-slots|generate-semifinals|generate-finals)$"
+        ),
+        "admin",
+    ),
+    (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "admin"),
+    (re.compile(r"^/plan-generator/(?:preview|apply)$"), "admin"),
+    (
+        re.compile(r"^/slot(?:/create|/[^/]+/(?:update|delete|move|copy))$"),
+        "admin",
+    ),
+    (re.compile(r"^/slots/delete$"), "admin"),
 )
 
 
-class AdminAreaMiddleware(BaseHTTPMiddleware):
+class RoleAreaMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        admin_area = get_admin_area(request.url.path)
-        if admin_area:
-            admin_redirect = require_admin(
-                request,
-                next_url=get_admin_return_url(request, admin_area),
-            )
-            if admin_redirect:
-                return admin_redirect
+        required_role = get_required_role(request.url.path)
+        if required_role and not can_access_role(request, required_role):
+            return RedirectResponse("/", status_code=303)
         return await call_next(request)
 
 
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
-app.add_middleware(AdminAreaMiddleware)
+app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
@@ -96,8 +111,20 @@ ROLE_LABELS = {
     "referee": "Helfer",
     "admin": "Admin",
 }
+ROLE_ACCESS_LEVELS = {
+    "viewer": 0,
+    "referee": 1,
+    "admin": 2,
+}
 EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
+COMPETITION_LOCATIONS = ("Turnhalle", "Fußballplatz", "Außenbereich")
+COMPETITION_LOCATION_SUBAREAS = {
+    "Fußballplatz": ("Rasenplatz", "Tartanplatz"),
+}
+COMPETITION_LOCATION_ALIASES = {
+    "Sportplatz": "Fußballplatz",
+}
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -272,24 +299,12 @@ def get_current_role_label(request: Request):
     return ROLE_LABELS[get_current_role(request)]
 
 
-def is_admin(request: Request):
-    return get_current_role(request) == "admin"
-
-
-def is_referee(request: Request):
-    return get_current_role(request) == "referee"
-
-
-def can_manage(request: Request):
-    return not is_security_enabled() or is_admin(request)
-
-
-def can_enter_results(request: Request):
-    return (
-        not is_security_enabled()
-        or is_admin(request)
-        or is_referee(request)
-    )
+def can_access_role(request: Request, required_role: str):
+    if not is_security_enabled():
+        return True
+    current_level = ROLE_ACCESS_LEVELS[get_current_role(request)]
+    required_level = ROLE_ACCESS_LEVELS[required_role]
+    return current_level >= required_level
 
 
 def is_logged_in(request: Request):
@@ -299,22 +314,7 @@ def is_logged_in(request: Request):
 templates.env.globals["get_current_role"] = get_current_role
 templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["is_logged_in"] = is_logged_in
-
-
-def require_admin(request: Request, next_url: Optional[str] = None):
-    """Liefert bei aktivem Schutz einen Login-Redirect, sonst None."""
-    if can_manage(request):
-        return None
-
-    if next_url is None:
-        next_url = request.url.path
-        if request.url.query:
-            next_url = f"{next_url}?{request.url.query}"
-    next_url = safe_next_url(next_url)
-    return RedirectResponse(
-        url=f"/login?next={quote(next_url, safe='')}",
-        status_code=303,
-    )
+templates.env.globals["can_access_role"] = can_access_role
 
 
 def safe_next_url(value: str, default: str = "/"):
@@ -329,39 +329,15 @@ def safe_next_url(value: str, default: str = "/"):
         return value
     return default
 
-
-def get_admin_area(path: str):
-    for prefix in ADMIN_AREA_PREFIXES:
+def get_required_role(path: str):
+    for prefix, required_role in AREA_ACCESS_RULES:
         if path == prefix or path.startswith(f"{prefix}/"):
-            return prefix
+            return required_role
 
-    for pattern, admin_area in ADMIN_ACTION_AREAS:
+    for pattern, required_role in ACTION_ACCESS_RULES:
         if pattern.fullmatch(path):
-            return admin_area
+            return required_role
     return None
-
-
-def get_admin_return_url(request: Request, admin_area: str):
-    if request.method in {"GET", "HEAD"}:
-        return_url = request.url.path
-        if request.url.query:
-            return_url = f"{return_url}?{request.url.query}"
-        return safe_next_url(return_url, admin_area)
-
-    referer = request.headers.get("referer", "")
-    if referer:
-        parsed_referer = urlsplit(referer)
-        same_origin = (
-            not parsed_referer.netloc
-            or parsed_referer.netloc == request.url.netloc
-        )
-        if same_origin and get_admin_area(parsed_referer.path) == admin_area:
-            return_url = parsed_referer.path
-            if parsed_referer.query:
-                return_url = f"{return_url}?{parsed_referer.query}"
-            return safe_next_url(return_url, admin_area)
-
-    return admin_area
 
 
 def collect_system_info():
@@ -673,6 +649,29 @@ def parse_placement_points_config(raw_value: Optional[str]):
             return []
         values.append(value)
     return values
+
+
+def normalize_competition_location(raw_value: Optional[str]):
+    if raw_value is None:
+        return None
+    normalized = str(raw_value).strip()
+    if not normalized:
+        return None
+    normalized = COMPETITION_LOCATION_ALIASES.get(normalized, normalized)
+    if normalized in COMPETITION_LOCATIONS:
+        return normalized
+    return None
+
+
+def normalize_competition_location_subarea(location: Optional[str], raw_value: Optional[str]):
+    if location != "Fußballplatz" or raw_value is None:
+        return None
+    normalized = str(raw_value).strip()
+    if not normalized:
+        return None
+    if normalized in COMPETITION_LOCATION_SUBAREAS["Fußballplatz"]:
+        return normalized
+    return None
 
 
 def build_default_placement_points(points_first_place: int):
@@ -1056,9 +1055,11 @@ def fetch_dashboard_data():
 def get_all_slots(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
 ):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
+               c.location AS competition_location,
                c.competition_type,
                c.start_time AS competition_start_time,
                c.end_time AS competition_end_time,
@@ -1079,6 +1080,10 @@ def get_all_slots(
     if jahrgang is not None:
         query += " AND c.jahrgang = ?"
         params.append(jahrgang)
+
+    if location is not None:
+        query += " AND c.location = ?"
+        params.append(location)
 
     query += """
     ORDER BY
@@ -1133,11 +1138,15 @@ def get_all_slots(
 def get_slots_grouped_by_court(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
 ):
     with get_conn() as conn:
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
 
-    slots = [dict(slot) for slot in get_all_slots(competition_id, jahrgang)]
+    slots = [
+        dict(slot)
+        for slot in get_all_slots(competition_id, jahrgang, location)
+    ]
     grouped = {court["id"]: {"court": court, "slots": []} for court in courts}
     without_court = {"court": {"id": "", "name": "Ohne Feld"}, "slots": []}
 
@@ -1170,6 +1179,191 @@ def get_slots_grouped_by_court(
                 slot["planned_duration_seconds"] = planned_seconds
 
     return list(grouped.values()) + [without_court]
+
+
+def get_unslotted_competitions_by_location(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
+):
+    clauses = [
+        "competition.status != 'archiviert'",
+        "competition.start_time IS NOT NULL",
+        "TRIM(competition.start_time) != ''",
+        "competition.end_time IS NOT NULL",
+        "TRIM(competition.end_time) != ''",
+        "competition.location IN (?, ?, ?)",
+        """
+        NOT EXISTS (
+            SELECT 1
+            FROM slots
+            WHERE slots.competition_id = competition.id
+              AND slots.slot_typ = 'Spiel'
+        )
+        """,
+    ]
+    params = [*COMPETITION_LOCATIONS]
+    if competition_id is not None:
+        clauses.append("competition.id = ?")
+        params.append(competition_id)
+    if jahrgang is not None:
+        clauses.append("competition.jahrgang = ?")
+        params.append(jahrgang)
+    if location is not None:
+        clauses.append("competition.location = ?")
+        params.append(location)
+
+    with get_conn() as conn:
+        competitions = [
+            dict(row)
+            for row in conn.execute(
+                f"""
+                SELECT competition.*
+                FROM competitions AS competition
+                WHERE {' AND '.join(clauses)}
+                """,
+                params,
+            ).fetchall()
+        ]
+
+        disciplines_by_competition = defaultdict(list)
+        if competitions:
+            placeholders = ",".join("?" for _ in competitions)
+            discipline_rows = conn.execute(
+                f"""
+                SELECT competition_id, name, sort_order
+                FROM competition_disciplines
+                WHERE competition_id IN ({placeholders})
+                ORDER BY competition_id, sort_order, id
+                """,
+                [competition["id"] for competition in competitions],
+            ).fetchall()
+            for discipline in discipline_rows:
+                disciplines_by_competition[discipline["competition_id"]].append(
+                    dict(discipline)
+                )
+
+    entries = []
+    for competition in competitions:
+        start = parse_slot_time(competition["start_time"])
+        end = parse_slot_time(competition["end_time"])
+        if start is None or end is None:
+            continue
+        competition["time_label"] = format_time_range(start, end)
+        competition["disciplines"] = disciplines_by_competition.get(
+            competition["id"], []
+        )
+        entries.append(competition)
+
+    location_order = {
+        location: index for index, location in enumerate(COMPETITION_LOCATIONS)
+    }
+    entries.sort(
+        key=lambda competition: (
+            location_order[competition["location"]],
+            {
+                None: 99,
+                "": 99,
+                "Rasenplatz": 0,
+                "Tartanplatz": 1,
+            }.get(competition.get("location_subarea"), 99),
+            competition["start_time"],
+            competition["end_time"],
+            competition["name"].casefold(),
+        )
+    )
+
+    groups = []
+    for location in COMPETITION_LOCATIONS:
+        location_competitions = [
+            competition
+            for competition in entries
+            if competition["location"] == location
+        ]
+        if location_competitions:
+            subgroups = []
+            if location == "Fußballplatz":
+                for subarea in COMPETITION_LOCATION_SUBAREAS["Fußballplatz"]:
+                    subarea_competitions = [
+                        competition
+                        for competition in location_competitions
+                        if competition.get("location_subarea") == subarea
+                    ]
+                    if subarea_competitions:
+                        subgroups.append({
+                            "name": subarea,
+                            "competitions": subarea_competitions,
+                        })
+                leftover_competitions = [
+                    competition
+                    for competition in location_competitions
+                    if competition.get("location_subarea") not in COMPETITION_LOCATION_SUBAREAS["Fußballplatz"]
+                ]
+                if leftover_competitions:
+                    subgroups.append({
+                        "name": "Ohne Unterbereich",
+                        "competitions": leftover_competitions,
+                    })
+            else:
+                subgroups.append({
+                    "name": None,
+                    "competitions": location_competitions,
+                })
+            groups.append({
+                "location": location,
+                "subgroups": subgroups,
+            })
+    return groups
+
+
+def get_competition_timeline_for_location(
+    location: str,
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+):
+    clauses = [
+        "status != 'archiviert'",
+        "location = ?",
+    ]
+    params = [location]
+    if competition_id is not None:
+        clauses.append("id = ?")
+        params.append(competition_id)
+    if jahrgang is not None:
+        clauses.append("jahrgang = ?")
+        params.append(jahrgang)
+
+    with get_conn() as conn:
+        competitions = [
+            dict(row)
+            for row in conn.execute(
+                f"""
+                SELECT *
+                FROM competitions
+                WHERE {' AND '.join(clauses)}
+                ORDER BY
+                    CASE
+                        WHEN start_time IS NULL OR TRIM(start_time) = '' THEN 1
+                        ELSE 0
+                    END,
+                    start_time,
+                    end_time,
+                    name
+                """,
+                params,
+            ).fetchall()
+        ]
+
+    for competition in competitions:
+        start = parse_slot_time(competition.get("start_time"))
+        end = parse_slot_time(competition.get("end_time"))
+        competition["start_time_display"] = (
+            start.strftime("%H:%M") if start else "–"
+        )
+        competition["end_time_display"] = (
+            end.strftime("%H:%M") if end else "–"
+        )
+    return competitions
 
 
 
@@ -1404,6 +1598,34 @@ def format_duration(start_time: str, end_time: str):
     hours = minutes // 60
     minutes = minutes % 60
     return f"{hours}h {minutes}m" if hours else f"{minutes} min"
+
+
+def build_event_plan(competitions, disciplines_by_competition):
+    entries = []
+    for competition in competitions:
+        entry = dict(competition)
+        start = parse_slot_time(entry.get("start_time"))
+        end = parse_slot_time(entry.get("end_time"))
+        entry["has_time"] = start is not None and end is not None
+        entry["time_label"] = (
+            format_time_range(start, end)
+            if entry["has_time"]
+            else "ohne Zeitangabe"
+        )
+        entry["disciplines"] = list(
+            disciplines_by_competition.get(entry["id"], [])
+        )
+        entries.append(entry)
+
+    return sorted(
+        entries,
+        key=lambda entry: (
+            0 if entry["has_time"] else 1,
+            entry.get("start_time") or "",
+            entry.get("end_time") or "",
+            entry.get("name", "").casefold(),
+        ),
+    )
 
 
 def calculate_event_overall_ranking(event_id: int):
@@ -2196,12 +2418,39 @@ def dashboard(request: Request):
 
 
 @app.get("/spielplan")
-def spielplan(request: Request, competition_id: str = "", jahrgang: str = ""):
+def spielplan(
+    request: Request,
+    competition_id: str = "",
+    jahrgang: str = "",
+    ort: str = "",
+):
     selected_competition_id = parse_competition_id(competition_id)
     selected_jahrgang = parse_jahrgang_filter(jahrgang)
+    selected_location = normalize_competition_location(ort)
 
     competitions = get_active_competitions()
-    groups = get_slots_grouped_by_court(selected_competition_id, selected_jahrgang)
+    if selected_location == "Außenbereich":
+        groups = []
+        location_groups = []
+        outdoor_timeline = get_competition_timeline_for_location(
+            "Außenbereich",
+            selected_competition_id,
+            selected_jahrgang,
+        )
+    else:
+        groups = get_slots_grouped_by_court(
+            selected_competition_id,
+            selected_jahrgang,
+            selected_location or None,
+        )
+        if selected_location == "Fußballplatz":
+            groups = [group for group in groups if group["slots"]]
+        location_groups = get_unslotted_competitions_by_location(
+            selected_competition_id,
+            selected_jahrgang,
+            selected_location or None,
+        )
+        outdoor_timeline = []
     available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
 
     return templates.TemplateResponse(
@@ -2209,9 +2458,14 @@ def spielplan(request: Request, competition_id: str = "", jahrgang: str = ""):
         name="spielplan.html",
         context={
             "groups": groups,
+            "location_groups": location_groups,
+            "outdoor_timeline": outdoor_timeline,
             "competitions": competitions,
             "selected_competition_id": selected_competition_id,
             "selected_jahrgang": selected_jahrgang,
+            "selected_location": selected_location,
+            "competition_locations": COMPETITION_LOCATIONS,
+            "competition_location_subareas": COMPETITION_LOCATION_SUBAREAS,
             "available_jahrgaenge": available_jahrgaenge,
         }
     )
@@ -3256,6 +3510,8 @@ def wettbewerbe(request: Request):
                 row["jahrgang"]: row["count"] for row in team_counts
             },
             "team_years": team_years,
+            "competition_locations": COMPETITION_LOCATIONS,
+            "competition_location_subareas": COMPETITION_LOCATION_SUBAREAS,
         }
     )
 
@@ -3264,12 +3520,25 @@ def create_competition(
     name: str = Form(...), sportart: str = Form(...), jahrgang: int = Form(...),
     points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
     start_time: str = Form(""), end_time: str = Form(""),
+    location: str = Form(""),
+    location_subarea: str = Form(""),
 
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form(""),
     placement_points: str = Form(""),
 ):
     if competition_type not in {"Turnier", "Sechskampf"}:
+        return RedirectResponse("/wettbewerbe", status_code=303)
+    location_raw = location.strip()
+    location_value = normalize_competition_location(location_raw)
+    if location_raw and location_value is None:
+        return RedirectResponse("/wettbewerbe", status_code=303)
+    location_subarea_raw = location_subarea.strip()
+    location_subarea_value = normalize_competition_location_subarea(
+        location_value,
+        location_subarea_raw,
+    )
+    if location_subarea_raw and location_subarea_value is None:
         return RedirectResponse("/wettbewerbe", status_code=303)
     try:
         event_id_value = int(event_id) if event_id else None
@@ -3304,12 +3573,14 @@ def create_competition(
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
                 points_loss, points_first_place, placement_points, event_id, competition_type,
-                start_time, end_time
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                start_time, end_time, location, location_subarea
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
             points_first_place_value, placement_points_value or None, event_id_value, competition_type,
             start_time.strip() or None, end_time.strip() or None,
+            location_value or None,
+            location_subarea_value or None,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -3327,8 +3598,8 @@ def duplicate_competition(competition_id: int):
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
                 points_loss, points_first_place, placement_points, event_id, competition_type,
-                start_time, end_time
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                start_time, end_time, location, location_subarea
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             get_unique_competition_name(conn, competition["name"]),
             competition["sportart"], competition["jahrgang"], competition["points_win"],
@@ -3336,6 +3607,8 @@ def duplicate_competition(competition_id: int):
             competition["points_first_place"], competition["placement_points"],
             competition["event_id"], competition["competition_type"],
             competition["start_time"], competition["end_time"],
+            competition["location"],
+            competition["location_subarea"],
         ))
         copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
         conn.commit()
@@ -3347,6 +3620,8 @@ def update_competition(
     jahrgang: str = Form(...), status: str = Form(...),
     points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
     start_time: str = Form(""), end_time: str = Form(""),
+    location: str = Form(""),
+    location_subarea: str = Form(""),
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
     points_first_place: str = Form("7"),
     placement_points: str = Form(""),
@@ -3362,11 +3637,13 @@ def update_competition(
         return RedirectResponse("/wettbewerbe", status_code=303)
     name_value = name.strip()
     sportart_value = sportart.strip()
+    location_value = location.strip()
     valid_statuses = {"geplant", "läuft", "beendet", "archiviert"}
     if (
         not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
         or status not in valid_statuses
         or competition_type not in {"Turnier", "Sechskampf"}
+        or (location_value and location_value not in COMPETITION_LOCATIONS)
         or points_first_place_value < 1
         or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
     ):
@@ -3396,13 +3673,15 @@ def update_competition(
             SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                 points_win = ?, points_draw = ?, points_loss = ?,
                 points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
-                start_time = ?, end_time = ?
+                start_time = ?, end_time = ?, location = ?, location_subarea = ?
             WHERE id = ?
         """, (
             name_value, sportart_value, jahrgang_value, status,
             points_win_value, points_draw_value, points_loss_value,
             points_first_place_value, placement_points_value or None, event_id_value, competition_type,
             start_time.strip() or None, end_time.strip() or None,
+            location_value or None,
+            location_subarea_value or None,
             competition_id,
         ))
         conn.commit()
@@ -3740,8 +4019,8 @@ def event_duplicate(event_id: int):
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points,
-                    event_id, competition_type, start_time, end_time
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    event_id, competition_type, start_time, end_time, location, location_subarea
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"],
@@ -3749,7 +4028,7 @@ def event_duplicate(event_id: int):
                 competition["points_loss"], competition["points_first_place"],
                 competition["placement_points"], new_event_id,
                 competition["competition_type"], competition["start_time"],
-                competition["end_time"],
+                competition["end_time"], competition["location"], competition["location_subarea"],
             ))
             copy_competition_disciplines(
                 conn, competition["id"], competition_cursor.lastrowid
@@ -3767,14 +4046,32 @@ def event_detail(request: Request, event_id: int):
             WHERE event_id = ?
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()]
+        discipline_rows = conn.execute("""
+            SELECT
+                discipline.competition_id,
+                discipline.name,
+                discipline.sort_order
+            FROM competition_disciplines AS discipline
+            JOIN competitions AS competition
+              ON competition.id = discipline.competition_id
+            WHERE competition.event_id = ?
+            ORDER BY discipline.competition_id, discipline.sort_order, discipline.id
+        """, (event_id,)).fetchall()
     if event is None:
         return RedirectResponse("/events", status_code=303)
+
+    disciplines_by_competition = defaultdict(list)
+    for discipline in discipline_rows:
+        disciplines_by_competition[discipline["competition_id"]].append(
+            dict(discipline)
+        )
 
     for competition in competitions:
         competition["duration"] = format_duration(
             competition.get("start_time"), competition.get("end_time")
         )
 
+    event_plan = build_event_plan(competitions, disciplines_by_competition)
     schedule = get_day_schedule_for_event(event_id)
     overall_ranking = calculate_event_overall_ranking(event_id)
     return templates.TemplateResponse(
@@ -3782,6 +4079,7 @@ def event_detail(request: Request, event_id: int):
         context={
             "event": event,
             "competitions": competitions,
+            "event_plan": event_plan,
             "overall_ranking": overall_ranking,
             "schedule": schedule,
         }

@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Spielplan</h1>
+{% if selected_location == "Außenbereich" %}
+<p class="muted">Chronologischer Zeitplan für den Außenbereich</p>
+{% elif selected_location == "Fußballplatz" %}
+<p class="muted">Fußballplatz mit Rasenplatz und Tartanplatz</p>
+{% else %}
 <p class="muted">Nach Spielfeldern gruppierte Übersicht</p>
+{% endif %}
 
 <form method="get" action="/spielplan" class="filter-row">
     <select name="competition_id">
@@ -18,8 +24,82 @@
         {% endfor %}
     </select>
 
+    <select name="ort" aria-label="Ort">
+        <option value="">Alle Orte</option>
+        {% for location in competition_locations %}
+        <option value="{{ location }}" {% if selected_location == location %}selected{% endif %}>
+            {{ location }}
+        </option>
+        {% endfor %}
+    </select>
+
     <button type="submit">Filtern</button>
 </form>
+
+{% if selected_location == "Außenbereich" %}
+<section class="sportplatz-timeline">
+    <h2>Außenbereich</h2>
+    {% if outdoor_timeline %}
+    <div class="sportplatz-timeline-list">
+        {% for competition in outdoor_timeline %}
+        <article class="sportplatz-timeline-item">
+            <div class="sportplatz-timeline-time">
+                <span>{{ competition.start_time_display }}</span>
+                <span aria-hidden="true">–</span>
+                <span>{{ competition.end_time_display }}</span>
+            </div>
+            <div class="sportplatz-timeline-content">
+                <strong>{{ competition.name }}</strong>
+                <div class="sportplatz-timeline-meta">
+                    <span>Jahrgang {{ competition.jahrgang }}</span>
+                    <span>{{ competition.competition_type }}</span>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Keine Wettbewerbe für den Außenbereich vorhanden.</p>
+    {% endif %}
+</section>
+{% else %}
+{% if location_groups %}
+<section class="location-schedule">
+    <h2>Wettbewerbe nach Ort</h2>
+    <div class="location-schedule-grid">
+        {% for group in location_groups %}
+        <section class="location-schedule-group">
+            <h3>{{ group.location }}</h3>
+            {% for subgroup in group.subgroups %}
+            {% if subgroup.name %}
+            <h4 class="location-subgroup-title">{{ subgroup.name }}</h4>
+            {% endif %}
+            <div class="location-competition-list">
+                {% for competition in subgroup.competitions %}
+                <article class="location-competition-card">
+                    <div class="location-competition-time">{{ competition.time_label }}</div>
+                    <div class="location-competition-content">
+                        <strong>{{ competition.name }}</strong>
+                        <div class="location-competition-meta">
+                            {{ competition.competition_type }} · JG {{ competition.jahrgang }}{% if competition.location_subarea %} · {{ competition.location_subarea }}{% endif %}
+                        </div>
+                        {% if competition.competition_type == "Sechskampf" and competition.disciplines %}
+                        <ul class="location-station-list">
+                            {% for discipline in competition.disciplines %}
+                            <li>{{ discipline.name }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 <section class="schedule-board">
     {% for group in groups %}
@@ -31,17 +111,17 @@
             <div class="slot-time">Geplant {{ s.startzeit }}</div>
             <div class="slot-type">{{ s.slot_typ }}</div>
 
-            {% if s.slot_typ == "Spiel" %}
-                <div class="slot-teams">
-                    <strong>{{ s.team_a or "?" }}</strong>
-                    <span>
-                        {% if s.score_a is not none %}
+            {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" %}
+                <div class="slot-teams tournament-match">
+                    <strong class="tournament-team tournament-team-a">{{ s.team_a or "?" }}</strong>
+                    <span class="tournament-score{% if s.score_a is not none and s.score_b is not none %} has-result{% endif %}">
+                        {% if s.score_a is not none and s.score_b is not none %}
                             {{ s.score_a }} : {{ s.score_b }}
                         {% else %}
                             vs
                         {% endif %}
                     </span>
-                    <strong>{{ s.team_b or "?" }}</strong>
+                    <strong class="tournament-team tournament-team-b">{{ s.team_b or "?" }}</strong>
                 </div>
             {% else %}
                 <div class="slot-teams">
@@ -66,6 +146,7 @@
     </div>
     {% endfor %}
 </section>
+{% endif %}
 
 <script>
 function parseTimestamp(timestamp) {

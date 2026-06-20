@@ -78,6 +78,7 @@ Ziel: Veranstaltungen werden die oberste Arbeitsebene.
 * [x] Veranstaltung archivieren
 * [x] Veranstaltung löschen, nur wenn keine abhängigen Daten vorhanden sind
 * [x] Detailseite einer Veranstaltung verbessern
+* [x] Einfachen Veranstaltungsplan mit Wettbewerbszeiten und Sechskampf-Stationen anzeigen
 * [x] Gesamtwertung auf der Veranstaltungsdetailseite nach Jahrgängen gruppieren
 * [~] Wettbewerbe aus der Veranstaltung heraus anlegen (aktuell per vorgefiltertem Link)
 * [~] Veranstaltung als Einstiegspunkt für Zeitplan, Ergebnisse und Auswertung verwenden (Wettbewerbsliste auf Detailseite mit Direktaktionen umgesetzt)
@@ -96,7 +97,7 @@ Zielbild:
 Vorbereitung umgesetzt:
 
 * Veranstaltungstyp kann bereits an Veranstaltungen gepflegt und angezeigt werden.
-* Veranstaltungsdetailseite zeigt zugeordnete Wettbewerbe jetzt kompakt mit Direktaktionen fuer Bearbeiten, Spielplan und Ergebnisse.
+* Veranstaltungsdetailseite zeigt zugeordnete Wettbewerbe kompakt mit Direktaktionen sowie einen zeitlich sortierten Veranstaltungsplan; Sechskampf erscheint dort als Stationsliste statt als Spielfeldplan.
 * Noch keine eigene Käthelauf-Logik, keine Einzelturnier-Speziallogik und keine Schnellanlage; außerdem keine Änderung an Gesamtwertung, Sechskampf, Ergebnissen oder Spielplan.
 
 ---
@@ -113,6 +114,8 @@ Status: teilweise umgesetzt
 * [x] Wettbewerb löschen
 * [ ] Wettbewerbe nur noch über Veranstaltungen erreichbar machen
 * [x] Startzeit und Endzeit pro Wettbewerb ergänzen
+* [x] Optionalen Veranstaltungsort pro Wettbewerb ergänzen, slotlose Wettbewerbe nach Ort anzeigen und Spielplan nach Ort filtern
+* [x] Ortsmodell erweitert: Turnhalle, Fußballplatz mit Rasenplatz/Tartanplatz, Außenbereich ohne Unterbereiche
 * [ ] Wettbewerbstyp sauber unterscheiden:
 
   * Turnier
