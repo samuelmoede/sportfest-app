@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Die Backup-Erstellung unter `/einstellungen` ist die erste gezielt geschützte Schreibaktion: bei aktiver Sicherheit nur nach Admin-Login, bei deaktivierter Sicherheit unverändert offen.
 - Erste optionale Sicherheitsschicht vorbereitet: neue globale Einstellung `security_enabled` mit Standardwert `false`, Admin-Passwort per Setting oder Umgebungsvariable und automatisch deaktivierter Schutz ohne Passwort.
 - SessionMiddleware mit Umgebungs-Secret (und temporärem Entwicklungsschlüssel als Fallback), einfache Routen `/login` und `/logout` sowie die Helper `is_logged_in()` und `require_admin()` ergänzt; bestehende schreibende Routen bleiben vorerst unverändert.
 - `/einstellungen` zeigt jetzt „Sicherheit aktiv“ und „Login vorbereitet“; Docker Compose reicht die neuen Sicherheits-Umgebungsvariablen durch.

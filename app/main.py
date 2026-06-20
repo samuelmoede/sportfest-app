@@ -182,14 +182,16 @@ def is_logged_in(request: Request):
     return request.session.get("admin_logged_in") is True
 
 
-def require_admin(request: Request):
+def require_admin(request: Request, next_url: Optional[str] = None):
     """Liefert bei aktivem Schutz einen Login-Redirect, sonst None."""
     if not is_security_enabled() or is_logged_in(request):
         return None
 
-    next_url = request.url.path
-    if request.url.query:
-        next_url = f"{next_url}?{request.url.query}"
+    if next_url is None:
+        next_url = request.url.path
+        if request.url.query:
+            next_url = f"{next_url}?{request.url.query}"
+    next_url = safe_next_url(next_url)
     return RedirectResponse(
         url=f"/login?next={quote(next_url, safe='')}",
         status_code=303,
@@ -3774,7 +3776,11 @@ def dokumentation(request: Request):
 
 
 @app.post("/einstellungen/backup")
-def create_backup():
+def create_backup(request: Request):
+    admin_redirect = require_admin(request, next_url="/einstellungen")
+    if admin_redirect:
+        return admin_redirect
+
     if not DB_PATH.exists():
         return RedirectResponse(
             "/einstellungen?backup_status=error",
