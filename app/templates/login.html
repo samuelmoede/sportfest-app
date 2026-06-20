@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Admin-Login</h1>
+
+<section class="panel">
+    {% if logged_out %}
+        <p class="success-text">Du wurdest abgemeldet.</p>
+    {% endif %}
+
+    {% if logged_in %}
+        <p>Du bist als Admin angemeldet.</p>
+        <p><a href="{{ next_url }}">Weiter</a> oder <a href="/logout">abmelden</a>.</p>
+    {% elif login_prepared %}
+        {% if not security_enabled %}
+            <p class="muted">Der Login kann bereits getestet werden. Der Zugriffsschutz ist derzeit deaktiviert.</p>
+        {% endif %}
+        <form method="post" action="/login" class="form-grid">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <label for="password">Admin-Passwort</label>
+            <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                autofocus
+            >
+            <button type="submit">Anmelden</button>
+        </form>
+    {% else %}
+        <p>Noch kein Admin-Passwort konfiguriert. Der Zugriffsschutz bleibt automatisch deaktiviert.</p>
+    {% endif %}
+
+    {% if login_error %}
+        <p class="error-text">{{ login_error }}</p>
+    {% endif %}
+</section>
+{% endblock %}

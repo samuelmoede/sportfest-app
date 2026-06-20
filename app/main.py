@@ -2,24 +2,53 @@ from collections import defaultdict
 import csv
 from datetime import date, datetime, timedelta
 import io
+import logging
 from math import isfinite
+import os
 import re
+import secrets
 import shutil
 from typing import List, Optional
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from app.database import init_db, get_conn, DB_PATH
 from pathlib import Path
 
 app = FastAPI(title="Sportfest-App")
 
+SESSION_SECRET_KEY = (
+    os.getenv("SPORTFEST_SESSION_SECRET_KEY")
+    or os.getenv("SESSION_SECRET_KEY")
+)
+if not SESSION_SECRET_KEY:
+    SESSION_SECRET_KEY = secrets.token_urlsafe(32)
+    logging.getLogger(__name__).warning(
+        "Kein Session-Secret gesetzt; verwende einen temporaeren Entwicklungsschluessel."
+    )
+
+SESSION_HTTPS_ONLY = os.getenv(
+    "SPORTFEST_SESSION_HTTPS_ONLY", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    session_cookie="sportfest_session",
+    same_site="lax",
+    https_only=SESSION_HTTPS_ONLY,
+)
+
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
 BACKUP_DIR = ROOT_DIR / "backups"
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
+DEFAULT_SECURITY_ENABLED = False
+TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
 EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
 
@@ -109,6 +138,75 @@ def get_beamer_refresh_seconds():
         setting["value"] if setting else None,
         DEFAULT_BEAMER_REFRESH_SECONDS,
     )
+
+
+def get_setting(key: str, default: Optional[str] = None):
+    with get_conn() as conn:
+        setting = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (key,),
+        ).fetchone()
+    return setting["value"] if setting else default
+
+
+def get_security_enabled_setting():
+    environment_value = os.getenv("SPORTFEST_SECURITY_ENABLED")
+    raw_value = (
+        environment_value
+        if environment_value not in (None, "")
+        else get_setting("security_enabled", str(DEFAULT_SECURITY_ENABLED).lower())
+    )
+    return str(raw_value).strip().lower() in TRUE_SETTING_VALUES
+
+
+def get_admin_password():
+    environment_password = (
+        os.getenv("SPORTFEST_ADMIN_PASSWORD")
+        or os.getenv("ADMIN_PASSWORD")
+    )
+    if environment_password:
+        return environment_password
+    return get_setting("admin_password", "") or ""
+
+
+def is_login_prepared():
+    return bool(get_admin_password())
+
+
+def is_security_enabled():
+    # Ohne konfiguriertes Passwort darf die App sich nicht versehentlich sperren.
+    return get_security_enabled_setting() and is_login_prepared()
+
+
+def is_logged_in(request: Request):
+    return request.session.get("admin_logged_in") is True
+
+
+def require_admin(request: Request):
+    """Liefert bei aktivem Schutz einen Login-Redirect, sonst None."""
+    if not is_security_enabled() or is_logged_in(request):
+        return None
+
+    next_url = request.url.path
+    if request.url.query:
+        next_url = f"{next_url}?{request.url.query}"
+    return RedirectResponse(
+        url=f"/login?next={quote(next_url, safe='')}",
+        status_code=303,
+    )
+
+
+def safe_next_url(value: str, default: str = "/"):
+    if (
+        value
+        and value.startswith("/")
+        and not value.startswith("//")
+        and "\\" not in value
+        and "\r" not in value
+        and "\n" not in value
+    ):
+        return value
+    return default
 
 
 def collect_system_info():
@@ -1869,6 +1967,55 @@ def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int)
     return warnings
 
 
+@app.get("/login")
+def login_page(request: Request, next: str = "/", logged_out: str = ""):
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={
+            "next_url": safe_next_url(next),
+            "login_prepared": is_login_prepared(),
+            "security_enabled": is_security_enabled(),
+            "logged_in": is_logged_in(request),
+            "logged_out": logged_out == "1",
+            "login_error": "",
+        },
+    )
+
+
+@app.post("/login")
+def login(request: Request, password: str = Form(""), next: str = Form("/")):
+    admin_password = get_admin_password()
+    if admin_password and secrets.compare_digest(password, admin_password):
+        request.session.clear()
+        request.session["admin_logged_in"] = True
+        return RedirectResponse(safe_next_url(next), status_code=303)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={
+            "next_url": safe_next_url(next),
+            "login_prepared": bool(admin_password),
+            "security_enabled": is_security_enabled(),
+            "logged_in": False,
+            "logged_out": False,
+            "login_error": (
+                "Das Admin-Passwort ist nicht korrekt."
+                if admin_password
+                else "Es ist noch kein Admin-Passwort konfiguriert."
+            ),
+        },
+        status_code=401 if admin_password else 200,
+    )
+
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login?logged_out=1", status_code=303)
+
+
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
@@ -3605,6 +3752,10 @@ def einstellungen(
         "backup_file": backup_file,
         "settings_status": settings_status,
         "saved_at": saved_at_value,
+        "security_enabled": is_security_enabled(),
+        "security_requested": get_security_enabled_setting(),
+        "login_prepared": is_login_prepared(),
+        "logged_in": is_logged_in(request),
     })
     return templates.TemplateResponse(
         request=request,

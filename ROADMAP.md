@@ -55,7 +55,7 @@ Status: weitgehend erledigt
 * [x] Manuelle Backup-Funktion auf /einstellungen inkl. Backup-Liste umgesetzt
 * [x] Globales Beamer-/Live-Aktualisierungsintervall (settings key/value, Standard 30s) umgesetzt
 * [x] Einstellungen als zentrale Verwaltungsseite ausgebaut (Systemstatus, Backup-Uebersicht, kompakte Info-Karten)
-* [ ] später: Zugriffsschutz / Admin-Login
+* [x] optionale Grundlage für Zugriffsschutz / Admin-Login vorbereitet (standardmäßig deaktiviert)
 * [ ] später: CSRF-Schutz
 * [ ] später: Tests und CI ergänzen
 * Hinweis: App verwendet jetzt relative Pfade für Templates, statische Assets und `VERSION`.
@@ -408,7 +408,10 @@ Aufgaben:
 Nicht sofort, aber vor echter produktiver Nutzung außerhalb eines kleinen internen Kreises:
 
 * [ ] Zugriffsschutz später sauber als eigenes Feature umsetzen
-* [ ] Admin-Login
+* [x] kurzfristig: Cloudflare Access / App-Login optional vorbereiten (App-Login-Grundlage vorhanden, Cloudflare bleibt extern)
+* [ ] mittelfristig: schreibende Aktionen mit dem vorbereiteten Admin-Helper schützen
+* [ ] langfristig: Rollen für Anzeige / Helfer / Admin einführen
+* [~] Admin-Login (Grundlage vorhanden, noch nicht auf schreibende Routen angewendet)
 * [ ] Rollen:
 
   * Admin
@@ -447,5 +450,5 @@ Keine parallelen großen PRs, wenn dieselben Dateien betroffen sind.
 2. Wettbewerbe innerhalb einer Veranstaltung direkt erstellen/bearbeiten (ohne Seitenwechsel).
 3. Zeitplan-Modul als Veranstaltungsansicht weiter ausbauen.
 4. Beameransicht um Gesamtwertung und robustere Mehrfachansichten erweitern.
-5. Sicherheitsthemen (Login/CSRF) als eigenes Paket vorbereiten.
+5. Vorbereiteten optionalen App-Login schrittweise auf schreibende Aktionen anwenden und CSRF-Schutz ergänzen.
 

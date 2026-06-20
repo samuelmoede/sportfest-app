@@ -42,8 +42,9 @@ Der Fokus liegt auf Wettbewerben wie Turnieren, Sechskämpfen und anderen schuli
 
 ## Bekannte Einschränkungen
 
-- Zugriffsschutz wird erst später als eigenes Feature implementiert.
-- Bis dahin keine Login-, SessionMiddleware- oder Session-Funktionen einbauen.
+- Eine kleine, standardmäßig deaktivierte Login- und Session-Grundlage ist vorhanden.
+- `security_enabled` ist standardmäßig `false`; bestehende Seiten und Aktionen bleiben dann vollständig offen.
+- Noch keine bestehenden schreibenden Routen verwenden `require_admin()`.
 - Kein CSRF-Schutz
 - Tests und CI fehlen noch
 - Die Veranstaltungshierarchie ist geplant, aber nicht vollständig als zentrale Navigation implementiert

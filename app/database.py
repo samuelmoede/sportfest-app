@@ -241,5 +241,10 @@ def init_db():
             VALUES ('beamer_refresh_seconds', '30')
         """)
 
+        conn.execute("""
+            INSERT OR IGNORE INTO settings (key, value)
+            VALUES ('security_enabled', 'false')
+        """)
+
         conn.commit()
 

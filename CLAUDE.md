@@ -86,7 +86,7 @@ Match these strings exactly when writing queries.
 
 ## Caveats
 
-- **No authentication.** `README.md` and `PROJECT_CONTEXT.md` describe an admin login / CSRF
-  protection, but it was fully removed (see recent commits). The app is currently open; those
-  docs are out of date. `itsdangerous` is still installed but unused.
+- **Authentication is opt-in.** A minimal login/session foundation exists, but
+  `security_enabled` defaults to false and no existing write route is protected yet. Keep the
+  disabled mode fully backward-compatible. CSRF protection is still pending.
 - `data/*.db` and `backups/` are gitignored — never commit the live database.

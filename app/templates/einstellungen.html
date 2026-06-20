@@ -39,6 +39,37 @@
 </section>
 
 <section class="panel">
+    <h2>Sicherheit</h2>
+    <div class="settings-grid">
+        <div class="settings-item">
+            <strong>Sicherheit aktiv:</strong>
+            {% if security_enabled %}
+                <span class="status-pill ok">Ja</span>
+            {% else %}
+                <span class="status-pill">Nein</span>
+            {% endif %}
+        </div>
+        <div class="settings-item">
+            <strong>Login vorbereitet:</strong>
+            {% if login_prepared %}
+                <span class="status-pill ok">Ja</span>
+            {% else %}
+                <span class="status-pill">Nein</span>
+            {% endif %}
+        </div>
+    </div>
+    {% if security_requested and not login_prepared %}
+        <p class="error-text">Sicherheit wurde angefordert, bleibt aber ohne Admin-Passwort automatisch deaktiviert.</p>
+    {% elif logged_in %}
+        <p>Aktuelle Sitzung: als Admin angemeldet. <a href="/logout">Abmelden</a></p>
+    {% elif login_prepared %}
+        <p><a href="/login?next=/einstellungen">Admin-Login testen</a></p>
+    {% else %}
+        <p class="muted">Für die spätere Aktivierung zuerst ein Admin-Passwort konfigurieren.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
     <h2>Globale Anzeigeeinstellung</h2>
     <form method="post" action="/einstellungen/beamer-intervall" class="inline-form">
         <label for="beamer_refresh_seconds">Beamer-/Live-Aktualisierungsintervall (Sekunden)</label>

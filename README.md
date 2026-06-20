@@ -121,9 +121,20 @@ Weiterführende Inhalte:
 
 ## Zugriffsschutz
 
-- Die App läuft derzeit bewusst ohne Login, Sessions oder Zugriffsschutz.
-- Zugriffsschutz wird später als eigenes Feature geplant und umgesetzt.
-- Bis dahin sollen keine Login- oder Session-Funktionen ergänzt werden.
+- Die Login- und Session-Grundlage ist vorbereitet, aber standardmäßig vollständig deaktiviert.
+- Solange `SPORTFEST_SECURITY_ENABLED=false` ist oder kein Admin-Passwort gesetzt wurde, verhält sich die App wie bisher: kein Login und keine blockierten Seiten.
+- Zum Testen bzw. späteren Aktivieren in einer `.env`-Datei sichere Werte setzen:
+
+  ```env
+  SPORTFEST_SECURITY_ENABLED=true
+  SPORTFEST_ADMIN_PASSWORD=ein-langes-zufaelliges-passwort
+  SPORTFEST_SESSION_SECRET_KEY=ein-langer-zufaelliger-secret-key
+  SPORTFEST_SESSION_HTTPS_ONLY=true
+  ```
+
+- `SPORTFEST_SESSION_HTTPS_ONLY=true` erst verwenden, wenn die App über HTTPS erreichbar ist.
+- Alternativ kann das Passwort im Settings-Schlüssel `admin_password` liegen; die Umgebungsvariable hat Vorrang und ist für den Betrieb vorzuziehen.
+- Noch sind keine bestehenden schreibenden Routen mit `require_admin()` geschützt; dies folgt schrittweise.
 
 ## Bekannte offene Punkte
 

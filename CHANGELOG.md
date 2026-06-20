@@ -4,6 +4,9 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Erste optionale Sicherheitsschicht vorbereitet: neue globale Einstellung `security_enabled` mit Standardwert `false`, Admin-Passwort per Setting oder Umgebungsvariable und automatisch deaktivierter Schutz ohne Passwort.
+- SessionMiddleware mit Umgebungs-Secret (und temporärem Entwicklungsschlüssel als Fallback), einfache Routen `/login` und `/logout` sowie die Helper `is_logged_in()` und `require_admin()` ergänzt; bestehende schreibende Routen bleiben vorerst unverändert.
+- `/einstellungen` zeigt jetzt „Sicherheit aktiv“ und „Login vorbereitet“; Docker Compose reicht die neuen Sicherheits-Umgebungsvariablen durch.
 - Formular-Redirects behalten jetzt global die ungefaehre Scrollposition: Vor normalen POST-Submits wird die aktuelle Position in `sessionStorage` gespeichert und nach dem Reload auf derselben Seite wiederhergestellt; der zuletzt gedrueckte Submit-Button wird kurz hervorgehoben.
 - Dashboard mobil optimiert: zu breite Karten/Zeilen wurden fuer Smartphone-Breiten kompakter gemacht (insbesondere laufende Spiele und weitere kommende Veranstaltungen), damit Inhalte ohne seitliches Herausragen nutzbar bleiben.
 - Mobiles Navigationslayout ueberarbeitet: Auf Smartphone-Breite wird die Desktop-Sidebar ausgeblendet und durch eine kompakte Kopfzeile mit "☰ Menü" ersetzt; Navigation oeffnet als schliessbares Overlay-Drawer, waehrend der Seiteninhalt die volle Breite nutzt.
