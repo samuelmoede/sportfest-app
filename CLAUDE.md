@@ -86,7 +86,8 @@ Match these strings exactly when writing queries.
 
 ## Caveats
 
-- **Authentication is opt-in.** A minimal login/session foundation exists, but
-  `security_enabled` defaults to false and no existing write route is protected yet. Keep the
-  disabled mode fully backward-compatible. CSRF protection is still pending.
+- **Authentication is opt-in.** `security_enabled` defaults to false and must keep the disabled
+  mode fully backward-compatible. When enabled, central middleware protects settings, teams,
+  courts, and competition administration; results and schedule actions remain public. CSRF
+  protection is still pending.
 - `data/*.db` and `backups/` are gitignored — never commit the live database.

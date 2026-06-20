@@ -134,7 +134,8 @@ Weiterführende Inhalte:
 
 - `SPORTFEST_SESSION_HTTPS_ONLY=true` erst verwenden, wenn die App über HTTPS erreichbar ist.
 - Alternativ kann das Passwort im Settings-Schlüssel `admin_password` liegen; die Umgebungsvariable hat Vorrang und ist für den Betrieb vorzuziehen.
-- Noch sind keine bestehenden schreibenden Routen mit `require_admin()` geschützt; dies folgt schrittweise.
+- Bei aktiver Sicherheit schützt eine zentrale Middleware die Admin-Bereiche `/einstellungen`, `/teams`, `/spielfelder` und `/wettbewerbe` einschließlich ihrer Verwaltungsaktionen. Öffentliche Ansichten, Ergebniseingabe und Spielplanaktionen bleiben offen.
+- Ohne gesetzten Environment-Override kann die Sicherheit auf `/einstellungen` nach erneuter Eingabe des Admin-Kennworts aktiviert oder deaktiviert werden. `SPORTFEST_SECURITY_ENABLED` hat weiterhin Vorrang und sperrt den Schalter.
 
 ## Bekannte offene Punkte
 

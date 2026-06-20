@@ -4,10 +4,10 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
-- Das Speichern globaler Einstellungen unter `/einstellungen` ist bei aktiver Sicherheit jetzt ebenfalls nur nach Admin-Login möglich; die Einstellungsseite selbst bleibt öffentlich sichtbar.
-- Die Backup-Erstellung unter `/einstellungen` ist die erste gezielt geschützte Schreibaktion: bei aktiver Sicherheit nur nach Admin-Login, bei deaktivierter Sicherheit unverändert offen.
+- `/einstellungen` erhält einen Admin-Kennwort-geschützten Schalter zum Aktivieren und Deaktivieren der Sicherheit; ein Environment-Override bleibt vorrangig und sperrt den UI-Schalter.
+- Sicherheit auf zentralen Bereichsschutz umgestellt: `/einstellungen`, `/teams`, `/spielfelder` und `/wettbewerbe` werden bei aktiver Sicherheit einschließlich ihrer Verwaltungsaktionen durch eine gemeinsame Middleware geschützt; redundante Einzel-Guards wurden entfernt.
 - Erste optionale Sicherheitsschicht vorbereitet: neue globale Einstellung `security_enabled` mit Standardwert `false`, Admin-Passwort per Setting oder Umgebungsvariable und automatisch deaktivierter Schutz ohne Passwort.
-- SessionMiddleware mit Umgebungs-Secret (und temporärem Entwicklungsschlüssel als Fallback), einfache Routen `/login` und `/logout` sowie die Helper `is_logged_in()` und `require_admin()` ergänzt; bestehende schreibende Routen bleiben vorerst unverändert.
+- SessionMiddleware mit Umgebungs-Secret (und temporärem Entwicklungsschlüssel als Fallback), einfache Routen `/login` und `/logout` sowie die Helper `is_logged_in()` und `require_admin()` ergänzt.
 - `/einstellungen` zeigt jetzt „Sicherheit aktiv“ und „Login vorbereitet“; Docker Compose reicht die neuen Sicherheits-Umgebungsvariablen durch.
 - Formular-Redirects behalten jetzt global die ungefaehre Scrollposition: Vor normalen POST-Submits wird die aktuelle Position in `sessionStorage` gespeichert und nach dem Reload auf derselben Seite wiederhergestellt; der zuletzt gedrueckte Submit-Button wird kurz hervorgehoben.
 - Dashboard mobil optimiert: zu breite Karten/Zeilen wurden fuer Smartphone-Breiten kompakter gemacht (insbesondere laufende Spiele und weitere kommende Veranstaltungen), damit Inhalte ohne seitliches Herausragen nutzbar bleiben.

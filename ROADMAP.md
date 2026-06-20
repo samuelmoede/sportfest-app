@@ -409,9 +409,9 @@ Nicht sofort, aber vor echter produktiver Nutzung außerhalb eines kleinen inter
 
 * [ ] Zugriffsschutz später sauber als eigenes Feature umsetzen
 * [x] kurzfristig: Cloudflare Access / App-Login optional vorbereiten (App-Login-Grundlage vorhanden, Cloudflare bleibt extern)
-* [ ] mittelfristig: schreibende Aktionen mit dem vorbereiteten Admin-Helper schützen
+* [~] mittelfristig: schreibende Aktionen schützen (Admin-Bereiche zentral geschützt; Ergebnis- und Spielplanaktionen bewusst noch offen)
 * [ ] langfristig: Rollen für Anzeige / Helfer / Admin einführen
-* [~] Admin-Login (Grundlage vorhanden, noch nicht auf schreibende Routen angewendet)
+* [~] Admin-Login (Grundlage und zentraler Bereichsschutz vorhanden; Rollen und weitere Schreibbereiche noch offen)
 * [ ] Rollen:
 
   * Admin

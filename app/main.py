@@ -9,12 +9,13 @@ import re
 import secrets
 import shutil
 from typing import List, Optional
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.database import init_db, get_conn, DB_PATH
 from pathlib import Path
@@ -35,6 +36,46 @@ SESSION_HTTPS_ONLY = os.getenv(
     "SPORTFEST_SESSION_HTTPS_ONLY", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
 
+ADMIN_AREA_PREFIXES = (
+    "/einstellungen",
+    "/teams",
+    "/spielfelder",
+    "/wettbewerbe",
+)
+
+# Einige bestehende Formularziele liegen historisch nicht unter dem
+# sichtbaren Bereichspfad. Ergebnis- und Spielplanaktionen sind bewusst
+# nicht Teil dieser Liste.
+ADMIN_ACTION_AREAS = (
+    (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "/teams"),
+    (re.compile(r"^/court(?:/create|/[^/]+/(?:update|delete))$"), "/spielfelder"),
+    (re.compile(r"^/competition/create$"), "/wettbewerbe"),
+    (
+        re.compile(
+            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete)$"
+        ),
+        "/wettbewerbe",
+    ),
+    (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "/wettbewerbe"),
+)
+
+
+class AdminAreaMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        admin_area = get_admin_area(request.url.path)
+        if admin_area:
+            admin_redirect = require_admin(
+                request,
+                next_url=get_admin_return_url(request, admin_area),
+            )
+            if admin_redirect:
+                return admin_redirect
+        return await call_next(request)
+
+
+# Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
+# request.session zugreifen kann.
+app.add_middleware(AdminAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
@@ -149,14 +190,39 @@ def get_setting(key: str, default: Optional[str] = None):
     return setting["value"] if setting else default
 
 
-def get_security_enabled_setting():
+def set_setting(key: str, value: str):
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+        conn.commit()
+
+
+def get_security_environment_override():
     environment_value = os.getenv("SPORTFEST_SECURITY_ENABLED")
-    raw_value = (
-        environment_value
-        if environment_value not in (None, "")
-        else get_setting("security_enabled", str(DEFAULT_SECURITY_ENABLED).lower())
+    if environment_value in (None, ""):
+        return None
+    return environment_value.strip().lower() in TRUE_SETTING_VALUES
+
+
+def get_security_database_setting():
+    raw_value = get_setting(
+        "security_enabled",
+        str(DEFAULT_SECURITY_ENABLED).lower(),
     )
     return str(raw_value).strip().lower() in TRUE_SETTING_VALUES
+
+
+def get_security_enabled_setting():
+    environment_override = get_security_environment_override()
+    if environment_override is not None:
+        return environment_override
+    return get_security_database_setting()
 
 
 def get_admin_password():
@@ -209,6 +275,40 @@ def safe_next_url(value: str, default: str = "/"):
     ):
         return value
     return default
+
+
+def get_admin_area(path: str):
+    for prefix in ADMIN_AREA_PREFIXES:
+        if path == prefix or path.startswith(f"{prefix}/"):
+            return prefix
+
+    for pattern, admin_area in ADMIN_ACTION_AREAS:
+        if pattern.fullmatch(path):
+            return admin_area
+    return None
+
+
+def get_admin_return_url(request: Request, admin_area: str):
+    if request.method in {"GET", "HEAD"}:
+        return_url = request.url.path
+        if request.url.query:
+            return_url = f"{return_url}?{request.url.query}"
+        return safe_next_url(return_url, admin_area)
+
+    referer = request.headers.get("referer", "")
+    if referer:
+        parsed_referer = urlsplit(referer)
+        same_origin = (
+            not parsed_referer.netloc
+            or parsed_referer.netloc == request.url.netloc
+        )
+        if same_origin and get_admin_area(parsed_referer.path) == admin_area:
+            return_url = parsed_referer.path
+            if parsed_referer.query:
+                return_url = f"{return_url}?{parsed_referer.query}"
+            return safe_next_url(return_url, admin_area)
+
+    return admin_area
 
 
 def collect_system_info():
@@ -2942,7 +3042,10 @@ def teams(request: Request):
 
 
 @app.post("/team/create")
-def create_team(name: str = Form(...), jahrgang: int = Form(...)):
+def create_team(
+    name: str = Form(...),
+    jahrgang: int = Form(...),
+):
     with get_conn() as conn:
         conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)", (name.strip(), jahrgang))
         conn.commit()
@@ -3651,7 +3754,10 @@ def spielfelder(request: Request):
 
 
 @app.post("/court/create")
-def create_court(name: str = Form(...), sportart: str = Form("")):
+def create_court(
+    name: str = Form(...),
+    sportart: str = Form(""),
+):
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO courts (name, sportart, active)
@@ -3741,6 +3847,7 @@ def einstellungen(
     backup_status: str = "",
     backup_file: str = "",
     settings_status: str = "",
+    security_status: str = "",
     saved_at: str = "",
 ):
     try:
@@ -3753,9 +3860,11 @@ def einstellungen(
         "backup_status": backup_status,
         "backup_file": backup_file,
         "settings_status": settings_status,
+        "security_status": security_status,
         "saved_at": saved_at_value,
         "security_enabled": is_security_enabled(),
         "security_requested": get_security_enabled_setting(),
+        "security_environment_override": get_security_environment_override(),
         "login_prepared": is_login_prepared(),
         "logged_in": is_logged_in(request),
     })
@@ -3775,12 +3884,45 @@ def dokumentation(request: Request):
     )
 
 
-@app.post("/einstellungen/backup")
-def create_backup(request: Request):
-    admin_redirect = require_admin(request, next_url="/einstellungen")
-    if admin_redirect:
-        return admin_redirect
+@app.post("/einstellungen/security")
+def update_security_setting(
+    request: Request,
+    security_enabled: str = Form(...),
+    admin_password: str = Form(...),
+):
+    configured_password = get_admin_password()
+    if not configured_password or not secrets.compare_digest(
+        admin_password,
+        configured_password,
+    ):
+        return RedirectResponse(
+            "/einstellungen?security_status=invalid_password",
+            status_code=303,
+        )
 
+    if get_security_environment_override() is not None:
+        return RedirectResponse(
+            "/einstellungen?security_status=environment_override",
+            status_code=303,
+        )
+
+    target_value = security_enabled.strip().lower()
+    if target_value not in {"true", "false"}:
+        return RedirectResponse(
+            "/einstellungen?security_status=invalid_value",
+            status_code=303,
+        )
+
+    set_setting("security_enabled", target_value)
+    request.session["admin_logged_in"] = True
+    return RedirectResponse(
+        f"/einstellungen?security_status={'enabled' if target_value == 'true' else 'disabled'}",
+        status_code=303,
+    )
+
+
+@app.post("/einstellungen/backup")
+def create_backup():
     if not DB_PATH.exists():
         return RedirectResponse(
             "/einstellungen?backup_status=error",
@@ -3813,13 +3955,8 @@ def create_backup(request: Request):
 
 @app.post("/einstellungen/beamer-intervall")
 def update_beamer_interval(
-    request: Request,
     beamer_refresh_seconds: int = Form(...),
 ):
-    admin_redirect = require_admin(request, next_url="/einstellungen")
-    if admin_redirect:
-        return admin_redirect
-
     if beamer_refresh_seconds <= 0:
         return RedirectResponse(
             "/einstellungen?settings_status=invalid",
