@@ -241,6 +241,139 @@
         applyState(keepCollapsed);
     });
 })();
+
+(() => {
+    const storageKey = "form-restore-state";
+    const currentPath = window.location.pathname;
+
+    const safeSessionGet = () => {
+        try {
+            return sessionStorage.getItem(storageKey);
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const safeSessionSet = (value) => {
+        try {
+            sessionStorage.setItem(storageKey, value);
+        } catch (_) {
+            // Ignore storage errors.
+        }
+    };
+
+    const safeSessionRemove = () => {
+        try {
+            sessionStorage.removeItem(storageKey);
+        } catch (_) {
+            // Ignore storage errors.
+        }
+    };
+
+    const buildSubmitterDescriptor = (submitter) => {
+        if (!submitter) return null;
+
+        const descriptor = {
+            tag: submitter.tagName,
+            type: submitter.getAttribute("type") || "submit",
+            text: (submitter.textContent || "").trim().slice(0, 120)
+        };
+
+        const name = submitter.getAttribute("name");
+        const value = submitter.getAttribute("value");
+        const formAction = submitter.getAttribute("formaction");
+
+        if (submitter.id) descriptor.id = submitter.id;
+        if (name) descriptor.name = name;
+        if (value) descriptor.value = value;
+        if (formAction) descriptor.formAction = formAction;
+
+        return descriptor;
+    };
+
+    const findSubmitter = (form, descriptor) => {
+        if (!form || !descriptor) return null;
+        if (descriptor.id) {
+            const byId = document.getElementById(descriptor.id);
+            if (byId && byId.form === form) {
+                return byId;
+            }
+        }
+
+        const candidates = Array.from(
+            form.querySelectorAll("button, input[type='submit'], input[type='button']")
+        );
+
+        return candidates.find((candidate) => {
+            const candidateType = candidate.getAttribute("type") || (candidate.tagName === "BUTTON" ? "submit" : "");
+            const candidateText = (candidate.textContent || candidate.value || "").trim().slice(0, 120);
+            const candidateName = candidate.getAttribute("name");
+            const candidateValue = candidate.getAttribute("value");
+            const candidateFormAction = candidate.getAttribute("formaction");
+
+            return candidate.tagName === descriptor.tag
+                && candidateType === descriptor.type
+                && candidateText === descriptor.text
+                && (descriptor.name || "") === (candidateName || "")
+                && (descriptor.value || "") === (candidateValue || "")
+                && (descriptor.formAction || "") === (candidateFormAction || "");
+        }) || null;
+    };
+
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (event.defaultPrevented) return;
+
+        const method = (form.getAttribute("method") || "get").toLowerCase();
+        if (method !== "post") return;
+
+        const targetUrl = new URL(form.action || window.location.href, window.location.href);
+        if (targetUrl.origin !== window.location.origin) return;
+
+        const returnPath = targetUrl.searchParams.get("next") || currentPath;
+
+        safeSessionSet(JSON.stringify({
+            path: returnPath,
+            scrollY: window.scrollY,
+            submitter: buildSubmitterDescriptor(event.submitter)
+        }));
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+        const rawState = safeSessionGet();
+        if (!rawState) return;
+
+        let state = null;
+        try {
+            state = JSON.parse(rawState);
+        } catch (_) {
+            safeSessionRemove();
+            return;
+        }
+
+        if (!state || state.path !== currentPath) {
+            safeSessionRemove();
+            return;
+        }
+
+        safeSessionRemove();
+
+        if (typeof state.scrollY === "number") {
+            window.scrollTo({ top: state.scrollY, left: 0, behavior: "auto" });
+        }
+
+        const highlightedSubmitter = findSubmitter(document.activeElement?.form, state.submitter)
+            || Array.from(document.forms).map((form) => findSubmitter(form, state.submitter)).find(Boolean);
+
+        if (highlightedSubmitter) {
+            highlightedSubmitter.classList.add("submit-restore-highlight");
+            window.setTimeout(() => {
+                highlightedSubmitter.classList.remove("submit-restore-highlight");
+            }, 1800);
+        }
+    });
+})();
 </script>
 </body>
 </html>

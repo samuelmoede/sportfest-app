@@ -532,6 +532,13 @@ button.outline {
     color: var(--orange);
 }
 
+.submit-restore-highlight {
+    outline: 3px solid rgba(37, 99, 235, 0.38);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.12);
+    transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+}
+
 .cards {
     display: grid;
     grid-template-columns: repeat(3, minmax(240px, 1fr));

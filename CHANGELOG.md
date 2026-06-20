@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Formular-Redirects behalten jetzt global die ungefaehre Scrollposition: Vor normalen POST-Submits wird die aktuelle Position in `sessionStorage` gespeichert und nach dem Reload auf derselben Seite wiederhergestellt; der zuletzt gedrueckte Submit-Button wird kurz hervorgehoben.
 - Dashboard mobil optimiert: zu breite Karten/Zeilen wurden fuer Smartphone-Breiten kompakter gemacht (insbesondere laufende Spiele und weitere kommende Veranstaltungen), damit Inhalte ohne seitliches Herausragen nutzbar bleiben.
 - Mobiles Navigationslayout ueberarbeitet: Auf Smartphone-Breite wird die Desktop-Sidebar ausgeblendet und durch eine kompakte Kopfzeile mit "☰ Menü" ersetzt; Navigation oeffnet als schliessbares Overlay-Drawer, waehrend der Seiteninhalt die volle Breite nutzt.
 - Mobile/Responsive Sechskampf-Ergebniseingabe auf /ergebnisse ueberarbeitet: kompakte Klassenkarten, Kopfbereich mit Klasse/Gesamt/Speichern plus kleine Speicherzeit (HH:MM), direkte Eingabefelder ohne grosse Luecke, dichter responsiver Werte-Grid (Handy/Tablet/Laptop), 16px-Inputs gegen Browser-Zoom sowie sticky Stationskopf beim Scrollen.
