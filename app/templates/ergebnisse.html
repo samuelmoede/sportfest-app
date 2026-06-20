@@ -458,7 +458,7 @@ function updateResultTimers() {
         if (planned > 0) {
             const delta = seconds - planned;
             if (delta >= 0) {
-                el.textContent = `Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
+                el.textContent = `Spielzeit abgelaufen · Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
                 el.classList.add('overrun');
             } else if (planned - seconds <= 60) {
                 el.textContent = `Laufzeit ${runtime} · Ende in ${formatDuration(planned - seconds)}`;

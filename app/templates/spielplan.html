@@ -108,7 +108,9 @@
 
         {% for s in group.slots %}
         <div class="slot-card {{ s.status }}">
-            <div class="slot-time">Geplant {{ s.startzeit }}</div>
+            <div class="slot-time">
+                Geplant {{ s.startzeit }}{% if s.game_end_time %}–{{ s.game_end_time }}{% endif %}
+            </div>
             <div class="slot-type">{{ s.slot_typ }}</div>
 
             {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" %}
@@ -199,7 +201,7 @@ function updateScheduleTimers() {
         if (planned > 0) {
             const delta = seconds - planned;
             if (delta >= 0) {
-                el.textContent = `Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
+                el.textContent = `Spielzeit abgelaufen · Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
                 el.classList.add('overrun');
             } else if (planned - seconds <= 60) {
                 el.textContent = `Laufzeit ${runtime} · Ende in ${formatDuration(planned - seconds)}`;

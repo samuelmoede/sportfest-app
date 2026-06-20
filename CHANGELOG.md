@@ -4,9 +4,13 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Turnierzeiten ergänzt: Wettbewerbe speichern jetzt Spielzeit und Wechselzeit (Standard 7/3 Minuten); der Generator verwendet deren Summe als Startabstand, zeigt keine Wechsel-Slots an und die Schiedsrichter-/Spielplan-Timer zählen ausschließlich die Spielzeit.
+- Spielplan-Generator bereinigt: Vorschau und Übernahme erzeugen nur noch echte Spiel-Slots; automatisch eingefügte `Leer`-Slots und Notizen wie „Feld frei / Puffer“ entfallen, während Hinweise auf direkt aufeinanderfolgende Einsätze erhalten bleiben.
+- Mobile Spielplanbearbeitung stabilisiert: Formulare und Dropdowns bleiben innerhalb ihrer Karten, schmale Ansichten brechen einspaltig um und lange Team-, Feld- oder Statusbezeichnungen erzeugen kein horizontales Seiten-Scrolling mehr.
+- Wettbewerbsverwaltung korrigiert: Der Ort lässt sich bei bestehenden Wettbewerben wieder fehlerfrei speichern; am Wettbewerb wird nur noch die grobe Ortsangabe gepflegt, während Felder und Unterbereiche ausschließlich in der Spielplanbearbeitung zugeordnet werden. Das Anlageformular auf `/wettbewerbe` ist nun platzsparend über „+ Wettbewerb anlegen“ aufklappbar.
 - Spielplan-Darstellung nach Ort differenziert: Turnhalle behält die bestehende Feldansicht, Fußballplatz zeigt eigene Unterbereiche und Außenbereich erscheint als chronologische Wettbewerbsliste mit Start-/Endzeit, Jahrgang und Typ.
 - Spielplan-Karten zeigen bei normalen Turnierspielen den kompakten aktuellen Spielstand zwischen beiden Teams; ohne vollständiges Ergebnis erscheint weiterhin „vs“, Sechskampf-Programmpunkte bleiben ohne Spielstand.
-- Wettbewerbe können optional einem Ort (Turnhalle, Fußballplatz oder Außenbereich) zugeordnet werden. Fußballplatz kann zusätzlich zwischen Rasenplatz und Tartanplatz unterscheiden; slotlose Wettbewerbe mit Zeitfenster erscheinen im Spielplan zusätzlich nach Ort gruppiert und der Ortsfilter ist entsprechend erweitert.
+- Wettbewerbe können optional einem groben Ort (Turnhalle, Fußballplatz oder Außenbereich) zugeordnet werden; konkrete Felder oder Unterbereiche werden erst in der Spielplanbearbeitung festgelegt. Slotlose Wettbewerbe mit Zeitfenster erscheinen im Spielplan zusätzlich nach Ort gruppiert und der Ortsfilter ist entsprechend erweitert.
 - Veranstaltungsdetailseite um einen einfachen Veranstaltungsplan erweitert: Wettbewerbe werden nach Start-/Endzeit sortiert, Sechskampf zeigt seine Disziplinen als Stationen und Turniere verlinken weiterhin auf den normalen Spielplan; Einträge ohne vollständige Zeitangabe stehen am Ende.
 - Nicht angemeldete Nutzer erhalten automatisch die Rolle viewer und können die öffentlichen Seiten ohne vorgeschalteten Login öffnen.
 - /login dient jetzt als „Rechte erweitern“-Seite für Helfer (referee) und Admins; die Navigation zeigt die aktuelle Rolle sowie je nach Zustand Rechteerweiterung oder Logout.

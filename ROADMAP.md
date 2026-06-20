@@ -115,7 +115,8 @@ Status: teilweise umgesetzt
 * [ ] Wettbewerbe nur noch über Veranstaltungen erreichbar machen
 * [x] Startzeit und Endzeit pro Wettbewerb ergänzen
 * [x] Optionalen Veranstaltungsort pro Wettbewerb ergänzen, slotlose Wettbewerbe nach Ort anzeigen und Spielplan nach Ort filtern
-* [x] Ortsmodell erweitert: Turnhalle, Fußballplatz mit Rasenplatz/Tartanplatz, Außenbereich ohne Unterbereiche
+* [x] Grobes Ortsmodell am Wettbewerb: Turnhalle, Fußballplatz oder Außenbereich; Felder und Unterbereiche werden erst in der Spielplanbearbeitung zugeordnet
+* [x] Anlageformular auf `/wettbewerbe` platzsparend aufklappbar gemacht
 * [ ] Wettbewerbstyp sauber unterscheiden:
 
   * Turnier
@@ -162,9 +163,16 @@ Status: teilweise umgesetzt
 * [x] Spielplanvorschläge erzeugen
 * [x] Gleichzeitige Einsätze derselben Klasse verhindern
 * [x] Validierung der Vorschau ergänzen
+* [x] Generator auf echte Spiel-Slots ohne automatische Leer-/Puffer-Slots begrenzen
 * [ ] Generator für beliebige Jahrgangsstärken robuster machen
 * [ ] exakt gewünschte Anzahl Spiele pro Team garantieren
-* [ ] Pausen zwischen Spielen berücksichtigen
+* [x] Modul „Spielzeit und Wechselzeit“:
+
+  * [x] Spielzeit pro Turnier einstellbar
+  * [x] Wechselzeit pro Turnier einstellbar
+  * [x] Startabstand aus Spielzeit plus Wechselzeit berechnen
+  * [x] Schiedsrichter-Timer auf die reine Spielzeit begrenzen
+  * [ ] optionale Pufferzeiten später ergänzen
 * [ ] ungerade Teamzahlen sauber behandeln
 * [ ] Gruppengrößen flexibel machen
 * [ ] KO-Runden nur bei gültiger Konfiguration erzeugen

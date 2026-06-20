@@ -172,6 +172,7 @@
     }
 </style>
 
+<div class="schedule-editor-page">
 <section class="panel">
     <h2>Turnier auswählen</h2>
 
@@ -261,9 +262,6 @@
         <label>Startzeit</label>
         <input type="time" name="startzeit" value="08:00" required>
 
-        <label>Slotdauer</label>
-        <input type="number" name="slot_minutes" value="10" min="1" required>
-
         <label>Vorrundenspiele pro Team</label>
         <input type="number" name="games_per_team" value="2" min="1" required>
 
@@ -294,6 +292,14 @@
     <form method="post" action="/plan-generator/apply" class="preview-table">
         <h3>Vorschau</h3>
 
+        {% if plan_timing %}
+        <p class="muted plan-timing-summary">
+            <strong>Spielzeit:</strong> {{ plan_timing.game_duration_minutes }} min ·
+            <strong>Wechselzeit:</strong> {{ plan_timing.changeover_duration_minutes }} min ·
+            <strong>Startabstand:</strong> {{ plan_timing.slot_interval_minutes }} min
+        </p>
+        {% endif %}
+
         <table>
             <tr>
                 <th>Zeit</th>
@@ -307,7 +313,7 @@
 
             {% for s in proposed_slots %}
             <tr>
-                <td>{{ s.startzeit }}</td>
+                <td>{{ s.startzeit }}{% if s.game_end_time %}–{{ s.game_end_time }}{% endif %}</td>
                 <td>{{ s.court_name }}</td>
                 <td>{{ s.slot_typ }}</td>
                 <td>{{ s.phase }}</td>
@@ -620,6 +626,7 @@
 </section>
 
 </form>
+</div>
 
 <script>
 let draggedSlot = null;
@@ -831,7 +838,7 @@ function updateScheduleTimers() {
         if (planned > 0) {
             const delta = seconds - planned;
             if (delta >= 0) {
-                el.textContent = `Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
+                el.textContent = `Spielzeit abgelaufen · Laufzeit ${runtime} · Überzug +${formatDuration(delta)}`;
                 el.classList.add('overrun');
             } else if (planned - seconds <= 60) {
                 el.textContent = `Laufzeit ${runtime} · Ende in ${formatDuration(planned - seconds)}`;

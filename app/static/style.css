@@ -941,6 +941,44 @@ section.cards.competition-list {
     gap: 24px;
 }
 
+.competition-create-details {
+    margin-bottom: 24px;
+}
+
+.competition-create-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 11px 16px;
+    border-radius: 8px;
+    background: var(--green);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.competition-create-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.competition-create-toggle:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.38);
+    outline-offset: 2px;
+}
+
+.competition-create-body {
+    margin-top: 12px;
+    padding: 20px 24px 24px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: white;
+}
+
+.competition-create-body h2 {
+    margin-top: 0;
+}
+
 .competition-card-details {
     background: white;
     border: 1px solid var(--border);
@@ -1435,6 +1473,84 @@ pre {
 
 .points-form button {
     grid-column: 2;
+}
+
+.schedule-editor-page,
+.schedule-editor-page > *,
+.schedule-editor-page form,
+.schedule-editor-page .panel,
+.schedule-editor-page .generator-box,
+.schedule-editor-page .ko-box,
+.schedule-editor-page .schedule-board,
+.schedule-editor-page .court-column,
+.schedule-editor-page .slot-card,
+.schedule-editor-page .modal {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page input,
+.schedule-editor-page select,
+.schedule-editor-page button {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page select {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-editor-page button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.schedule-editor-page .generator-grid > *,
+.schedule-editor-page .filter-row > *,
+.schedule-editor-page .admin-form > *,
+.schedule-editor-page .toolbar > *,
+.schedule-editor-page .ko-actions > *,
+.schedule-editor-page .slot-actions > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page .court-column h2,
+.schedule-editor-page .court-checkboxes label,
+.schedule-editor-page .slot-card strong,
+.schedule-editor-page .slot-type,
+.schedule-editor-page .slot-footer > *,
+.schedule-editor-page .phase-label {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.schedule-editor-page .slot-duration,
+.schedule-editor-page .slot-started,
+.schedule-editor-page .slot-footer .badge {
+    white-space: normal;
+}
+
+.schedule-editor-page .slot-teams,
+.schedule-editor-page .slot-footer,
+.schedule-editor-page .slot-actions {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page .slot-footer {
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.schedule-editor-page .slot-actions > form {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .schedule-board {
@@ -1992,6 +2108,51 @@ body {
     .generator-box {
         padding: 18px;
     }
+    .schedule-editor-page .schedule-board {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+    .schedule-editor-page .filter-row,
+    .schedule-editor-page .generator-grid,
+    .schedule-editor-page .admin-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+    }
+    .schedule-editor-page .filter-row button,
+    .schedule-editor-page .generator-grid button,
+    .schedule-editor-page .admin-form button {
+        width: 100%;
+        grid-column: auto;
+    }
+    .schedule-editor-page .filter-row select,
+    .schedule-editor-page .generator-grid input,
+    .schedule-editor-page .generator-grid select,
+    .schedule-editor-page .admin-form input,
+    .schedule-editor-page .admin-form select,
+    .schedule-editor-page .admin-form button {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .schedule-editor-page .modal-backdrop {
+        padding: 12px;
+    }
+    .schedule-editor-page .modal {
+        width: 100%;
+        padding: 18px;
+    }
+    .schedule-editor-page .modal-header {
+        min-width: 0;
+    }
+    .schedule-editor-page .modal-header h2 {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+    .schedule-editor-page .modal-close {
+        flex: 0 0 42px;
+    }
     .admin-form,
     .points-form,
     .generator-grid,
@@ -2040,6 +2201,9 @@ body {
         align-items: flex-start;
     }
     .competition-summary {
+        padding: 18px;
+    }
+    .competition-create-body {
         padding: 18px;
     }
     .competition-summary-meta {
@@ -2190,6 +2354,26 @@ body {
         margin-left: 0;
         width: 100%;
         padding: 20px 14px;
+    }
+
+    .schedule-editor-page .toolbar,
+    .schedule-editor-page .ko-actions,
+    .schedule-editor-page .slot-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .schedule-editor-page .toolbar > *,
+    .schedule-editor-page .toolbar form,
+    .schedule-editor-page .ko-actions form,
+    .schedule-editor-page .slot-actions form,
+    .schedule-editor-page .toolbar button,
+    .schedule-editor-page .ko-actions button,
+    .schedule-editor-page .slot-actions button {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .dashboard-page .dashboard-head {

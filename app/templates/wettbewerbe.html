@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Wettbewerbe</h1>
-<p class="muted">Turniere anlegen, Status setzen, Punktevergabe einstellen, archivieren oder löschen.</p>
+<p class="muted">Wettbewerbe anlegen, Status setzen, Punktevergabe einstellen, archivieren oder löschen.</p>
 
-<section class="panel">
-    <h2>Neues Turnier anlegen</h2>
+<details class="competition-create-details">
+    <summary class="competition-create-toggle">+ Wettbewerb anlegen</summary>
+    <div class="competition-create-body">
+        <h2>Neuen Wettbewerb anlegen</h2>
 
     <form method="post" action="/competition/create" class="admin-form">
         <label>Name</label>
@@ -27,14 +29,6 @@
             {% endfor %}
         </select>
 
-        <label class="location-subarea-field" hidden>Unterbereich</label>
-        <select class="location-subarea-field" name="location_subarea" hidden>
-            <option value="">Keine Angabe</option>
-            {% for subarea in competition_location_subareas.get('Fußballplatz', []) %}
-            <option value="{{ subarea }}">{{ subarea }}</option>
-            {% endfor %}
-        </select>
-
         <label>Jahrgang</label>
         <select name="jahrgang" required>
             {% for year in team_years %}
@@ -47,6 +41,14 @@
             <option value="Turnier">Turnier</option>
             <option value="Sechskampf">Sechskampf</option>
         </select>
+
+        <label class="tournament-timing">Spielzeit in Minuten</label>
+        <input class="tournament-timing" type="number" name="game_duration_minutes"
+               value="{{ default_game_duration_minutes }}" min="1" required>
+
+        <label class="tournament-timing">Wechselzeit in Minuten</label>
+        <input class="tournament-timing" type="number" name="changeover_duration_minutes"
+               value="{{ default_changeover_duration_minutes }}" min="0" required>
 
         <label class="sixkampf-points" hidden>Punkte für Platz 1</label>
         <input class="sixkampf-points" hidden type="number" name="points_first_place"
@@ -64,6 +66,14 @@
             {% endfor %}
         </select>
 
+        <label>Status</label>
+        <select name="status" required>
+            <option value="geplant">geplant</option>
+            <option value="läuft">läuft</option>
+            <option value="beendet">beendet</option>
+            <option value="archiviert">archiviert</option>
+        </select>
+
         <label>Punkte Sieg</label>
         <input type="number" step="0.5" name="points_win" value="3" required>
 
@@ -73,9 +83,10 @@
         <label>Punkte Niederlage</label>
         <input type="number" step="0.5" name="points_loss" value="0" required>
 
-        <button class="green" type="submit">Turnier anlegen</button>
+        <button class="green" type="submit">Wettbewerb anlegen</button>
     </form>
-</section>
+    </div>
+</details>
 
 <section class="cards competition-list">
 {% for c in competitions %}
@@ -90,8 +101,11 @@
                 <span class="competition-meta-item"><strong>Sportart:</strong> {{ c.sportart }}</span>
                 <span class="competition-meta-item"><strong>Jahrgang:</strong> {{ c.jahrgang }}</span>
                 <span class="competition-meta-item"><strong>Typ:</strong> {{ c.competition_type }}</span>
+                {% if c.competition_type == "Turnier" %}
+                <span class="competition-meta-item"><strong>Zeiten:</strong> {{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</span>
+                {% endif %}
                 {% if c.location %}
-                <span class="competition-meta-item"><strong>Ort:</strong> {{ c.location }}{% if c.location_subarea %} / {{ c.location_subarea }}{% endif %}</span>
+                <span class="competition-meta-item"><strong>Ort:</strong> {{ c.location }}</span>
                 {% endif %}
                 <span class="competition-meta-item"><strong>Veranstaltung:</strong> {{ events_by_id[c.event_id].name if c.event_id and events_by_id.get(c.event_id) else 'Ohne Veranstaltung' }}</span>
             </div>
@@ -121,6 +135,16 @@
                     <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
                 </select>
 
+                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Spielzeit in Minuten</label>
+                <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
+                       type="number" name="game_duration_minutes"
+                       value="{{ c.game_duration_minutes or default_game_duration_minutes }}" min="1" required>
+
+                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Wechselzeit in Minuten</label>
+                <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
+                       type="number" name="changeover_duration_minutes"
+                       value="{{ c.changeover_duration_minutes if c.changeover_duration_minutes is not none else default_changeover_duration_minutes }}" min="0" required>
+
                 <label>Startzeit</label>
                 <input type="time" name="start_time" value="{{ c.start_time or '' }}">
 
@@ -132,14 +156,6 @@
                     <option value="">Keine Angabe</option>
                     {% for location in competition_locations %}
                     <option value="{{ location }}" {% if c.location == location %}selected{% endif %}>{{ location }}</option>
-                    {% endfor %}
-                </select>
-
-                <label class="location-subarea-field" {% if c.location != "Fußballplatz" %}hidden{% endif %}>Unterbereich</label>
-                <select class="location-subarea-field" name="location_subarea" {% if c.location != "Fußballplatz" %}hidden{% endif %}>
-                    <option value="">Keine Angabe</option>
-                    {% for subarea in competition_location_subareas.get('Fußballplatz', []) %}
-                    <option value="{{ subarea }}" {% if c.location_subarea == subarea %}selected{% endif %}>{{ subarea }}</option>
                     {% endfor %}
                 </select>
 
@@ -267,14 +283,17 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
     const typeSelect = form.querySelector('[name="competition_type"]');
     if (!typeSelect) return;
 
-    const toggleSixkampfPoints = () => {
+    const toggleTypeFields = () => {
         const isSixkampf = typeSelect.value === "Sechskampf";
         form.querySelectorAll('.sixkampf-points').forEach(element => {
             element.hidden = !isSixkampf;
         });
+        form.querySelectorAll('.tournament-timing').forEach(element => {
+            element.hidden = isSixkampf;
+        });
     };
-    typeSelect.addEventListener("change", toggleSixkampfPoints);
-    toggleSixkampfPoints();
+    typeSelect.addEventListener("change", toggleTypeFields);
+    toggleTypeFields();
 });
 
 const createForm = document.querySelector('form[action="/competition/create"]');
@@ -286,24 +305,6 @@ if (createForm) {
     });
 }
 
-document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
-    const locationSelect = form.querySelector('[name="location"]');
-    const subareaControls = form.querySelectorAll('.location-subarea-field');
-    if (!locationSelect || !subareaControls.length) return;
-
-    const toggleLocationSubarea = () => {
-        const showSubarea = locationSelect.value === "Fußballplatz";
-        subareaControls.forEach(element => {
-            element.hidden = !showSubarea;
-            if (!showSubarea && element.tagName === "SELECT") {
-                element.value = "";
-            }
-        });
-    };
-
-    locationSelect.addEventListener("change", toggleLocationSubarea);
-    toggleLocationSubarea();
-});
 </script>
 {% endblock %}
 

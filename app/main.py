@@ -125,6 +125,8 @@ COMPETITION_LOCATION_SUBAREAS = {
 COMPETITION_LOCATION_ALIASES = {
     "Sportplatz": "Fußballplatz",
 }
+DEFAULT_GAME_DURATION_MINUTES = 7
+DEFAULT_CHANGEOVER_DURATION_MINUTES = 3
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -600,6 +602,99 @@ def parse_slot_time(value: str):
     return None
 
 
+def get_competition_timing(competition):
+    def read_minutes(key, default, minimum):
+        try:
+            raw_value = competition[key]
+        except (KeyError, TypeError, IndexError):
+            raw_value = default
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            value = default
+        return value if value >= minimum else default
+
+    game_duration_minutes = read_minutes(
+        "game_duration_minutes", DEFAULT_GAME_DURATION_MINUTES, 1
+    )
+    changeover_duration_minutes = read_minutes(
+        "changeover_duration_minutes", DEFAULT_CHANGEOVER_DURATION_MINUTES, 0
+    )
+    return {
+        "game_duration_minutes": game_duration_minutes,
+        "changeover_duration_minutes": changeover_duration_minutes,
+        "slot_interval_minutes": game_duration_minutes + changeover_duration_minutes,
+    }
+
+
+def get_game_end_time(startzeit: str, game_duration_minutes: int):
+    start = parse_slot_time(startzeit)
+    if start is None:
+        return None
+    return (start + timedelta(minutes=game_duration_minutes)).strftime("%H:%M")
+
+
+def recalculate_competition_court_times(conn, competition_id: int, court_id):
+    competition = conn.execute(
+        "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+    ).fetchone()
+    if competition is None:
+        return None
+
+    start = parse_slot_time(competition["start_time"])
+    if start is None:
+        return None
+
+    game_slots = conn.execute("""
+        SELECT id
+        FROM slots
+        WHERE competition_id = ?
+          AND court_id IS ?
+          AND slot_typ = 'Spiel'
+        ORDER BY sort_order, id
+    """, (competition_id, court_id)).fetchall()
+    if not game_slots:
+        return None
+
+    timing = get_competition_timing(competition)
+    for index, slot in enumerate(game_slots):
+        calculated_start = start + timedelta(
+            minutes=index * timing["slot_interval_minutes"]
+        )
+        conn.execute(
+            "UPDATE slots SET startzeit = ? WHERE id = ?",
+            (calculated_start.strftime("%H:%M"), slot["id"]),
+        )
+
+    projected_end = start + timedelta(
+        minutes=(len(game_slots) - 1) * timing["slot_interval_minutes"]
+        + timing["game_duration_minutes"]
+    )
+    planned_end = parse_slot_time(competition["end_time"])
+    if planned_end is None or projected_end <= planned_end:
+        return None
+
+    if court_id is None:
+        court_name = "Ohne Feld"
+    else:
+        court = conn.execute(
+            "SELECT name FROM courts WHERE id = ?", (court_id,)
+        ).fetchone()
+        court_name = court["name"] if court is not None else f"Feld {court_id}"
+
+    return {
+        "court_id": court_id,
+        "court_name": court_name,
+        "projected_end": projected_end.strftime("%H:%M"),
+        "planned_end": planned_end.strftime("%H:%M"),
+        "message": (
+            f"Warnung: {court_name} endet voraussichtlich um "
+            f"{projected_end.strftime('%H:%M')}, geplant war "
+            f"{planned_end.strftime('%H:%M')}."
+        ),
+    }
+
+
 def parse_event_date(value: str):
     if not value:
         return None
@@ -663,17 +758,6 @@ def normalize_competition_location(raw_value: Optional[str]):
     return None
 
 
-def normalize_competition_location_subarea(location: Optional[str], raw_value: Optional[str]):
-    if location != "Fußballplatz" or raw_value is None:
-        return None
-    normalized = str(raw_value).strip()
-    if not normalized:
-        return None
-    if normalized in COMPETITION_LOCATION_SUBAREAS["Fußballplatz"]:
-        return normalized
-    return None
-
-
 def build_default_placement_points(points_first_place: int):
     try:
         highest_points = int(points_first_place)
@@ -704,14 +788,13 @@ def format_points_value(value):
     return str(value).replace(".", ",")
 
 
-def combine_time_today(value: datetime):
-    if value is None:
+def combine_time_on_date(value: datetime, target_date: date):
+    if value is None or target_date is None:
         return None
-    now = datetime.now()
     return datetime(
-        now.year,
-        now.month,
-        now.day,
+        target_date.year,
+        target_date.month,
+        target_date.day,
         value.hour,
         value.minute,
         value.second,
@@ -722,9 +805,19 @@ def format_time_range(start: datetime, end: datetime):
     return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
-def build_day_schedule(competitions):
+def build_day_schedule(competitions, event_date=None, now=None):
     columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
     blocks = {}
+    now = now or datetime.now()
+    event_day = parse_event_date(event_date)
+    if event_day is None:
+        event_state = "undated"
+    elif event_day < now.date():
+        event_state = "past"
+    elif event_day > now.date():
+        event_state = "future"
+    else:
+        event_state = "today"
 
     def get_field(item, key):
         if hasattr(item, "get"):
@@ -759,33 +852,36 @@ def build_day_schedule(competitions):
             block["cells"][yeargang].append(label)
 
     rows = sorted(blocks.values(), key=lambda block: (block["start"].time(), block["end"].time()))
-    now = datetime.now()
     current_block = None
     next_block = None
 
-    for block in rows:
-        start_today = combine_time_today(block["start"])
-        end_today = combine_time_today(block["end"])
-        if start_today <= now < end_today:
-            current_block = {**block, "start_today": start_today, "end_today": end_today}
-            break
+    if event_state == "today":
+        for block in rows:
+            start_at = combine_time_on_date(block["start"], event_day)
+            end_at = combine_time_on_date(block["end"], event_day)
+            if start_at <= now < end_at:
+                current_block = {**block, "start_at": start_at, "end_at": end_at}
+                break
 
-    if current_block is None:
         future_blocks = [
-            {**block, "start_today": combine_time_today(block["start"])}
+            {**block, "start_at": combine_time_on_date(block["start"], event_day)}
             for block in rows
-            if combine_time_today(block["start"]) > now
+            if combine_time_on_date(block["start"], event_day) > now
         ]
         if future_blocks:
-            next_block = min(future_blocks, key=lambda block: block["start_today"])
-    else:
-        future_blocks = [
-            {**block, "start_today": combine_time_today(block["start"])}
-            for block in rows
-            if combine_time_today(block["start"]) > now
-        ]
-        if future_blocks:
-            next_block = min(future_blocks, key=lambda block: block["start_today"])
+            next_block = min(future_blocks, key=lambda block: block["start_at"])
+    elif event_state == "future" and rows:
+        next_block = {
+            **rows[0],
+            "start_at": combine_time_on_date(rows[0]["start"], event_day),
+        }
+
+    completed = False
+    if rows and event_day is not None:
+        final_end = combine_time_on_date(rows[-1]["end"], event_day)
+        completed = event_state == "past" or (
+            event_state == "today" and now >= final_end
+        )
 
     def build_entries(block):
         entries = []
@@ -801,7 +897,9 @@ def build_day_schedule(competitions):
             {
                 "display_time": row["display_time"],
                 "cells": row["cells"],
-                "current": combine_time_today(row["start"]) <= now < combine_time_today(row["end"]),
+                "current": event_state == "today"
+                and combine_time_on_date(row["start"], event_day) <= now
+                < combine_time_on_date(row["end"], event_day),
             }
             for row in rows
         ],
@@ -810,11 +908,14 @@ def build_day_schedule(competitions):
         "hint_text": "Aktuell kein Zeitblock aktiv",
         "active_competitions": [],
         "time_remaining": None,
-        "progress_percent": 0,
+        "progress_percent": 100 if completed else 0,
+        "completed": completed,
+        "event_state": event_state,
+        "event_date": event_day.isoformat() if event_day else None,
     }
 
     if current_block:
-        remaining_seconds = int((current_block["end_today"] - now).total_seconds())
+        remaining_seconds = int((current_block["end_at"] - now).total_seconds())
         remaining_minutes = max(0, remaining_seconds // 60)
         schedule["current_block"] = {
             "display_time": current_block["display_time"],
@@ -823,8 +924,8 @@ def build_day_schedule(competitions):
         schedule["active_competitions"] = schedule["current_block"]["entries"]
         schedule["hint_text"] = f"Aktueller Zeitblock: {current_block['display_time']}"
         schedule["time_remaining"] = f"{remaining_minutes} Minuten"
-        total_seconds = int((current_block["end_today"] - current_block["start_today"]).total_seconds())
-        elapsed_seconds = int((now - current_block["start_today"]).total_seconds())
+        total_seconds = int((current_block["end_at"] - current_block["start_at"]).total_seconds())
+        elapsed_seconds = int((now - current_block["start_at"]).total_seconds())
         if total_seconds > 0:
             schedule["progress_percent"] = max(0, min(100, int(elapsed_seconds / total_seconds * 100)))
 
@@ -836,18 +937,27 @@ def build_day_schedule(competitions):
         if not current_block:
             schedule["hint_text"] = "Aktuell kein Zeitblock aktiv"
 
+    if completed:
+        schedule["hint_text"] = "Veranstaltung abgeschlossen"
+
     return schedule
 
 
 def get_day_schedule_for_event(event_id: int):
     with get_conn() as conn:
+        event = conn.execute(
+            "SELECT event_date FROM events WHERE id = ?", (event_id,)
+        ).fetchone()
         competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
-    return build_day_schedule(competitions)
+    return build_day_schedule(
+        competitions,
+        event["event_date"] if event is not None else None,
+    )
 
 
 def get_unique_competition_name(conn, original_name: str):
@@ -1061,6 +1171,8 @@ def get_all_slots(
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
                c.location AS competition_location,
                c.competition_type,
+               c.game_duration_minutes,
+               c.changeover_duration_minutes,
                c.start_time AS competition_start_time,
                c.end_time AS competition_end_time,
                co.name AS court_name, ta.name AS team_a, tb.name AS team_b
@@ -1097,40 +1209,16 @@ def get_all_slots(
         rows = conn.execute(query, params).fetchall()
 
     slots = [dict(row) for row in rows]
-    groups = {}
     for slot in slots:
-        court_key = slot["court_id"] if slot["court_id"] is not None else ""
-        groups.setdefault(court_key, []).append(slot)
-
-    for group_slots in groups.values():
-        group_slots.sort(key=lambda slot: (
-            slot["sort_order"] if slot["sort_order"] is not None else 0,
-            slot["startzeit"] or "",
-            slot["id"],
-        ))
-
-        for index, slot in enumerate(group_slots):
-            slot["planned_duration_seconds"] = None
-            if slot["slot_typ"] != "Spiel":
-                continue
-
-            start = parse_slot_time(slot["startzeit"])
-            if not start:
-                continue
-
-            next_slot = group_slots[index + 1] if index + 1 < len(group_slots) else None
-            planned_seconds = None
-            if next_slot:
-                next_start = parse_slot_time(next_slot["startzeit"])
-                if next_start:
-                    planned_seconds = int((next_start - start).total_seconds())
-            elif slot.get("competition_end_time"):
-                comp_end = parse_slot_time(slot["competition_end_time"])
-                if comp_end:
-                    planned_seconds = int((comp_end - start).total_seconds())
-
-            if planned_seconds and planned_seconds > 0:
-                slot["planned_duration_seconds"] = planned_seconds
+        slot["planned_duration_seconds"] = None
+        slot["game_end_time"] = None
+        if slot["slot_typ"] != "Spiel" or slot["competition_type"] == "Sechskampf":
+            continue
+        timing = get_competition_timing(slot)
+        slot["planned_duration_seconds"] = timing["game_duration_minutes"] * 60
+        slot["game_end_time"] = get_game_end_time(
+            slot["startzeit"], timing["game_duration_minutes"]
+        )
 
     return slots
 
@@ -1155,28 +1243,6 @@ def get_slots_grouped_by_court(
             grouped[slot["court_id"]]["slots"].append(slot)
         else:
             without_court["slots"].append(slot)
-
-    for group in grouped.values():
-        for index, slot in enumerate(group["slots"]):
-            if slot["slot_typ"] != "Spiel":
-                continue
-            start = parse_slot_time(slot["startzeit"])
-            if not start:
-                continue
-
-            next_slot = group["slots"][index + 1] if index + 1 < len(group["slots"]) else None
-            planned_seconds = None
-            if next_slot:
-                next_start = parse_slot_time(next_slot["startzeit"])
-                if next_start:
-                    planned_seconds = int((next_start - start).total_seconds())
-            elif slot.get("competition_end_time"):
-                comp_end = parse_slot_time(slot["competition_end_time"])
-                if comp_end:
-                    planned_seconds = int((comp_end - start).total_seconds())
-
-            if planned_seconds and planned_seconds > 0:
-                slot["planned_duration_seconds"] = planned_seconds
 
     return list(grouped.values()) + [without_court]
 
@@ -2015,7 +2081,13 @@ def fetch_beamer_data():
         "court_summaries": court_summaries,
     }
 
-def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: str, slot_minutes: int, games_per_team: int, include_ko: bool):
+def generate_group_plan(
+    competition_id: int,
+    court_ids: List[int],
+    startzeit: str,
+    games_per_team: int,
+    include_ko: bool,
+):
     with get_conn() as conn:
         competition = conn.execute("SELECT * FROM competitions WHERE id = ?", (competition_id,)).fetchone()
         teams = conn.execute("""
@@ -2034,6 +2106,8 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
     team_names = [team["name"] for team in teams]
     team_ids = {team["name"]: team["id"] for team in teams}
     court_map = {court["id"]: court["name"] for court in courts}
+    timing = get_competition_timing(competition)
+    slot_interval_minutes = timing["slot_interval_minutes"]
 
     if len(team_names) < 2 or len(court_ids) < 1:
         return []
@@ -2085,32 +2159,12 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
     proposed_slots = []
     current_time = datetime.strptime(startzeit, "%H:%M")
 
-    def add_empty_slots_for_unused_courts(used_courts, time_value, phase="Pause"):
-        for court_id in court_ids:
-            if court_id not in used_courts:
-                proposed_slots.append({
-                    "competition_id": competition_id,
-                    "competition_name": competition["name"],
-                    "startzeit": time_value,
-                    "slot_typ": "Leer",
-                    "court_id": court_id,
-                    "court_name": court_map.get(court_id, ""),
-                    "phase": phase,
-                    "gruppe": "",
-                    "team_a_id": "",
-                    "team_b_id": "",
-                    "team_a": "",
-                    "team_b": "",
-                    "note": "Feld frei / Puffer",
-                })
-
     remaining_pairings = pairings[:]
     last_round_by_team = {team_name: -1000 for team_name in team_names}
     round_index = 0
 
     while remaining_pairings:
         time_value = current_time.strftime("%H:%M")
-        used_courts = []
         used_teams = set()
         scheduled_indices = []
 
@@ -2160,7 +2214,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
                 "note": "",
             })
 
-            used_courts.append(court_id)
             used_teams.add(team_a)
             used_teams.add(team_b)
             last_round_by_team[team_a] = round_index
@@ -2170,13 +2223,11 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
         for index in sorted(scheduled_indices, reverse=True):
             remaining_pairings.pop(index)
 
-        add_empty_slots_for_unused_courts(used_courts, time_value, phase="Gruppenphase")
-        current_time += timedelta(minutes=slot_minutes)
+        current_time += timedelta(minutes=slot_interval_minutes)
         round_index += 1
 
     if include_ko:
         hf_time = current_time.strftime("%H:%M")
-        used_courts = []
 
         proposed_slots.append({
             "competition_id": competition_id,
@@ -2193,8 +2244,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
             "team_b": "?",
             "note": "HF1: 1. Gruppe A gegen 2. Gruppe B",
         })
-        used_courts.append(court_ids[0])
-
         if len(court_ids) > 1:
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -2211,13 +2260,9 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
                 "team_b": "?",
                 "note": "HF2: 1. Gruppe B gegen 2. Gruppe A",
             })
-            used_courts.append(court_ids[1])
-
-        add_empty_slots_for_unused_courts(used_courts, hf_time, phase="Halbfinale")
-        current_time += timedelta(minutes=slot_minutes)
+        current_time += timedelta(minutes=slot_interval_minutes)
 
         final_time = current_time.strftime("%H:%M")
-        used_courts = []
 
         proposed_slots.append({
             "competition_id": competition_id,
@@ -2234,8 +2279,6 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
             "team_b": "?",
             "note": "Finale: Sieger HF1 gegen Sieger HF2",
         })
-        used_courts.append(court_ids[0])
-
         if len(court_ids) > 1:
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -2252,10 +2295,10 @@ def generate_group_plan(competition_id: int, court_ids: List[int], startzeit: st
                 "team_b": "?",
                 "note": "Spiel um Platz 3: Verlierer HF1 gegen Verlierer HF2",
             })
-            used_courts.append(court_ids[1])
-
-        add_empty_slots_for_unused_courts(used_courts, final_time, phase="Finale")
-
+    for slot in proposed_slots:
+        slot["game_end_time"] = get_game_end_time(
+            slot["startzeit"], timing["game_duration_minutes"]
+        )
     return proposed_slots
 
 def validate_generated_plan(proposed_slots, expected_teams, games_per_team: int):
@@ -2413,7 +2456,10 @@ def logout(request: Request):
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
-    data["schedule"] = build_day_schedule(data["competitions"])
+    if data["next_event"]:
+        data["schedule"] = get_day_schedule_for_event(data["next_event"]["id"])
+    else:
+        data["schedule"] = build_day_schedule([], event_date=None)
     return templates.TemplateResponse(request=request, name="dashboard.html", context=data)
 
 
@@ -2512,6 +2558,7 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
             "proposed_slots": [],
             "plan_warnings": [],
             "has_plan_errors": False,
+            "plan_timing": None,
             "ko_hint": ko_hint,
             "can_generate_semifinals": can_generate_semifinals,
             "can_generate_finals": can_generate_finals,
@@ -2525,7 +2572,6 @@ def plan_generator_preview(
     competition_id: int = Form(...),
     court_ids: List[int] = Form(...),
     startzeit: str = Form(...),
-    slot_minutes: int = Form(...),
     games_per_team: int = Form(...),
     include_ko: str = Form("0"),
 ):
@@ -2533,7 +2579,6 @@ def plan_generator_preview(
         competition_id=competition_id,
         court_ids=court_ids,
         startzeit=startzeit,
-        slot_minutes=slot_minutes,
         games_per_team=games_per_team,
         include_ko=include_ko == "1",
     )
@@ -2558,6 +2603,7 @@ def plan_generator_preview(
     ]
     plan_warnings = validate_generated_plan(proposed_slots, expected_teams, games_per_team)
     has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
+    plan_timing = get_competition_timing(competition)
 
     return templates.TemplateResponse(
         request=request,
@@ -2571,6 +2617,7 @@ def plan_generator_preview(
             "proposed_slots": proposed_slots,
             "plan_warnings": plan_warnings,
             "has_plan_errors": has_plan_errors,
+            "plan_timing": plan_timing,
             "ko_hint": None,
             "can_generate_semifinals": False,
             "can_generate_finals": False,
@@ -2592,6 +2639,8 @@ def plan_generator_apply(
 ):
     with get_conn() as conn:
         for i in range(len(startzeit)):
+            if slot_typ[i] != "Spiel":
+                continue
             conn.execute("""
                 INSERT INTO slots (
                     competition_id, court_id, startzeit, slot_typ, phase, gruppe,
@@ -2899,27 +2948,40 @@ def delete_multiple_slots(
 def move_slot(
     slot_id: int,
     court_id: str = Form(""),
-    startzeit: str = Form(...),
     sort_order: int = Form(0)
 ):
     court_value = int(court_id) if court_id else None
 
     with get_conn() as conn:
+        slot = conn.execute(
+            "SELECT competition_id, court_id FROM slots WHERE id = ?", (slot_id,)
+        ).fetchone()
+        if slot is None:
+            return JSONResponse({"success": False, "warnings": []}, status_code=404)
+        affected_courts = {
+            (slot["competition_id"], slot["court_id"]),
+            (slot["competition_id"], court_value),
+        }
         conn.execute("""
             UPDATE slots
             SET court_id = ?,
-                startzeit = ?,
                 sort_order = ?
             WHERE id = ?
         """, (
             court_value,
-            startzeit,
             sort_order,
             slot_id
         ))
+        warnings = []
+        for competition_id, affected_court_id in affected_courts:
+            warning = recalculate_competition_court_times(
+                conn, competition_id, affected_court_id
+            )
+            if warning:
+                warnings.append(warning)
         conn.commit()
 
-    return JSONResponse({"success": True})
+    return JSONResponse({"success": True, "warnings": warnings})
 
 @app.post("/slot/{slot_id}/copy")
 def copy_slot(slot_id: int):
@@ -2933,10 +2995,15 @@ def copy_slot(slot_id: int):
         if slot is None:
             return RedirectResponse("/spielplan-bearbeiten", status_code=303)
 
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (slot["competition_id"],)
+        ).fetchone()
+        timing = get_competition_timing(competition)
+
         try:
             new_time = (
                 datetime.strptime(slot["startzeit"], "%H:%M")
-                + timedelta(minutes=10)
+                + timedelta(minutes=timing["slot_interval_minutes"])
             ).strftime("%H:%M")
         except ValueError:
             new_time = slot["startzeit"]
@@ -2980,6 +3047,10 @@ def copy_slot(slot_id: int):
             slot["team_b_id"],
             slot["note"],
         ))
+
+        recalculate_competition_court_times(
+            conn, slot["competition_id"], slot["court_id"]
+        )
 
         conn.commit()
 
@@ -3511,7 +3582,8 @@ def wettbewerbe(request: Request):
             },
             "team_years": team_years,
             "competition_locations": COMPETITION_LOCATIONS,
-            "competition_location_subareas": COMPETITION_LOCATION_SUBAREAS,
+            "default_game_duration_minutes": DEFAULT_GAME_DURATION_MINUTES,
+            "default_changeover_duration_minutes": DEFAULT_CHANGEOVER_DURATION_MINUTES,
         }
     )
 
@@ -3521,24 +3593,23 @@ def create_competition(
     points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
     start_time: str = Form(""), end_time: str = Form(""),
     location: str = Form(""),
-    location_subarea: str = Form(""),
-
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
+    status: str = Form("geplant"),
+    game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
+    changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
     points_first_place: str = Form(""),
     placement_points: str = Form(""),
 ):
-    if competition_type not in {"Turnier", "Sechskampf"}:
+    if (
+        competition_type not in {"Turnier", "Sechskampf"}
+        or status not in {"geplant", "läuft", "beendet", "archiviert"}
+        or game_duration_minutes < 1
+        or changeover_duration_minutes < 0
+    ):
         return RedirectResponse("/wettbewerbe", status_code=303)
     location_raw = location.strip()
     location_value = normalize_competition_location(location_raw)
     if location_raw and location_value is None:
-        return RedirectResponse("/wettbewerbe", status_code=303)
-    location_subarea_raw = location_subarea.strip()
-    location_subarea_value = normalize_competition_location_subarea(
-        location_value,
-        location_subarea_raw,
-    )
-    if location_subarea_raw and location_subarea_value is None:
         return RedirectResponse("/wettbewerbe", status_code=303)
     try:
         event_id_value = int(event_id) if event_id else None
@@ -3573,14 +3644,15 @@ def create_competition(
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
                 points_loss, points_first_place, placement_points, event_id, competition_type,
-                start_time, end_time, location, location_subarea
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                game_duration_minutes, changeover_duration_minutes,
+                start_time, end_time, location
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            name.strip(), sportart.strip(), jahrgang, points_win, points_draw, points_loss,
+            name.strip(), sportart.strip(), jahrgang, status, points_win, points_draw, points_loss,
             points_first_place_value, placement_points_value or None, event_id_value, competition_type,
+            game_duration_minutes, changeover_duration_minutes,
             start_time.strip() or None, end_time.strip() or None,
             location_value or None,
-            location_subarea_value or None,
         ))
         conn.commit()
     return RedirectResponse("/wettbewerbe", status_code=303)
@@ -3594,21 +3666,23 @@ def duplicate_competition(competition_id: int):
         ).fetchone()
         if competition is None:
             return RedirectResponse("/wettbewerbe", status_code=303)
+        timing = get_competition_timing(competition)
         cursor = conn.execute("""
             INSERT INTO competitions (
                 name, sportart, jahrgang, status, points_win, points_draw,
                 points_loss, points_first_place, placement_points, event_id, competition_type,
-                start_time, end_time, location, location_subarea
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                game_duration_minutes, changeover_duration_minutes,
+                start_time, end_time, location
+            ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             get_unique_competition_name(conn, competition["name"]),
             competition["sportart"], competition["jahrgang"], competition["points_win"],
             competition["points_draw"], competition["points_loss"],
             competition["points_first_place"], competition["placement_points"],
             competition["event_id"], competition["competition_type"],
+            timing["game_duration_minutes"], timing["changeover_duration_minutes"],
             competition["start_time"], competition["end_time"],
             competition["location"],
-            competition["location_subarea"],
         ))
         copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
         conn.commit()
@@ -3621,8 +3695,9 @@ def update_competition(
     points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
     start_time: str = Form(""), end_time: str = Form(""),
     location: str = Form(""),
-    location_subarea: str = Form(""),
     event_id: str = Form(""), competition_type: str = Form("Turnier"),
+    game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
+    changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
     points_first_place: str = Form("7"),
     placement_points: str = Form(""),
 ):
@@ -3637,13 +3712,16 @@ def update_competition(
         return RedirectResponse("/wettbewerbe", status_code=303)
     name_value = name.strip()
     sportart_value = sportart.strip()
-    location_value = location.strip()
+    location_raw = location.strip()
+    location_value = normalize_competition_location(location_raw)
     valid_statuses = {"geplant", "läuft", "beendet", "archiviert"}
     if (
         not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
         or status not in valid_statuses
         or competition_type not in {"Turnier", "Sechskampf"}
-        or (location_value and location_value not in COMPETITION_LOCATIONS)
+        or (location_raw and location_value is None)
+        or game_duration_minutes < 1
+        or changeover_duration_minutes < 0
         or points_first_place_value < 1
         or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
     ):
@@ -3673,15 +3751,16 @@ def update_competition(
             SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                 points_win = ?, points_draw = ?, points_loss = ?,
                 points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
-                start_time = ?, end_time = ?, location = ?, location_subarea = ?
+                game_duration_minutes = ?, changeover_duration_minutes = ?,
+                start_time = ?, end_time = ?, location = ?, location_subarea = NULL
             WHERE id = ?
         """, (
             name_value, sportart_value, jahrgang_value, status,
             points_win_value, points_draw_value, points_loss_value,
             points_first_place_value, placement_points_value or None, event_id_value, competition_type,
+            game_duration_minutes, changeover_duration_minutes,
             start_time.strip() or None, end_time.strip() or None,
             location_value or None,
-            location_subarea_value or None,
             competition_id,
         ))
         conn.commit()
@@ -4015,20 +4094,25 @@ def event_duplicate(event_id: int):
             (event_id,)
         ).fetchall()
         for competition in competitions:
+            timing = get_competition_timing(competition)
             competition_cursor = conn.execute("""
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points,
-                    event_id, competition_type, start_time, end_time, location, location_subarea
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    event_id, competition_type,
+                    game_duration_minutes, changeover_duration_minutes,
+                    start_time, end_time, location
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"],
                 competition["points_win"], competition["points_draw"],
                 competition["points_loss"], competition["points_first_place"],
                 competition["placement_points"], new_event_id,
-                competition["competition_type"], competition["start_time"],
-                competition["end_time"], competition["location"], competition["location_subarea"],
+                competition["competition_type"],
+                timing["game_duration_minutes"], timing["changeover_duration_minutes"],
+                competition["start_time"],
+                competition["end_time"], competition["location"],
             ))
             copy_competition_disciplines(
                 conn, competition["id"], competition_cursor.lastrowid

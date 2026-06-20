@@ -52,6 +52,8 @@ def init_db():
             placement_points TEXT,
             event_id INTEGER,
             competition_type TEXT NOT NULL DEFAULT 'Turnier',
+            game_duration_minutes INTEGER NOT NULL DEFAULT 7,
+            changeover_duration_minutes INTEGER NOT NULL DEFAULT 3,
             location TEXT,
             location_subarea TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
@@ -188,6 +190,18 @@ def init_db():
                 ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
             """)
 
+        if "game_duration_minutes" not in competition_columns:
+            conn.execute("""
+                ALTER TABLE competitions
+                ADD COLUMN game_duration_minutes INTEGER NOT NULL DEFAULT 7
+            """)
+
+        if "changeover_duration_minutes" not in competition_columns:
+            conn.execute("""
+                ALTER TABLE competitions
+                ADD COLUMN changeover_duration_minutes INTEGER NOT NULL DEFAULT 3
+            """)
+
         if "points_first_place" not in competition_columns:
             conn.execute("""
                 ALTER TABLE competitions
@@ -237,6 +251,18 @@ def init_db():
             UPDATE competitions
             SET competition_type = 'Turnier'
             WHERE competition_type IS NULL OR competition_type = ''
+        """)
+
+        conn.execute("""
+            UPDATE competitions
+            SET game_duration_minutes = 7
+            WHERE game_duration_minutes IS NULL OR game_duration_minutes < 1
+        """)
+
+        conn.execute("""
+            UPDATE competitions
+            SET changeover_duration_minutes = 3
+            WHERE changeover_duration_minutes IS NULL OR changeover_duration_minutes < 0
         """)
 
         discipline_columns = {

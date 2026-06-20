@@ -59,6 +59,9 @@
         </ul>
         <p class="muted">Restzeit: {{ schedule.time_remaining }}</p>
         <div class="progress-bar"><span style="width: {{ schedule.progress_percent }}%;"></span></div>
+        {% elif schedule.completed %}
+        <p class="muted">Veranstaltung abgeschlossen.</p>
+        <div class="progress-bar" aria-label="Fortschritt 100 Prozent"><span style="width: 100%;"></span></div>
         {% elif schedule.next_block %}
         <p class="muted">Nächster Programmpunkt:</p>
         <p><strong>{{ schedule.next_block.display_time }}</strong></p>
