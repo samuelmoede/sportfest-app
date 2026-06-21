@@ -1,13 +1,62 @@
 {% extends "base.html" %}
+
+{% macro render_slot(s) %}
+<article class="slot-card {{ s.status }}">
+    <div class="slot-time">
+        Geplant {{ s.startzeit }}{% if s.game_end_time %}–{{ s.game_end_time }}{% endif %}
+    </div>
+    <div class="slot-type">{{ s.slot_typ }}</div>
+
+    {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" %}
+    <div class="slot-teams tournament-match">
+        <strong class="tournament-team tournament-team-a">{{ s.team_a or "?" }}</strong>
+        <span class="tournament-score{% if s.score_a is not none and s.score_b is not none %} has-result{% endif %}">
+            {% if s.score_a is not none and s.score_b is not none %}
+            {{ s.score_a }} : {{ s.score_b }}
+            {% else %}
+            vs
+            {% endif %}
+        </span>
+        <strong class="tournament-team tournament-team-b">{{ s.team_b or "?" }}</strong>
+    </div>
+    {% else %}
+    <div class="slot-teams"><strong>{{ s.slot_typ }}</strong></div>
+    {% endif %}
+
+    <div class="slot-footer">
+        <span>{{ s.competition_name }}</span>
+        {% if s.started_at and s.status == 'läuft' %}
+        <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+        {% endif %}
+        {% if s.finished_at and s.status == 'beendet' %}
+        <span class="pill">Beendet {{ s.finished_at.split(' ')[1] if ' ' in s.finished_at else s.finished_at }}</span>
+        {% endif %}
+        <span class="badge {{ s.status }}">{{ s.status }}</span>
+    </div>
+</article>
+{% endmacro %}
+
 {% block content %}
-<h1>Spielplan</h1>
-{% if selected_location == "Außenbereich" %}
-<p class="muted">Chronologischer Zeitplan für den Außenbereich</p>
-{% elif selected_location == "Fußballplatz" %}
-<p class="muted">Fußballplatz mit Rasenplatz und Tartanplatz</p>
-{% else %}
-<p class="muted">Nach Spielfeldern gruppierte Übersicht</p>
-{% endif %}
+<div class="schedule-page-head">
+    <div>
+        <h1>Spielplan nach Ort</h1>
+        <p class="muted">Öffentliche Übersicht für Turnhalle, Fußballplatz und Außenbereich.</p>
+    </div>
+    {% if can_view_admin %}
+    <a class="schedule-view-link" href="/spielplan-bearbeiten{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
+        Turnierplanung bearbeiten
+    </a>
+    {% endif %}
+</div>
+
+<nav class="schedule-view-switch" aria-label="Spielplanansicht">
+    <span class="schedule-view-link is-active" aria-current="page">Übersicht</span>
+    {% if can_view_admin %}
+    <a class="schedule-view-link" href="/spielplan-bearbeiten{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
+        Turnierplanung
+    </a>
+    {% endif %}
+</nav>
 
 <form method="get" action="/spielplan" class="filter-row">
     <select name="competition_id">
@@ -27,21 +76,34 @@
     <select name="ort" aria-label="Ort">
         <option value="">Alle Orte</option>
         {% for location in competition_locations %}
-        <option value="{{ location }}" {% if selected_location == location %}selected{% endif %}>
-            {{ location }}
-        </option>
+        <option value="{{ location }}" {% if selected_location == location %}selected{% endif %}>{{ location }}</option>
         {% endfor %}
     </select>
 
     <button type="submit">Filtern</button>
 </form>
 
-{% if selected_location == "Außenbereich" %}
-<section class="sportplatz-timeline">
-    <h2>Außenbereich</h2>
-    {% if outdoor_timeline %}
+{% for section in location_sections %}
+<section class="location-venue-section location-{{ section.location_key|lower }}">
+    <header class="location-venue-head">
+        <div>
+            <h2>{{ section.location }}</h2>
+            {% if section.location == "Turnhalle" %}
+            <p>Hallenspiele nach Spielfeld</p>
+            {% elif section.location == "Fußballplatz" %}
+            <p>Fußballspiele nach zugeordnetem Feld</p>
+            {% elif section.location == "Außenbereich" %}
+            <p>Chronologischer Ablauf der Außenwettbewerbe</p>
+            {% else %}
+            <p>Bestehende Wettbewerbe ohne Ortszuordnung</p>
+            {% endif %}
+        </div>
+        <span class="location-pill">{{ section.location }}</span>
+    </header>
+
+    {% if section.timeline %}
     <div class="sportplatz-timeline-list">
-        {% for competition in outdoor_timeline %}
+        {% for competition in section.timeline %}
         <article class="sportplatz-timeline-item">
             <div class="sportplatz-timeline-time">
                 <span>{{ competition.start_time_display }}</span>
@@ -58,97 +120,53 @@
         </article>
         {% endfor %}
     </div>
-    {% else %}
-    <p class="muted">Keine Wettbewerbe für den Außenbereich vorhanden.</p>
     {% endif %}
-</section>
-{% else %}
-{% if location_groups %}
-<section class="location-schedule">
-    <h2>Wettbewerbe nach Ort</h2>
-    <div class="location-schedule-grid">
-        {% for group in location_groups %}
-        <section class="location-schedule-group">
-            <h3>{{ group.location }}</h3>
-            {% for subgroup in group.subgroups %}
-            {% if subgroup.name %}
-            <h4 class="location-subgroup-title">{{ subgroup.name }}</h4>
-            {% endif %}
-            <div class="location-competition-list">
-                {% for competition in subgroup.competitions %}
-                <article class="location-competition-card">
-                    <div class="location-competition-time">{{ competition.time_label }}</div>
-                    <div class="location-competition-content">
-                        <strong>{{ competition.name }}</strong>
-                        <div class="location-competition-meta">
-                            {{ competition.competition_type }} · JG {{ competition.jahrgang }}{% if competition.location_subarea %} · {{ competition.location_subarea }}{% endif %}
-                        </div>
-                        {% if competition.competition_type == "Sechskampf" and competition.disciplines %}
-                        <ul class="location-station-list">
-                            {% for discipline in competition.disciplines %}
-                            <li>{{ discipline.name }}</li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-                    </div>
-                </article>
-                {% endfor %}
+
+    {% if section.competitions %}
+    <div class="location-competition-list">
+        {% for competition in section.competitions %}
+        <article class="location-competition-card">
+            <div class="location-competition-time">{{ competition.time_label }}</div>
+            <div class="location-competition-content">
+                <strong>{{ competition.name }}</strong>
+                <div class="location-competition-meta">
+                    {{ competition.competition_type }} · JG {{ competition.jahrgang }}
+                </div>
+                {% if competition.competition_type == "Sechskampf" and competition.disciplines %}
+                <ul class="location-station-list">
+                    {% for discipline in competition.disciplines %}
+                    <li>{{ discipline.name }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
             </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if section.court_groups %}
+    <div class="schedule-board location-court-board">
+        {% for group in section.court_groups %}
+        <section class="court-column">
+            <h3>{{ group.court.name }}</h3>
+            {% for s in group.slots %}
+            {{ render_slot(s) }}
             {% endfor %}
         </section>
         {% endfor %}
     </div>
+    {% endif %}
+
+    {% if not section.has_entries %}
+    <p class="muted">Für diesen Ort sind in der aktuellen Auswahl keine Einträge vorhanden.</p>
+    {% endif %}
 </section>
-{% endif %}
-
-<section class="schedule-board">
-    {% for group in groups %}
-    <div class="court-column">
-        <h2>{{ group.court.name }}</h2>
-
-        {% for s in group.slots %}
-        <div class="slot-card {{ s.status }}">
-            <div class="slot-time">
-                Geplant {{ s.startzeit }}{% if s.game_end_time %}–{{ s.game_end_time }}{% endif %}
-            </div>
-            <div class="slot-type">{{ s.slot_typ }}</div>
-
-            {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" %}
-                <div class="slot-teams tournament-match">
-                    <strong class="tournament-team tournament-team-a">{{ s.team_a or "?" }}</strong>
-                    <span class="tournament-score{% if s.score_a is not none and s.score_b is not none %} has-result{% endif %}">
-                        {% if s.score_a is not none and s.score_b is not none %}
-                            {{ s.score_a }} : {{ s.score_b }}
-                        {% else %}
-                            vs
-                        {% endif %}
-                    </span>
-                    <strong class="tournament-team tournament-team-b">{{ s.team_b or "?" }}</strong>
-                </div>
-            {% else %}
-                <div class="slot-teams">
-                    <strong>{{ s.slot_typ }}</strong>
-                </div>
-            {% endif %}
-
-            <div class="slot-footer">
-                <span>{{ s.competition_name }}</span>
-                {% if s.started_at and s.status == 'läuft' %}
-                <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
-                {% endif %}
-                {% if s.finished_at and s.status == 'beendet' %}
-                <span class="pill">Beendet {{ s.finished_at.split(' ')[1] if ' ' in s.finished_at else s.finished_at }}</span>
-                {% endif %}
-                <span class="badge {{ s.status }}">{{ s.status }}</span>
-            </div>
-        </div>
-        {% else %}
-        <p class="muted">Keine Slots geplant.</p>
-        {% endfor %}
-    </div>
-    {% endfor %}
+{% else %}
+<section class="panel">
+    <p class="muted">Für die aktuelle Auswahl ist kein Spielplan vorhanden.</p>
 </section>
-{% endif %}
+{% endfor %}
 
 <script>
 function parseTimestamp(timestamp) {

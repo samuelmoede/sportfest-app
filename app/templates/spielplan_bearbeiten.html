@@ -2,6 +2,12 @@
 {% block content %}
 <h1>Spielplan bearbeiten</h1>
 <p class="muted">Feste Slots anlegen, bearbeiten, Turniere filtern und automatische Vorschläge erzeugen.</p>
+<nav class="schedule-view-switch" aria-label="Spielplanansicht">
+    <a class="schedule-view-link" href="/spielplan{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
+        Übersicht
+    </a>
+    <span class="schedule-view-link is-active" aria-current="page">Turnierplanung</span>
+</nav>
 
 <style>
     .generator-box {
@@ -201,6 +207,39 @@
         <span class="muted">Wähle ein einzelnes Turnier aus, um geplante Slots gesammelt zu löschen.</span>
         {% endif %}
     </div>
+
+    {% if selected_timing %}
+    <div class="timing-forecast">
+        <div>
+            <strong>Zeitmodell</strong>
+            <span>
+                {{ selected_timing.game_duration_minutes }} min Spielzeit +
+                {{ selected_timing.changeover_duration_minutes }} min Wechselzeit =
+                {{ selected_timing.slot_interval_minutes }} min Startabstand
+            </span>
+        </div>
+        {% if current_end_time_forecast and current_end_time_forecast.overall_end %}
+        <div>
+            <strong>Endzeit-Prognose</strong>
+            <span>
+                voraussichtlich {{ current_end_time_forecast.overall_end }}
+                {% if current_end_time_forecast.planned_end %}
+                · geplant {{ current_end_time_forecast.planned_end }}
+                {% endif %}
+            </span>
+        </div>
+        <div class="timing-forecast-courts">
+            {% for court in current_end_time_forecast.courts %}
+            <span class="{% if court.exceeds_planned_end %}is-overrun{% endif %}">
+                {{ court.court_name }}: {{ court.projected_end }}
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <span class="muted">Eine Endzeit-Prognose erscheint, sobald Spiele geplant sind.</span>
+        {% endif %}
+    </div>
+    {% endif %}
 </section>
 
 {% if selected_competition_id %}
@@ -298,6 +337,27 @@
             <strong>Wechselzeit:</strong> {{ plan_timing.changeover_duration_minutes }} min ·
             <strong>Startabstand:</strong> {{ plan_timing.slot_interval_minutes }} min
         </p>
+        {% endif %}
+
+        {% if plan_end_time_forecast and plan_end_time_forecast.overall_end %}
+        <div class="timing-forecast preview-forecast">
+            <div>
+                <strong>Voraussichtliches Ende:</strong>
+                <span>
+                    {{ plan_end_time_forecast.overall_end }}
+                    {% if plan_end_time_forecast.planned_end %}
+                    · geplant {{ plan_end_time_forecast.planned_end }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="timing-forecast-courts">
+                {% for court in plan_end_time_forecast.courts %}
+                <span class="{% if court.exceeds_planned_end %}is-overrun{% endif %}">
+                    {{ court.court_name }}: {{ court.projected_end }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
         {% endif %}
 
         <table>
@@ -520,20 +580,27 @@
         </button>
     </div>
 
-<section class="schedule-board">
-    {% for group in groups %}
-    <div class="court-column dropzone" data-court-id="{{ group.court.id }}">
-        <h2>{{ group.court.name }}</h2>
+<div id="move-time-warnings" class="validation-box" role="status" hidden>
+    <strong>Zeitplanung prüfen</strong>
+    <ul></ul>
+</div>
 
-        {% set last_phase = "" %}
+<div class="editor-time-grid-scroll">
+<section class="editor-time-grid" style="--editor-court-count: {{ groups|length }};">
+    <div class="editor-time-corner">Zeit</div>
+    {% for startzeit in editor_time_marks %}
+    <div class="editor-time-label" style="grid-row: {{ loop.index + 1 }};">{{ startzeit }}</div>
+    {% endfor %}
+
+    {% for group in groups %}
+    <div class="court-column dropzone editor-court-column"
+         data-court-id="{{ group.court.id }}"
+         style="grid-column: {{ loop.index + 2 }}; grid-row: 1 / span {{ editor_time_marks|length + 2 }};">
+        <h2 class="editor-court-heading">{{ group.court.name }}</h2>
 
         {% for s in group.slots %}
-        {% if s.phase != last_phase %}
-            <div class="phase-label">{{ s.phase }}</div>
-            {% set last_phase = s.phase %}
-        {% endif %}
-
         <div class="slot-card draggable {{ s.status }}"
+             style="grid-row: {{ s.editor_grid_row }};"
              draggable="true"
              data-slot-id="{{ s.id }}"
              data-time="{{ s.startzeit }}">
@@ -548,10 +615,6 @@
                 >
                 auswählen
             </label>
-
-            <div class="slot-time">
-                <input class="time-input" type="time" value="{{ s.startzeit }}" onclick="event.stopPropagation();">
-            </div>
 
             <div class="slot-type">{{ s.slot_typ }}</div>
 
@@ -619,11 +682,12 @@
             </div>
         </div>
         {% else %}
-        <p class="muted">Keine Slots geplant.</p>
+        <p class="muted editor-empty-court">Keine Slots geplant.</p>
         {% endfor %}
     </div>
     {% endfor %}
 </section>
+</div>
 
 </form>
 </div>
@@ -700,26 +764,55 @@ function getDragAfterElement(container, y) {
 async function persistSlotMove(slotCard, zone) {
     const courtId = zone.dataset.courtId || "";
     const slotCards = [...zone.querySelectorAll(".slot-card")];
+    const warningMessages = new Set();
 
     for (let index = 0; index < slotCards.length; index++) {
         const card = slotCards[index];
         const slotId = card.dataset.slotId;
-        const timeInput = card.querySelector(".time-input");
-        const startzeit = timeInput ? timeInput.value : card.dataset.time;
         const sortOrder = (index + 1) * 10;
 
         const formData = new FormData();
         formData.append("court_id", courtId);
-        formData.append("startzeit", startzeit);
         formData.append("sort_order", sortOrder);
 
-        await fetch(`/slot/${slotId}/move`, {
+        const response = await fetch(`/slot/${slotId}/move`, {
             method: "POST",
             body: formData
         });
+        if (!response.ok) {
+            throw new Error("Slot konnte nicht verschoben werden.");
+        }
+        const result = await response.json();
+        (result.warnings || []).forEach(warning => {
+            warningMessages.add(warning.message);
+        });
     }
 
+    if (warningMessages.size) {
+        sessionStorage.setItem("scheduleMoveWarnings", JSON.stringify([...warningMessages]));
+    } else {
+        sessionStorage.removeItem("scheduleMoveWarnings");
+    }
     window.location.reload();
+}
+
+const storedMoveWarnings = sessionStorage.getItem("scheduleMoveWarnings");
+if (storedMoveWarnings) {
+    sessionStorage.removeItem("scheduleMoveWarnings");
+    const warningBox = document.getElementById("move-time-warnings");
+    const warningList = warningBox ? warningBox.querySelector("ul") : null;
+    if (warningBox && warningList) {
+        try {
+            JSON.parse(storedMoveWarnings).forEach(message => {
+                const item = document.createElement("li");
+                item.textContent = message;
+                warningList.appendChild(item);
+            });
+            warningBox.hidden = false;
+        } catch (error) {
+            sessionStorage.removeItem("scheduleMoveWarnings");
+        }
+    }
 }
 
 document.querySelectorAll(".draggable").forEach(card => {
@@ -766,16 +859,12 @@ document.querySelectorAll(".dropzone").forEach(zone => {
             return;
         }
 
-        await persistSlotMove(draggedSlot, zone);
-    });
-});
-
-document.querySelectorAll(".time-input").forEach(input => {
-    input.addEventListener("change", async () => {
-        const card = input.closest(".slot-card");
-        const zone = input.closest(".dropzone");
-
-        await persistSlotMove(card, zone);
+        try {
+            await persistSlotMove(draggedSlot, zone);
+        } catch (error) {
+            alert(error.message);
+            window.location.reload();
+        }
     });
 });
 

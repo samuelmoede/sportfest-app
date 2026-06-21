@@ -97,6 +97,9 @@
                         </strong>
                     </div>
                     <div class="six-card-actions">
+                        <span class="change-counter" title="Protokollierte Änderungen an diesen Stationswerten">
+                            Änderungen: {{ change_counts.get((team.id, selected_discipline.id), 0) }}
+                        </span>
                         <button class="green save-six" type="submit">Speichern</button>
                         {% if saved_team_id == team.id and saved_at %}
                         {% set saved_time = saved_at.split(' ')[1][:5] if ' ' in saved_at else saved_at[:5] %}
@@ -338,6 +341,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
             {% endif %}
             <span class="badge {{ s.status }}">{{ s.status }}</span>
+            <span class="change-counter" title="Protokollierte Ergebnisänderungen">
+                Änderungen: {{ s.change_count }}
+            </span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <strong>{{ s.team_a or "?" }}</strong>
@@ -379,6 +385,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
             {% endif %}
             <span class="badge {{ s.status }}">{{ s.status }}</span>
+            <span class="change-counter" title="Protokollierte Ergebnisänderungen">
+                Änderungen: {{ s.change_count }}
+            </span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <strong>{{ s.team_a or "?" }}</strong>

@@ -302,10 +302,22 @@ nav a:hover,
     white-space: nowrap;
 }
 
+.role-badge-prefix {
+    margin-right: 4px;
+    opacity: 0.72;
+    font-weight: 600;
+}
+
 .role-viewer {
     border-color: #52617a;
     background: #25324a;
     color: #d7deea;
+}
+
+.role-station_helper {
+    border-color: #14b8a6;
+    background: #134e4a;
+    color: #ccfbf1;
 }
 
 .role-referee {
@@ -500,6 +512,149 @@ h1 {
 
 .location-schedule {
     margin: 24px 0;
+}
+
+.schedule-page-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.schedule-page-head h1 {
+    margin-bottom: 6px;
+}
+
+.schedule-view-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 22px;
+}
+
+.schedule-view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: white;
+    color: var(--navy2);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.schedule-view-link.is-active {
+    border-color: var(--navy2);
+    background: var(--navy2);
+    color: white;
+}
+
+.location-venue-section {
+    min-width: 0;
+    margin: 24px 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: white;
+}
+
+.location-venue-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.location-venue-head h2 {
+    margin: 0 0 4px;
+}
+
+.location-venue-head p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.location-pill {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.location-fußballplatz .location-pill {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.location-außenbereich .location-pill {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.location-court-board {
+    margin-top: 16px;
+}
+
+.location-court-board .court-column h3 {
+    margin-top: 0;
+}
+
+.day-schedule-event {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin: -4px 0 14px;
+}
+
+.day-schedule-event span {
+    color: var(--muted);
+}
+
+.timing-forecast {
+    display: grid;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid #bae6fd;
+    border-radius: 12px;
+    background: #f0f9ff;
+}
+
+.timing-forecast > div:not(.timing-forecast-courts) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+}
+
+.timing-forecast-courts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.timing-forecast-courts span {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: white;
+    color: var(--navy2);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.timing-forecast-courts .is-overrun {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.preview-forecast {
+    margin: 0 0 16px;
 }
 
 .location-schedule-grid {
@@ -754,9 +909,24 @@ td {
 
 .result-meta {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     align-items: center;
     margin-bottom: 16px;
+}
+
+.change-counter {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
 }
 
 .result-form {
@@ -1392,6 +1562,43 @@ pre {
     margin-bottom: 6px;
 }
 
+.role-description {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.role-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+}
+
+.role-overview-card {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.role-overview-card p {
+    margin: 10px 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.change-log-table {
+    min-width: 850px;
+}
+
+.change-log-table th,
+.change-log-table td {
+    vertical-align: top;
+}
+
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -1551,6 +1758,87 @@ pre {
 .schedule-editor-page .slot-actions > form {
     min-width: 0;
     max-width: 100%;
+}
+
+.editor-time-grid-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scrollbar-gutter: stable;
+}
+
+.editor-time-grid {
+    display: grid;
+    grid-template-columns: 76px repeat(var(--editor-court-count), minmax(300px, 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: minmax(168px, auto);
+    gap: 12px;
+    width: max-content;
+    min-width: 100%;
+    align-items: stretch;
+}
+
+.editor-time-corner,
+.editor-time-label {
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 14px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--navy);
+    color: white;
+    font-weight: 800;
+    box-shadow: 5px 0 10px rgba(15, 27, 45, 0.08);
+}
+
+.editor-time-corner {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    z-index: 7;
+}
+
+.editor-time-label {
+    grid-column: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.editor-court-column {
+    display: grid;
+    grid-template-rows: subgrid;
+    gap: 12px;
+    padding: 0 10px 10px;
+    min-height: 0;
+    min-width: 300px;
+    max-width: none;
+}
+
+.editor-court-heading {
+    grid-row: 1;
+    margin: 0 -10px;
+    padding: 16px;
+    border-radius: 14px 14px 0 0;
+    background: #e2e8f0;
+}
+
+.editor-court-column .slot-card {
+    align-self: stretch;
+    margin: 0;
+    overflow: hidden;
+}
+
+.editor-empty-court {
+    grid-row: 2;
+    padding: 12px;
+}
+
+#move-time-warnings {
+    margin: 0 0 18px;
 }
 
 .schedule-board {
@@ -2112,6 +2400,13 @@ body {
         grid-template-columns: minmax(0, 1fr);
         gap: 16px;
     }
+    .editor-time-grid {
+        grid-template-columns: 68px repeat(var(--editor-court-count), minmax(260px, 1fr));
+        grid-auto-rows: minmax(156px, auto);
+    }
+    .editor-court-column {
+        min-width: 260px;
+    }
     .schedule-editor-page .filter-row,
     .schedule-editor-page .generator-grid,
     .schedule-editor-page .admin-form {
@@ -2354,6 +2649,20 @@ body {
         margin-left: 0;
         width: 100%;
         padding: 20px 14px;
+    }
+
+    .schedule-page-head,
+    .location-venue-head {
+        flex-direction: column;
+    }
+
+    .schedule-page-head .schedule-view-link,
+    .location-pill {
+        align-self: flex-start;
+    }
+
+    .location-venue-section {
+        padding: 14px;
     }
 
     .schedule-editor-page .toolbar,

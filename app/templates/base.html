@@ -9,6 +9,7 @@
 <body>
 {% set access_role = get_current_role(request) %}
 {% set access_role_label = get_current_role_label(request) %}
+{% set access_role_description = get_current_role_description(request) %}
 {% set access_logged_in = is_logged_in(request) %}
 {% set can_view_results = can_access_role(request, "referee") %}
 {% set can_view_admin = can_access_role(request, "admin") %}
@@ -18,8 +19,8 @@
         <span>Manager</span>
     </div>
     <div class="mobile-access">
-        <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
-            {{ access_role_label }}
+        <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
+            <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
         </span>
         <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
     </div>
@@ -93,8 +94,8 @@
             <span class="beamer-text">Beamer-Ansicht öffnen</span>
         </a>
         <div class="access-strip mobile-access-strip" aria-label="Zugriff">
-            <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
-                {{ access_role_label }}
+            <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
+                <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
             </span>
         {% if access_logged_in %}
             <a class="access-action" href="/logout">Abmelden</a>
@@ -181,8 +182,8 @@
                 <span class="beamer-text">Beamer-Ansicht öffnen</span>
             </a>
             <div class="access-strip" aria-label="Zugriff">
-                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}">
-                    {{ access_role_label }}
+                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
+                    <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
                 </span>
                 {% if access_logged_in %}
                 <a class="access-action" href="/logout" aria-label="Abmelden">

@@ -58,7 +58,7 @@
             {% endif %}
         </div>
         <div class="settings-item">
-            <strong>Helfer-Login vorbereitet:</strong>
+            <strong>Schiedsrichter-Login vorbereitet:</strong>
             {% if helper_login_prepared %}
                 <span class="status-pill ok">Ja</span>
             {% else %}
@@ -66,12 +66,29 @@
             {% endif %}
         </div>
         <div class="settings-item">
-            <strong>Aktuelle Rolle:</strong> {{ current_role_label }}
+            <strong>Aktuelle Rolle:</strong>
+            <span class="role-badge role-{{ current_role }}" title="{{ current_role_description }}">
+                <span class="role-badge-prefix">Rolle:</span> {{ current_role_label }}
+            </span>
+            <small class="role-description">{{ current_role_description }}</small>
         </div>
         <div class="settings-item">
             <strong>Rollenmodell vorbereitet:</strong>
             <span class="status-pill ok">Ja</span>
         </div>
+    </div>
+    <div class="role-overview" aria-label="Vorbereitete Rollen">
+        {% for role in role_overview %}
+        <article class="role-overview-card role-overview-{{ role.key }}">
+            <span class="role-badge role-{{ role.key }}">
+                <span class="role-badge-prefix">Rolle:</span> {{ role.label }}
+            </span>
+            <p>{{ role.description }}</p>
+            {% if role.prepared_only %}
+            <span class="status-pill">Vorbereitet · noch nicht aktiv</span>
+            {% endif %}
+        </article>
+        {% endfor %}
     </div>
     {% if security_status == "enabled" %}
         <p class="success-text">Sicherheit wurde aktiviert. Du bist jetzt als Admin angemeldet.</p>
@@ -92,7 +109,7 @@
     {% elif login_prepared or helper_login_prepared %}
         <p>Aktuelle Rolle: Viewer. <a href="/login?next=/einstellungen">Rechte erweitern</a></p>
     {% else %}
-        <p class="muted">Aktuelle Rolle: Viewer. Für eine Rechteerweiterung zuerst ein Helfer- oder Admin-Passwort konfigurieren.</p>
+        <p class="muted">Aktuelle Rolle: Viewer. Für eine Rechteerweiterung zuerst ein Schiedsrichter- oder Admin-Passwort konfigurieren.</p>
     {% endif %}
 
     {% if security_environment_override is not none %}
@@ -114,6 +131,46 @@
             >
             <button type="submit">Sicherheit {{ 'deaktivieren' if security_enabled else 'aktivieren' }}</button>
         </form>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Änderungsprotokoll</h2>
+    <p class="muted">
+        {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.
+    </p>
+    {% if recent_changes %}
+    <div class="table-scroll">
+        <table class="change-log-table">
+            <thead>
+                <tr>
+                    <th>Zeitpunkt</th>
+                    <th>Rolle</th>
+                    <th>Aktion</th>
+                    <th>Wettbewerb / Eintrag</th>
+                    <th>Vorher</th>
+                    <th>Nachher</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in recent_changes %}
+                <tr>
+                    <td>{{ change.created_at_display }}</td>
+                    <td>{{ change.actor_role_label }}</td>
+                    <td>{{ change.action }}</td>
+                    <td>
+                        <strong>{{ change.competition_name or "Unbekannter Wettbewerb" }}</strong><br>
+                        <span class="muted">{{ change.target_label }}</span>
+                    </td>
+                    <td>{{ change.old_value or "–" }}</td>
+                    <td>{{ change.new_value or "–" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Ergebnisänderungen protokolliert.</p>
     {% endif %}
 </section>
 

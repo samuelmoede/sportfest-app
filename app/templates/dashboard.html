@@ -48,7 +48,19 @@
     </section>
 
     <section class="panel">
-        <h2>Tagesplan</h2>
+        {% if next_event and schedule_event and next_event.id == schedule_event.id %}
+        <h2>Tagesplan der nächsten Veranstaltung</h2>
+        {% elif schedule_event %}
+        <h2>Letzter Tagesplan</h2>
+        {% else %}
+        <h2>Tagesplan der nächsten Veranstaltung</h2>
+        {% endif %}
+        {% if schedule_event %}
+        <p class="day-schedule-event">
+            <strong>{{ schedule_event.name }}</strong>
+            {% if schedule_event.event_date %}<span>{{ schedule_event.event_date }}</span>{% endif %}
+        </p>
+        {% endif %}
         {% if schedule.current_block %}
         <p class="muted">{{ schedule.hint_text }}</p>
         <p><strong>{{ schedule.current_block.display_time }}</strong></p>

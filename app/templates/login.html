@@ -19,11 +19,11 @@
         <p><a href="{{ next_url }}">Weiter</a> oder <a href="/logout">abmelden</a>.</p>
     {% else %}
         {% if current_role == "viewer" and helper_login_prepared %}
-        <h2>Als Helfer anmelden</h2>
+        <h2>Als Schiedsrichter anmelden</h2>
         <form method="post" action="/login" class="form-grid">
             <input type="hidden" name="next" value="{{ next_url }}">
             <input type="hidden" name="target_role" value="referee">
-            <label for="helper_password">Helfer-Passwort</label>
+            <label for="helper_password">Schiedsrichter-Passwort</label>
             <input
                 id="helper_password"
                 name="password"
@@ -32,7 +32,7 @@
                 required
                 autofocus
             >
-            <button type="submit">Als Helfer anmelden</button>
+            <button type="submit">Als Schiedsrichter anmelden</button>
         </form>
         {% endif %}
 

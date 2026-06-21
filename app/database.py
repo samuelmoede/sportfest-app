@@ -138,6 +138,26 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS change_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            actor_role TEXT NOT NULL,
+            action TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id INTEGER,
+            competition_id INTEGER,
+            discipline_id INTEGER,
+            team_id INTEGER,
+            old_value TEXT,
+            new_value TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_change_log_entity
+            ON change_log (entity_type, entity_id, created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_change_log_competition
+            ON change_log (competition_id, discipline_id, team_id, created_at);
         """)
 
         columns = [
