@@ -9,6 +9,7 @@ import re
 import secrets
 import shutil
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -102,6 +103,7 @@ app.add_middleware(
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
 BACKUP_DIR = ROOT_DIR / "backups"
+APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
 DEFAULT_SECURITY_ENABLED = False
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
@@ -136,6 +138,16 @@ DEFAULT_CHANGEOVER_DURATION_MINUTES = 3
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
+def app_now():
+    return datetime.now(APP_TIMEZONE)
+
+
+def app_now_display_time():
+    return app_now().strftime("%H:%M")
+
+
+def app_now_db_timestamp():
+    return app_now().strftime("%Y-%m-%d %H:%M:%S")
 
 def get_app_version():
     try:
@@ -356,7 +368,7 @@ def record_change(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            app_now_db_timestamp(),
             get_current_role(request),
             action,
             entity_type,
@@ -499,7 +511,7 @@ def collect_system_info():
 
     data_dir = DB_PATH.parent
     data_dir.mkdir(parents=True, exist_ok=True)
-    write_probe_path = data_dir / f".write_probe_{int(datetime.now().timestamp() * 1000)}.tmp"
+    write_probe_path = data_dir / f".write_probe_{int(app_now().timestamp() * 1000)}.tmp"
     try:
         write_probe_path.write_text("ok", encoding="utf-8")
         write_access = True
@@ -995,7 +1007,7 @@ def format_time_range(start: datetime, end: datetime):
 def build_day_schedule(competitions, event_date=None, now=None):
     columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
     blocks = {}
-    now = now or datetime.now()
+    now = now or app_now().replace(tzinfo=None)
     event_day = parse_event_date(event_date)
     if event_day is None:
         event_state = "undated"
@@ -1472,16 +1484,34 @@ def get_slots_grouped_by_court(
     return list(grouped.values()) + [without_court]
 
 
-def prepare_editor_time_grid(groups):
-    time_marks = sorted(
-        {
-            slot["startzeit"]
-            for group in groups
-            for slot in group["slots"]
-            if parse_slot_time(slot.get("startzeit")) is not None
-        },
-        key=lambda value: parse_slot_time(value),
-    )
+def prepare_editor_time_grid(groups, competition=None):
+    time_values = {
+        slot["startzeit"]
+        for group in groups
+        for slot in group["slots"]
+        if parse_slot_time(slot.get("startzeit")) is not None
+    }
+
+    if competition is not None and competition["competition_type"] == "Turnier":
+        timing = get_competition_timing(competition)
+        interval = timing["slot_interval_minutes"]
+        start = parse_slot_time(competition["start_time"])
+        planned_end = parse_slot_time(competition["end_time"])
+
+        if start is not None and interval > 0:
+            generated_time = start
+            generated_count = 0
+            while generated_count < 200:
+                if planned_end is not None and planned_end > start:
+                    if generated_time >= planned_end:
+                        break
+                elif generated_count >= 3:
+                    break
+                time_values.add(generated_time.strftime("%H:%M"))
+                generated_time += timedelta(minutes=interval)
+                generated_count += 1
+
+    time_marks = sorted(time_values, key=lambda value: parse_slot_time(value))
     row_by_time = {
         startzeit: index + 2 for index, startzeit in enumerate(time_marks)
     }
@@ -2798,7 +2828,6 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
         """).fetchall()
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
         teams = conn.execute("SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name").fetchall()
-    editor_time_marks = prepare_editor_time_grid(groups)
     selected_competition = next(
         (
             competition
@@ -2807,6 +2836,7 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
         ),
         None,
     )
+    editor_time_marks = prepare_editor_time_grid(groups, selected_competition)
     selected_timing = (
         get_competition_timing(selected_competition)
         if selected_competition is not None
@@ -2913,7 +2943,7 @@ def plan_generator_preview(
                     ),
                 })
     has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
-    editor_time_marks = prepare_editor_time_grid(groups)
+    editor_time_marks = prepare_editor_time_grid(groups, competition)
     current_end_time_forecast = build_end_time_forecast(
         [
             slot
@@ -3200,7 +3230,7 @@ def update_slot(
         ).fetchone()
         started_at_value = slot["started_at"] if slot else None
         if status == "läuft" and not started_at_value:
-            started_at_value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            started_at_value = app_now_db_timestamp()
         if status == "geplant":
             started_at_value = None
 
@@ -3595,7 +3625,7 @@ async def sixkampf_team_results_save(
             )
         conn.commit()
 
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_display_time()
     return RedirectResponse(
         f"/ergebnisse?competition_id={competition_id}"
         f"&discipline_id={discipline_id}"
@@ -3606,7 +3636,7 @@ async def sixkampf_team_results_save(
 @app.post("/slot/{slot_id}/start")
 def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(None)):
     with get_conn() as conn:
-        started_at_value = started_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        started_at_value = started_at or app_now_db_timestamp()
         conn.execute(
             "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
             (started_at_value, slot_id),
@@ -3620,7 +3650,7 @@ def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(
 @app.post("/slot/{slot_id}/finish")
 def finish_slot(slot_id: int):
     with get_conn() as conn:
-        finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        finished_at = app_now_db_timestamp()
         conn.execute(
             "UPDATE slots SET status = 'beendet', finished_at = ? WHERE id = ?",
             (finished_at, slot_id),
@@ -3669,7 +3699,7 @@ def save_slot(
         ).fetchone()
         started_at_value = slot["started_at"] if slot else None
         if new_status == "läuft" and not started_at_value:
-            started_at_value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            started_at_value = app_now_db_timestamp()
         if new_status == "geplant":
             started_at_value = None
 
@@ -3879,7 +3909,7 @@ def update_team(
             (name_value, jahrgang, 1 if active else 0, team_id),
         )
         conn.commit()
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_db_timestamp()
     return RedirectResponse(f"/teams?saved_team_id={team_id}&saved_at={saved_at}", status_code=303)
 
 
@@ -4179,7 +4209,7 @@ def update_competition(
             competition_id,
         ))
         conn.commit()
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/wettbewerbe?saved_competition_id={competition_id}&saved_at={saved_at}#competition-{competition_id}",
         status_code=303,
@@ -4455,7 +4485,7 @@ def event_update(
             event_date or None, status, event_type, event_id,
         ))
         conn.commit()
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_db_timestamp()
     return RedirectResponse(f"/events/{event_id}/edit?saved_at={saved_at}", status_code=303)
 
 
@@ -4650,7 +4680,7 @@ def update_court(
         """, (name.strip(), sportart.strip() or None, 1 if active else 0, court_id))
         conn.commit()
 
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/spielfelder?saved_court_id={court_id}&saved_at={saved_at}",
         status_code=303,
@@ -4859,7 +4889,7 @@ def update_beamer_interval(
         """, (str(beamer_refresh_seconds),))
         conn.commit()
 
-    saved_at = datetime.now().strftime("%H:%M")
+    saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/einstellungen?settings_status=saved&saved_at={saved_at}",
         status_code=303,

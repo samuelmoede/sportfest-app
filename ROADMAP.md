@@ -42,6 +42,25 @@ Später:
 [x] Stationshelfer technisch vorbereitet (ohne Anmeldung, PIN oder Stationsrechte)
 [ ] Stations-PIN
 
+## Phase 4.5 – Spielplan- und Rollenmodell-Bereinigung
+
+[x] Öffentliche Spielplanseite ohne Link zur Bearbeitung
+[x] Interne Ansichtsumschalter aus der Spielplanbearbeitung entfernen
+[ ] Leere Zeitraster-Slots als Drop-Zonen nutzbar machen
+
+[x] /spielplan: Link/Button zur Spielplanbearbeitung entfernen
+[x] /spielplan-bearbeiten: interne Navigationsbuttons entfernen
+[ ] Zeitraster: Spiele müssen auch in spätere leere Zeitslots gezogen werden können
+
+## Phase 4.6 – Ortssensitive Spielplanung
+
+[ ] Spielplan-Generator berücksichtigt Ort des Wettbewerbs
+[ ] Turnhalle: Feld 1, Feld 2, Feld 3
+[ ] Fußballplatz: Rasenplatz, Tartanplatz
+[ ] Außenbereich: keine Slotplanung
+[ ] /spielplan-bearbeiten zeigt je nach Ort passende Spalten
+
+
 ## Phase 5 – Sechskampf 2.0
 
 [ ] mehrere Jahrgänge pro Wettbewerb
@@ -75,3 +94,9 @@ Später:
 [ ] Stations-PIN
 [ ] Benutzerverwaltung
 [ ] Rechteverwaltung per Checkbox
+
+## Bugs/UX
+
+[ ] Dashboard-Tagesplan tabellarisch anzeigen
+[ ] Sechskampf: Ganzzahlen nicht als Dezimalzahl anzeigen
+[ ] Sechskampf: Speicher-Uhrzeit korrigieren

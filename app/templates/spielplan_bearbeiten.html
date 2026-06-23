@@ -2,12 +2,6 @@
 {% block content %}
 <h1>Spielplan bearbeiten</h1>
 <p class="muted">Feste Slots anlegen, bearbeiten, Turniere filtern und automatische Vorschläge erzeugen.</p>
-<nav class="schedule-view-switch" aria-label="Spielplanansicht">
-    <a class="schedule-view-link" href="/spielplan{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
-        Übersicht
-    </a>
-    <span class="schedule-view-link is-active" aria-current="page">Turnierplanung</span>
-</nav>
 
 <style>
     .generator-box {

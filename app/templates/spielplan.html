@@ -42,21 +42,7 @@
         <h1>Spielplan nach Ort</h1>
         <p class="muted">Öffentliche Übersicht für Turnhalle, Fußballplatz und Außenbereich.</p>
     </div>
-    {% if can_view_admin %}
-    <a class="schedule-view-link" href="/spielplan-bearbeiten{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
-        Turnierplanung bearbeiten
-    </a>
-    {% endif %}
 </div>
-
-<nav class="schedule-view-switch" aria-label="Spielplanansicht">
-    <span class="schedule-view-link is-active" aria-current="page">Übersicht</span>
-    {% if can_view_admin %}
-    <a class="schedule-view-link" href="/spielplan-bearbeiten{% if selected_competition_id %}?competition_id={{ selected_competition_id }}{% endif %}">
-        Turnierplanung
-    </a>
-    {% endif %}
-</nav>
 
 <form method="get" action="/spielplan" class="filter-row">
     <select name="competition_id">
