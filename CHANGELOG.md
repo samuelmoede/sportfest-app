@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Phase 4.5 abgeschlossen: Die öffentlichen Spielplanseiten bleiben ohne Bearbeitungslink, die Spielplanbearbeitung nutzt die Seitenleiste zur Navigation und leere Zeitraster-Zellen sind als Drop-Zonen nutzbar, ohne künstliche Leer- oder Pausenslots anzulegen.
 - Refactoring: Veranstaltungsverwaltung (`/events`, Detail-, Formular- und Verwaltungsaktionen) aus `app/main.py` in `app/routes/events.py` ausgelagert; Tagesplan- und Gesamtwertungshelfer bleiben geteilt in `app/main.py`.
 - Refactoring: Wettbewerbsverwaltung (`/wettbewerbe`, Wettbewerbsaktionen und direkte Sechskampf-Disziplinverwaltung) aus `app/main.py` in `app/routes/competitions.py` ausgelagert; Spielplanaktionen bleiben in `app/main.py`.
 - Veranstaltungsdetailseite vereinfacht: Wettbewerbsuebersicht und Veranstaltungsplan entfernt, Fokus liegt auf tabellarischem Tagesplan und Gesamtwertung.

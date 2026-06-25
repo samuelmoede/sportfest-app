@@ -1826,6 +1826,39 @@ pre {
     background: #e2e8f0;
 }
 
+
+.editor-time-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-self: stretch;
+    min-height: 132px;
+    padding: 6px;
+    border: 1px dashed transparent;
+    border-radius: 12px;
+}
+
+.editor-time-cell.is-empty {
+    border-color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.48);
+}
+
+.editor-time-cell.is-empty::after {
+    content: "";
+    display: block;
+    flex: 1 1 auto;
+    min-height: 92px;
+    border-radius: 8px;
+}
+
+.editor-time-cell.drag-over {
+    border-color: var(--orange);
+    background: #fff7ed;
+}
+
+.editor-time-cell .slot-card {
+    flex: 0 0 auto;
+}
 .editor-court-column .slot-card {
     align-self: stretch;
     margin: 0;

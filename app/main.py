@@ -20,6 +20,7 @@ from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.venues import create_router as create_venues_router
+from app.services.schedule_grid_service import build_editor_time_grid
 from app.services.settings_service import (
     ROLE_LABELS,
     can_access_role,
@@ -1112,43 +1113,6 @@ def get_slots_grouped_by_court(
             without_court["slots"].append(slot)
 
     return list(grouped.values()) + [without_court]
-
-
-def prepare_editor_time_grid(groups, competition=None):
-    time_values = {
-        slot["startzeit"]
-        for group in groups
-        for slot in group["slots"]
-        if parse_slot_time(slot.get("startzeit")) is not None
-    }
-
-    if competition is not None and competition["competition_type"] == "Turnier":
-        timing = get_competition_timing(competition)
-        interval = timing["slot_interval_minutes"]
-        start = parse_slot_time(competition["start_time"])
-        planned_end = parse_slot_time(competition["end_time"])
-
-        if start is not None and interval > 0:
-            generated_time = start
-            generated_count = 0
-            while generated_count < 200:
-                if planned_end is not None and planned_end > start:
-                    if generated_time >= planned_end:
-                        break
-                elif generated_count >= 3:
-                    break
-                time_values.add(generated_time.strftime("%H:%M"))
-                generated_time += timedelta(minutes=interval)
-                generated_count += 1
-
-    time_marks = sorted(time_values, key=lambda value: parse_slot_time(value))
-    row_by_time = {
-        startzeit: index + 2 for index, startzeit in enumerate(time_marks)
-    }
-    for group in groups:
-        for slot in group["slots"]:
-            slot["editor_grid_row"] = row_by_time.get(slot.get("startzeit"), 2)
-    return time_marks
 
 
 def get_unslotted_competitions_by_location(
@@ -2439,12 +2403,14 @@ def spielplan_bearbeiten(request: Request, competition_id: str = ""):
         ),
         None,
     )
-    editor_time_marks = prepare_editor_time_grid(groups, selected_competition)
     selected_timing = (
         get_competition_timing(selected_competition)
         if selected_competition is not None
         and selected_competition["competition_type"] == "Turnier"
         else None
+    )
+    editor_time_marks = build_editor_time_grid(
+        groups, selected_competition, selected_timing
     )
     current_end_time_forecast = build_end_time_forecast(
         [
@@ -2546,7 +2512,7 @@ def plan_generator_preview(
                     ),
                 })
     has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
-    editor_time_marks = prepare_editor_time_grid(groups, competition)
+    editor_time_marks = build_editor_time_grid(groups, competition, plan_timing)
     current_end_time_forecast = build_end_time_forecast(
         [
             slot
@@ -2903,9 +2869,13 @@ def delete_multiple_slots(
 def move_slot(
     slot_id: int,
     court_id: str = Form(""),
-    sort_order: int = Form(0)
+    sort_order: int = Form(0),
+    startzeit: str = Form("")
 ):
     court_value = int(court_id) if court_id else None
+    startzeit_value = startzeit.strip()
+    if startzeit_value and parse_slot_time(startzeit_value) is None:
+        return JSONResponse({"success": False, "warnings": []}, status_code=400)
 
     with get_conn() as conn:
         slot = conn.execute(
@@ -2917,23 +2887,38 @@ def move_slot(
             (slot["competition_id"], slot["court_id"]),
             (slot["competition_id"], court_value),
         }
-        conn.execute("""
-            UPDATE slots
-            SET court_id = ?,
-                sort_order = ?
-            WHERE id = ?
-        """, (
-            court_value,
-            sort_order,
-            slot_id
-        ))
-        warnings = []
-        for competition_id, affected_court_id in affected_courts:
-            warning = recalculate_competition_court_times(
-                conn, competition_id, affected_court_id
-            )
-            if warning:
-                warnings.append(warning)
+        if startzeit_value:
+            conn.execute("""
+                UPDATE slots
+                SET court_id = ?,
+                    sort_order = ?,
+                    startzeit = ?
+                WHERE id = ?
+            """, (
+                court_value,
+                sort_order,
+                startzeit_value,
+                slot_id
+            ))
+            warnings = []
+        else:
+            conn.execute("""
+                UPDATE slots
+                SET court_id = ?,
+                    sort_order = ?
+                WHERE id = ?
+            """, (
+                court_value,
+                sort_order,
+                slot_id
+            ))
+            warnings = []
+            for competition_id, affected_court_id in affected_courts:
+                warning = recalculate_competition_court_times(
+                    conn, competition_id, affected_court_id
+                )
+                if warning:
+                    warnings.append(warning)
         conn.commit()
 
     return JSONResponse({"success": True, "warnings": warnings})

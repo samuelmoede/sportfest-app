@@ -587,97 +587,112 @@
     {% endfor %}
 
     {% for group in groups %}
-    <div class="court-column dropzone editor-court-column"
+    <div class="court-column editor-court-column"
          data-court-id="{{ group.court.id }}"
          style="grid-column: {{ loop.index + 2 }}; grid-row: 1 / span {{ editor_time_marks|length + 2 }};">
         <h2 class="editor-court-heading">{{ group.court.name }}</h2>
 
-        {% for s in group.slots %}
-        <div class="slot-card draggable {{ s.status }}"
-             style="grid-row: {{ s.editor_grid_row }};"
-             draggable="true"
-             data-slot-id="{{ s.id }}"
-             data-time="{{ s.startzeit }}">
+        {% for cell in group.time_cells %}
+        <div class="editor-time-cell dropzone{% if not cell.slots %} is-empty{% endif %}"
+             data-court-id="{{ group.court.id }}"
+             data-startzeit="{{ cell.startzeit }}"
+             data-grid-row="{{ cell.editor_grid_row }}"
+             style="grid-row: {{ cell.editor_grid_row }};">
+            {% for s in cell.slots %}
+            <div class="slot-card draggable {{ s.status }}"
+                 draggable="true"
+                 data-slot-id="{{ s.id }}"
+                 data-time="{{ s.startzeit }}">
 
-            <label class="slot-select">
-                <input
-                    type="checkbox"
-                    class="slot-checkbox"
-                    name="slot_ids"
-                    value="{{ s.id }}"
-                    onclick="event.stopPropagation();"
-                >
-                auswählen
-            </label>
+                <label class="slot-select">
+                    <input
+                        type="checkbox"
+                        class="slot-checkbox"
+                        name="slot_ids"
+                        value="{{ s.id }}"
+                        onclick="event.stopPropagation();"
+                    >
+                    auswählen
+                </label>
 
-            <div class="slot-type">{{ s.slot_typ }}</div>
+                <div class="slot-type">{{ s.slot_typ }}</div>
 
-            {% if s.slot_typ == "Spiel" %}
-                <div class="slot-teams">
-                    <strong>{{ s.team_a or "?" }}</strong>
-                    <span>
-                        {% if s.score_a is not none %}
-                            {{ s.score_a }} : {{ s.score_b }}
-                        {% else %}
-                            vs
+                {% if s.slot_typ == "Spiel" %}
+                    <div class="slot-teams">
+                        <strong>{{ s.team_a or "?" }}</strong>
+                        <span>
+                            {% if s.score_a is not none %}
+                                {{ s.score_a }} : {{ s.score_b }}
+                            {% else %}
+                                vs
+                            {% endif %}
+                        </span>
+                        <strong>{{ s.team_b or "?" }}</strong>
+                    </div>
+                {% else %}
+                    <div class="slot-teams">
+                        <strong>{{ s.slot_typ }}</strong>
+                        {% if s.note %}
+                            <span>{{ s.note }}</span>
                         {% endif %}
-                    </span>
-                    <strong>{{ s.team_b or "?" }}</strong>
-                </div>
-            {% else %}
-                <div class="slot-teams">
-                    <strong>{{ s.slot_typ }}</strong>
-                    {% if s.note %}
-                        <span>{{ s.note }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="slot-footer">
+                    <span>{{ s.phase }}{% if s.gruppe %} ({{ s.gruppe }}){% endif %}</span>
+                    {% if s.started_at and s.status == 'läuft' %}
+                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+                    <span class="slot-started">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
                     {% endif %}
+                    <span class="badge {{ s.status }}">{{ s.status }}</span>
                 </div>
-            {% endif %}
 
-            <div class="slot-footer">
-                <span>{{ s.phase }}{% if s.gruppe %} ({{ s.gruppe }}){% endif %}</span>
-                {% if s.started_at and s.status == 'läuft' %}
-                <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
-                <span class="slot-started">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
-                {% endif %}
-                <span class="badge {{ s.status }}">{{ s.status }}</span>
+                <div class="slot-actions">
+                    <button type="button"
+                            onclick="openEditSlotModal(
+                                '{{ s.id }}',
+                                '{{ s.competition_id }}',
+                                '{{ s.startzeit }}',
+                                '{{ s.slot_typ }}',
+                                '{{ s.court_id or "" }}',
+                                '{{ s.phase }}',
+                                '{{ s.gruppe or "" }}',
+                                '{{ s.team_a_id or "" }}',
+                                '{{ s.team_b_id or "" }}',
+                                '{{ s.status }}',
+                                '{{ s.note or "" }}'
+                            )">
+                        Bearbeiten
+                    </button>
+                    
+                    {% if s.slot_typ == 'Spiel' and s.competition_type != 'Sechskampf' and s.status == 'läuft' %}
+                    <form method="post" action="/slot/{{ s.id }}/finish">
+                        <button type="submit" onclick="event.stopPropagation();">Beenden</button>
+                    </form>
+                    {% endif %}
+
+                    <form method="post" action="/slot/{{ s.id }}/copy">
+                        <button type="submit" onclick="event.stopPropagation();">Kopieren</button>
+                    </form>
+
+                    <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
+                        <button type="submit" onclick="event.stopPropagation();">Löschen</button>
+                    </form>
+                </div>
             </div>
-
-            <div class="slot-actions">
-                <button type="button"
-                        onclick="openEditSlotModal(
-                            '{{ s.id }}',
-                            '{{ s.competition_id }}',
-                            '{{ s.startzeit }}',
-                            '{{ s.slot_typ }}',
-                            '{{ s.court_id or "" }}',
-                            '{{ s.phase }}',
-                            '{{ s.gruppe or "" }}',
-                            '{{ s.team_a_id or "" }}',
-                            '{{ s.team_b_id or "" }}',
-                            '{{ s.status }}',
-                            '{{ s.note or "" }}'
-                        )">
-                    Bearbeiten
-                </button>
-                
-                {% if s.slot_typ == 'Spiel' and s.competition_type != 'Sechskampf' and s.status == 'läuft' %}
-                <form method="post" action="/slot/{{ s.id }}/finish">
-                    <button type="submit" onclick="event.stopPropagation();">Beenden</button>
-                </form>
-                {% endif %}
-
-                <form method="post" action="/slot/{{ s.id }}/copy">
-                    <button type="submit" onclick="event.stopPropagation();">Kopieren</button>
-                </form>
-
-                <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
-                    <button type="submit" onclick="event.stopPropagation();">Löschen</button>
-                </form>
-            </div>
+            {% endfor %}
         </div>
-        {% else %}
-        <p class="muted editor-empty-court">Keine Slots geplant.</p>
         {% endfor %}
+
+        {% if not group.time_cells %}
+        <div class="editor-time-cell dropzone is-empty editor-empty-court"
+             data-court-id="{{ group.court.id }}"
+             data-startzeit=""
+             data-grid-row="2"
+             style="grid-row: 2;">
+            <p class="muted">Keine Slots geplant.</p>
+        </div>
+        {% endif %}
     </div>
     {% endfor %}
 </section>
@@ -757,30 +772,29 @@ function getDragAfterElement(container, y) {
 
 async function persistSlotMove(slotCard, zone) {
     const courtId = zone.dataset.courtId || "";
+    const targetTime = zone.dataset.startzeit || slotCard.dataset.time || "";
+    const gridRow = Number(zone.dataset.gridRow || 0);
     const slotCards = [...zone.querySelectorAll(".slot-card")];
+    const slotIndex = Math.max(slotCards.indexOf(slotCard), 0);
+    const sortOrder = (gridRow * 100) + ((slotIndex + 1) * 10);
     const warningMessages = new Set();
 
-    for (let index = 0; index < slotCards.length; index++) {
-        const card = slotCards[index];
-        const slotId = card.dataset.slotId;
-        const sortOrder = (index + 1) * 10;
+    const formData = new FormData();
+    formData.append("court_id", courtId);
+    formData.append("sort_order", sortOrder);
+    formData.append("startzeit", targetTime);
 
-        const formData = new FormData();
-        formData.append("court_id", courtId);
-        formData.append("sort_order", sortOrder);
-
-        const response = await fetch(`/slot/${slotId}/move`, {
-            method: "POST",
-            body: formData
-        });
-        if (!response.ok) {
-            throw new Error("Slot konnte nicht verschoben werden.");
-        }
-        const result = await response.json();
-        (result.warnings || []).forEach(warning => {
-            warningMessages.add(warning.message);
-        });
+    const response = await fetch(`/slot/${slotCard.dataset.slotId}/move`, {
+        method: "POST",
+        body: formData
+    });
+    if (!response.ok) {
+        throw new Error("Slot konnte nicht verschoben werden.");
     }
+    const result = await response.json();
+    (result.warnings || []).forEach(warning => {
+        warningMessages.add(warning.message);
+    });
 
     if (warningMessages.size) {
         sessionStorage.setItem("scheduleMoveWarnings", JSON.stringify([...warningMessages]));

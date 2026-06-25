@@ -46,11 +46,11 @@ Später:
 
 [x] Öffentliche Spielplanseite ohne Link zur Bearbeitung
 [x] Interne Ansichtsumschalter aus der Spielplanbearbeitung entfernen
-[ ] Leere Zeitraster-Slots als Drop-Zonen nutzbar machen
+[x] Leere Zeitraster-Slots als Drop-Zonen nutzbar machen
 
 [x] /spielplan: Link/Button zur Spielplanbearbeitung entfernen
 [x] /spielplan-bearbeiten: interne Navigationsbuttons entfernen
-[ ] Zeitraster: Spiele müssen auch in spätere leere Zeitslots gezogen werden können
+[x] Zeitraster: Spiele müssen auch in spätere leere Zeitslots gezogen werden können
 
 ## Phase 4.6 – Ortssensitive Spielplanung
 
