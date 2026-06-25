@@ -7,17 +7,35 @@ from math import isfinite
 import os
 import re
 import secrets
-import shutil
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.database import init_db, get_conn, DB_PATH
-from pathlib import Path
+from app.routes.settings import router as settings_router
+from app.services.settings_service import (
+    ROLE_LABELS,
+    can_access_role,
+    get_admin_password,
+    get_beamer_refresh_seconds,
+    get_current_role,
+    get_current_role_description,
+    get_current_role_label,
+    get_referee_password,
+    is_logged_in,
+    is_login_prepared,
+    is_security_enabled,
+)
+from app.web import APP_DIR, templates
+from app.utils.formatting import (
+    format_points_value,
+    format_score,
+    format_sixkampf_values,
+    slugify_filename_part,
+)
 
 app = FastAPI(title="Sportfest-App")
 
@@ -100,32 +118,7 @@ app.add_middleware(
     https_only=SESSION_HTTPS_ONLY,
 )
 
-APP_DIR = Path(__file__).resolve().parent
-ROOT_DIR = APP_DIR.parent
-BACKUP_DIR = ROOT_DIR / "backups"
 APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
-DEFAULT_BEAMER_REFRESH_SECONDS = 30
-DEFAULT_SECURITY_ENABLED = False
-TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
-ROLES = {"viewer", "station_helper", "referee", "admin"}
-ROLE_LABELS = {
-    "viewer": "Viewer",
-    "station_helper": "Stationshelfer",
-    "referee": "Schiedsrichter",
-    "admin": "Admin",
-}
-ROLE_DESCRIPTIONS = {
-    "viewer": "Öffentliche Ansichten ohne Bearbeitungsrechte",
-    "station_helper": "Stationsrolle vorbereitet, derzeit noch ohne Anmeldung und Stationsrechte",
-    "referee": "Ergebnisse erfassen und Spieltimer bedienen",
-    "admin": "Vollzugriff auf Verwaltung und Planung",
-}
-ROLE_ACCESS_LEVELS = {
-    "viewer": 0,
-    "station_helper": 0,
-    "referee": 1,
-    "admin": 2,
-}
 EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
 COMPETITION_LOCATIONS = ("Turnhalle", "Fußballplatz", "Außenbereich")
@@ -136,8 +129,6 @@ DEFAULT_GAME_DURATION_MINUTES = 7
 DEFAULT_CHANGEOVER_DURATION_MINUTES = 3
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
-
 def app_now():
     return datetime.now(APP_TIMEZONE)
 
@@ -149,194 +140,7 @@ def app_now_display_time():
 def app_now_db_timestamp():
     return app_now().strftime("%Y-%m-%d %H:%M:%S")
 
-def get_app_version():
-    try:
-        with open(ROOT_DIR / "VERSION", "r", encoding="utf-8") as version_file:
-            return version_file.read().strip()
-    except FileNotFoundError:
-        return "dev"
 
-
-def get_style_version():
-    style_path = APP_DIR / "static" / "style.css"
-    try:
-        return str(int(style_path.stat().st_mtime))
-    except FileNotFoundError:
-        return get_app_version()
-
-
-def load_documentation_text():
-    documentation_path = ROOT_DIR / "DOKUMENTATION.md"
-    try:
-        return documentation_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return "Die Dokumentation wurde nicht gefunden."
-
-
-templates.env.globals["app_version"] = get_app_version
-templates.env.globals["style_version"] = get_style_version
-
-
-def parse_positive_int(value, default: int):
-    try:
-        parsed = int(value)
-        if parsed > 0:
-            return parsed
-    except (TypeError, ValueError):
-        pass
-    return default
-
-
-def format_bytes(byte_count: int):
-    value = float(max(byte_count, 0))
-    units = ["B", "KB", "MB", "GB"]
-    unit_index = 0
-    while value >= 1024 and unit_index < len(units) - 1:
-        value /= 1024
-        unit_index += 1
-    if unit_index == 0:
-        return f"{int(value)} {units[unit_index]}"
-    return f"{value:.1f} {units[unit_index]}"
-
-
-def list_backup_files():
-    if not BACKUP_DIR.exists():
-        return []
-
-    backups = []
-    for file_path in BACKUP_DIR.glob("*.db"):
-        stat = file_path.stat()
-        created_at = datetime.fromtimestamp(stat.st_ctime)
-        backups.append({
-            "name": file_path.name,
-            "size_bytes": stat.st_size,
-            "size_display": format_bytes(stat.st_size),
-            "created_at": created_at,
-            "created_at_display": created_at.strftime("%d.%m.%Y %H:%M"),
-        })
-    backups.sort(key=lambda item: item["created_at"], reverse=True)
-    return backups
-
-
-def get_beamer_refresh_seconds():
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT OR IGNORE INTO settings (key, value)
-            VALUES ('beamer_refresh_seconds', ?)
-        """, (str(DEFAULT_BEAMER_REFRESH_SECONDS),))
-        setting = conn.execute(
-            "SELECT value FROM settings WHERE key = 'beamer_refresh_seconds'"
-        ).fetchone()
-    return parse_positive_int(
-        setting["value"] if setting else None,
-        DEFAULT_BEAMER_REFRESH_SECONDS,
-    )
-
-
-def get_setting(key: str, default: Optional[str] = None):
-    with get_conn() as conn:
-        setting = conn.execute(
-            "SELECT value FROM settings WHERE key = ?",
-            (key,),
-        ).fetchone()
-    return setting["value"] if setting else default
-
-
-def set_setting(key: str, value: str):
-    with get_conn() as conn:
-        conn.execute(
-            """
-            INSERT INTO settings (key, value)
-            VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            """,
-            (key, value),
-        )
-        conn.commit()
-
-
-def get_security_environment_override():
-    environment_value = os.getenv("SPORTFEST_SECURITY_ENABLED")
-    if environment_value in (None, ""):
-        return None
-    return environment_value.strip().lower() in TRUE_SETTING_VALUES
-
-
-def get_security_database_setting():
-    raw_value = get_setting(
-        "security_enabled",
-        str(DEFAULT_SECURITY_ENABLED).lower(),
-    )
-    return str(raw_value).strip().lower() in TRUE_SETTING_VALUES
-
-
-def get_security_enabled_setting():
-    environment_override = get_security_environment_override()
-    if environment_override is not None:
-        return environment_override
-    return get_security_database_setting()
-
-
-def get_admin_password():
-    environment_password = (
-        os.getenv("SPORTFEST_ADMIN_PASSWORD")
-        or os.getenv("ADMIN_PASSWORD")
-    )
-    if environment_password:
-        return environment_password
-    return get_setting("admin_password", "") or ""
-
-
-def get_referee_password():
-    environment_password = os.getenv("SPORTFEST_REFEREE_PASSWORD")
-    if environment_password:
-        return environment_password
-    return get_setting("referee_password", "") or ""
-
-
-def is_login_prepared():
-    return bool(get_admin_password())
-
-
-def is_security_enabled():
-    # Ohne konfiguriertes Passwort darf die App sich nicht versehentlich sperren.
-    return get_security_enabled_setting() and is_login_prepared()
-
-
-def get_current_role(request: Request):
-    role = request.session.get("role")
-    if role in ROLES:
-        return role
-
-    # Bestehende Sitzungen ohne Rollenfeld bleiben als Admin angemeldet.
-    if request.session.get("admin_logged_in") is True:
-        return "admin"
-    return "viewer"
-
-
-def get_current_role_label(request: Request):
-    return ROLE_LABELS[get_current_role(request)]
-
-
-def get_current_role_description(request: Request):
-    return ROLE_DESCRIPTIONS[get_current_role(request)]
-
-
-def can_access_role(request: Request, required_role: str):
-    if not is_security_enabled():
-        return True
-    current_role = get_current_role(request)
-    if required_role == "station_helper":
-        return current_role in {"station_helper", "admin"}
-    if current_role == "station_helper":
-        return required_role == "viewer"
-    current_level = ROLE_ACCESS_LEVELS[current_role]
-    required_level = ROLE_ACCESS_LEVELS[required_role]
-    return current_level >= required_level
-
-
-def is_logged_in(request: Request):
-    return get_current_role(request) in {"station_helper", "referee", "admin"}
 
 
 templates.env.globals["get_current_role"] = get_current_role
@@ -344,6 +148,8 @@ templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
+
+app.include_router(settings_router)
 
 
 def record_change(
@@ -382,81 +188,6 @@ def record_change(
     )
 
 
-def format_score(score_a, score_b):
-    if score_a is None and score_b is None:
-        return "–"
-    return f"{score_a if score_a is not None else '–'}:{score_b if score_b is not None else '–'}"
-
-
-def format_sixkampf_values(values):
-    if not values:
-        return "–"
-    return " · ".join(
-        f"Wert {value_index}: {value:g}"
-        for value_index, value in sorted(values.items())
-    )
-
-
-def get_recent_change_log(limit: int = 50):
-    safe_limit = max(1, min(int(limit), 200))
-    with get_conn() as conn:
-        rows = [
-            dict(row)
-            for row in conn.execute(
-                """
-                SELECT log.*,
-                       competition.name AS competition_name,
-                       discipline.name AS discipline_name,
-                       team.name AS team_name,
-                       team_a.name AS team_a_name,
-                       team_b.name AS team_b_name
-                FROM change_log AS log
-                LEFT JOIN competitions AS competition
-                    ON competition.id = log.competition_id
-                LEFT JOIN competition_disciplines AS discipline
-                    ON discipline.id = log.discipline_id
-                LEFT JOIN teams AS team
-                    ON team.id = log.team_id
-                LEFT JOIN slots AS slot
-                    ON log.entity_type = 'slot_result'
-                   AND slot.id = log.entity_id
-                LEFT JOIN teams AS team_a
-                    ON team_a.id = slot.team_a_id
-                LEFT JOIN teams AS team_b
-                    ON team_b.id = slot.team_b_id
-                ORDER BY log.id DESC
-                LIMIT ?
-                """,
-                (safe_limit,),
-            ).fetchall()
-        ]
-
-    for row in rows:
-        try:
-            row["created_at_display"] = datetime.strptime(
-                row["created_at"], "%Y-%m-%d %H:%M:%S"
-            ).strftime("%d.%m.%Y %H:%M:%S")
-        except (TypeError, ValueError):
-            row["created_at_display"] = row["created_at"]
-        if row["entity_type"] == "slot_result":
-            teams = " – ".join(
-                name
-                for name in (row.get("team_a_name"), row.get("team_b_name"))
-                if name
-            )
-            row["target_label"] = teams or f"Spiel #{row['entity_id']}"
-        else:
-            parts = [
-                row.get("discipline_name"),
-                row.get("team_name"),
-            ]
-            row["target_label"] = " · ".join(
-                part for part in parts if part
-            ) or f"Eintrag #{row['entity_id']}"
-        row["actor_role_label"] = ROLE_LABELS.get(
-            row["actor_role"], row["actor_role"]
-        )
-    return rows
 
 
 def safe_next_url(value: str, default: str = "/"):
@@ -482,62 +213,6 @@ def get_required_role(path: str):
     return None
 
 
-def collect_system_info():
-    db_reachable = False
-    write_access = False
-
-    with get_conn() as conn:
-        conn.execute("SELECT 1").fetchone()
-        db_reachable = True
-        counts = {
-            "events": conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()["n"],
-            "competitions": conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"],
-            "teams": conn.execute("SELECT COUNT(*) AS n FROM teams").fetchone()["n"],
-            "courts": conn.execute("SELECT COUNT(*) AS n FROM courts").fetchone()["n"],
-            "slots": conn.execute("SELECT COUNT(*) AS n FROM slots").fetchone()["n"],
-        }
-        tournament_results_count = conn.execute("""
-            SELECT COUNT(*) AS n
-            FROM slots
-            WHERE slot_typ = 'Spiel'
-              AND (score_a IS NOT NULL OR score_b IS NOT NULL)
-        """).fetchone()["n"]
-        sixkampf_results_count = conn.execute(
-            "SELECT COUNT(*) AS n FROM sixkampf_team_results"
-        ).fetchone()["n"]
-
-    db_size_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
-    backups = list_backup_files()
-
-    data_dir = DB_PATH.parent
-    data_dir.mkdir(parents=True, exist_ok=True)
-    write_probe_path = data_dir / f".write_probe_{int(app_now().timestamp() * 1000)}.tmp"
-    try:
-        write_probe_path.write_text("ok", encoding="utf-8")
-        write_access = True
-    except OSError:
-        write_access = False
-    finally:
-        try:
-            if write_probe_path.exists():
-                write_probe_path.unlink()
-        except OSError:
-            pass
-
-    return {
-        "app_version_value": get_app_version(),
-        "db_size_bytes": db_size_bytes,
-        "db_size_display": format_bytes(db_size_bytes),
-        "counts": counts,
-        "results_count": tournament_results_count + sixkampf_results_count,
-        "last_backup": backups[0] if backups else None,
-        "backup_count": len(backups),
-        "backups": backups,
-        "db_reachable": db_reachable,
-        "write_access": write_access,
-        "beamer_refresh_seconds": get_beamer_refresh_seconds(),
-    }
-
 
 def parse_competition_id(value):
     if value in (None, "", "None"):
@@ -553,19 +228,6 @@ def parse_jahrgang_filter(value):
     except (TypeError, ValueError):
         return None
 
-
-def slugify_filename_part(value: str):
-    normalized = (value or "").strip().lower()
-    replacements = {
-        "ä": "ae",
-        "ö": "oe",
-        "ü": "ue",
-        "ß": "ss",
-    }
-    for old_char, new_char in replacements.items():
-        normalized = normalized.replace(old_char, new_char)
-    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
-    return normalized.strip("_") or "export"
 
 
 def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competition_id: str = ""):
@@ -978,13 +640,6 @@ def get_points_for_placement(placement_points, placement: int):
         return 0.0
     return placement_points[placement - 1]
 
-
-def format_points_value(value):
-    if value is None:
-        return None
-    if float(value).is_integer():
-        return str(int(value))
-    return str(value).replace(".", ",")
 
 
 def combine_time_on_date(value: datetime, target_date: date):
@@ -1982,33 +1637,6 @@ def format_duration(start_time: str, end_time: str):
     minutes = minutes % 60
     return f"{hours}h {minutes}m" if hours else f"{minutes} min"
 
-
-def build_event_plan(competitions, disciplines_by_competition):
-    entries = []
-    for competition in competitions:
-        entry = dict(competition)
-        start = parse_slot_time(entry.get("start_time"))
-        end = parse_slot_time(entry.get("end_time"))
-        entry["has_time"] = start is not None and end is not None
-        entry["time_label"] = (
-            format_time_range(start, end)
-            if entry["has_time"]
-            else "ohne Zeitangabe"
-        )
-        entry["disciplines"] = list(
-            disciplines_by_competition.get(entry["id"], [])
-        )
-        entries.append(entry)
-
-    return sorted(
-        entries,
-        key=lambda entry: (
-            0 if entry["has_time"] else 1,
-            entry.get("start_time") or "",
-            entry.get("end_time") or "",
-            entry.get("name", "").casefold(),
-        ),
-    )
 
 
 def calculate_event_overall_ranking(event_id: int):
@@ -3494,6 +3122,18 @@ def ergebnisse(
             (row["team_id"], row["discipline_id"], row["value_index"]): row["value"]
             for row in result_rows
         }
+        values_input = {
+            key: "" if value is None else value
+            for key, value in values.items()
+        }
+        totals_by_team_discipline_display = {
+            key: format_points_value(value)
+            for key, value in totals_by_team_discipline.items()
+        }
+        overall_totals_display = {
+            team_id: format_points_value(value)
+            for team_id, value in overall_totals.items()
+        }
         return templates.TemplateResponse(
             request=request, name="ergebnisse.html",
             context={
@@ -3506,8 +3146,11 @@ def ergebnisse(
                 "show_evaluation": show_evaluation,
                 "teams": teams,
                 "values": values,
+                "values_input": values_input,
                 "totals_by_team_discipline": totals_by_team_discipline,
+                "totals_by_team_discipline_display": totals_by_team_discipline_display,
                 "overall_totals": overall_totals,
+                "overall_totals_display": overall_totals_display,
                 "ranking": ranking,
                 "change_counts": change_counts,
                 "saved_team_id": saved_team_id_value,
@@ -4570,50 +4213,19 @@ def event_duplicate(event_id: int):
 def event_detail(request: Request, event_id: int):
     with get_conn() as conn:
         event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
-        competitions = [dict(row) for row in conn.execute("""
-            SELECT * FROM competitions
-            WHERE event_id = ?
-            ORDER BY jahrgang, name
-        """, (event_id,)).fetchall()]
-        discipline_rows = conn.execute("""
-            SELECT
-                discipline.competition_id,
-                discipline.name,
-                discipline.sort_order
-            FROM competition_disciplines AS discipline
-            JOIN competitions AS competition
-              ON competition.id = discipline.competition_id
-            WHERE competition.event_id = ?
-            ORDER BY discipline.competition_id, discipline.sort_order, discipline.id
-        """, (event_id,)).fetchall()
     if event is None:
         return RedirectResponse("/events", status_code=303)
 
-    disciplines_by_competition = defaultdict(list)
-    for discipline in discipline_rows:
-        disciplines_by_competition[discipline["competition_id"]].append(
-            dict(discipline)
-        )
-
-    for competition in competitions:
-        competition["duration"] = format_duration(
-            competition.get("start_time"), competition.get("end_time")
-        )
-
-    event_plan = build_event_plan(competitions, disciplines_by_competition)
     schedule = get_day_schedule_for_event(event_id)
     overall_ranking = calculate_event_overall_ranking(event_id)
     return templates.TemplateResponse(
         request=request, name="event_detail.html",
         context={
             "event": event,
-            "competitions": competitions,
-            "event_plan": event_plan,
             "overall_ranking": overall_ranking,
             "schedule": schedule,
         }
     )
-
 
 @app.get("/spielfelder")
 def spielfelder(request: Request):
@@ -4737,163 +4349,6 @@ def delete_court(court_id: int):
 
     return RedirectResponse("/spielfelder?delete_status=deleted", status_code=303)
 
-
-@app.get("/einstellungen")
-def einstellungen(
-    request: Request,
-    backup_status: str = "",
-    backup_file: str = "",
-    settings_status: str = "",
-    security_status: str = "",
-    saved_at: str = "",
-):
-    try:
-        saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
-    except ValueError:
-        saved_at_value = ""
-
-    context = collect_system_info()
-    recent_changes = get_recent_change_log()
-    with get_conn() as conn:
-        change_log_count = conn.execute(
-            "SELECT COUNT(*) AS n FROM change_log"
-        ).fetchone()["n"]
-    context.update({
-        "backup_status": backup_status,
-        "backup_file": backup_file,
-        "settings_status": settings_status,
-        "security_status": security_status,
-        "saved_at": saved_at_value,
-        "security_enabled": is_security_enabled(),
-        "security_requested": get_security_enabled_setting(),
-        "security_environment_override": get_security_environment_override(),
-        "login_prepared": is_login_prepared(),
-        "helper_login_prepared": bool(get_referee_password()),
-        "logged_in": is_logged_in(request),
-        "current_role": get_current_role(request),
-        "current_role_label": get_current_role_label(request),
-        "current_role_description": get_current_role_description(request),
-        "role_overview": [
-            {
-                "key": role,
-                "label": ROLE_LABELS[role],
-                "description": ROLE_DESCRIPTIONS[role],
-                "prepared_only": role == "station_helper",
-            }
-            for role in ("viewer", "station_helper", "referee", "admin")
-        ],
-        "recent_changes": recent_changes,
-        "change_log_count": change_log_count,
-    })
-    return templates.TemplateResponse(
-        request=request,
-        name="einstellungen.html",
-        context=context,
-    )
-
-
-@app.get("/dokumentation")
-def dokumentation(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="dokumentation.html",
-        context={"documentation_text": load_documentation_text()},
-    )
-
-
-@app.post("/einstellungen/security")
-def update_security_setting(
-    request: Request,
-    security_enabled: str = Form(...),
-    admin_password: str = Form(...),
-):
-    configured_password = get_admin_password()
-    if not configured_password or not secrets.compare_digest(
-        admin_password,
-        configured_password,
-    ):
-        return RedirectResponse(
-            "/einstellungen?security_status=invalid_password",
-            status_code=303,
-        )
-
-    if get_security_environment_override() is not None:
-        return RedirectResponse(
-            "/einstellungen?security_status=environment_override",
-            status_code=303,
-        )
-
-    target_value = security_enabled.strip().lower()
-    if target_value not in {"true", "false"}:
-        return RedirectResponse(
-            "/einstellungen?security_status=invalid_value",
-            status_code=303,
-        )
-
-    set_setting("security_enabled", target_value)
-    request.session["admin_logged_in"] = True
-    request.session["role"] = "admin"
-    return RedirectResponse(
-        f"/einstellungen?security_status={'enabled' if target_value == 'true' else 'disabled'}",
-        status_code=303,
-    )
-
-
-@app.post("/einstellungen/backup")
-def create_backup():
-    if not DB_PATH.exists():
-        return RedirectResponse(
-            "/einstellungen?backup_status=error",
-            status_code=303,
-        )
-
-    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-    backup_name = f"sportfest_backup_{timestamp}.db"
-    backup_path = BACKUP_DIR / backup_name
-    suffix = 1
-    while backup_path.exists():
-        backup_name = f"sportfest_backup_{timestamp}_{suffix}.db"
-        backup_path = BACKUP_DIR / backup_name
-        suffix += 1
-
-    try:
-        shutil.copyfile(DB_PATH, backup_path)
-    except OSError:
-        return RedirectResponse(
-            "/einstellungen?backup_status=error",
-            status_code=303,
-        )
-
-    return RedirectResponse(
-        f"/einstellungen?backup_status=ok&backup_file={backup_name}",
-        status_code=303,
-    )
-
-
-@app.post("/einstellungen/beamer-intervall")
-def update_beamer_interval(
-    beamer_refresh_seconds: int = Form(...),
-):
-    if beamer_refresh_seconds <= 0:
-        return RedirectResponse(
-            "/einstellungen?settings_status=invalid",
-            status_code=303,
-        )
-
-    with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO settings (key, value)
-            VALUES ('beamer_refresh_seconds', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        """, (str(beamer_refresh_seconds),))
-        conn.commit()
-
-    saved_at = app_now_db_timestamp()
-    return RedirectResponse(
-        f"/einstellungen?settings_status=saved&saved_at={saved_at}",
-        status_code=303,
-    )
 
 
 @app.get("/beamer")

@@ -4,6 +4,11 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Veranstaltungsdetailseite vereinfacht: Wettbewerbsuebersicht und Veranstaltungsplan entfernt, Fokus liegt auf tabellarischem Tagesplan und Gesamtwertung.
+- Refactoring: Einstellungen, Dokumentation, Systeminformationen und Backup aus `app/main.py` in APIRouter und Services ausgelagert; eine eigene Changelog-Route existiert weiterhin nicht.
+- Fix: Sechskampf-Ergebnisseite erhaelt wieder die vom Template erwarteten Anzeige-Daten fuer Eingabewerte und Summen.
+- Fix: Sechskampf-Ergebnisspeicherung stuerzt beim Formatieren leerer Stationswerte im Aenderungsprotokoll nicht mehr ab.
+- Kleiner Refactoring-Schritt: reine Formatierungs-Helper aus `app/main.py` nach `app/utils/formatting.py` ausgelagert, ohne Routen oder Fachlogik zu verschieben.
 - Sicherheitsphase vervollständigt: Echte Ergebnisänderungen, Korrekturen und Löschungen werden mit lokaler Zeit, aktiver Rolle, Ziel sowie Alt-/Neuwert protokolliert; identisches erneutes Speichern erzeugt keinen zusätzlichen Eintrag. Änderungszähler stehen direkt an Turnier- und Stations-Ergebniskarten, die letzten Einträge sind für Admins in den Einstellungen sichtbar.
 - Rollenanzeige geschärft: Viewer, Schiedsrichter und Admin werden mit klaren Bezeichnungen und Aufgaben dargestellt. Die Rolle Stationshelfer ist technisch als eigener, noch inaktiver Rollentyp vorbereitet, besitzt aber bewusst keine Anmeldung, keinen PIN-Pfad und keine Stations- oder Ergebnisrechte.
 - Datenbank: additive Tabelle `change_log` samt Indizes für manipulationsarme Ergebnis-Audits ergänzt; keine Benutzer-, PIN- oder Stationszuordnungstabellen angelegt.
