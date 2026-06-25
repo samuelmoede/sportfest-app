@@ -85,6 +85,7 @@ Später:
 
 [x] Einstellungen, Systeminformationen und Backup aus `app/main.py` ausgelagert
 [x] Wettbewerbsverwaltung aus `app/main.py` in `app/routes/competitions.py` ausgelagert
+[x] Veranstaltungsverwaltung aus `app/main.py` in `app/routes/events.py` ausgelagert
 [ ] Eigene Changelog-Seite/Route auslagern, sobald sie umgesetzt ist
 
 ## UI / Komfort
