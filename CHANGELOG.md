@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Refactoring: Wettbewerbsverwaltung (`/wettbewerbe`, Wettbewerbsaktionen und direkte Sechskampf-Disziplinverwaltung) aus `app/main.py` in `app/routes/competitions.py` ausgelagert; Spielplanaktionen bleiben in `app/main.py`.
 - Veranstaltungsdetailseite vereinfacht: Wettbewerbsuebersicht und Veranstaltungsplan entfernt, Fokus liegt auf tabellarischem Tagesplan und Gesamtwertung.
 - Refactoring: Einstellungen, Dokumentation, Systeminformationen und Backup aus `app/main.py` in APIRouter und Services ausgelagert; eine eigene Changelog-Route existiert weiterhin nicht.
 - Fix: Sechskampf-Ergebnisseite erhaelt wieder die vom Template erwarteten Anzeige-Daten fuer Eingabewerte und Summen.

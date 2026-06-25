@@ -1,0 +1,423 @@
+from collections import defaultdict
+from datetime import datetime
+from math import isfinite
+from typing import Callable
+
+from fastapi import APIRouter, Form, Request
+from fastapi.responses import RedirectResponse
+
+from app.database import get_conn
+from app.web import templates
+
+
+def get_all_competitions():
+    with get_conn() as conn:
+        return conn.execute("""
+            SELECT *
+            FROM competitions
+            ORDER BY
+                CASE WHEN status = 'archiviert' THEN 1 ELSE 0 END,
+                jahrgang,
+                name
+        """).fetchall()
+
+
+def create_router(
+    *,
+    app_now_db_timestamp: Callable[[], str],
+    get_competition_timing: Callable,
+    get_unique_competition_name: Callable,
+    copy_competition_disciplines: Callable,
+    normalize_competition_location: Callable,
+    parse_placement_points_config: Callable,
+    competition_locations,
+    default_game_duration_minutes: int,
+    default_changeover_duration_minutes: int,
+) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/wettbewerbe")
+    def wettbewerbe(request: Request):
+        competitions = get_all_competitions()
+        selected_event_id = request.query_params.get("event_id", "").strip()
+        saved_competition_id = request.query_params.get("saved_competition_id", "").strip()
+        saved_at = request.query_params.get("saved_at", "").strip()
+        selected_event_id_value = None
+        saved_competition_id_value = None
+        if selected_event_id.isdigit():
+            selected_event_id_value = int(selected_event_id)
+        if saved_competition_id.isdigit():
+            saved_competition_id_value = int(saved_competition_id)
+        with get_conn() as conn:
+            disciplines = conn.execute("""
+                SELECT * FROM competition_disciplines
+                ORDER BY competition_id, sort_order, id
+            """).fetchall()
+            events = conn.execute("""
+                SELECT * FROM events
+                ORDER BY CASE WHEN status = 'archiviert' THEN 1 ELSE 0 END,
+                         event_date, name
+            """).fetchall()
+            team_counts = conn.execute("""
+                SELECT jahrgang, COUNT(*) AS count
+                FROM teams
+                WHERE active = 1
+                GROUP BY jahrgang
+                ORDER BY jahrgang
+            """).fetchall()
+        disciplines_by_competition = defaultdict(list)
+        for discipline in disciplines:
+            disciplines_by_competition[discipline["competition_id"]].append(discipline)
+        team_years = [row["jahrgang"] for row in team_counts]
+        return templates.TemplateResponse(
+            request=request, name="wettbewerbe.html",
+            context={
+                "competitions": competitions,
+                "disciplines_by_competition": disciplines_by_competition,
+                "events": events,
+                "events_by_id": {event["id"]: event for event in events},
+                "selected_event_id": selected_event_id_value,
+                "saved_competition_id": saved_competition_id_value,
+                "saved_at": saved_at,
+                "team_counts_by_year": {
+                    row["jahrgang"]: row["count"] for row in team_counts
+                },
+                "team_years": team_years,
+                "competition_locations": competition_locations,
+                "default_game_duration_minutes": default_game_duration_minutes,
+                "default_changeover_duration_minutes": default_changeover_duration_minutes,
+            }
+        )
+
+    @router.post("/competition/create")
+    def create_competition(
+        name: str = Form(...), sportart: str = Form(...), jahrgang: int = Form(...),
+        points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
+        start_time: str = Form(""), end_time: str = Form(""),
+        location: str = Form(""),
+        event_id: str = Form(""), competition_type: str = Form("Turnier"),
+        status: str = Form("geplant"),
+        game_duration_minutes: int = Form(default_game_duration_minutes),
+        changeover_duration_minutes: int = Form(default_changeover_duration_minutes),
+        points_first_place: str = Form(""),
+        placement_points: str = Form(""),
+    ):
+        if (
+            competition_type not in {"Turnier", "Sechskampf"}
+            or status not in {"geplant", "lÃ¤uft", "beendet", "archiviert"}
+            or game_duration_minutes < 1
+            or changeover_duration_minutes < 0
+        ):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        location_raw = location.strip()
+        location_value = normalize_competition_location(location_raw)
+        if location_raw and location_value is None:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        try:
+            event_id_value = int(event_id) if event_id else None
+        except ValueError:
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        with get_conn() as conn:
+            if event_id_value is not None and conn.execute(
+                "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
+            ).fetchone() is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            try:
+                points_first_place_value = (
+                    int(points_first_place) if points_first_place else
+                    conn.execute("""
+                        SELECT COUNT(*) AS count FROM teams
+                        WHERE active = 1 AND jahrgang = ?
+                    """, (jahrgang,)).fetchone()["count"] or 7
+                )
+            except (TypeError, ValueError):
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            placement_points_value = placement_points.strip()
+            if placement_points_value and not parse_placement_points_config(placement_points_value):
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            if points_first_place_value < 1:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            if conn.execute(
+                "SELECT 1 FROM teams WHERE active = 1 AND jahrgang = ? LIMIT 1",
+                (jahrgang,)
+            ).fetchone() is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            conn.execute("""
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, points_win, points_draw,
+                    points_loss, points_first_place, placement_points, event_id, competition_type,
+                    game_duration_minutes, changeover_duration_minutes,
+                    start_time, end_time, location
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                name.strip(), sportart.strip(), jahrgang, status, points_win, points_draw, points_loss,
+                points_first_place_value, placement_points_value or None, event_id_value, competition_type,
+                game_duration_minutes, changeover_duration_minutes,
+                start_time.strip() or None, end_time.strip() or None,
+                location_value or None,
+            ))
+            conn.commit()
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/duplicate")
+    def duplicate_competition(competition_id: int):
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+            if competition is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            timing = get_competition_timing(competition)
+            cursor = conn.execute("""
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, points_win, points_draw,
+                    points_loss, points_first_place, placement_points, event_id, competition_type,
+                    game_duration_minutes, changeover_duration_minutes,
+                    start_time, end_time, location
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                get_unique_competition_name(conn, competition["name"]),
+                competition["sportart"], competition["jahrgang"], competition["points_win"],
+                competition["points_draw"], competition["points_loss"],
+                competition["points_first_place"], competition["placement_points"],
+                competition["event_id"], competition["competition_type"],
+                timing["game_duration_minutes"], timing["changeover_duration_minutes"],
+                competition["start_time"], competition["end_time"],
+                competition["location"],
+            ))
+            copy_competition_disciplines(conn, competition_id, cursor.lastrowid)
+            conn.commit()
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/update")
+    def update_competition(
+        competition_id: int, name: str = Form(...), sportart: str = Form(...),
+        jahrgang: str = Form(...), status: str = Form(...),
+        points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
+        start_time: str = Form(""), end_time: str = Form(""),
+        location: str = Form(""),
+        event_id: str = Form(""), competition_type: str = Form("Turnier"),
+        game_duration_minutes: int = Form(default_game_duration_minutes),
+        changeover_duration_minutes: int = Form(default_changeover_duration_minutes),
+        points_first_place: str = Form("7"),
+        placement_points: str = Form(""),
+    ):
+        try:
+            jahrgang_value = int(jahrgang)
+            points_win_value = float(points_win.strip().replace(",", "."))
+            points_draw_value = float(points_draw.strip().replace(",", "."))
+            points_loss_value = float(points_loss.strip().replace(",", "."))
+            points_first_place_value = int(points_first_place)
+            event_id_value = int(event_id) if event_id else None
+        except (TypeError, ValueError):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        name_value = name.strip()
+        sportart_value = sportart.strip()
+        location_raw = location.strip()
+        location_value = normalize_competition_location(location_raw)
+        valid_statuses = {"geplant", "lÃ¤uft", "beendet", "archiviert"}
+        if (
+            not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
+            or status not in valid_statuses
+            or competition_type not in {"Turnier", "Sechskampf"}
+            or (location_raw and location_value is None)
+            or game_duration_minutes < 1
+            or changeover_duration_minutes < 0
+            or points_first_place_value < 1
+            or not all(isfinite(value) for value in (points_win_value, points_draw_value, points_loss_value))
+        ):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        placement_points_value = placement_points.strip()
+        if placement_points_value and not parse_placement_points_config(placement_points_value):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        with get_conn() as conn:
+            if conn.execute(
+                "SELECT 1 FROM teams WHERE active = 1 AND jahrgang = ? LIMIT 1",
+                (jahrgang_value,)
+            ).fetchone() is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            conn.execute("BEGIN IMMEDIATE")
+            duplicate_name = conn.execute(
+                "SELECT 1 FROM competitions WHERE name = ? AND id != ?",
+                (name_value, competition_id)
+            ).fetchone()
+            if duplicate_name:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            if event_id_value is not None and conn.execute(
+                "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
+            ).fetchone() is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            conn.execute("""
+                UPDATE competitions
+                SET name = ?, sportart = ?, jahrgang = ?, status = ?,
+                    points_win = ?, points_draw = ?, points_loss = ?,
+                    points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
+                    game_duration_minutes = ?, changeover_duration_minutes = ?,
+                    start_time = ?, end_time = ?, location = ?, location_subarea = NULL
+                WHERE id = ?
+            """, (
+                name_value, sportart_value, jahrgang_value, status,
+                points_win_value, points_draw_value, points_loss_value,
+                points_first_place_value, placement_points_value or None, event_id_value, competition_type,
+                game_duration_minutes, changeover_duration_minutes,
+                start_time.strip() or None, end_time.strip() or None,
+                location_value or None,
+                competition_id,
+            ))
+            conn.commit()
+        saved_at = app_now_db_timestamp()
+        return RedirectResponse(
+            f"/wettbewerbe?saved_competition_id={competition_id}&saved_at={saved_at}#competition-{competition_id}",
+            status_code=303,
+        )
+
+    @router.post("/competition/{competition_id}/discipline/create")
+    def create_competition_discipline(
+        competition_id: int, name: str = Form(...), sort_order: str = Form(...),
+
+        unit: str = Form(""), scoring_direction: str = Form("higher"),
+        values_per_team: str = Form("1"),
+    ):
+        try:
+            sort_order_value = int(sort_order)
+            values_per_team_value = int(values_per_team)
+        except (TypeError, ValueError):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        name_value = name.strip()
+        if (
+            not name_value or sort_order_value < 1 or values_per_team_value < 1
+            or scoring_direction not in {"higher", "lower"}
+        ):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+            if competition is None or competition["competition_type"] != "Sechskampf":
+                return RedirectResponse("/wettbewerbe", status_code=303)
+            conn.execute("""
+                INSERT INTO competition_disciplines (
+                    competition_id, name, sort_order, unit,
+                    scoring_direction, values_per_team
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                competition_id, name_value, sort_order_value, unit.strip() or None,
+                scoring_direction, values_per_team_value,
+            ))
+            conn.commit()
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/discipline/{discipline_id}/update")
+    def update_competition_discipline(
+        discipline_id: int, name: str = Form(...), sort_order: str = Form(...),
+        unit: str = Form(""), scoring_direction: str = Form("higher"),
+        values_per_team: str = Form("1"),
+    ):
+        try:
+            sort_order_value = int(sort_order)
+            values_per_team_value = int(values_per_team)
+        except (TypeError, ValueError):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        name_value = name.strip()
+        if (
+            not name_value or sort_order_value < 1 or values_per_team_value < 1
+            or scoring_direction not in {"higher", "lower"}
+        ):
+            return RedirectResponse("/wettbewerbe", status_code=303)
+        with get_conn() as conn:
+            conn.execute("""
+                UPDATE competition_disciplines
+                SET name = ?, sort_order = ?, unit = ?,
+                    scoring_direction = ?, values_per_team = ?
+                WHERE id = ?
+            """, (
+                name_value, sort_order_value, unit.strip() or None,
+                scoring_direction, values_per_team_value, discipline_id,
+            ))
+            conn.commit()
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/discipline/{discipline_id}/delete")
+    def delete_competition_discipline(discipline_id: int):
+        with get_conn() as conn:
+            conn.execute(
+                "DELETE FROM sixkampf_team_results WHERE discipline_id = ?",
+                (discipline_id,)
+            )
+            conn.execute(
+                "DELETE FROM discipline_results WHERE discipline_id = ?",
+                (discipline_id,)
+            )
+            conn.execute(
+                "DELETE FROM competition_disciplines WHERE id = ?",
+                (discipline_id,)
+            )
+            conn.commit()
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/archive")
+    def archive_competition(competition_id: int):
+        with get_conn() as conn:
+            conn.execute("""
+                UPDATE competitions
+                SET status = 'archiviert'
+                WHERE id = ?
+            """, (competition_id,))
+            conn.commit()
+
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/restore")
+    def restore_competition(competition_id: int):
+        with get_conn() as conn:
+            conn.execute("""
+                UPDATE competitions
+                SET status = 'geplant'
+                WHERE id = ?
+            """, (competition_id,))
+            conn.commit()
+
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/reset")
+    def reset_competition(competition_id: int):
+        with get_conn() as conn:
+            conn.execute("DELETE FROM slots WHERE competition_id = ?", (competition_id,))
+            conn.execute("""
+                UPDATE competitions
+                SET status = 'geplant'
+                WHERE id = ?
+            """, (competition_id,))
+            conn.commit()
+
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    @router.post("/competition/{competition_id}/delete")
+    def delete_competition(competition_id: int):
+        with get_conn() as conn:
+            conn.execute(
+                "DELETE FROM sixkampf_team_results WHERE competition_id = ?",
+                (competition_id,)
+            )
+            conn.execute("""
+                DELETE FROM discipline_results
+                WHERE participant_id IN (
+                    SELECT id FROM sixkampf_participants WHERE competition_id = ?
+                )
+            """, (competition_id,))
+            conn.execute("""
+                DELETE FROM discipline_results
+                WHERE discipline_id IN (
+                    SELECT id FROM competition_disciplines WHERE competition_id = ?
+                )
+            """, (competition_id,))
+            conn.execute("DELETE FROM sixkampf_participants WHERE competition_id = ?", (competition_id,))
+            conn.execute("DELETE FROM slots WHERE competition_id = ?", (competition_id,))
+            conn.execute("DELETE FROM competition_disciplines WHERE competition_id = ?", (competition_id,))
+            conn.execute("DELETE FROM competitions WHERE id = ?", (competition_id,))
+            conn.commit()
+
+        return RedirectResponse("/wettbewerbe", status_code=303)
+
+    return router
