@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Spielfelder</h1>
-<p class="muted">Spielfelder hinzufügen, umbenennen oder löschen.</p>
+<p class="muted">Spielfelder hinzufügen, einem Ort zuordnen, umbenennen oder löschen.</p>
 
 {% if delete_status == "blocked" %}
 <p class="error-text">Spielfeld kann nicht gelöscht werden, da es bereits verwendet wird.</p>
@@ -20,6 +20,13 @@
         <label>Name</label>
         <input type="text" name="name" placeholder="z. B. Feld 1" required>
 
+        <label>Ort</label>
+        <select name="location" required>
+            {% for location in court_locations %}
+            <option value="{{ location }}" {% if location == "Turnhalle" %}selected{% endif %}>{{ location }}</option>
+            {% endfor %}
+        </select>
+
         <label>Sportart</label>
         <input type="text" name="sportart" placeholder="z. B. Fußball, Zweifelderball, Volleyball">
 
@@ -34,6 +41,7 @@
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Ort</th>
                     <th>Sportart</th>
                     <th>Status</th>
                     <th>Aktionen</th>
@@ -45,6 +53,13 @@
                     <td>
                         <form id="court-update-{{ c.id }}" method="post" action="/court/{{ c.id }}/update"></form>
                         <input form="court-update-{{ c.id }}" type="text" name="name" value="{{ c.name }}" required>
+                    </td>
+                    <td>
+                        <select form="court-update-{{ c.id }}" name="location" required>
+                            {% for location in court_locations %}
+                            <option value="{{ location }}" {% if (c.location or "Turnhalle") == location %}selected{% endif %}>{{ location }}</option>
+                            {% endfor %}
+                        </select>
                     </td>
                     <td>
                         <input form="court-update-{{ c.id }}" type="text" name="sportart" value="{{ c.sportart or '' }}">

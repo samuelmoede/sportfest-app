@@ -54,11 +54,11 @@ Später:
 
 ## Phase 4.6 – Ortssensitive Spielplanung
 
-[ ] Spielplan-Generator berücksichtigt Ort des Wettbewerbs
-[ ] Turnhalle: Feld 1, Feld 2, Feld 3
-[ ] Fußballplatz: Rasenplatz, Tartanplatz
-[ ] Außenbereich: keine Slotplanung
-[ ] /spielplan-bearbeiten zeigt je nach Ort passende Spalten
+[x] Spielplan-Generator berücksichtigt Ort des Wettbewerbs
+[x] Turnhalle: Feld 1, Feld 2, Feld 3
+[x] Fußballplatz: Rasenplatz, Tartanplatz
+[x] Außenbereich: keine Slotplanung
+[x] /spielplan-bearbeiten zeigt je nach Ort passende Spalten
 
 
 ## Phase 5 – Sechskampf 2.0
@@ -83,6 +83,7 @@ Später:
 
 ## Refactoring
 
+[x] Spielplanrouten und Spielplan-Services aus `app/main.py` ausgelagert
 [x] Einstellungen, Systeminformationen und Backup aus `app/main.py` ausgelagert
 [x] Wettbewerbsverwaltung aus `app/main.py` in `app/routes/competitions.py` ausgelagert
 [x] Veranstaltungsverwaltung aus `app/main.py` in `app/routes/events.py` ausgelagert

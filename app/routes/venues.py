@@ -5,6 +5,11 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
+from app.services.schedule_location_service import (
+    COMPETITION_LOCATIONS,
+    DEFAULT_COMPETITION_LOCATION,
+    normalize_competition_location,
+)
 from app.web import templates
 
 
@@ -37,13 +42,16 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
             saved_at_value = ""
 
         with get_conn() as conn:
-            courts = conn.execute("SELECT * FROM courts ORDER BY name").fetchall()
+            courts = conn.execute(
+                "SELECT * FROM courts ORDER BY location, name"
+            ).fetchall()
 
         return templates.TemplateResponse(
             request=request,
             name="spielfelder.html",
             context={
                 "courts": courts,
+                "court_locations": COMPETITION_LOCATIONS,
                 "delete_status": delete_status,
                 "used_games": used_games,
                 "used_slots": used_slots,
@@ -57,12 +65,14 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
     def create_court(
         name: str = Form(...),
         sportart: str = Form(""),
+        location: str = Form(DEFAULT_COMPETITION_LOCATION),
     ):
+        location_value = normalize_competition_location(location) or DEFAULT_COMPETITION_LOCATION
         with get_conn() as conn:
             conn.execute("""
-                INSERT INTO courts (name, sportart, active)
-                VALUES (?, ?, 1)
-            """, (name.strip(), sportart.strip() or None))
+                INSERT INTO courts (name, sportart, location, active)
+                VALUES (?, ?, ?, 1)
+            """, (name.strip(), sportart.strip() or None, location_value))
             conn.commit()
 
         return RedirectResponse("/spielfelder", status_code=303)
@@ -72,14 +82,22 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
         court_id: int,
         name: str = Form(...),
         sportart: str = Form(""),
+        location: str = Form(DEFAULT_COMPETITION_LOCATION),
         active: int = Form(0),
     ):
+        location_value = normalize_competition_location(location) or DEFAULT_COMPETITION_LOCATION
         with get_conn() as conn:
             conn.execute("""
                 UPDATE courts
-                SET name = ?, sportart = ?, active = ?
+                SET name = ?, sportart = ?, location = ?, active = ?
                 WHERE id = ?
-            """, (name.strip(), sportart.strip() or None, 1 if active else 0, court_id))
+            """, (
+                name.strip(),
+                sportart.strip() or None,
+                location_value,
+                1 if active else 0,
+                court_id,
+            ))
             conn.commit()
 
         saved_at = app_now_db_timestamp()

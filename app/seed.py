@@ -15,14 +15,18 @@ with get_conn() as conn:
         conn.execute("INSERT INTO teams (name, jahrgang) VALUES (?, ?)", (name, jahrgang))
 
     courts = [
-        ("Feld 1", "Zweifelderball"),
-        ("Feld 2", "Zweifelderball"),
-        ("Feld 3", "Reserve"),
-        ("Halle A", "Volleyball"),
+        ("Feld 1", "Zweifelderball", "Turnhalle"),
+        ("Feld 2", "Zweifelderball", "Turnhalle"),
+        ("Feld 3", "Reserve", "Turnhalle"),
+        ("Rasenplatz", "Fußball", "Fußballplatz"),
+        ("Tartanplatz", "Fußball", "Fußballplatz"),
+        ("Halle A", "Volleyball", "Turnhalle"),
     ]
-    for name, sportart in courts:
-        conn.execute("INSERT INTO courts (name, sportart) VALUES (?, ?)", (name, sportart))
-
+    for name, sportart, location in courts:
+        conn.execute(
+            "INSERT INTO courts (name, sportart, location) VALUES (?, ?, ?)",
+            (name, sportart, location),
+        )
     competitions = [
         ("Zweifelderball Jahrgang 7", "Zweifelderball", 7, "läuft", 3, 1, 0),
         ("Zweifelderball Jahrgang 8", "Zweifelderball", 8, "geplant", 3, 1, 0),

@@ -189,15 +189,19 @@
     </form>
 
     <div class="toolbar">
+        {% if schedule_planning_enabled %}
         <button type="button" class="green" onclick="openSlotModal()">+ Neuen Slot manuell anlegen</button>
+        {% elif selected_competition_id %}
+        <span class="muted">{{ no_slot_location_hint }}</span>
+        {% endif %}
 
-        {% if selected_competition_id %}
+        {% if selected_competition_id and schedule_planning_enabled %}
         <form method="post"
               action="/competition/{{ selected_competition_id }}/delete-planned-slots"
               onsubmit="return confirm('Alle geplanten Slots dieses Turniers löschen? Laufende und beendete Spiele bleiben erhalten.');">
             <button type="submit">Alle geplanten Slots dieses Turniers löschen</button>
         </form>
-        {% else %}
+        {% elif not selected_competition_id %}
         <span class="muted">Wähle ein einzelnes Turnier aus, um geplante Slots gesammelt zu löschen.</span>
         {% endif %}
     </div>
@@ -236,7 +240,7 @@
     {% endif %}
 </section>
 
-{% if selected_competition_id %}
+{% if selected_competition_id and schedule_planning_enabled %}
 <section class="ko-box">
     <h2>Nächste Phase automatisch besetzen</h2>
 
@@ -272,28 +276,41 @@
     <h2>Automatischen Spielplan-Vorschlag erstellen</h2>
     <p class="muted">Erst wird nur eine Vorschau erzeugt. Gespeichert wird der Plan erst danach.</p>
 
+    {% if not selected_competition_id %}
+    <p class="muted">Wähle zuerst oben ein Turnier aus. Danach werden Ort und passende Felder angezeigt.</p>
+    {% elif not schedule_planning_enabled %}
+    <div class="validation-box">
+        <strong>{{ selected_competition_location }}</strong>
+        <p class="muted">{{ no_slot_location_hint }}</p>
+    </div>
+    {% else %}
     <form method="post" action="/plan-generator/preview" class="generator-grid">
         <label>Turnier</label>
-        <select name="competition_id" required>
+        <select name="competition_id" required onchange="syncGeneratorCompetition(this)">
             {% for c in competitions %}
             <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
-                {{ c.name }}
+                {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}
             </option>
             {% endfor %}
         </select>
 
-        <label>Spielfelder</label>
+        <label>Ort</label>
+        <strong>{{ selected_competition_location }}</strong>
+
+        <label>Felder/Bereiche</label>
         <div class="court-checkboxes">
             {% for court in courts %}
             <label>
-                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if loop.index <= 2 %}checked{% endif %}>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if not selected_generator_court_ids or court.id in selected_generator_court_ids %}checked{% endif %}>
                 {{ court.name }}
             </label>
+            {% else %}
+            <span class="muted">Für diesen Ort sind keine aktiven Felder/Bereiche angelegt.</span>
             {% endfor %}
         </div>
 
         <label>Startzeit</label>
-        <input type="time" name="startzeit" value="08:00" required>
+        <input type="time" name="startzeit" value="{{ selected_competition.start_time or '08:00' }}" required>
 
         <label>Vorrundenspiele pro Team</label>
         <input type="number" name="games_per_team" value="2" min="1" required>
@@ -304,8 +321,9 @@
             Halbfinale, Spiel um Platz 3 und Finale als Platzhalter erzeugen
         </label>
 
-        <button class="green" type="submit">Vorschau erzeugen</button>
+        <button class="green" type="submit">Vorschlag erstellen</button>
     </form>
+    {% endif %}
 
     {% if plan_warnings %}
     <div class="validation-box {% if has_plan_errors %}has-errors{% endif %}">
@@ -561,6 +579,7 @@
     </div>
 </div>
 
+{% if schedule_planning_enabled %}
 <form method="post" action="/slots/delete"
       onsubmit="return confirm('Markierte Slots löschen?');">
 
@@ -699,10 +718,21 @@
 </div>
 
 </form>
+{% elif selected_competition_id %}
+<section class="panel">
+    <p class="muted">{{ no_slot_location_hint }}</p>
+</section>
+{% endif %}
 </div>
 
 <script>
 let draggedSlot = null;
+
+function syncGeneratorCompetition(select) {
+    if (select.value) {
+        window.location.href = `/spielplan-bearbeiten?competition_id=${select.value}`;
+    }
+}
 
 function openSlotModal() {
     document.getElementById("slotModal").classList.add("open");

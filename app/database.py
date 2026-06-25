@@ -27,6 +27,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             sportart TEXT,
+            location TEXT,
             active INTEGER NOT NULL DEFAULT 1
         );
 
@@ -182,6 +183,51 @@ def init_db():
         if "finished_at" not in columns:
             conn.execute("ALTER TABLE slots ADD COLUMN finished_at TEXT")
 
+        court_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(courts)").fetchall()
+        }
+
+        if "location" not in court_columns:
+            conn.execute("ALTER TABLE courts ADD COLUMN location TEXT")
+
+        conn.execute("""
+            UPDATE courts
+            SET location = 'Fußballplatz'
+            WHERE location = 'Sportplatz'
+        """)
+
+        conn.execute("""
+            UPDATE courts
+            SET location = 'Fußballplatz'
+            WHERE name IN ('Rasenplatz', 'Tartanplatz')
+              AND (location IS NULL OR TRIM(location) = '')
+        """)
+
+        conn.execute("""
+            UPDATE courts
+            SET location = 'Turnhalle'
+            WHERE name IN ('Feld 1', 'Feld 2', 'Feld 3')
+              AND (location IS NULL OR TRIM(location) = '')
+        """)
+
+        conn.execute("""
+            UPDATE courts
+            SET location = 'Turnhalle'
+            WHERE location IS NULL OR TRIM(location) = ''
+        """)
+
+        for name, sportart, location in (
+            ("Rasenplatz", "Fußball", "Fußballplatz"),
+            ("Tartanplatz", "Fußball", "Fußballplatz"),
+        ):
+            conn.execute("""
+                INSERT INTO courts (name, sportart, location, active)
+                SELECT ?, ?, ?, 1
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM courts WHERE name = ?
+                )
+            """, (name, sportart, location, name))
         event_columns = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(events)").fetchall()

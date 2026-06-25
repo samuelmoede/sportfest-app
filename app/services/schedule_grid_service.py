@@ -1,15 +1,21 @@
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import timedelta
+from typing import Optional
 
-
-def parse_grid_time(value: str):
-    if not value:
-        return None
-    for time_format in ("%H:%M:%S", "%H:%M"):
-        try:
-            return datetime.strptime(value, time_format)
-        except ValueError:
-            continue
-    return None
+from app.database import get_conn
+from app.services.schedule_location_service import (
+    COMPETITION_LOCATIONS,
+    DEFAULT_COMPETITION_LOCATION,
+    filter_courts_for_location,
+    get_effective_competition_location,
+    normalize_competition_location,
+)
+from app.services.schedule_time_service import (
+    format_time_range,
+    get_competition_timing,
+    get_game_end_time,
+    parse_slot_time,
+)
 
 
 def build_editor_time_grid(groups, competition=None, timing=None):
@@ -17,7 +23,7 @@ def build_editor_time_grid(groups, competition=None, timing=None):
         slot["startzeit"]
         for group in groups
         for slot in group["slots"]
-        if parse_grid_time(slot.get("startzeit")) is not None
+        if parse_slot_time(slot.get("startzeit")) is not None
     }
 
     if (
@@ -26,8 +32,8 @@ def build_editor_time_grid(groups, competition=None, timing=None):
         and timing is not None
     ):
         interval = timing["slot_interval_minutes"]
-        start = parse_grid_time(competition["start_time"])
-        planned_end = parse_grid_time(competition["end_time"])
+        start = parse_slot_time(competition["start_time"])
+        planned_end = parse_slot_time(competition["end_time"])
 
         if start is not None and interval > 0:
             generated_time = start
@@ -42,7 +48,7 @@ def build_editor_time_grid(groups, competition=None, timing=None):
                 generated_time += timedelta(minutes=interval)
                 generated_count += 1
 
-    time_marks = sorted(time_values, key=lambda value: parse_grid_time(value))
+    time_marks = sorted(time_values, key=lambda value: parse_slot_time(value))
     row_by_time = {
         startzeit: index + 2 for index, startzeit in enumerate(time_marks)
     }
@@ -69,3 +75,352 @@ def build_editor_time_grid(groups, competition=None, timing=None):
         group["untimed_slots"] = untimed_slots
 
     return time_marks
+
+
+def get_all_slots(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
+):
+    query = """
+        SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
+               c.location AS competition_location,
+               c.competition_type,
+               c.game_duration_minutes,
+               c.changeover_duration_minutes,
+               c.start_time AS competition_start_time,
+               c.end_time AS competition_end_time,
+               co.name AS court_name, ta.name AS team_a, tb.name AS team_b
+        FROM slots
+        JOIN competitions c ON c.id = slots.competition_id
+        LEFT JOIN courts co ON co.id = slots.court_id
+        LEFT JOIN teams ta ON ta.id = slots.team_a_id
+        LEFT JOIN teams tb ON tb.id = slots.team_b_id
+        WHERE c.status != 'archiviert'
+    """
+    params = []
+
+    if competition_id:
+        query += " AND slots.competition_id = ?"
+        params.append(competition_id)
+
+    if jahrgang is not None:
+        query += " AND c.jahrgang = ?"
+        params.append(jahrgang)
+
+    normalized_location = normalize_competition_location(location)
+    if normalized_location is not None:
+        if normalized_location == DEFAULT_COMPETITION_LOCATION:
+            query += " AND (c.location = ? OR c.location IS NULL OR TRIM(c.location) = '')"
+            params.append(normalized_location)
+        else:
+            query += " AND c.location = ?"
+            params.append(normalized_location)
+
+    query += """
+    ORDER BY
+        slots.court_id,
+        slots.sort_order,
+        slots.startzeit,
+        slots.id
+    """
+
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+
+    slots = [dict(row) for row in rows]
+    change_counts = {}
+    if slots:
+        slot_ids = [slot["id"] for slot in slots]
+        placeholders = ",".join("?" for _ in slot_ids)
+        with get_conn() as conn:
+            change_counts = {
+                row["entity_id"]: row["change_count"]
+                for row in conn.execute(
+                    f"""
+                    SELECT entity_id, COUNT(*) AS change_count
+                    FROM change_log
+                    WHERE entity_type = 'slot_result'
+                      AND entity_id IN ({placeholders})
+                    GROUP BY entity_id
+                    """,
+                    slot_ids,
+                ).fetchall()
+            }
+    for slot in slots:
+        slot["change_count"] = change_counts.get(slot["id"], 0)
+        slot["planned_duration_seconds"] = None
+        slot["game_end_time"] = None
+        slot["effective_competition_location"] = get_effective_competition_location({
+            "location": slot.get("competition_location")
+        })
+        if slot["slot_typ"] != "Spiel" or slot["competition_type"] == "Sechskampf":
+            continue
+        timing = get_competition_timing(slot)
+        slot["planned_duration_seconds"] = timing["game_duration_minutes"] * 60
+        slot["game_end_time"] = get_game_end_time(
+            slot["startzeit"], timing["game_duration_minutes"]
+        )
+
+    return slots
+
+
+def get_slots_grouped_by_court(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
+):
+    with get_conn() as conn:
+        courts = conn.execute(
+            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+        ).fetchall()
+
+    slots = [
+        dict(slot)
+        for slot in get_all_slots(competition_id, jahrgang, location)
+    ]
+    grouped = {court["id"]: {"court": court, "slots": []} for court in courts}
+    without_court = {"court": {"id": "", "name": "Ohne Feld"}, "slots": []}
+
+    for slot in slots:
+        if slot["court_id"] in grouped:
+            grouped[slot["court_id"]]["slots"].append(slot)
+        else:
+            without_court["slots"].append(slot)
+
+    return list(grouped.values()) + [without_court]
+
+
+def get_unslotted_competitions_by_location(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+    location: Optional[str] = None,
+):
+    clauses = [
+        "competition.status != 'archiviert'",
+        "competition.start_time IS NOT NULL",
+        "TRIM(competition.start_time) != ''",
+        "competition.end_time IS NOT NULL",
+        "TRIM(competition.end_time) != ''",
+        """
+        NOT EXISTS (
+            SELECT 1
+            FROM slots
+            WHERE slots.competition_id = competition.id
+              AND slots.slot_typ = 'Spiel'
+        )
+        """,
+    ]
+    params = []
+    if competition_id is not None:
+        clauses.append("competition.id = ?")
+        params.append(competition_id)
+    if jahrgang is not None:
+        clauses.append("competition.jahrgang = ?")
+        params.append(jahrgang)
+
+    with get_conn() as conn:
+        competitions = [
+            dict(row)
+            for row in conn.execute(
+                f"""
+                SELECT competition.*
+                FROM competitions AS competition
+                WHERE {' AND '.join(clauses)}
+                """,
+                params,
+            ).fetchall()
+        ]
+
+        disciplines_by_competition = defaultdict(list)
+        if competitions:
+            placeholders = ",".join("?" for _ in competitions)
+            discipline_rows = conn.execute(
+                f"""
+                SELECT competition_id, name, sort_order
+                FROM competition_disciplines
+                WHERE competition_id IN ({placeholders})
+                ORDER BY competition_id, sort_order, id
+                """,
+                [competition["id"] for competition in competitions],
+            ).fetchall()
+            for discipline in discipline_rows:
+                disciplines_by_competition[discipline["competition_id"]].append(
+                    dict(discipline)
+                )
+
+    selected_location = normalize_competition_location(location)
+    entries = []
+    for competition in competitions:
+        effective_location = get_effective_competition_location(competition)
+        if selected_location is not None and effective_location != selected_location:
+            continue
+        start = parse_slot_time(competition["start_time"])
+        end = parse_slot_time(competition["end_time"])
+        if start is None or end is None:
+            continue
+        competition["effective_location"] = effective_location
+        competition["time_label"] = format_time_range(start, end)
+        competition["disciplines"] = disciplines_by_competition.get(
+            competition["id"], []
+        )
+        entries.append(competition)
+
+    location_order = {
+        location: index for index, location in enumerate(COMPETITION_LOCATIONS)
+    }
+    entries.sort(
+        key=lambda competition: (
+            location_order.get(competition.get("effective_location"), 99),
+            competition["start_time"],
+            competition["end_time"],
+            competition["name"].casefold(),
+        )
+    )
+
+    groups = []
+    for location_name in COMPETITION_LOCATIONS:
+        location_competitions = [
+            competition
+            for competition in entries
+            if competition["effective_location"] == location_name
+        ]
+        if location_competitions:
+            groups.append({
+                "location": location_name,
+                "competitions": location_competitions,
+            })
+    return groups
+
+
+def get_competition_timeline_for_location(
+    location: str,
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+):
+    selected_location = normalize_competition_location(location)
+    clauses = ["status != 'archiviert'"]
+    params = []
+    if competition_id is not None:
+        clauses.append("id = ?")
+        params.append(competition_id)
+    if jahrgang is not None:
+        clauses.append("jahrgang = ?")
+        params.append(jahrgang)
+
+    with get_conn() as conn:
+        competitions = [
+            dict(row)
+            for row in conn.execute(
+                f"""
+                SELECT *
+                FROM competitions
+                WHERE {' AND '.join(clauses)}
+                ORDER BY
+                    CASE
+                        WHEN start_time IS NULL OR TRIM(start_time) = '' THEN 1
+                        ELSE 0
+                    END,
+                    start_time,
+                    end_time,
+                    name
+                """,
+                params,
+            ).fetchall()
+        ]
+
+    timeline = []
+    for competition in competitions:
+        if get_effective_competition_location(competition) != selected_location:
+            continue
+        start = parse_slot_time(competition.get("start_time"))
+        end = parse_slot_time(competition.get("end_time"))
+        competition["start_time_display"] = (
+            start.strftime("%H:%M") if start else "–"
+        )
+        competition["end_time_display"] = (
+            end.strftime("%H:%M") if end else "–"
+        )
+        timeline.append(competition)
+    return timeline
+
+
+def get_location_schedule_sections(
+    competition_id: Optional[int] = None,
+    jahrgang: Optional[int] = None,
+    selected_location: Optional[str] = None,
+):
+    selected_location = normalize_competition_location(selected_location)
+    unslotted_groups = get_unslotted_competitions_by_location(
+        competition_id,
+        jahrgang,
+        selected_location,
+    )
+    unslotted_by_location = {
+        group["location"]: group["competitions"]
+        for group in unslotted_groups
+    }
+    locations = (
+        (selected_location,)
+        if selected_location
+        else COMPETITION_LOCATIONS
+    )
+    all_slots = get_all_slots(competition_id, jahrgang)
+    sections = []
+
+    with get_conn() as conn:
+        all_courts = conn.execute(
+            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+        ).fetchall()
+
+    for location in locations:
+        timeline = []
+        court_groups = []
+        competitions = unslotted_by_location.get(location, [])
+
+        if location == "Außenbereich":
+            timeline = get_competition_timeline_for_location(
+                location,
+                competition_id,
+                jahrgang,
+            )
+            competitions = []
+        else:
+            location_slots = [
+                slot
+                for slot in all_slots
+                if slot.get("effective_competition_location") == location
+            ]
+            if location_slots:
+                courts = filter_courts_for_location(all_courts, location)
+                grouped = {
+                    court["id"]: {"court": court, "slots": []}
+                    for court in courts
+                }
+                without_court = {
+                    "court": {"id": "", "name": "Ohne Feld"},
+                    "slots": [],
+                }
+                for slot in location_slots:
+                    target = grouped.get(slot["court_id"], without_court)
+                    target["slots"].append(slot)
+                court_groups = [
+                    group
+                    for group in (*grouped.values(), without_court)
+                    if group["slots"]
+                ]
+
+        has_entries = bool(timeline or court_groups or competitions)
+        if has_entries or (
+            selected_location is not None and selected_location == location
+        ):
+            sections.append({
+                "location_key": location,
+                "location": location,
+                "timeline": timeline,
+                "court_groups": court_groups,
+                "competitions": competitions,
+                "has_entries": has_entries,
+            })
+
+    return sections
