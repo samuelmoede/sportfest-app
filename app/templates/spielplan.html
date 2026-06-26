@@ -45,6 +45,15 @@
 </div>
 
 <form method="get" action="/spielplan" class="filter-row">
+    <select name="event_id" aria-label="Veranstaltung">
+        <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
+        {% for event in event_options %}
+        <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+            {{ event.name }}{% if event.status == "aktiv" %} &middot; aktiv{% endif %}{% if event.event_date %} &middot; {{ event.event_date }}{% endif %}
+        </option>
+        {% endfor %}
+    </select>
+
     <select name="competition_id">
         <option value="">Alle Wettbewerbe</option>
         {% for c in competitions %}

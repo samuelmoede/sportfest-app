@@ -1,10 +1,14 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable, List
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.database import get_conn
+from app.services.event_status_service import (
+    fetch_events_with_competition_counts,
+    resolve_selected_event_id,
+)
 from app.services.schedule_generator_service import (
     generate_group_plan,
     get_winner_loser,
@@ -39,6 +43,7 @@ from app.web import templates
 def create_router(
     *,
     app_now_db_timestamp: Callable[[], str],
+    app_today: Callable[[], date],
     parse_competition_id: Callable,
     parse_jahrgang_filter: Callable,
     get_active_competitions: Callable,
@@ -46,9 +51,36 @@ def create_router(
 ) -> APIRouter:
     router = APIRouter()
 
+    def get_competition_event_id(competition_id):
+        if competition_id is None:
+            return None
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT event_id FROM competitions WHERE id = ?",
+                (competition_id,),
+            ).fetchone()
+        return competition["event_id"] if competition is not None else None
+
+    def resolve_event_context(request, event_id_value, selected_competition_id=None):
+        with get_conn() as conn:
+            event_options = fetch_events_with_competition_counts(
+                conn,
+                include_archived=True,
+            )
+        selected_event_id = resolve_selected_event_id(
+            event_options,
+            event_id_value=event_id_value,
+            event_filter_present="event_id" in request.query_params,
+            today=app_today(),
+            fallback_event_id=get_competition_event_id(selected_competition_id),
+        )
+        return event_options, selected_event_id
+
     def build_editor_context(
         selected_competition_id,
         *,
+        selected_event_id=None,
+        event_options=None,
         proposed_slots=None,
         plan_warnings=None,
         has_plan_errors=False,
@@ -60,14 +92,25 @@ def create_router(
         plan_warnings = plan_warnings or []
         selected_court_ids = selected_court_ids or []
 
+        if event_options is None:
+            with get_conn() as conn:
+                event_options = fetch_events_with_competition_counts(
+                    conn,
+                    include_archived=True,
+                )
+
         with get_conn() as conn:
-            groups = get_slots_grouped_by_court(selected_competition_id)
-            competitions = conn.execute("""
+            competition_params = []
+            event_clause = ""
+            if selected_event_id is not None:
+                event_clause = " AND event_id = ?"
+                competition_params.append(selected_event_id)
+            competitions = conn.execute(f"""
                 SELECT *
                 FROM competitions
-                WHERE status != 'archiviert'
+                WHERE status != 'archiviert'{event_clause}
                 ORDER BY jahrgang, name
-            """).fetchall()
+            """, competition_params).fetchall()
             all_courts = conn.execute(
                 "SELECT * FROM courts WHERE active = 1 ORDER BY name"
             ).fetchall()
@@ -75,6 +118,14 @@ def create_router(
                 "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
             ).fetchall()
 
+        visible_competition_ids = {competition["id"] for competition in competitions}
+        if selected_competition_id not in visible_competition_ids:
+            selected_competition_id = None
+
+        groups = get_slots_grouped_by_court(
+            selected_competition_id,
+            event_id=selected_event_id,
+        )
         selected_competition = next(
             (
                 competition
@@ -141,6 +192,8 @@ def create_router(
             "competitions": competitions,
             "courts": courts,
             "teams": teams,
+            "event_options": event_options,
+            "selected_event_id": selected_event_id,
             "selected_competition": selected_competition,
             "selected_competition_id": selected_competition_id,
             "selected_competition_location": selected_competition_location,
@@ -188,6 +241,7 @@ def create_router(
     @router.get("/spielplan")
     def spielplan(
         request: Request,
+        event_id: str = "",
         competition_id: str = "",
         jahrgang: str = "",
         ort: str = "",
@@ -195,12 +249,27 @@ def create_router(
         selected_competition_id = parse_competition_id(competition_id)
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
         selected_location = normalize_competition_location(ort)
+        event_options, selected_event_id = resolve_event_context(
+            request,
+            event_id,
+            selected_competition_id,
+        )
 
-        competitions = get_active_competitions()
+        competitions = [
+            competition
+            for competition in get_active_competitions()
+            if selected_event_id is None
+            or competition["event_id"] == selected_event_id
+        ]
+        visible_competition_ids = {competition["id"] for competition in competitions}
+        if selected_competition_id not in visible_competition_ids:
+            selected_competition_id = None
+
         location_sections = get_location_schedule_sections(
             selected_competition_id,
             selected_jahrgang,
             selected_location,
+            event_id=selected_event_id,
         )
         available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
 
@@ -210,6 +279,8 @@ def create_router(
             context={
                 "location_sections": location_sections,
                 "competitions": competitions,
+                "event_options": event_options,
+                "selected_event_id": selected_event_id,
                 "selected_competition_id": selected_competition_id,
                 "selected_jahrgang": selected_jahrgang,
                 "selected_location": selected_location,
@@ -219,9 +290,23 @@ def create_router(
         )
 
     @router.get("/spielplan-bearbeiten")
-    def spielplan_bearbeiten(request: Request, competition_id: str = ""):
+    def spielplan_bearbeiten(
+        request: Request,
+        event_id: str = "",
+        competition_id: str = "",
+    ):
         selected_competition_id = parse_competition_id(competition_id)
-        return render_editor(request, selected_competition_id)
+        event_options, selected_event_id = resolve_event_context(
+            request,
+            event_id,
+            selected_competition_id,
+        )
+        return render_editor(
+            request,
+            selected_competition_id,
+            selected_event_id=selected_event_id,
+            event_options=event_options,
+        )
 
     @router.post("/plan-generator/preview")
     def plan_generator_preview(

@@ -1,0 +1,35 @@
+{% if schedule.rows %}
+<p class="muted">{{ schedule.hint_text }}</p>
+<div class="table-scroll">
+    <table class="schedule-table{% if day_schedule_compact|default(false) %} compact{% endif %}">
+        <thead>
+            <tr>
+                <th>Zeit</th>
+                {% for column in schedule.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in schedule.rows %}
+            <tr{% if row.current %} class="current-row"{% endif %}>
+                <td>{{ row.display_time }}</td>
+                {% for column in schedule.columns %}
+                <td>
+                    {% if row.cells[column] %}
+                        {% for item in row.cells[column] %}
+                        <div>{{ item }}</div>
+                        {% endfor %}
+                    {% else %}
+                        &ndash;
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="muted">{{ day_schedule_empty_text|default("Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar.") }}</p>
+{% endif %}

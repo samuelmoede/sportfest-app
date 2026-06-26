@@ -1,7 +1,9 @@
 import re
 from datetime import date
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from app.database import get_conn
+from app.services.event_status_service import select_default_event
 
 
 _NATURAL_PART_RE = re.compile(r"\d+|\D+")
@@ -104,24 +106,48 @@ def get_result_event_options(competitions, today):
 
 
 def get_default_result_event_id(events, today):
-    today_events = [
-        event for event in events
-        if _parse_event_date(_get_value(event, "event_date")) == today
-    ]
-    if today_events:
-        return today_events[0]["id"]
+    default_event = select_default_event(events, today)
+    return _get_value(default_event, "id") if default_event is not None else None
 
-    future_events = [
-        event for event in events
+
+_RESULTS_REDIRECT_PATH = "/ergebnisse"
+_RESULTS_TRANSIENT_PARAMS = {"saved_team_id", "saved_at"}
+
+
+def build_results_redirect_url(return_to="", **updates):
+    params = {}
+    raw_return_to = str(return_to or "")
+    if (
+        raw_return_to
+        and "\\" not in raw_return_to
+        and "\r" not in raw_return_to
+        and "\n" not in raw_return_to
+    ):
+        parts = urlsplit(raw_return_to)
         if (
-            _parse_event_date(_get_value(event, "event_date")) is not None
-            and _parse_event_date(_get_value(event, "event_date")) > today
-        )
-    ]
-    if future_events:
-        return future_events[0]["id"]
+            not parts.scheme
+            and not parts.netloc
+            and parts.path == _RESULTS_REDIRECT_PATH
+        ):
+            params = {
+                key: value
+                for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                if key not in _RESULTS_TRANSIENT_PARAMS
+            }
 
-    return None
+    for key, value in updates.items():
+        if value is None:
+            continue
+        value = str(value).strip()
+        if value:
+            params[key] = value
+        else:
+            params.pop(key, None)
+
+    query = urlencode(params)
+    if query:
+        return f"{_RESULTS_REDIRECT_PATH}?{query}"
+    return _RESULTS_REDIRECT_PATH
 
 
 def build_results_filter_state(

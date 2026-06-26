@@ -871,6 +871,11 @@ h1 {
     color: #2563eb;
 }
 
+.badge.aktiv {
+    background: #dcfce7;
+    color: #15803d;
+}
+
 .badge.beendet {
     background: #dcfce7;
     color: #16a34a;
@@ -1506,6 +1511,11 @@ section.cards.competition-list {
 .archived-card {
     opacity: 0.7;
     filter: grayscale(0.2);
+}
+
+.active-event-card {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18);
 }
 
 .badge.archiviert {

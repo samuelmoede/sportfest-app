@@ -9,7 +9,7 @@
 
 <section class="cards">
 {% for event in events %}
-    <div class="card column {% if event.status == 'archiviert' %}archived-card{% endif %}">
+    <div class="card column {% if event.status == 'archiviert' %}archived-card{% endif %} {% if event.status == 'aktiv' %}active-event-card{% endif %}">
         <span class="badge {{ event.status }}">{{ event.status }}</span>
         <h2><a href="/events/{{ event.id }}">{{ event.name }}</a></h2>
         <p class="muted">Typ: {{ event.event_type or "Sonstiges" }}</p>
@@ -27,6 +27,11 @@
                 <button type="submit">Wiederherstellen</button>
             </form>
             {% else %}
+            {% if event.status != "aktiv" %}
+            <form method="post" action="/events/{{ event.id }}/activate">
+                <button class="green" type="submit">Als aktive Veranstaltung setzen</button>
+            </form>
+            {% endif %}
             <form method="post" action="/events/{{ event.id }}/archive">
                 <button type="submit">Archivieren</button>
             </form>
@@ -47,6 +52,10 @@
 .button { display: inline-block; padding: 10px 14px; border-radius: 8px; text-decoration: none; }
 .button.green { background: #16a34a; color: white; }
 .event-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.active-event-card {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.18);
+}
 .archived-card { opacity: 0.6; }
 </style>
 {% endblock %}

@@ -26,8 +26,14 @@ from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     normalize_competition_location,
 )
+from app.services.event_status_service import (
+    get_dashboard_event,
+    get_upcoming_events,
+    normalize_event_statuses,
+)
 from app.services.results_filter_service import (
     build_results_filter_state,
+    build_results_redirect_url,
     sort_result_teams,
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
@@ -492,7 +498,7 @@ def format_time_range(start: datetime, end: datetime):
     return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
-def build_day_schedule(competitions, event_date=None, now=None):
+def build_day_schedule(competitions, event_date=None, now=None, event_status=None):
     columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
     blocks = {}
     now = now or app_now().replace(tzinfo=None)
@@ -563,14 +569,7 @@ def build_day_schedule(competitions, event_date=None, now=None):
             "start_at": combine_time_on_date(rows[0]["start"], event_day),
         }
 
-    completed = False
-    if rows and event_day is not None:
-        final_end = max(
-            combine_time_on_date(row["end"], event_day) for row in rows
-        )
-        completed = event_state == "past" or (
-            event_state == "today" and now >= final_end
-        )
+    completed = event_status == "archiviert"
 
     def build_entries(block):
         entries = []
@@ -635,7 +634,7 @@ def build_day_schedule(competitions, event_date=None, now=None):
 def get_day_schedule_for_event(event_id: int):
     with get_conn() as conn:
         event = conn.execute(
-            "SELECT event_date FROM events WHERE id = ?", (event_id,)
+            "SELECT event_date, status FROM events WHERE id = ?", (event_id,)
         ).fetchone()
         competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
@@ -646,6 +645,7 @@ def get_day_schedule_for_event(event_id: int):
     return build_day_schedule(
         competitions,
         event["event_date"] if event is not None else None,
+        event_status=event["status"] if event is not None else None,
     )
 
 
@@ -739,6 +739,9 @@ def calculate_sixkampf_team_ranking(
 @app.on_event("startup")
 def startup():
     init_db()
+    with get_conn() as conn:
+        normalize_event_statuses(conn)
+        conn.commit()
 
 
 def get_active_competitions():
@@ -799,39 +802,14 @@ def fetch_dashboard_data():
               AND c.status != 'archiviert'
         """).fetchone()["n"]
 
-        upcoming_events = [dict(row) for row in conn.execute("""
-            SELECT e.*,
-                   (
-                       SELECT COUNT(*)
-                       FROM competitions c
-                       WHERE c.event_id = e.id
-                   ) AS competition_count
-            FROM events e
-            WHERE e.event_date IS NOT NULL
-              AND TRIM(e.event_date) != ''
-              AND e.event_date >= date('now', 'localtime')
-            ORDER BY e.event_date ASC, e.name ASC
-            LIMIT 4
-        """).fetchall()]
-
-        latest_past_event_row = conn.execute("""
-            SELECT e.*,
-                   (
-                       SELECT COUNT(*)
-                       FROM competitions c
-                       WHERE c.event_id = e.id
-                   ) AS competition_count
-            FROM events e
-            WHERE e.event_date IS NOT NULL
-              AND TRIM(e.event_date) != ''
-              AND e.event_date < date('now', 'localtime')
-            ORDER BY e.event_date DESC, e.name ASC
-            LIMIT 1
-        """).fetchone()
-
-    next_event = upcoming_events[0] if upcoming_events else None
-    additional_upcoming_events = upcoming_events[1:4] if len(upcoming_events) > 1 else []
-    latest_past_event = dict(latest_past_event_row) if latest_past_event_row else None
+        today = app_now().date()
+        next_event = get_dashboard_event(conn, today)
+        additional_upcoming_events = get_upcoming_events(
+            conn,
+            today,
+            limit=4,
+            exclude_event_id=next_event["id"] if next_event else None,
+        )
 
     return {
         "competitions": competitions,
@@ -841,7 +819,7 @@ def fetch_dashboard_data():
         "upcoming": upcoming,
         "ended_count": ended_count,
         "next_event": next_event,
-        "schedule_event": next_event or latest_past_event,
+        "schedule_event": next_event,
         "additional_upcoming_events": additional_upcoming_events,
     }
 
@@ -1657,6 +1635,7 @@ async def sixkampf_team_results_save(
     request: Request, competition_id: int, discipline_id: int, team_id: int
 ):
     form = await request.form()
+    results_return_to = str(form.get("results_return_to", ""))
     with get_conn() as conn:
         competition = conn.execute(
             "SELECT * FROM competitions WHERE id = ?", (competition_id,)
@@ -1674,7 +1653,7 @@ async def sixkampf_team_results_save(
             or discipline is None or team is None
             or team["jahrgang"] != competition["jahrgang"]
         ):
-            return RedirectResponse("/ergebnisse", status_code=303)
+            return RedirectResponse(build_results_redirect_url(results_return_to), status_code=303)
 
         parsed_values = []
         try:
@@ -1686,7 +1665,11 @@ async def sixkampf_team_results_save(
                 parsed_values.append((value_index, value))
         except ValueError:
             return RedirectResponse(
-                f"/ergebnisse?competition_id={competition_id}&discipline_id={discipline_id}",
+                build_results_redirect_url(
+                    results_return_to,
+                    competition_id=competition_id,
+                    discipline_id=discipline_id,
+                ),
                 status_code=303
             )
 
@@ -1742,9 +1725,13 @@ async def sixkampf_team_results_save(
 
     saved_at = app_now_display_time()
     return RedirectResponse(
-        f"/ergebnisse?competition_id={competition_id}"
-        f"&discipline_id={discipline_id}"
-        f"&saved_team_id={team_id}&saved_at={saved_at}",
+        build_results_redirect_url(
+            results_return_to,
+            competition_id=competition_id,
+            discipline_id=discipline_id,
+            saved_team_id=team_id,
+            saved_at=saved_at,
+        ),
         status_code=303
     )
 
@@ -1796,7 +1783,8 @@ def save_slot(
     request: Request,
     score_a: int = Form(...),
     score_b: int = Form(...),
-    finish: str = Form("0")
+    finish: str = Form("0"),
+    results_return_to: str = Form(""),
 ):
     score_a = max(0, score_a)
     score_b = max(0, score_b)
@@ -1852,7 +1840,13 @@ def save_slot(
             )
         conn.commit()
 
-    return RedirectResponse("/ergebnisse", status_code=303)
+    redirect_updates = {}
+    if not results_return_to and slot is not None:
+        redirect_updates["competition_id"] = slot["competition_id"]
+    return RedirectResponse(
+        build_results_redirect_url(results_return_to, **redirect_updates),
+        status_code=303,
+    )
 
 
 @app.post("/slot/{slot_id}/reactivate")
@@ -1865,7 +1859,11 @@ def reactivate_slot(slot_id: int):
 
 
 @app.post("/slot/{slot_id}/clear-result")
-def clear_slot_result(slot_id: int, request: Request):
+def clear_slot_result(
+    slot_id: int,
+    request: Request,
+    results_return_to: str = Form(""),
+):
     with get_conn() as conn:
         slot = conn.execute(
             """
@@ -1898,7 +1896,13 @@ def clear_slot_result(slot_id: int, request: Request):
             )
         conn.commit()
 
-    return RedirectResponse("/ergebnisse", status_code=303)
+    redirect_updates = {}
+    if not results_return_to and slot is not None:
+        redirect_updates["competition_id"] = slot["competition_id"]
+    return RedirectResponse(
+        build_results_redirect_url(results_return_to, **redirect_updates),
+        status_code=303,
+    )
 
 
 @app.get("/tabellen")
@@ -1943,6 +1947,7 @@ def tabellen_csv_export(
 
 app.include_router(create_schedule_router(
     app_now_db_timestamp=app_now_db_timestamp,
+    app_today=lambda: app_now().date(),
     parse_competition_id=parse_competition_id,
     parse_jahrgang_filter=parse_jahrgang_filter,
     get_active_competitions=get_active_competitions,
@@ -1950,6 +1955,7 @@ app.include_router(create_schedule_router(
 ))
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
+    app_today=lambda: app_now().date(),
     get_competition_timing=get_competition_timing,
     get_unique_competition_name=get_unique_competition_name,
     copy_competition_disciplines=copy_competition_disciplines,

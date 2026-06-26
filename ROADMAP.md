@@ -71,7 +71,7 @@ Später:
 ## Phase 6 – Turnierleitungs-Dashboard
 
 [ ] Gesamtwertung prominent anzeigen
-[ ] Veranstaltungsstatus
+[x] Veranstaltungsstatus
 [ ] offene Ergebnisse
 [ ] Wettbewerbsfortschritt
 
@@ -93,7 +93,7 @@ Später:
 
 [ ] Changelog-Seite
 [ ] Spielstände direkt im Spielplan
-[ ] Wettbewerbe filtern
+[x] Wettbewerbe filtern
 [x] Ergebniseingabe filtern
 [ ] Tabellen filtern
 
@@ -105,6 +105,6 @@ Später:
 
 ## Bugs/UX
 
-[ ] Dashboard-Tagesplan tabellarisch anzeigen
+[x] Dashboard-Tagesplan tabellarisch anzeigen
 [ ] Sechskampf: Ganzzahlen nicht als Dezimalzahl anzeigen
 [ ] Sechskampf: Speicher-Uhrzeit korrigieren

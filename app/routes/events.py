@@ -5,6 +5,16 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
+from app.services.event_status_service import (
+    EVENT_STATUS_ACTIVE,
+    EVENT_STATUSES,
+    EVENT_STATUS_SET,
+    archive_event,
+    clear_active_events,
+    fetch_events_with_competition_counts,
+    restore_event,
+    set_active_event,
+)
 from app.web import templates
 
 
@@ -36,14 +46,7 @@ def create_router(
     @router.get("/events")
     def events_list(request: Request):
         with get_conn() as conn:
-            events = conn.execute("""
-                SELECT e.*, COUNT(c.id) AS competition_count
-                FROM events e
-                LEFT JOIN competitions c ON c.event_id = e.id
-                GROUP BY e.id
-                ORDER BY CASE WHEN e.status = 'archiviert' THEN 1 ELSE 0 END,
-                         e.event_date, e.name
-            """).fetchall()
+            events = fetch_events_with_competition_counts(conn, include_archived=True)
         return templates.TemplateResponse(
             request=request, name="events.html", context={"events": events}
         )
@@ -55,6 +58,7 @@ def create_router(
             context={
                 "event": None,
                 "event_types": EVENT_TYPES,
+                "event_statuses": EVENT_STATUSES,
                 "form_action": "/events/create",
             }
         )
@@ -67,13 +71,16 @@ def create_router(
     ):
         if (
             not name.strip()
-            or status not in {"geplant", "läuft", "beendet", "archiviert"}
+            or status not in EVENT_STATUS_SET
             or event_type not in EVENT_TYPES_SET
         ):
             return RedirectResponse("/events", status_code=303)
         with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             if conn.execute("SELECT 1 FROM events WHERE name = ?", (name.strip(),)).fetchone():
                 return RedirectResponse("/events", status_code=303)
+            if status == EVENT_STATUS_ACTIVE:
+                clear_active_events(conn)
             conn.execute("""
                 INSERT INTO events (name, description, event_date, status, event_type)
                 VALUES (?, ?, ?, ?, ?)
@@ -100,6 +107,7 @@ def create_router(
             context={
                 "event": event,
                 "event_types": EVENT_TYPES,
+                "event_statuses": EVENT_STATUSES,
                 "form_action": f"/events/{event_id}/update",
                 "saved_at": saved_at_value,
             }
@@ -113,17 +121,20 @@ def create_router(
     ):
         if (
             not name.strip()
-            or status not in {"geplant", "läuft", "beendet", "archiviert"}
+            or status not in EVENT_STATUS_SET
             or event_type not in EVENT_TYPES_SET
         ):
             return RedirectResponse("/events", status_code=303)
         with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
             duplicate = conn.execute(
                 "SELECT 1 FROM events WHERE name = ? AND id != ?",
                 (name.strip(), event_id)
             ).fetchone()
             if duplicate:
                 return RedirectResponse(f"/events/{event_id}/edit", status_code=303)
+            if status == EVENT_STATUS_ACTIVE:
+                clear_active_events(conn, except_event_id=event_id)
             conn.execute("""
                 UPDATE events
                 SET name = ?, description = ?, event_date = ?, status = ?, event_type = ?
@@ -136,17 +147,25 @@ def create_router(
         saved_at = app_now_db_timestamp()
         return RedirectResponse(f"/events/{event_id}/edit?saved_at={saved_at}", status_code=303)
 
+    @router.post("/events/{event_id}/activate")
+    def event_activate(event_id: int):
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            set_active_event(conn, event_id)
+            conn.commit()
+        return RedirectResponse("/events", status_code=303)
+
     @router.post("/events/{event_id}/archive")
     def event_archive(event_id: int):
         with get_conn() as conn:
-            conn.execute("UPDATE events SET status = 'archiviert' WHERE id = ?", (event_id,))
+            archive_event(conn, event_id)
             conn.commit()
         return RedirectResponse("/events", status_code=303)
 
     @router.post("/events/{event_id}/restore")
     def event_restore(event_id: int):
         with get_conn() as conn:
-            conn.execute("UPDATE events SET status = 'geplant' WHERE id = ?", (event_id,))
+            restore_event(conn, event_id)
             conn.commit()
         return RedirectResponse("/events", status_code=303)
 

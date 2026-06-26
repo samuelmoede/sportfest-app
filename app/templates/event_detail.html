@@ -11,41 +11,8 @@
 
 <section class="panel">
     <h2>Tagesplan</h2>
-    {% if schedule.rows %}
-    <p class="muted">{{ schedule.hint_text }}</p>
-    <div class="table-scroll">
-        <table class="schedule-table">
-            <thead>
-                <tr>
-                    <th>Zeit</th>
-                    {% for column in schedule.columns %}
-                    <th>{{ column }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in schedule.rows %}
-                <tr{% if row.current %} class="current-row"{% endif %}>
-                    <td>{{ row.display_time }}</td>
-                    {% for column in schedule.columns %}
-                    <td>
-                        {% if row.cells[column] %}
-                            {% for item in row.cells[column] %}
-                            <div>{{ item }}</div>
-                            {% endfor %}
-                        {% else %}
-                            –
-                        {% endif %}
-                    </td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="muted">Für diese Veranstaltung gibt es derzeit keinen Zeitplan.</p>
-    {% endif %}
+    {% set day_schedule_empty_text = "F&uuml;r diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
+    {% include "partials/day_schedule.html" %}
 </section>
 
 <section class="panel">

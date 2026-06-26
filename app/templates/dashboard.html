@@ -8,7 +8,7 @@
 <p class="muted">Übersicht des aktuellen Sportfests</p>
 
 <div class="stats">
-    <div class="stat"><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe der nächsten Veranstaltung</span></div>
+    <div class="stat"><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe der aktiven/n&auml;chsten Veranstaltung</span></div>
     <div class="stat"><strong>{{ teams|length }}</strong><span>Teams</span></div>
     <div class="stat"><strong>{{ ended_count }}</strong><span>Spiele beendet</span></div>
     <div class="stat"><strong>{{ courts|length }}</strong><span>Spielfelder aktiv</span></div>
@@ -16,11 +16,11 @@
 
 <div class="grid">
     <section class="panel wide next-event-panel">
-        <h2>Nächste Veranstaltung</h2>
+        <h2>Aktive bzw. n&auml;chste Veranstaltung</h2>
         {% if next_event %}
         <p class="next-event-name"><strong>{{ next_event.name }}</strong></p>
         <div class="next-event-meta">
-            <span class="pill">{{ next_event.event_date }}</span>
+            <span class="pill">{{ next_event.event_date or "Kein Datum" }}</span>
             <span class="badge {{ next_event.status }}">{{ next_event.status }}</span>
             <span class="pill">{{ next_event.competition_count }} Wettbewerbe</span>
         </div>
@@ -29,7 +29,7 @@
         {% endif %}
         <p><a href="/events/{{ next_event.id }}">Zur Detailseite</a></p>
         {% else %}
-        <p class="muted">Keine kommende Veranstaltung mit Datum gefunden.</p>
+        <p class="muted">Keine aktive oder kommende Veranstaltung vorhanden</p>
         {% endif %}
     </section>
 
@@ -48,74 +48,18 @@
     </section>
 
     <section class="panel">
-        {% if next_event and schedule_event and next_event.id == schedule_event.id %}
-        <h2>Tagesplan der nächsten Veranstaltung</h2>
-        {% elif schedule_event %}
-        <h2>Letzter Tagesplan</h2>
-        {% else %}
-        <h2>Tagesplan der nächsten Veranstaltung</h2>
-        {% endif %}
+        <h2>Tagesplan der aktiven bzw. n&auml;chsten Veranstaltung</h2>
         {% if schedule_event %}
         <p class="day-schedule-event">
             <strong>{{ schedule_event.name }}</strong>
-            {% if schedule_event.event_date %}<span>{{ schedule_event.event_date }}</span>{% endif %}
+            <span>{{ schedule_event.event_date or "Kein Datum" }}</span>
+            <span class="badge {{ schedule_event.status }}">{{ schedule_event.status }}</span>
         </p>
-        {% endif %}
-        {% if schedule.current_block %}
-        <p class="muted">{{ schedule.hint_text }}</p>
-        <p><strong>{{ schedule.current_block.display_time }}</strong></p>
-        <ul class="schedule-list">
-            {% for entry in schedule.active_competitions %}
-            <li><strong>{{ entry.yeargang }}</strong>: {{ entry.label }}</li>
-            {% endfor %}
-        </ul>
-        <p class="muted">Restzeit: {{ schedule.time_remaining }}</p>
-        <div class="progress-bar"><span style="width: {{ schedule.progress_percent }}%;"></span></div>
-        {% elif schedule.completed %}
-        <p class="muted">Veranstaltung abgeschlossen.</p>
-        <div class="progress-bar" aria-label="Fortschritt 100 Prozent"><span style="width: 100%;"></span></div>
-        {% elif schedule.next_block %}
-        <p class="muted">Nächster Programmpunkt:</p>
-        <p><strong>{{ schedule.next_block.display_time }}</strong></p>
-        <ul class="schedule-list">
-            {% for entry in schedule.next_block.entries %}
-            <li><strong>{{ entry.yeargang }}</strong>: {{ entry.label }}</li>
-            {% endfor %}
-        </ul>
-        {% elif schedule.rows %}
-        <p class="muted">Geplanter Tagesplan:</p>
-        <div class="table-scroll">
-            <table class="schedule-table compact">
-                <thead>
-                    <tr>
-                        <th>Zeit</th>
-                        {% for column in schedule.columns %}
-                        <th>{{ column }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in schedule.rows %}
-                    <tr{% if row.current %} class="current-row"{% endif %}>
-                        <td>{{ row.display_time }}</td>
-                        {% for column in schedule.columns %}
-                        <td>
-                            {% if row.cells[column] %}
-                                {% for item in row.cells[column] %}
-                                <div>{{ item }}</div>
-                                {% endfor %}
-                            {% else %}
-                                –
-                            {% endif %}
-                        </td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        {% set day_schedule_compact = true %}
+        {% set day_schedule_empty_text = "Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar." %}
+        {% include "partials/day_schedule.html" %}
         {% else %}
-        <p class="muted">Keine Zeitplan-Einträge verfügbar.</p>
+        <p class="muted">Keine aktive oder kommende Veranstaltung vorhanden</p>
         {% endif %}
     </section>
 

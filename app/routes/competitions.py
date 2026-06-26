@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 from math import isfinite
 from typing import Callable
 
@@ -7,6 +7,10 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
+from app.services.event_status_service import (
+    fetch_events_with_competition_counts,
+    resolve_selected_event_id,
+)
 from app.web import templates
 
 
@@ -25,6 +29,7 @@ def get_all_competitions():
 def create_router(
     *,
     app_now_db_timestamp: Callable[[], str],
+    app_today: Callable[[], date],
     get_competition_timing: Callable,
     get_unique_competition_name: Callable,
     copy_competition_disciplines: Callable,
@@ -42,10 +47,7 @@ def create_router(
         selected_event_id = request.query_params.get("event_id", "").strip()
         saved_competition_id = request.query_params.get("saved_competition_id", "").strip()
         saved_at = request.query_params.get("saved_at", "").strip()
-        selected_event_id_value = None
         saved_competition_id_value = None
-        if selected_event_id.isdigit():
-            selected_event_id_value = int(selected_event_id)
         if saved_competition_id.isdigit():
             saved_competition_id_value = int(saved_competition_id)
         with get_conn() as conn:
@@ -53,11 +55,10 @@ def create_router(
                 SELECT * FROM competition_disciplines
                 ORDER BY competition_id, sort_order, id
             """).fetchall()
-            events = conn.execute("""
-                SELECT * FROM events
-                ORDER BY CASE WHEN status = 'archiviert' THEN 1 ELSE 0 END,
-                         event_date, name
-            """).fetchall()
+            events = fetch_events_with_competition_counts(
+                conn,
+                include_archived=True,
+            )
             team_counts = conn.execute("""
                 SELECT jahrgang, COUNT(*) AS count
                 FROM teams
@@ -65,6 +66,18 @@ def create_router(
                 GROUP BY jahrgang
                 ORDER BY jahrgang
             """).fetchall()
+        selected_event_id_value = resolve_selected_event_id(
+            events,
+            event_id_value=selected_event_id,
+            event_filter_present="event_id" in request.query_params,
+            today=app_today(),
+        )
+        if selected_event_id_value is not None:
+            competitions = [
+                competition
+                for competition in competitions
+                if competition["event_id"] == selected_event_id_value
+            ]
         disciplines_by_competition = defaultdict(list)
         for discipline in disciplines:
             disciplines_by_competition[discipline["competition_id"]].append(discipline)
@@ -102,11 +115,17 @@ def create_router(
         points_first_place: str = Form(""),
         placement_points: str = Form(""),
     ):
+        name_value = name.strip()
+        sportart_value = sportart.strip()
         if (
-            competition_type not in {"Turnier", "Sechskampf"}
-            or status not in {"geplant", "lÃ¤uft", "beendet", "archiviert"}
+            not name_value
+            or not sportart_value
+            or not 1 <= jahrgang <= 13
+            or competition_type not in {"Turnier", "Sechskampf"}
+            or status not in {"geplant", "läuft", "beendet", "archiviert"}
             or game_duration_minutes < 1
             or changeover_duration_minutes < 0
+            or not all(isfinite(value) for value in (points_win, points_draw, points_loss))
         ):
             return RedirectResponse("/wettbewerbe", status_code=303)
         location_raw = location.strip()
@@ -118,6 +137,13 @@ def create_router(
         except ValueError:
             return RedirectResponse("/wettbewerbe", status_code=303)
         with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            duplicate_name = conn.execute(
+                "SELECT 1 FROM competitions WHERE name = ?",
+                (name_value,)
+            ).fetchone()
+            if duplicate_name:
+                return RedirectResponse("/wettbewerbe", status_code=303)
             if event_id_value is not None and conn.execute(
                 "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
             ).fetchone() is None:
@@ -150,7 +176,7 @@ def create_router(
                     start_time, end_time, location
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                name.strip(), sportart.strip(), jahrgang, status, points_win, points_draw, points_loss,
+                name_value, sportart_value, jahrgang, status, points_win, points_draw, points_loss,
                 points_first_place_value, placement_points_value or None, event_id_value, competition_type,
                 game_duration_minutes, changeover_duration_minutes,
                 start_time.strip() or None, end_time.strip() or None,
@@ -216,7 +242,7 @@ def create_router(
         sportart_value = sportart.strip()
         location_raw = location.strip()
         location_value = normalize_competition_location(location_raw)
-        valid_statuses = {"geplant", "lÃ¤uft", "beendet", "archiviert"}
+        valid_statuses = {"geplant", "läuft", "beendet", "archiviert"}
         if (
             not name_value or not sportart_value or not 1 <= jahrgang_value <= 13
             or status not in valid_statuses

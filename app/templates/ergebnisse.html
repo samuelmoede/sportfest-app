@@ -9,6 +9,8 @@
     {% endif %}
 </p>
 
+{% set results_return_to = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+
 <form method="get" action="/ergebnisse" class="filter-row">
     <label>
         <span>Veranstaltung</span>
@@ -99,6 +101,7 @@
             <form method="post"
                   action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results"
                   class="six-class-form">
+                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                 <header class="six-card-header">
                     <div class="six-card-team">
                         <span class="muted">Klasse</span>
@@ -360,6 +363,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             </span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
             <strong>{{ s.team_a or "?" }}</strong>
             <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
             <span>:</span>
@@ -404,6 +408,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             </span>
         </div>
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
             <strong>{{ s.team_a or "?" }}</strong>
             <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
             <span>:</span>
@@ -415,6 +420,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <form method="post" action="/slot/{{ s.id }}/reactivate"><button type="submit">Reaktivieren</button></form>
             <form method="post" action="/slot/{{ s.id }}/clear-result"
                   onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                 <button type="submit">Ergebnis löschen</button>
             </form>
         </div>

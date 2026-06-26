@@ -22,8 +22,8 @@
 
     <label>Status</label>
     <select name="status" required>
-        {% for status in ["geplant", "läuft", "beendet", "archiviert"] %}
-        <option value="{{ status }}" {% if event and event.status == status %}selected{% endif %}>{{ status }}</option>
+        {% for status in event_statuses %}
+        <option value="{{ status }}" {% if (event.status if event else 'geplant') == status %}selected{% endif %}>{{ status }}</option>
         {% endfor %}
     </select>
 

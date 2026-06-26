@@ -81,6 +81,7 @@ def get_all_slots(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
     location: Optional[str] = None,
+    event_id: Optional[int] = None,
 ):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
@@ -103,6 +104,10 @@ def get_all_slots(
     if competition_id:
         query += " AND slots.competition_id = ?"
         params.append(competition_id)
+
+    if event_id is not None:
+        query += " AND c.event_id = ?"
+        params.append(event_id)
 
     if jahrgang is not None:
         query += " AND c.jahrgang = ?"
@@ -169,6 +174,7 @@ def get_slots_grouped_by_court(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
     location: Optional[str] = None,
+    event_id: Optional[int] = None,
 ):
     with get_conn() as conn:
         courts = conn.execute(
@@ -177,7 +183,7 @@ def get_slots_grouped_by_court(
 
     slots = [
         dict(slot)
-        for slot in get_all_slots(competition_id, jahrgang, location)
+        for slot in get_all_slots(competition_id, jahrgang, location, event_id)
     ]
     grouped = {court["id"]: {"court": court, "slots": []} for court in courts}
     without_court = {"court": {"id": "", "name": "Ohne Feld"}, "slots": []}
@@ -195,6 +201,7 @@ def get_unslotted_competitions_by_location(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
     location: Optional[str] = None,
+    event_id: Optional[int] = None,
 ):
     clauses = [
         "competition.status != 'archiviert'",
@@ -215,6 +222,9 @@ def get_unslotted_competitions_by_location(
     if competition_id is not None:
         clauses.append("competition.id = ?")
         params.append(competition_id)
+    if event_id is not None:
+        clauses.append("competition.event_id = ?")
+        params.append(event_id)
     if jahrgang is not None:
         clauses.append("competition.jahrgang = ?")
         params.append(jahrgang)
@@ -297,6 +307,7 @@ def get_competition_timeline_for_location(
     location: str,
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
+    event_id: Optional[int] = None,
 ):
     selected_location = normalize_competition_location(location)
     clauses = ["status != 'archiviert'"]
@@ -304,6 +315,9 @@ def get_competition_timeline_for_location(
     if competition_id is not None:
         clauses.append("id = ?")
         params.append(competition_id)
+    if event_id is not None:
+        clauses.append("event_id = ?")
+        params.append(event_id)
     if jahrgang is not None:
         clauses.append("jahrgang = ?")
         params.append(jahrgang)
@@ -349,12 +363,14 @@ def get_location_schedule_sections(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
     selected_location: Optional[str] = None,
+    event_id: Optional[int] = None,
 ):
     selected_location = normalize_competition_location(selected_location)
     unslotted_groups = get_unslotted_competitions_by_location(
         competition_id,
         jahrgang,
         selected_location,
+        event_id,
     )
     unslotted_by_location = {
         group["location"]: group["competitions"]
@@ -365,7 +381,7 @@ def get_location_schedule_sections(
         if selected_location
         else COMPETITION_LOCATIONS
     )
-    all_slots = get_all_slots(competition_id, jahrgang)
+    all_slots = get_all_slots(competition_id, jahrgang, event_id=event_id)
     sections = []
 
     with get_conn() as conn:
@@ -383,6 +399,7 @@ def get_location_schedule_sections(
                 location,
                 competition_id,
                 jahrgang,
+                event_id,
             )
             competitions = []
         else:
