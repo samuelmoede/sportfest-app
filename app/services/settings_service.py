@@ -1,5 +1,7 @@
 from datetime import datetime
+import html
 import os
+import re
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -12,7 +14,9 @@ from app.web import ROOT_DIR, get_app_version
 
 
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
+DEFAULT_DASHBOARD_INFO_TEXT = ""
 DEFAULT_SECURITY_ENABLED = False
+DASHBOARD_INFO_ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
 ROLES = {"viewer", "station_helper", "referee", "admin"}
 ROLE_LABELS = {
@@ -84,6 +88,42 @@ def get_beamer_refresh_seconds():
 
 def set_beamer_refresh_seconds(value: int):
     set_setting("beamer_refresh_seconds", str(value))
+
+
+def get_dashboard_info_text():
+    return get_setting("dashboard_info_text", DEFAULT_DASHBOARD_INFO_TEXT) or ""
+
+
+def set_dashboard_info_text(value: str):
+    set_setting("dashboard_info_text", value or "")
+
+
+def render_dashboard_info_html(value: str):
+    text = str(value or "")
+    placeholders = []
+
+    def keep_allowed_tag(match):
+        token = f"__SPORTFEST_DASHBOARD_INFO_TAG_{len(placeholders)}__"
+        placeholders.append((token, match.group(0).lower()))
+        return token
+
+    protected = DASHBOARD_INFO_ALLOWED_BOLD_TAG_RE.sub(keep_allowed_tag, text)
+    rendered = html.escape(protected)
+    for token, tag in placeholders:
+        rendered = rendered.replace(token, tag)
+    return (
+        rendered
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\n", "<br>")
+    )
+
+
+def get_dashboard_info_html():
+    text = get_dashboard_info_text()
+    if not text.strip():
+        return ""
+    return render_dashboard_info_html(text)
 
 
 def get_security_environment_override():
@@ -291,6 +331,7 @@ def collect_system_info():
         "db_reachable": db_reachable,
         "write_access": write_access,
         "beamer_refresh_seconds": get_beamer_refresh_seconds(),
+        "dashboard_info_text": get_dashboard_info_text(),
     }
 
 

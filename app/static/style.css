@@ -606,6 +606,17 @@ h1 {
     margin-top: 0;
 }
 
+.dashboard-info-text {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-info-settings-form textarea {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+}
+
 .day-schedule-event {
     display: flex;
     flex-wrap: wrap;

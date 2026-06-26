@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Dashboard: Bereich "Naechste Spiele" durch ein in den Einstellungen pflegbares Infofeld mit Zeilenumbruechen und sicherer Bold-HTML-Unterstuetzung ersetzt.
 - Veranstaltungen: Statuslogik auf geplant/aktiv/archiviert erweitert, genau eine aktive Veranstaltung erzwungen und Dashboard, Tagesplan sowie Standardfilter auf aktive bzw. naechste nicht archivierte Veranstaltung ausgerichtet.
 - Ergebniseingabe: Neuer Veranstaltungsfilter mit heutiger bzw. nächster Veranstaltung als Standard; Wettbewerbe werden je Veranstaltung nach Jahrgang und Name sortiert.
 - Phase 4.6 abgeschlossen: Spielfelder besitzen jetzt eine Ortszuordnung, der Spielplan-Generator zeigt je nach Wettbewerb nur passende Felder/Bereiche an und Außenbereich-Wettbewerbe bleiben Programmpunkte ohne Slotplanung.

@@ -175,6 +175,24 @@
 </section>
 
 <section class="panel">
+    <h2>Dashboard-Infofeld</h2>
+    <form method="post" action="/einstellungen/dashboard-info" class="admin-form dashboard-info-settings-form">
+        <label for="dashboard_info_text">Informationstext auf dem Dashboard</label>
+        <textarea
+            id="dashboard_info_text"
+            name="dashboard_info_text"
+            rows="7"
+            placeholder="z. B. Treffpunkt um 9:00 Uhr in der Turnhalle."
+        >{{ dashboard_info_text }}</textarea>
+        <p class="muted">Zeilenumbr&uuml;che bleiben erhalten. F&uuml;r Fettschrift sind <code>&lt;strong&gt;...&lt;/strong&gt;</code> oder <code>&lt;b&gt;...&lt;/b&gt;</code> m&ouml;glich.</p>
+        <button type="submit">Infofeld speichern</button>
+        {% if settings_status == "dashboard_info_saved" and saved_at %}
+        <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+        {% endif %}
+    </form>
+</section>
+
+<section class="panel">
     <h2>Globale Anzeigeeinstellung</h2>
     <form method="post" action="/einstellungen/beamer-intervall" class="inline-form">
         <label for="beamer_refresh_seconds">Beamer-/Live-Aktualisierungsintervall (Sekunden)</label>

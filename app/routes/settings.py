@@ -24,6 +24,7 @@ from app.services.settings_service import (
     is_security_enabled,
     load_documentation_text,
     set_beamer_refresh_seconds,
+    set_dashboard_info_text,
     set_setting,
 )
 from app.web import templates
@@ -159,5 +160,17 @@ def update_beamer_interval(
     saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/einstellungen?settings_status=saved&saved_at={saved_at}",
+        status_code=303,
+    )
+
+@router.post("/einstellungen/dashboard-info")
+def update_dashboard_info(
+    dashboard_info_text: str = Form(""),
+):
+    set_dashboard_info_text(dashboard_info_text)
+
+    saved_at = app_now_db_timestamp()
+    return RedirectResponse(
+        f"/einstellungen?settings_status=dashboard_info_saved&saved_at={saved_at}",
         status_code=303,
     )

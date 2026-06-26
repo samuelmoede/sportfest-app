@@ -79,19 +79,13 @@
     </section>
 </div>
 
-<section class="panel">
-    <h2>Nächste Spiele</h2>
-    <table>
-        <tr><th>Zeit</th><th>Feld</th><th>Begegnung</th><th>Wettbewerb</th></tr>
-        {% for s in upcoming %}
-        <tr>
-            <td>{{ s.startzeit }}</td>
-            <td>{{ s.court_name or "-" }}</td>
-            <td>{{ s.team_a or "?" }} vs {{ s.team_b or "?" }}</td>
-            <td>{{ s.competition_name }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+<section class="panel dashboard-info-panel">
+    <h2>Informationen</h2>
+    {% if dashboard_info_html %}
+    <div class="dashboard-info-text">{{ dashboard_info_html|safe }}</div>
+    {% else %}
+    <p class="muted">Keine aktuellen Informationen hinterlegt.</p>
+    {% endif %}
 </section>
 
 <script>

@@ -52,6 +52,7 @@ from app.services.settings_service import (
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_dashboard_info_html,
     get_referee_password,
     is_logged_in,
     is_login_prepared,
@@ -821,6 +822,7 @@ def fetch_dashboard_data():
         "next_event": next_event,
         "schedule_event": next_event,
         "additional_upcoming_events": additional_upcoming_events,
+        "dashboard_info_html": get_dashboard_info_html(),
     }
 
 

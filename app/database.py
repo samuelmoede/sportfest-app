@@ -358,5 +358,10 @@ def init_db():
             VALUES ('security_enabled', 'false')
         """)
 
+        conn.execute("""
+            INSERT OR IGNORE INTO settings (key, value)
+            VALUES ('dashboard_info_text', '')
+        """)
+
         conn.commit()
 
