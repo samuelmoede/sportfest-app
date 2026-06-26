@@ -10,14 +10,28 @@
 </p>
 
 <form method="get" action="/ergebnisse" class="filter-row">
-    <select name="competition_id">
-        <option value="">Alle Wettbewerbe anzeigen</option>
-        {% for c in competitions %}
-        <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
-            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}
-        </option>
-        {% endfor %}
-    </select>
+    <label>
+        <span>Veranstaltung</span>
+        <select name="event_id">
+            <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
+            {% for event in event_options %}
+            <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+                {{ event.name }}{% if event.event_date %} - {{ event.event_date }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        <span>Wettbewerb</span>
+        <select name="competition_id">
+            <option value="">Alle Wettbewerbe anzeigen</option>
+            {% for c in competitions %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.jahrgang }} - {{ c.name }}{% if c.competition_type == "Sechskampf" %} - Sechskampf{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
     <button type="submit">Anzeigen</button>
 </form>
 

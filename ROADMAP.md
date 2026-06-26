@@ -94,7 +94,7 @@ Später:
 [ ] Changelog-Seite
 [ ] Spielstände direkt im Spielplan
 [ ] Wettbewerbe filtern
-[ ] Ergebniseingabe filtern
+[x] Ergebniseingabe filtern
 [ ] Tabellen filtern
 
 ## Langfristig

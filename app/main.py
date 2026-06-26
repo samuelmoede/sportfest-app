@@ -26,6 +26,10 @@ from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     normalize_competition_location,
 )
+from app.services.results_filter_service import (
+    build_results_filter_state,
+    sort_result_teams,
+)
 from app.services.ranking_points_service import assign_points_by_placement_groups
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
@@ -1491,27 +1495,36 @@ def dashboard(request: Request):
 
 @app.get("/ergebnisse")
 def ergebnisse(
-    request: Request, competition_id: str = "", discipline_id: str = "",
-    saved_team_id: str = "", saved_at: str = "",
+    request: Request,
+    event_id: str = "",
+    competition_id: str = "",
+    discipline_id: str = "",
+    saved_team_id: str = "",
+    saved_at: str = "",
 ):
-    selected_competition_id = parse_competition_id(competition_id)
-    competitions = get_active_competitions()
-    selected_competition = next(
-        (competition for competition in competitions
-         if competition["id"] == selected_competition_id),
-        None,
+    filter_state = build_results_filter_state(
+        get_active_competitions(),
+        event_id_value=event_id,
+        competition_id_value=competition_id,
+        event_filter_present="event_id" in request.query_params,
+        today=app_now().date(),
     )
+    competitions = filter_state["competitions"]
+    event_options = filter_state["event_options"]
+    selected_event_id = filter_state["selected_event_id"]
+    selected_competition_id = filter_state["selected_competition_id"]
+    selected_competition = filter_state["selected_competition"]
 
     if (
         selected_competition is not None
         and selected_competition["competition_type"] == "Sechskampf"
     ):
         with get_conn() as conn:
-            teams = conn.execute("""
+            teams = sort_result_teams(conn.execute("""
                 SELECT * FROM teams
                 WHERE active = 1 AND jahrgang = ?
                 ORDER BY name
-            """, (selected_competition["jahrgang"],)).fetchall()
+            """, (selected_competition["jahrgang"],)).fetchall())
             disciplines = conn.execute("""
                 SELECT * FROM competition_disciplines
                 WHERE competition_id = ?
@@ -1588,6 +1601,8 @@ def ergebnisse(
             context={
                 "is_sixkampf": True,
                 "competitions": competitions,
+                "event_options": event_options,
+                "selected_event_id": selected_event_id,
                 "selected_competition_id": selected_competition_id,
                 "selected_competition": selected_competition,
                 "disciplines": disciplines,
@@ -1610,6 +1625,12 @@ def ergebnisse(
         )
 
     slots = get_all_slots(selected_competition_id)
+    if selected_competition_id is None and selected_event_id is not None:
+        visible_competition_ids = filter_state["visible_competition_ids"]
+        slots = [
+            slot for slot in slots
+            if slot["competition_id"] in visible_competition_ids
+        ]
     active_slots = [
         slot for slot in slots
         if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
@@ -1625,6 +1646,8 @@ def ergebnisse(
             "slots": active_slots,
             "archived_slots": list(reversed(archived_slots))[:20],
             "competitions": competitions,
+            "event_options": event_options,
+            "selected_event_id": selected_event_id,
             "selected_competition_id": selected_competition_id,
         }
     )

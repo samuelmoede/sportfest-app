@@ -4,6 +4,7 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- Ergebniseingabe: Neuer Veranstaltungsfilter mit heutiger bzw. nächster Veranstaltung als Standard; Wettbewerbe werden je Veranstaltung nach Jahrgang und Name sortiert.
 - Phase 4.6 abgeschlossen: Spielfelder besitzen jetzt eine Ortszuordnung, der Spielplan-Generator zeigt je nach Wettbewerb nur passende Felder/Bereiche an und Außenbereich-Wettbewerbe bleiben Programmpunkte ohne Slotplanung.
 - Refactoring: Öffentliche Spielplanseite, Spielplanbearbeitung, Generator, Drag-and-Drop-Slotaktionen sowie Zeit-, Raster-, Orts- und Generatorlogik aus `app/main.py` in `app/routes/schedule.py` und `app/services/schedule_*` ausgelagert.
 
