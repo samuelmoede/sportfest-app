@@ -26,6 +26,7 @@ from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     normalize_competition_location,
 )
+from app.services.ranking_points_service import assign_points_by_placement_groups
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
@@ -470,14 +471,6 @@ def get_competition_placement_points(competition):
         return configured_points
     return build_default_placement_points(competition["points_first_place"])
 
-
-def get_points_for_placement(placement_points, placement: int):
-    if placement < 1 or placement > len(placement_points):
-        return 0.0
-    return placement_points[placement - 1]
-
-
-
 def combine_time_on_date(value: datetime, target_date: date):
     if value is None or target_date is None:
         return None
@@ -726,7 +719,14 @@ def calculate_sixkampf_team_ranking(
             placement = index
             previous_total = row["overall_total"]
         row["placement"] = placement
-        row["scoring_points"] = get_points_for_placement(placement_points, placement)
+
+    assign_points_by_placement_groups(
+        ranking,
+        placement_points,
+        placement_key="placement",
+        points_key="scoring_points",
+    )
+    for row in ranking:
         row["scoring_points_display"] = format_points_value(row["scoring_points"])
 
     return ranking, totals_by_team_discipline, overall_totals
@@ -1046,10 +1046,17 @@ def calculate_tournament_points(competition):
             place = index
 
         row["placement"] = place
-        row["competition_points"] = get_points_for_placement(placement_points, place)
-        row["competition_points_display"] = format_points_value(row["competition_points"])
         previous = row
         previous_place = place
+
+    assign_points_by_placement_groups(
+        rows,
+        placement_points,
+        placement_key="placement",
+        points_key="competition_points",
+    )
+    for row in rows:
+        row["competition_points_display"] = format_points_value(row["competition_points"])
 
     return rows
 
