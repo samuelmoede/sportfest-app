@@ -42,7 +42,7 @@
     <h2>{{ t.competition.name }}</h2>
     {% if t.competition.competition_type == "Sechskampf" %}
     <p class="muted">
-        Höchste Gesamtsumme zuerst · Platz 1 erhält {{ t.competition.points_first_place }} Wertungspunkte
+        Disziplinpunkte je Team und aktuelle Punktzahl.
     </p>
     {% else %}
     <p class="muted">
@@ -53,20 +53,26 @@
     {% endif %}
 
     {% if t.rows %}
-    <table>
+    <div class="table-scroll standings-table-scroll">
+        <table class="standings-table{% if t.competition.competition_type == "Sechskampf" %} sixkampf-standings-table{% endif %}">
         {% if t.competition.competition_type == "Sechskampf" %}
         <tr>
-            <th>Platz</th>
-            <th>Klasse</th>
-            <th>Gesamtsumme</th>
-            <th>Wertungspunkte</th>
+            <th class="sixkampf-rank">#</th>
+            <th class="sixkampf-team">Team</th>
+            {% for discipline in t.disciplines %}
+            <th>{{ discipline.name }}</th>
+            {% endfor %}
+            <th>Pkt</th>
         </tr>
         {% for r in t.rows %}
         <tr>
-            <td>{{ r.placement }}</td>
-            <td><strong>{{ r.team.name }}</strong></td>
-            <td>{{ r.overall_total|round(3) }}</td>
-            <td><strong>{{ r.scoring_points_display }}</strong></td>
+            <td class="sixkampf-rank">{{ loop.index }}</td>
+            <td class="sixkampf-team"><strong>{{ r.team.name }}</strong></td>
+            {% for discipline in t.disciplines %}
+            {% set discipline_points = r.discipline_points_display.get(discipline.id) %}
+            <td>{% if discipline_points is none %}&ndash;{% else %}{{ discipline_points }}{% endif %}</td>
+            {% endfor %}
+            <td class="sixkampf-total"><strong>{{ r.intermediate_total_display }}</strong></td>
         </tr>
         {% endfor %}
         {% else %}
@@ -97,7 +103,8 @@
         </tr>
         {% endfor %}
         {% endif %}
-    </table>
+        </table>
+    </div>
     {% else %}
     <p class="muted">Noch keine Ergebnisse.</p>
     {% endif %}

@@ -61,19 +61,42 @@
 {% if show_evaluation %}
 <section class="panel">
     <h2>Auswertung</h2>
-    <p class="muted">Die höchste Gesamtsumme erhält Platz 1. Gleiche Summen erhalten denselben Rang.</p>
+    <p class="muted">Disziplinpunkte je Klasse, Zwischenwertung und finale Wertungspunkte.</p>
     {% if ranking %}
-    <div class="ranking-list">
-        {% for row in ranking %}
-        <div class="ranking-card">
-            <span class="ranking-place">{{ row.placement }}</span>
-            <strong>{{ row.team.name }}</strong>
-            <span>{{ overall_totals_display.get(row.team.id, 0) }} Gesamt · <strong>{{ row.scoring_points_display }} Wertungspunkte</strong></span>
-        </div>
-        {% endfor %}
+    <div class="table-scroll">
+        <table class="six-evaluation-table">
+            <thead>
+                <tr>
+                    <th>Klasse</th>
+                    {% for discipline in disciplines %}
+                    <th>{{ discipline.name }} Ergebnis</th>
+                    <th>{{ discipline.name }} Punkte</th>
+                    {% endfor %}
+                    <th>Summe</th>
+                    <th>Platz</th>
+                    <th>Wertungspunkte</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in ranking %}
+                <tr>
+                    <td><strong>{{ row.team.name }}</strong></td>
+                    {% for discipline in disciplines %}
+                    {% set discipline_result = row.discipline_results_display.get(discipline.id) %}
+                    {% set discipline_points = row.discipline_points_display.get(discipline.id) %}
+                    <td>{% if discipline_result is none %}&ndash;{% else %}{{ discipline_result }}{% endif %}</td>
+                    <td>{% if discipline_points is none %}&ndash;{% else %}{{ discipline_points }}{% endif %}</td>
+                    {% endfor %}
+                    <td>{{ row.intermediate_total_display }} / {{ row.max_intermediate_total_display }}</td>
+                    <td>{{ row.placement }}</td>
+                    <td><strong>{{ row.scoring_points_display }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% else %}
-    <p class="muted">Noch keine Klassen für die Rangliste vorhanden.</p>
+    <p class="muted">Noch keine Klassen f&uuml;r die Rangliste vorhanden.</p>
     {% endif %}
 </section>
 

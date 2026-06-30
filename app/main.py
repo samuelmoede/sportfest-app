@@ -1,4 +1,3 @@
-from collections import defaultdict
 import csv
 from datetime import date, datetime
 import io
@@ -37,6 +36,7 @@ from app.services.results_filter_service import (
     sort_result_teams,
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
+from app.services.sixkampf_service import calculate_sixkampf_team_ranking
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
@@ -281,6 +281,7 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
 
         tables = []
         for competition in visible_competitions:
+            disciplines = []
             if competition["competition_type"] == "Sechskampf":
                 teams = conn.execute("""
                     SELECT * FROM teams
@@ -301,11 +302,12 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
                     disciplines,
                     result_rows,
                     competition["points_first_place"],
+                    require_result_entry=True,
                     placement_points=get_competition_placement_points(competition),
                 )
             else:
                 rows = calculate_table(competition["id"])
-            tables.append({"competition": competition, "rows": rows})
+            tables.append({"competition": competition, "rows": rows, "disciplines": disciplines})
 
     overall_ranking = []
     include_overall = selected_event_id is not None and selected_competition_id is None
@@ -373,14 +375,23 @@ def build_tabellen_csv_content(view_data):
         writer.writerow(["Wettbewerb", competition["name"]])
         writer.writerow(["Sportart", competition["sportart"], "Jahrgang", competition["jahrgang"], "Typ", competition["competition_type"]])
         if competition["competition_type"] == "Sechskampf":
-            writer.writerow(["Platz", "Klasse", "Gesamtsumme", "Wertungspunkte"])
+            disciplines = table.get("disciplines", [])
+            header = ["Klasse"]
+            header.extend([discipline["name"] for discipline in disciplines])
+            header.extend(["Summe", "Platz", "Wertungspunkte"])
+            writer.writerow(header)
             for row in rows:
-                writer.writerow([
+                row_values = [row["team"]["name"]]
+                for discipline in disciplines:
+                    row_values.append(
+                        row["discipline_points_display"].get(discipline["id"]) or "-"
+                    )
+                row_values.extend([
+                    f"{row['intermediate_total_display']} / {row['max_intermediate_total_display']}",
                     row["placement"],
-                    row["team"]["name"],
-                    f"{row['overall_total']:.3f}",
                     row["scoring_points_display"],
                 ])
+                writer.writerow(row_values)
         else:
             writer.writerow(["Platz", "Team", "Sp", "S", "U", "N", "+", "-", "Diff", "Pkt"])
             for index, row in enumerate(rows, start=1):
@@ -677,64 +688,6 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
             discipline["unit"], discipline["scoring_direction"],
             discipline["values_per_team"],
         ))
-
-
-def calculate_sixkampf_team_ranking(
-    teams, disciplines, result_rows, points_first_place: int = 7,
-    require_result_entry: bool = False,
-    placement_points=None,
-):
-    totals_by_team_discipline = defaultdict(float)
-    overall_totals = {team["id"]: 0.0 for team in teams}
-    teams_with_results = {result["team_id"] for result in result_rows}
-    if placement_points is None:
-        placement_points = build_default_placement_points(points_first_place)
-
-    for result in result_rows:
-        key = (result["team_id"], result["discipline_id"])
-        totals_by_team_discipline[key] += result["value"]
-
-    ranking_teams = teams
-    if require_result_entry:
-        ranking_teams = [
-            team for team in teams
-            if team["id"] in teams_with_results
-        ]
-
-    ranking = []
-    for team in ranking_teams:
-        overall_total = sum(
-            totals_by_team_discipline[(team["id"], discipline["id"])]
-            for discipline in disciplines
-        )
-        overall_totals[team["id"]] = overall_total
-        ranking.append({
-            "team": team,
-            "overall_total": overall_total,
-            "placement": 0,
-        })
-
-    ranking.sort(key=lambda row: (
-        -row["overall_total"], row["team"]["name"].lower()
-    ))
-    previous_total = None
-    placement = 0
-    for index, row in enumerate(ranking, start=1):
-        if previous_total is None or row["overall_total"] != previous_total:
-            placement = index
-            previous_total = row["overall_total"]
-        row["placement"] = placement
-
-    assign_points_by_placement_groups(
-        ranking,
-        placement_points,
-        placement_key="placement",
-        points_key="scoring_points",
-    )
-    for row in ranking:
-        row["scoring_points_display"] = format_points_value(row["scoring_points"])
-
-    return ranking, totals_by_team_discipline, overall_totals
 
 
 @app.on_event("startup")

@@ -1002,7 +1002,60 @@ button.outline {
 
 .table-scroll {
     width: 100%;
+    max-width: 100%;
     overflow-x: auto;
+}
+
+.standings-table-scroll {
+    margin-top: 10px;
+    padding-bottom: 4px;
+}
+
+.sixkampf-standings-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+    font-size: 0.92rem;
+}
+
+.sixkampf-standings-table th,
+.sixkampf-standings-table td {
+    padding: 10px 12px;
+    white-space: nowrap;
+}
+
+.sixkampf-standings-table th {
+    background: #f8fafc;
+}
+
+.sixkampf-standings-table .sixkampf-rank,
+.sixkampf-standings-table .sixkampf-team {
+    position: sticky;
+    z-index: 2;
+    background: white;
+    box-shadow: 8px 0 12px rgba(15, 27, 45, 0.05);
+}
+
+.sixkampf-standings-table th.sixkampf-rank,
+.sixkampf-standings-table th.sixkampf-team {
+    z-index: 3;
+    background: #f8fafc;
+}
+
+.sixkampf-standings-table .sixkampf-rank {
+    left: 0;
+    width: 44px;
+    min-width: 44px;
+    text-align: center;
+}
+
+.sixkampf-standings-table .sixkampf-team {
+    left: 44px;
+    min-width: 116px;
+}
+
+.sixkampf-total {
+    font-weight: 800;
 }
 
 .team-table {
