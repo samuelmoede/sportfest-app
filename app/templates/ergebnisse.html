@@ -39,6 +39,19 @@
             {% endfor %}
         </select>
     </label>
+    {% if not is_sixkampf %}
+    <label>
+        <span>Feld</span>
+        <select name="court_id">
+            <option value="" {% if selected_court_id is none %}selected{% endif %}>Alle Felder</option>
+            {% for court in courts %}
+            <option value="{{ court.id }}" {% if selected_court_id == court.id %}selected{% endif %}>
+                {{ court.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
+    {% endif %}
     <button class="primary" type="submit">Anzeigen</button>
 </form>
 
@@ -447,7 +460,10 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <button class="primary" name="finish" value="1">Korrigieren & beendet speichern</button>
         </form>
         <div class="archive-actions">
-            <form method="post" action="/slot/{{ s.id }}/reactivate"><button class="secondary" type="submit">Reaktivieren</button></form>
+            <form method="post" action="/slot/{{ s.id }}/reactivate">
+                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                <button class="secondary" type="submit">Reaktivieren</button>
+            </form>
             <form method="post" action="/slot/{{ s.id }}/clear-result"
                   onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
                 <input type="hidden" name="results_return_to" value="{{ results_return_to }}">

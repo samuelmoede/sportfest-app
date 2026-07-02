@@ -33,6 +33,7 @@ from app.services.event_status_service import (
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
+    parse_filter_id,
     sort_result_teams,
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
@@ -1488,6 +1489,7 @@ def ergebnisse(
     request: Request,
     event_id: str = "",
     competition_id: str = "",
+    court_id: str = "",
     discipline_id: str = "",
     saved_team_id: str = "",
     saved_at: str = "",
@@ -1504,6 +1506,14 @@ def ergebnisse(
     selected_event_id = filter_state["selected_event_id"]
     selected_competition_id = filter_state["selected_competition_id"]
     selected_competition = filter_state["selected_competition"]
+
+    with get_conn() as conn:
+        courts = conn.execute(
+            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+        ).fetchall()
+    selected_court_id = parse_filter_id(court_id)
+    if selected_court_id not in {court["id"] for court in courts}:
+        selected_court_id = None
 
     if (
         selected_competition is not None
@@ -1593,6 +1603,8 @@ def ergebnisse(
                 "selected_event_id": selected_event_id,
                 "selected_competition_id": selected_competition_id,
                 "selected_competition": selected_competition,
+                "courts": courts,
+                "selected_court_id": selected_court_id,
                 "disciplines": disciplines,
                 "selected_discipline": selected_discipline,
                 "show_evaluation": show_evaluation,
@@ -1619,10 +1631,15 @@ def ergebnisse(
             slot for slot in slots
             if slot["competition_id"] in visible_competition_ids
         ]
-    active_slots = [
-        slot for slot in slots
-        if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
-    ]
+    if selected_court_id is not None:
+        slots = [slot for slot in slots if slot["court_id"] == selected_court_id]
+    active_slots = sorted(
+        (
+            slot for slot in slots
+            if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
+        ),
+        key=lambda slot: (slot["startzeit"], slot["id"]),
+    )
     archived_slots = [
         slot for slot in slots
         if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
@@ -1637,6 +1654,8 @@ def ergebnisse(
             "event_options": event_options,
             "selected_event_id": selected_event_id,
             "selected_competition_id": selected_competition_id,
+            "courts": courts,
+            "selected_court_id": selected_court_id,
         }
     )
 
@@ -1860,12 +1879,15 @@ def save_slot(
 
 
 @app.post("/slot/{slot_id}/reactivate")
-def reactivate_slot(slot_id: int):
+def reactivate_slot(slot_id: int, results_return_to: str = Form("")):
     with get_conn() as conn:
         conn.execute("UPDATE slots SET status = 'läuft' WHERE id = ?", (slot_id,))
         conn.commit()
 
-    return RedirectResponse("/ergebnisse", status_code=303)
+    return RedirectResponse(
+        build_results_redirect_url(results_return_to),
+        status_code=303,
+    )
 
 
 @app.post("/slot/{slot_id}/clear-result")
