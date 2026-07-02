@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Einstellungen</h1>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Verwaltung</p>
+        <h1>Einstellungen</h1>
+        <p>System, Sicherheit, Anzeige und Datensicherung zentral verwalten.</p>
+    </div>
+</header>
 
 <section class="panel">
     <h2>Systeminformationen</h2>
@@ -139,6 +145,16 @@
     <p class="muted">
         {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.
     </p>
+    {% if reset_status == "ok" %}
+    <p class="success-text">Alle Änderungszähler wurden zurückgesetzt.</p>
+    {% endif %}
+    {% if change_log_count > 0 %}
+    <form method="post" action="/einstellungen/reset-aenderungszaehler"
+          onsubmit="return confirm('Alle {{ change_log_count }} protokollierten Einträge unwiderruflich löschen? Die Änderungszähler bei der Ergebniseingabe werden damit auf 0 zurückgesetzt.');"
+          style="margin-bottom: 16px;">
+        <button class="danger" type="submit">Änderungszähler zurücksetzen</button>
+    </form>
+    {% endif %}
     {% if recent_changes %}
     <div class="table-scroll">
         <table class="change-log-table">

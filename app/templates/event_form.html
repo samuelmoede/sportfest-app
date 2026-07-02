@@ -1,40 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>{% if event %}Veranstaltung bearbeiten{% else %}Veranstaltung anlegen{% endif %}</h1>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Veranstaltung</p>
+        <h1>{% if event %}Veranstaltung bearbeiten{% else %}Veranstaltung anlegen{% endif %}</h1>
+        <p>Rahmendaten und Status der Veranstaltung festlegen.</p>
+    </div>
+</header>
 
-<section class="panel">
-<form method="post" action="{{ form_action }}" class="admin-form">
-    <label>Name</label>
-    <input type="text" name="name" value="{{ event.name if event else '' }}" required>
+<section class="panel form-panel">
+<form method="post" action="{{ form_action }}" class="admin-form grouped-form">
+    <fieldset>
+        <legend>Grunddaten</legend>
+        <div class="form-field">
+            <label for="event-name">Name</label>
+            <input id="event-name" type="text" name="name" value="{{ event.name if event else '' }}" required>
+        </div>
 
-    <label>Beschreibung</label>
-    <textarea name="description" rows="4">{{ event.description or '' if event else '' }}</textarea>
+        <div class="form-field form-field-wide">
+            <label for="event-description">Beschreibung <small>optional</small></label>
+            <textarea id="event-description" name="description" rows="4">{{ event.description or '' if event else '' }}</textarea>
+        </div>
+    </fieldset>
 
-    <label>Datum</label>
-    <input type="date" name="event_date" value="{{ event.event_date or '' if event else '' }}">
+    <fieldset>
+        <legend>Planung</legend>
+        <div class="form-field">
+            <label for="event-date">Datum</label>
+            <input id="event-date" type="date" name="event_date" value="{{ event.event_date or '' if event else '' }}">
+        </div>
 
-    <label>Veranstaltungstyp</label>
-    <select name="event_type" required>
-        {% for event_type in event_types %}
-        <option value="{{ event_type }}" {% if (event.event_type if event else 'Sonstiges') == event_type %}selected{% endif %}>{{ event_type }}</option>
-        {% endfor %}
-    </select>
+        <div class="form-field">
+            <label for="event-type">Veranstaltungstyp</label>
+            <select id="event-type" name="event_type" required>
+                {% for event_type in event_types %}
+                <option value="{{ event_type }}" {% if (event.event_type if event else 'Sonstiges') == event_type %}selected{% endif %}>{{ event_type }}</option>
+                {% endfor %}
+            </select>
+        </div>
 
-    <label>Status</label>
-    <select name="status" required>
-        {% for status in event_statuses %}
-        <option value="{{ status }}" {% if (event.status if event else 'geplant') == status %}selected{% endif %}>{{ status }}</option>
-        {% endfor %}
-    </select>
+        <div class="form-field">
+            <label for="event-status">Status</label>
+            <select id="event-status" name="status" required>
+                {% for status in event_statuses %}
+                <option value="{{ status }}" {% if (event.status if event else 'geplant') == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </fieldset>
 
     <div class="form-submit-row">
-        <button class="green" type="submit">Speichern</button>
+        <button class="primary" type="submit">Speichern</button>
+        <a class="button secondary" href="/events">Abbrechen</a>
         {% if saved_at %}
         <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
         {% endif %}
     </div>
 </form>
 </section>
-
-<p><a href="/events">← Zurück zu Veranstaltungen</a></p>
 {% endblock %}

@@ -37,6 +37,10 @@ from app.services.results_filter_service import (
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
 from app.services.sixkampf_service import calculate_sixkampf_team_ranking
+from app.services.ui_view_service import (
+    enrich_beamer_view,
+    enrich_day_schedule_view,
+)
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
@@ -283,11 +287,7 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
         for competition in visible_competitions:
             disciplines = []
             if competition["competition_type"] == "Sechskampf":
-                teams = conn.execute("""
-                    SELECT * FROM teams
-                    WHERE active = 1 AND jahrgang = ?
-                    ORDER BY name
-                """, (competition["jahrgang"],)).fetchall()
+                teams = get_teams_for_competition(conn, competition["id"], competition["jahrgang"])
                 disciplines = conn.execute("""
                     SELECT * FROM competition_disciplines
                     WHERE competition_id = ?
@@ -445,7 +445,11 @@ def classify_yeargang(value):
         normalized = str(value).strip().lower()
         if "oberstufe" in normalized or normalized in ("go", "gost", "sg"):
             return "Oberstufe"
-        return None
+        # Handle patterns like "10a", "11b", "12/1", "13" as Oberstufe
+        for grade in range(10, 14):
+            if normalized.startswith(str(grade)):
+                return "Oberstufe"
+        return None  # Lehrer, Mixed, Finalrunde, Eltern, etc. → no column
 
     if year == 7:
         return "Jahrgang 7"
@@ -654,10 +658,16 @@ def get_day_schedule_for_event(event_id: int):
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
-    return build_day_schedule(
+    schedule = build_day_schedule(
         competitions,
         event["event_date"] if event is not None else None,
         event_status=event["status"] if event is not None else None,
+    )
+    return enrich_day_schedule_view(
+        schedule,
+        competitions,
+        event_id,
+        now=app_now(),
     )
 
 
@@ -855,6 +865,25 @@ def sort_table_rows(rows, slots, competition):
     return rows
 
 
+def get_teams_for_competition(conn, competition_id: int, jahrgang):
+    """Fetch teams: explicit competition_teams assignment first, then jahrgang fallback."""
+    explicit = conn.execute("""
+        SELECT t.* FROM teams t
+        JOIN competition_teams ct ON ct.team_id = t.id
+        WHERE ct.competition_id = ?
+        ORDER BY t.jahrgang, t.name
+    """, (competition_id,)).fetchall()
+    if explicit:
+        return list(explicit)
+    if jahrgang is None:
+        return []
+    return conn.execute("""
+        SELECT * FROM teams
+        WHERE active = 1 AND jahrgang = ?
+        ORDER BY name
+    """, (jahrgang,)).fetchall()
+
+
 def calculate_table(competition_id: int):
     with get_conn() as conn:
         competition = conn.execute(
@@ -865,13 +894,7 @@ def calculate_table(competition_id: int):
         if competition is None:
             return []
 
-        teams = conn.execute("""
-            SELECT *
-            FROM teams
-            WHERE active = 1
-              AND jahrgang = ?
-            ORDER BY name
-        """, (competition["jahrgang"],)).fetchall()
+        teams = get_teams_for_competition(conn, competition_id, competition["jahrgang"])
 
         slots = conn.execute("""
             SELECT slots.*, ta.name AS team_a, tb.name AS team_b
@@ -1061,9 +1084,25 @@ def calculate_event_overall_ranking(event_id: int):
     for team in teams:
         teams_by_jahrgang.setdefault(team["jahrgang"], []).append(team)
 
+    # Fetch explicit team assignments so cross-group competitions use the right teams
+    with get_conn() as conn:
+        ct_rows = conn.execute("""
+            SELECT ct.competition_id, t.id, t.name, t.jahrgang
+            FROM competition_teams ct
+            JOIN teams t ON t.id = ct.team_id
+            ORDER BY ct.competition_id, t.jahrgang, t.name
+        """).fetchall()
+    explicit_teams_by_competition = {}
+    for row in ct_rows:
+        explicit_teams_by_competition.setdefault(row["competition_id"], []).append(dict(row))
+
     overall = {}
     for competition in competitions:
-        for team in teams_by_jahrgang.get(competition["jahrgang"], []):
+        comp_teams_list = (
+            explicit_teams_by_competition.get(competition["id"])
+            or teams_by_jahrgang.get(competition["jahrgang"], [])
+        )
+        for team in comp_teams_list:
             record = overall.setdefault(team["id"], {
                 "team_id": team["id"],
                 "team": team["name"],
@@ -1082,7 +1121,10 @@ def calculate_event_overall_ranking(event_id: int):
         competition_id = competition["id"]
         placement_points = get_competition_placement_points(competition)
         if competition["competition_type"] == "Sechskampf":
-            competition_teams = teams_by_jahrgang.get(competition["jahrgang"], [])
+            competition_teams = (
+                explicit_teams_by_competition.get(competition_id)
+                or teams_by_jahrgang.get(competition["jahrgang"], [])
+            )
             with get_conn() as conn:
                 disciplines = conn.execute("""
                     SELECT * FROM competition_disciplines
@@ -1288,67 +1330,48 @@ def calculate_group_table(competition_id: int, gruppe: str):
 
 def fetch_beamer_data():
     with get_conn() as conn:
-        active_competition = conn.execute("""
-            SELECT *
-            FROM competitions
-            WHERE status = 'läuft'
-            ORDER BY jahrgang, name
-            LIMIT 1
-        """).fetchone()
+        active_comps = conn.execute("""
+            SELECT id FROM competitions
+            WHERE status = 'läuft' AND competition_type = 'Turnier'
+        """).fetchall()
+        courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
 
-    competition_id = active_competition["id"] if active_competition else None
-    slots = get_all_slots(competition_id)
+    active_comp_ids = {row["id"] for row in active_comps}
+
+    if not active_comp_ids:
+        return enrich_beamer_view({
+            "running_slots": [],
+            "recent_results": [],
+            "court_summaries": [{"court": dict(c), "open_count": 0, "next": None} for c in courts],
+        }, [])
+
+    all_slots = get_all_slots()
+    slots = [s for s in all_slots if s.get("competition_id") in active_comp_ids]
 
     running_slots = [
-        slot for slot in slots
-        if slot["slot_typ"] == "Spiel" and slot["status"] == "läuft"
+        s for s in slots if s["slot_typ"] == "Spiel" and s["status"] == "läuft"
     ]
 
-    current = running_slots[0] if running_slots else None
-
-    if current is None:
-        for slot in slots:
-            if slot["status"] == "geplant":
-                current = slot
-                break
-
-    table_rows = calculate_table(competition_id) if competition_id else []
-
-    next_slot = None
-    if current:
-        for slot in slots:
-            if slot["status"] == "geplant" and slot["startzeit"] > current["startzeit"]:
-                next_slot = slot
-                break
-
-    with get_conn() as conn:
-        courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
+    recent_results = sorted(
+        [s for s in slots
+         if s["status"] == "beendet" and s["slot_typ"] == "Spiel"
+         and s.get("team_a_id") is not None and s.get("team_b_id") is not None],
+        key=lambda s: (s.get("startzeit", ""), s.get("id", 0)),
+        reverse=True,
+    )[:6]
 
     court_summaries = []
     for court in courts:
-        court_slots = [
-            slot for slot in slots
-            if slot["court_id"] == court["id"] and slot["slot_typ"] == "Spiel"
-        ]
-        open_slots = [
-            slot for slot in court_slots
-            if slot["status"] != "beendet"
-        ]
+        court_slots = [s for s in slots if s["court_id"] == court["id"] and s["slot_typ"] == "Spiel"]
+        open_count = len([s for s in court_slots if s["status"] != "beendet"])
+        next_games = [s for s in court_slots if s["status"] == "geplant"][:3]
+        court_summaries.append({"court": court, "open_count": open_count, "next_games": next_games})
 
-        court_summaries.append({
-            "court": court,
-            "open_count": len(open_slots),
-
-            "next": open_slots[0] if open_slots else None,
-        })
-
-    return {
-        "current": current,
+    return enrich_beamer_view({
         "running_slots": running_slots,
-        "next_slot": next_slot,
-        "table_rows": table_rows,
+        "recent_results": recent_results,
         "court_summaries": court_summaries,
-    }
+    }, slots)
 
 @app.get("/login")
 def login_page(request: Request, next: str = "/", logged_out: str = ""):
@@ -1423,7 +1446,12 @@ def dashboard(request: Request):
         data["schedule"] = get_day_schedule_for_event(data["schedule_event"]["id"])
     else:
         data["schedule"] = build_day_schedule([], event_date=None)
-    return templates.TemplateResponse(request=request, name="dashboard.html", context=data)
+    template_name = (
+        "dashboard_modern.html"
+        if request.query_params.get("ui_theme") == "modern"
+        else "dashboard.html"
+    )
+    return templates.TemplateResponse(request=request, name=template_name, context=data)
 
 
 @app.get("/ergebnisse")
@@ -1453,11 +1481,9 @@ def ergebnisse(
         and selected_competition["competition_type"] == "Sechskampf"
     ):
         with get_conn() as conn:
-            teams = sort_result_teams(conn.execute("""
-                SELECT * FROM teams
-                WHERE active = 1 AND jahrgang = ?
-                ORDER BY name
-            """, (selected_competition["jahrgang"],)).fetchall())
+            teams = sort_result_teams(get_teams_for_competition(
+                conn, selected_competition_id, selected_competition["jahrgang"]
+            ))
             disciplines = conn.execute("""
                 SELECT * FROM competition_disciplines
                 WHERE competition_id = ?
@@ -1936,5 +1962,10 @@ app.include_router(create_events_router(
 def beamer(request: Request):
     data = fetch_beamer_data()
     data["refresh_seconds"] = get_beamer_refresh_seconds()
-    return templates.TemplateResponse(request=request, name="beamer.html", context=data)
+    template_name = (
+        "beamer_modern.html"
+        if request.query_params.get("ui_theme") == "modern"
+        else "beamer.html"
+    )
+    return templates.TemplateResponse(request=request, name=template_name, context=data)
 

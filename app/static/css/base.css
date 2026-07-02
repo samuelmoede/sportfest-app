@@ -1,0 +1,32 @@
+/*
+ * Design-Tokens, Box-Sizing sowie globale HTML- und Body-Grundlagen.
+ * Originalreihenfolge: Zeilen 1-27 aus style.css vor dem Refactoring.
+ */
+
+:root {
+    --navy: #111d33;
+    --navy2: #1c2e56;
+    --orange: #ff6b1a;
+    --bg: #f5f7fb;
+    --border: #dfe6f0;
+    --text: #0f1b2d;
+    --muted: #6d7b91;
+    --green: #16a34a;
+    --blue: #2563eb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    overflow-y: scroll;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+

@@ -15,6 +15,19 @@ def table_has_column(conn, table_name: str, column_name: str):
     )
 
 
+def normalize_jahrgang(value: str):
+    """Return int for numeric group values ('7' → 7), or stripped str for text ('GOST' → 'GOST')."""
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    if not stripped:
+        return None
+    try:
+        return int(stripped)
+    except (ValueError, TypeError):
+        return stripped
+
+
 def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
     router = APIRouter()
 
@@ -43,6 +56,7 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
         teams = []
         for row in team_rows:
             team = dict(row)
+            team["jahrgang"] = str(row["jahrgang"]) if row["jahrgang"] is not None else ""
             team["dependent_count"] = (
                 row["slots_count"] + row["sixkampf_count"] + row["discipline_count"]
             )
@@ -74,10 +88,14 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
     @router.post("/team/create")
     def create_team(
         name: str = Form(...),
-        jahrgang: int = Form(...),
+        jahrgang: str = Form(...),
     ):
+        name_value = name.strip()
+        jahrgang_value = normalize_jahrgang(jahrgang)
+        if not name_value or jahrgang_value is None:
+            return RedirectResponse("/teams", status_code=303)
         with get_conn() as conn:
-            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)", (name.strip(), jahrgang))
+            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)", (name_value, jahrgang_value))
             conn.commit()
 
         return RedirectResponse("/teams", status_code=303)
@@ -86,16 +104,17 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
     def update_team(
         team_id: int,
         name: str = Form(...),
-        jahrgang: int = Form(...),
+        jahrgang: str = Form(...),
         active: int = Form(0),
     ):
         name_value = name.strip()
-        if not name_value or not 1 <= jahrgang <= 13:
+        jahrgang_value = normalize_jahrgang(jahrgang)
+        if not name_value or jahrgang_value is None:
             return RedirectResponse("/teams", status_code=303)
         with get_conn() as conn:
             conn.execute(
                 "UPDATE teams SET name = ?, jahrgang = ?, active = ? WHERE id = ?",
-                (name_value, jahrgang, 1 if active else 0, team_id),
+                (name_value, jahrgang_value, 1 if active else 0, team_id),
             )
             conn.commit()
         saved_at = app_now_db_timestamp()
@@ -114,6 +133,7 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
                     "DELETE FROM slots WHERE team_a_id = ? OR team_b_id = ?",
                     (team_id, team_id),
                 )
+                conn.execute("DELETE FROM competition_teams WHERE team_id = ?", (team_id,))
                 conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
                 conn.commit()
             except Exception:
@@ -153,6 +173,10 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
                     conn.execute(
                         f"DELETE FROM slots WHERE team_a_id IN ({placeholders}) OR team_b_id IN ({placeholders})",
                         tuple(team_ids) + tuple(team_ids),
+                    )
+                    conn.execute(
+                        f"DELETE FROM competition_teams WHERE team_id IN ({placeholders})",
+                        tuple(team_ids),
                     )
                     conn.execute(
                         f"DELETE FROM teams WHERE id IN ({placeholders})",

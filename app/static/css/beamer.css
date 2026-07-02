@@ -1,0 +1,311 @@
+/*
+ * Gemeinsame und klassische Beamer-Darstellung.
+ * Originalreihenfolge: Zeilen 2292-2597 aus style.css vor dem Refactoring.
+ */
+
+.beamer {
+    padding: 40px;
+    background: #0f172a;
+    color: white;
+}
+
+.beamer h1 {
+    font-size: 60px;
+}
+
+.beamer table {
+    color: white;
+    background: #111827;
+    font-size: 28px;
+}
+
+.beamer th,
+.beamer td {
+    border-color: #334155;
+    padding: 22px;
+}
+
+.court-form {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    width: 100%;
+    min-width: 0;
+}
+
+.court-form button {
+    grid-column: 2;
+}
+
+.court-cards,
+.court-card,
+.court-card form,
+.court-card .court-form,
+.court-card .court-form label,
+.court-card .court-form input {
+    min-width: 0;
+}
+
+.court-card {
+    width: 100%;
+    overflow: hidden;
+}
+
+.court-card .court-form {
+    grid-template-columns: 90px minmax(0, 1fr);
+}
+
+.court-card .court-form input {
+    width: 100%;
+    max-width: 100%;
+}
+
+.beamer-v2 {
+    margin: 0;
+    background: #0d1728;
+    color: #f8fafc;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+.beamer-top {
+    height: 54px;
+    border-bottom: 1px solid #23324a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: #17243a;
+}
+
+.beamer-brand {
+    font-size: 20px;
+}
+
+.beamer-dots {
+    color: #64748b;
+    letter-spacing: 10px;
+}
+
+.beamer-time {
+    color: #9fb0c8;
+}
+
+.beamer-subbar {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 28px;
+    border-bottom: 1px solid #23324a;
+    background: #142036;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.beamer-subbar em {
+    margin-left: auto;
+    color: white;
+    font-style: normal;
+}
+
+.beamer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    height: calc(100vh - 96px);
+}
+
+.beamer-main {
+    position: relative;
+    border-right: 1px solid #23324a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.current-label {
+    text-align: center;
+    margin-bottom: 28px;
+    color: #9fb0c8;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    align-items: center;
+}
+
+.current-label strong {
+    color: white;
+    letter-spacing: 1px;
+}
+
+.mini-pill {
+    background: #334155;
+    padding: 6px 12px;
+    border-radius: 999px;
+}
+
+.big-match {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    align-items: center;
+    gap: 40px;
+    padding: 0 80px;
+}
+
+.big-team {
+    font-size: 86px;
+    font-weight: 900;
+    text-align: center;
+}
+
+.big-score {
+    background: #1e2d44;
+    border-radius: 18px;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 34px;
+    font-size: 100px;
+    font-weight: 900;
+}
+
+.big-score b {
+    color: #64748b;
+}
+
+.big-pause {
+    text-align: center;
+    font-size: 80px;
+    font-weight: 900;
+}
+
+.beamer-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-top: 1px solid #23324a;
+    padding: 22px 32px;
+}
+
+.beamer-bottom h3 {
+    color: #64748b;
+    letter-spacing: 2px;
+    font-size: 13px;
+}
+
+.next-card {
+    border: 1px solid #786516;
+    background: #24291f;
+    padding: 16px 20px;
+    border-radius: 12px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.next-card span {
+    color: #facc15;
+    font-weight: bold;
+}
+
+.next-card em {
+    color: #9fb0c8;
+    font-style: normal;
+}
+
+.court-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.court-mini {
+    background: #1e2d44;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.court-mini strong,
+.court-mini span,
+.court-mini em {
+    display: block;
+}
+
+.court-mini span {
+    color: #9fb0c8;
+}
+
+.court-mini em {
+    color: white;
+    font-style: normal;
+    margin-top: 4px;
+}
+
+.beamer-table {
+    padding: 26px;
+    background: #0b1425;
+}
+
+.beamer-table h2 {
+    font-size: 20px;
+    letter-spacing: 1px;
+}
+
+.beamer-table table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    background: transparent;
+    color: white;
+}
+
+.beamer-table th {
+    color: #64748b;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.beamer-table td,
+.beamer-table th {
+    border: none;
+    padding: 12px;
+}
+
+.beamer-table tr:not(:first-child) {
+    background: #1a263b;
+    border-radius: 12px;
+}
+
+.beamer-table tr.rank-one {
+    background: #3a3320;
+    outline: 1px solid #786516;
+}
+
+.beamer-table tr.rank-two {
+    background: #1e2d44;
+}
+
+.beamer-table td:first-child {
+    border-radius: 12px 0 0 12px;
+}
+
+.beamer-table td:last-child {
+    border-radius: 0 12px 12px 0;
+}
+
+.beamer-table td b {
+    background: #facc15;
+    color: #111827;
+    border-radius: 999px;
+    padding: 8px 14px;
+}
+
+.beamer-table td span {
+    color: #22c55e;
+}
+

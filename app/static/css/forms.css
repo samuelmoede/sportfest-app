@@ -1,0 +1,143 @@
+/*
+ * Einstellungen, Systemstatus, Backups sowie Admin- und Punkteformulare.
+ * Originalreihenfolge: Zeilen 1811-1948 aus style.css vor dem Refactoring.
+ */
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.settings-item {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.settings-item strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.role-description {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.role-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+}
+
+.role-overview-card {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.role-overview-card p {
+    margin: 10px 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.change-log-table {
+    min-width: 850px;
+}
+
+.change-log-table th,
+.change-log-table td {
+    vertical-align: top;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.status-pill.ok {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.status-pill.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.backup-summary-grid {
+    margin-bottom: 12px;
+}
+
+.inline-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.inline-form label {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.success-text {
+    color: #166534;
+    font-weight: 700;
+}
+
+.error-text {
+    color: #b91c1c;
+    font-weight: 700;
+}
+
+.backup-table {
+    margin-top: 12px;
+}
+
+.admin-form {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 14px 18px;
+    align-items: center;
+}
+
+.admin-form label {
+    font-weight: bold;
+    color: var(--muted);
+}
+
+.admin-form input,
+.admin-form select {
+    width: 100%;
+}
+
+.admin-form button {
+    grid-column: 2;
+}
+
+.points-form {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.points-form button {
+    grid-column: 2;
+}
+

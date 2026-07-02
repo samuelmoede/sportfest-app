@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/theme-modern.css">
+{% endblock %}
+
+{% block content %}
+<div class="modern-dashboard">
+    <header class="modern-dashboard-hero">
+        <div class="modern-dashboard-title">
+            <p class="modern-eyebrow">Turnierleitung · Live-Übersicht</p>
+            <h1>{{ next_event.name if next_event else "Sportfest-Dashboard" }}</h1>
+            {% if next_event %}
+            <div class="modern-event-meta">
+                <span>{{ next_event.event_date or "Datum offen" }}</span>
+                <span>{{ next_event.competition_count }} Wettbewerbe</span>
+                <span class="modern-status {% if next_event.status == 'aktiv' %}is-running{% elif next_event.status == 'archiviert' %}is-done{% else %}is-planned{% endif %}">
+                    <i aria-hidden="true"></i>{{ next_event.status }}
+                </span>
+            </div>
+            {% else %}
+            <p class="modern-empty-note">Keine aktive oder kommende Veranstaltung vorhanden.</p>
+            {% endif %}
+        </div>
+
+        <div class="modern-clock-card">
+            <strong id="dashboard-clock" aria-label="Aktuelle Uhrzeit">--:--</strong>
+            <a href="/">Klassische Ansicht</a>
+        </div>
+    </header>
+
+    <nav class="modern-quick-nav" aria-label="Schnellzugriff">
+        <a class="is-active" href="/?ui_theme=modern">
+            <span aria-hidden="true">⌂</span>
+            <strong>Übersicht</strong>
+        </a>
+        <a href="/spielplan">
+            <span aria-hidden="true">▦</span>
+            <strong>Spielplan</strong>
+        </a>
+        {% if can_view_results %}
+        <a href="/ergebnisse">
+            <span aria-hidden="true">✓</span>
+            <strong>Ergebnisse</strong>
+        </a>
+        {% endif %}
+        <a href="/tabellen">
+            <span aria-hidden="true">≡</span>
+            <strong>Tabellen</strong>
+        </a>
+        <a href="/beamer?ui_theme=modern" target="_blank">
+            <span aria-hidden="true">↗</span>
+            <strong>Beamer</strong>
+        </a>
+    </nav>
+
+    <section class="modern-status-grid" aria-label="Aktueller Status">
+        <article class="modern-stat is-running">
+            <span class="modern-stat-icon" aria-hidden="true">●</span>
+            <div>
+                <strong>{{ running|length }}</strong>
+                <span>Läuft gerade</span>
+            </div>
+        </article>
+        <article class="modern-stat is-planned">
+            <span class="modern-stat-icon" aria-hidden="true">◆</span>
+            <div>
+                <strong>{{ upcoming|length }}</strong>
+                <span>Geplant</span>
+            </div>
+        </article>
+        <article class="modern-stat is-done">
+            <span class="modern-stat-icon" aria-hidden="true">✓</span>
+            <div>
+                <strong>{{ ended_count }}</strong>
+                <span>Erledigt</span>
+            </div>
+        </article>
+        <article class="modern-stat is-neutral">
+            <span class="modern-stat-icon" aria-hidden="true">◎</span>
+            <div>
+                <strong>{{ courts|length }}</strong>
+                <span>Spielfelder aktiv</span>
+            </div>
+        </article>
+    </section>
+
+    <div class="modern-dashboard-grid">
+        <section class="modern-panel modern-live-panel">
+            <div class="modern-panel-head">
+                <div>
+                    <p class="modern-eyebrow">Live</p>
+                    <h2>Laufende Spiele</h2>
+                </div>
+                <span class="modern-status is-running"><i aria-hidden="true"></i>{{ running|length }} aktiv</span>
+            </div>
+
+            <div class="modern-match-list">
+                {% for s in running %}
+                <article class="modern-match-card">
+                    <div class="modern-match-meta">
+                        <span class="modern-match-time">{{ s.startzeit }}</span>
+                        <span>{{ s.competition_name }}</span>
+                        <span>{{ s.court_name or "Ohne Feld" }}</span>
+                    </div>
+                    <div class="modern-match-score">
+                        <strong>{{ s.team_a or "?" }}</strong>
+                        <span>
+                            {{ s.score_a if s.score_a is not none else "–" }}
+                            <i>:</i>
+                            {{ s.score_b if s.score_b is not none else "–" }}
+                        </span>
+                        <strong>{{ s.team_b or "?" }}</strong>
+                    </div>
+                </article>
+                {% else %}
+                <div class="modern-empty-state">
+                    <span aria-hidden="true">○</span>
+                    <div>
+                        <strong>Momentan läuft kein Spiel</strong>
+                        <p>Geplante Begegnungen erscheinen rechts als Nächstes.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="modern-panel modern-upcoming-panel">
+            <div class="modern-panel-head">
+                <div>
+                    <p class="modern-eyebrow">Ausblick</p>
+                    <h2>Als Nächstes</h2>
+                </div>
+                <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+            </div>
+
+            <div class="modern-upcoming-list">
+                {% for s in upcoming[:4] %}
+                <article class="modern-upcoming-card">
+                    <time>{{ s.startzeit }}</time>
+                    <div>
+                        <strong>
+                            {% if s.slot_typ == "Spiel" %}
+                                {{ s.team_a or "?" }} <span>vs</span> {{ s.team_b or "?" }}
+                            {% else %}
+                                {{ s.note or s.slot_typ }}
+                            {% endif %}
+                        </strong>
+                        <p>{{ s.competition_name }} · {{ s.court_name or "Ohne Feld" }}</p>
+                    </div>
+                    <span class="modern-status {% if loop.first %}is-soon{% else %}is-planned{% endif %}">
+                        {{ "gleich" if loop.first else "geplant" }}
+                    </span>
+                </article>
+                {% else %}
+                <div class="modern-empty-state compact">
+                    <span aria-hidden="true">✓</span>
+                    <div>
+                        <strong>Keine weiteren Slots geplant</strong>
+                        <p>Der aktuelle Spielplan enthält keinen offenen Eintrag.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <section class="modern-panel modern-schedule-panel">
+        <div class="modern-panel-head">
+            <div>
+                <p class="modern-eyebrow">Tagesplan</p>
+                <h2>
+                    {% if schedule_event %}
+                        {{ schedule_event.name }}
+                    {% else %}
+                        Aktive bzw. nächste Veranstaltung
+                    {% endif %}
+                </h2>
+            </div>
+            {% if schedule.completed %}
+            <span class="modern-status is-done"><i aria-hidden="true"></i>erledigt</span>
+            {% elif schedule.current_block %}
+            <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+            {% else %}
+            <span class="modern-status is-planned"><i aria-hidden="true"></i>geplant</span>
+            {% endif %}
+        </div>
+
+        {% if schedule.current_block or schedule.next_block %}
+        <div class="modern-schedule-focus">
+            {% if schedule.current_block %}
+            <article class="modern-focus-card is-running">
+                <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+                <time>{{ schedule.current_block.display_time }}</time>
+                <div>
+                    {% for entry in schedule.current_block.entries %}
+                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
+                    {% endfor %}
+                </div>
+                {% if schedule.time_remaining %}
+                <p>Noch {{ schedule.time_remaining }}</p>
+                {% endif %}
+            </article>
+            {% endif %}
+
+            {% if schedule.next_block %}
+            <article class="modern-focus-card is-soon">
+                <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+                <time>{{ schedule.next_block.display_time }}</time>
+                <div>
+                    {% for entry in schedule.next_block.entries %}
+                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
+                    {% endfor %}
+                </div>
+            </article>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if schedule.current_block %}
+        <div class="modern-progress" aria-label="Fortschritt des aktuellen Zeitblocks">
+            <span style="width: {{ schedule.progress_percent }}%"></span>
+        </div>
+        {% endif %}
+
+        {% if schedule_event %}
+            {% set day_schedule_compact = true %}
+            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
+            {% include "partials/day_schedule.html" %}
+        {% else %}
+        <p class="modern-empty-note">Keine aktive oder kommende Veranstaltung vorhanden.</p>
+        {% endif %}
+    </section>
+
+    <div class="modern-dashboard-grid modern-lower-grid">
+        <section class="modern-panel">
+            <div class="modern-panel-head">
+                <div>
+                    <p class="modern-eyebrow">Termine</p>
+                    <h2>Weitere Veranstaltungen</h2>
+                </div>
+            </div>
+            <div class="modern-event-list">
+                {% for event in additional_upcoming_events %}
+                <a href="/events/{{ event.id }}">
+                    <time>{{ event.event_date }}</time>
+                    <span>
+                        <strong>{{ event.name }}</strong>
+                        <small>{{ event.competition_count }} Wettbewerbe</small>
+                    </span>
+                    <b aria-hidden="true">›</b>
+                </a>
+                {% else %}
+                <div class="modern-empty-state compact">
+                    <span aria-hidden="true">○</span>
+                    <div>
+                        <strong>Keine weiteren Termine</strong>
+                        <p>Aktuell sind keine weiteren Veranstaltungen geplant.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="modern-panel modern-info-panel">
+            <div class="modern-panel-head">
+                <div>
+                    <p class="modern-eyebrow">Hinweise</p>
+                    <h2>Informationen</h2>
+                </div>
+            </div>
+            {% if dashboard_info_html %}
+            <div class="modern-info-text">{{ dashboard_info_html|safe }}</div>
+            {% else %}
+            <div class="modern-empty-state compact">
+                <span aria-hidden="true">i</span>
+                <div>
+                    <strong>Keine aktuellen Hinweise</strong>
+                    <p>Informationen können in den Einstellungen hinterlegt werden.</p>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+<script>
+function updateDashboardClock() {
+    const clock = document.getElementById("dashboard-clock");
+    if (!clock) return;
+
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    clock.textContent = `${hh}:${mm}`;
+}
+
+updateDashboardClock();
+setInterval(updateDashboardClock, 1000);
+</script>
+{% endblock %}

@@ -1,22 +1,43 @@
 {% extends "base.html" %}
+{% import "partials/ui_macros.html" as ui %}
 {% block content %}
-<h1>{{ event.name }}</h1>
-<p>
-    <span class="badge {{ event.status }}">{{ event.status }}</span>
-    {% if event.event_date %} · {{ event.event_date }}{% endif %}
-</p>
-<p class="muted">Veranstaltungstyp: {{ event.event_type or "Sonstiges" }}</p>
-{% if event.description %}<p>{{ event.description }}</p>{% endif %}
-
+<header class="page-hero event-detail-hero">
+    <div class="page-hero-main">
+        <p class="eyebrow">Veranstaltung</p>
+        <h1>{{ event.name }}</h1>
+        <div class="hero-meta">
+            <span>🗓 {{ event.event_date or "Datum offen" }}</span>
+            <span>🏷 {{ event.event_type or "Sonstiges" }}</span>
+            {{ ui.status_badge(event.status) }}
+        </div>
+        {% if event.description %}<p class="hero-description">{{ event.description }}</p>{% endif %}
+    </div>
+    <div class="hero-actions">
+        <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
+        <a class="button primary" href="/spielplan">Spielplan öffnen</a>
+    </div>
+</header>
 
 <section class="panel">
-    <h2>Tagesplan</h2>
-    {% set day_schedule_empty_text = "F&uuml;r diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Ablauf</p>
+            <h2>Tagesplan</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">🕒</span>
+    </div>
+    {% set day_schedule_empty_text = "Für diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
     {% include "partials/day_schedule.html" %}
 </section>
 
-<section class="panel">
-    <h2>Gesamtwertung</h2>
+<section class="panel" id="gesamtwertung">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Ergebnisse</p>
+            <h2>Gesamtwertung</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">🏅</span>
+    </div>
     {% if overall_ranking %}
         {% for group in overall_ranking %}
         <div class="year-group-block">
@@ -61,9 +82,12 @@
         </div>
         {% endfor %}
     {% else %}
-        <p class="muted">Noch keine bewerteten Wettbewerbe für die Gesamtwertung vorhanden.</p>
+        <div class="empty-state compact">
+            <span aria-hidden="true">🏅</span>
+            <div><strong>Noch keine Gesamtwertung</strong><p>Bewertete Wettbewerbe erscheinen hier automatisch.</p></div>
+        </div>
     {% endif %}
 </section>
 
-<p><a href="/events">← Zurück zu Veranstaltungen</a></p>
+<a class="back-link" href="/events">← Zurück zu Veranstaltungen</a>
 {% endblock %}

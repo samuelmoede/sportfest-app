@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17233c">
     <title>Sportfest Manager</title>
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
+    {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="app-shell">
 {% set access_role = get_current_role(request) %}
 {% set access_role_label = get_current_role_label(request) %}
 {% set access_role_description = get_current_role_description(request) %}
 {% set access_logged_in = is_logged_in(request) %}
 {% set can_view_results = can_access_role(request, "referee") %}
 {% set can_view_admin = can_access_role(request, "admin") %}
+{% set current_path = request.url.path %}
 <header class="mobile-topbar" aria-label="Mobile Kopfzeile">
     <div class="mobile-brand">
         <strong>Sportfest</strong>
@@ -34,57 +37,57 @@
     </div>
     <nav>
         <div class="nav-group">Allgemein</div>
-        <a class="nav-link" href="/">
+        <a class="nav-link{% if current_path == '/' %} is-active{% endif %}" href="/" {% if current_path == '/' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">🏠</span>
             <span class="nav-text">Dashboard</span>
         </a>
         <div class="nav-group">Wettbewerbe</div>
         {% if can_view_admin %}
-        <a class="nav-link" href="/wettbewerbe">
+        <a class="nav-link{% if current_path == '/wettbewerbe' %} is-active{% endif %}" href="/wettbewerbe" {% if current_path == '/wettbewerbe' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">🏆</span>
             <span class="nav-text">Wettbewerbe</span>
         </a>
         {% endif %}
-        <a class="nav-link" href="/spielplan">
+        <a class="nav-link{% if current_path == '/spielplan' %} is-active{% endif %}" href="/spielplan" {% if current_path == '/spielplan' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">🗓</span>
             <span class="nav-text">Spielplan</span>
         </a>
         {% if can_view_admin %}
-        <a class="nav-link" href="/spielplan-bearbeiten">
+        <a class="nav-link{% if current_path == '/spielplan-bearbeiten' %} is-active{% endif %}" href="/spielplan-bearbeiten" {% if current_path == '/spielplan-bearbeiten' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">✏️</span>
             <span class="nav-text">Spielplan bearbeiten</span>
         </a>
         {% endif %}
         {% if can_view_results %}
-        <a class="nav-link" href="/ergebnisse">
+        <a class="nav-link{% if current_path == '/ergebnisse' %} is-active{% endif %}" href="/ergebnisse" {% if current_path == '/ergebnisse' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">✅</span>
             <span class="nav-text">Ergebnisse</span>
         </a>
         {% endif %}
-        <a class="nav-link" href="/tabellen">
+        <a class="nav-link{% if current_path == '/tabellen' %} is-active{% endif %}" href="/tabellen" {% if current_path == '/tabellen' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">📊</span>
             <span class="nav-text">Tabellen</span>
         </a>
 
         {% if can_view_admin %}
         <div class="nav-group">Verwaltung</div>
-        <a class="nav-link" href="/events">
+        <a class="nav-link{% if current_path.startswith('/events') %} is-active{% endif %}" href="/events" {% if current_path.startswith('/events') %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">📅</span>
             <span class="nav-text">Veranstaltungen</span>
         </a>
-        <a class="nav-link" href="/teams">
+        <a class="nav-link{% if current_path == '/teams' %} is-active{% endif %}" href="/teams" {% if current_path == '/teams' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">👥</span>
             <span class="nav-text">Teams</span>
         </a>
-        <a class="nav-link" href="/spielfelder">
+        <a class="nav-link{% if current_path == '/spielfelder' %} is-active{% endif %}" href="/spielfelder" {% if current_path == '/spielfelder' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">📍</span>
             <span class="nav-text">Spielfelder</span>
         </a>
-        <a class="nav-link" href="/einstellungen">
+        <a class="nav-link{% if current_path == '/einstellungen' %} is-active{% endif %}" href="/einstellungen" {% if current_path == '/einstellungen' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">⚙️</span>
             <span class="nav-text">Einstellungen</span>
         </a>
-        <a class="nav-link" href="/dokumentation">
+        <a class="nav-link{% if current_path == '/dokumentation' %} is-active{% endif %}" href="/dokumentation" {% if current_path == '/dokumentation' %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">📘</span>
             <span class="nav-text">Dokumentation</span>
         </a>
@@ -93,6 +96,7 @@
             <span class="beamer-icon" aria-hidden="true">⚡</span>
             <span class="beamer-text">Beamer-Ansicht öffnen</span>
         </a>
+        <a class="impressum-link" href="/impressum">Impressum</a>
         <div class="access-strip mobile-access-strip" aria-label="Zugriff">
             <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
                 <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
@@ -119,57 +123,57 @@
 
         <nav>
             <div class="nav-group">Allgemein</div>
-            <a class="nav-link" href="/">
+            <a class="nav-link{% if current_path == '/' %} is-active{% endif %}" href="/" {% if current_path == '/' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">🏠</span>
                 <span class="nav-text">Dashboard</span>
             </a>
             <div class="nav-group">Wettbewerbe</div>
             {% if can_view_admin %}
-            <a class="nav-link" href="/wettbewerbe">
+            <a class="nav-link{% if current_path == '/wettbewerbe' %} is-active{% endif %}" href="/wettbewerbe" {% if current_path == '/wettbewerbe' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">🏆</span>
                 <span class="nav-text">Wettbewerbe</span>
             </a>
             {% endif %}
-            <a class="nav-link" href="/spielplan">
+            <a class="nav-link{% if current_path == '/spielplan' %} is-active{% endif %}" href="/spielplan" {% if current_path == '/spielplan' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">🗓</span>
                 <span class="nav-text">Spielplan</span>
             </a>
             {% if can_view_admin %}
-            <a class="nav-link" href="/spielplan-bearbeiten">
+            <a class="nav-link{% if current_path == '/spielplan-bearbeiten' %} is-active{% endif %}" href="/spielplan-bearbeiten" {% if current_path == '/spielplan-bearbeiten' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">✏️</span>
                 <span class="nav-text">Spielplan bearbeiten</span>
             </a>
             {% endif %}
             {% if can_view_results %}
-            <a class="nav-link" href="/ergebnisse">
+            <a class="nav-link{% if current_path == '/ergebnisse' %} is-active{% endif %}" href="/ergebnisse" {% if current_path == '/ergebnisse' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">✅</span>
                 <span class="nav-text">Ergebnisse</span>
             </a>
             {% endif %}
-            <a class="nav-link" href="/tabellen">
+            <a class="nav-link{% if current_path == '/tabellen' %} is-active{% endif %}" href="/tabellen" {% if current_path == '/tabellen' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">📊</span>
                 <span class="nav-text">Tabellen</span>
             </a>
 
             {% if can_view_admin %}
             <div class="nav-group">Verwaltung</div>
-            <a class="nav-link" href="/events">
+            <a class="nav-link{% if current_path.startswith('/events') %} is-active{% endif %}" href="/events" {% if current_path.startswith('/events') %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">📅</span>
                 <span class="nav-text">Veranstaltungen</span>
             </a>
-            <a class="nav-link" href="/teams">
+            <a class="nav-link{% if current_path == '/teams' %} is-active{% endif %}" href="/teams" {% if current_path == '/teams' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">👥</span>
                 <span class="nav-text">Teams</span>
             </a>
-            <a class="nav-link" href="/spielfelder">
+            <a class="nav-link{% if current_path == '/spielfelder' %} is-active{% endif %}" href="/spielfelder" {% if current_path == '/spielfelder' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">📍</span>
                 <span class="nav-text">Spielfelder</span>
             </a>
-            <a class="nav-link" href="/einstellungen">
+            <a class="nav-link{% if current_path == '/einstellungen' %} is-active{% endif %}" href="/einstellungen" {% if current_path == '/einstellungen' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">⚙️</span>
                 <span class="nav-text">Einstellungen</span>
             </a>
-            <a class="nav-link" href="/dokumentation">
+            <a class="nav-link{% if current_path == '/dokumentation' %} is-active{% endif %}" href="/dokumentation" {% if current_path == '/dokumentation' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">📘</span>
                 <span class="nav-text">Dokumentation</span>
             </a>
@@ -198,6 +202,7 @@
                 {% endif %}
             </div>
             <div class="app-version">Version {{ app_version() }}</div>
+            <a class="impressum-link" href="/impressum">Impressum</a>
         </div>
     </aside>
 

@@ -1,92 +1,227 @@
 {% extends "base.html" %}
+{% import "partials/ui_macros.html" as ui %}
 {% block content %}
 <div class="dashboard-page">
-<div class="dashboard-head">
-    <h1>Dashboard</h1>
-    <div class="dashboard-clock" id="dashboard-clock" aria-label="Aktuelle Uhrzeit">--:--</div>
-</div>
-<p class="muted">Übersicht des aktuellen Sportfests</p>
-
-<div class="stats">
-    <div class="stat"><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe der aktiven/n&auml;chsten Veranstaltung</span></div>
-    <div class="stat"><strong>{{ teams|length }}</strong><span>Teams</span></div>
-    <div class="stat"><strong>{{ ended_count }}</strong><span>Spiele beendet</span></div>
-    <div class="stat"><strong>{{ courts|length }}</strong><span>Spielfelder aktiv</span></div>
-</div>
-
-<div class="grid">
-    <section class="panel wide next-event-panel">
-        <h2>Aktive bzw. n&auml;chste Veranstaltung</h2>
-        {% if next_event %}
-        <p class="next-event-name"><strong>{{ next_event.name }}</strong></p>
-        <div class="next-event-meta">
-            <span class="pill">{{ next_event.event_date or "Kein Datum" }}</span>
-            <span class="badge {{ next_event.status }}">{{ next_event.status }}</span>
-            <span class="pill">{{ next_event.competition_count }} Wettbewerbe</span>
-        </div>
-        {% if next_event.description %}
-        <p class="muted">{{ next_event.description }}</p>
-        {% endif %}
-        <p><a href="/events/{{ next_event.id }}">Zur Detailseite</a></p>
-        {% else %}
-        <p class="muted">Keine aktive oder kommende Veranstaltung vorhanden</p>
-        {% endif %}
-    </section>
-
-    <section class="panel wide">
-        <h2>Laufende Spiele</h2>
-        {% for s in running %}
-        <div class="match running">
-            <span>{{ s.team_a or "?" }}</span>
-            <strong>{{ s.score_a if s.score_a is not none else "-" }} : {{ s.score_b if s.score_b is not none else "-" }}</strong>
-            <span>{{ s.team_b or "?" }}</span>
-            <em>{{ s.court_name }}</em>
-        </div>
-        {% else %}
-        <p class="muted">Keine laufenden Spiele.</p>
-        {% endfor %}
-    </section>
-
-    <section class="panel">
-        <h2>Tagesplan der aktiven bzw. n&auml;chsten Veranstaltung</h2>
-        {% if schedule_event %}
-        <p class="day-schedule-event">
-            <strong>{{ schedule_event.name }}</strong>
-            <span>{{ schedule_event.event_date or "Kein Datum" }}</span>
-            <span class="badge {{ schedule_event.status }}">{{ schedule_event.status }}</span>
-        </p>
-        {% set day_schedule_compact = true %}
-        {% set day_schedule_empty_text = "Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar." %}
-        {% include "partials/day_schedule.html" %}
-        {% else %}
-        <p class="muted">Keine aktive oder kommende Veranstaltung vorhanden</p>
-        {% endif %}
-    </section>
-
-    <section class="panel">
-        <h2>Weitere kommende Veranstaltungen</h2>
-        {% for event in additional_upcoming_events %}
-        <div class="list-row">
-            <div>
-                <strong>{{ event.name }}</strong><br>
-                <span>{{ event.event_date }} · {{ event.competition_count }} Wettbewerbe</span>
+    <header class="page-hero dashboard-hero">
+        <div class="page-hero-main">
+            <p class="eyebrow">Aktive Veranstaltung</p>
+            <h1>{{ next_event.name if next_event else "Sportfest-Dashboard" }}</h1>
+            {% if next_event %}
+            <div class="hero-meta">
+                <span>🗓 {{ next_event.event_date or "Datum offen" }}</span>
+                <span>🏆 {{ next_event.competition_count }} Wettbewerbe</span>
+                {{ ui.status_badge(next_event.status) }}
             </div>
-            <a href="/events/{{ event.id }}">Details</a>
+            {% if next_event.description %}
+            <p class="hero-description">{{ next_event.description }}</p>
+            {% endif %}
+            <div class="hero-actions">
+                <a class="button primary" href="/events/{{ next_event.id }}">Veranstaltung öffnen</a>
+                <a class="button secondary" href="/spielplan">Spielplan ansehen</a>
+            </div>
+            {% else %}
+            <p class="hero-description">Keine aktive oder kommende Veranstaltung vorhanden.</p>
+            {% endif %}
         </div>
-        {% else %}
-        <p class="muted">Keine weiteren kommenden Veranstaltungen.</p>
-        {% endfor %}
-    </section>
-</div>
+        <div class="dashboard-clock-card">
+            <strong id="dashboard-clock" aria-label="Aktuelle Uhrzeit">--:--</strong>
+            <small>Live-Übersicht</small>
+        </div>
+    </header>
 
-<section class="panel dashboard-info-panel">
-    <h2>Informationen</h2>
-    {% if dashboard_info_html %}
-    <div class="dashboard-info-text">{{ dashboard_info_html|safe }}</div>
-    {% else %}
-    <p class="muted">Keine aktuellen Informationen hinterlegt.</p>
-    {% endif %}
-</section>
+    <section class="metric-grid" aria-label="Kennzahlen">
+        <article class="metric-card">
+            <span class="metric-icon is-blue" aria-hidden="true">🏆</span>
+            <div><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe</span></div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon is-green" aria-hidden="true">●</span>
+            <div><strong>{{ running|length }}</strong><span>Spiele laufen</span></div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon is-neutral" aria-hidden="true">✓</span>
+            <div><strong>{{ ended_count }}</strong><span>Spiele erledigt</span></div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon is-violet" aria-hidden="true">📍</span>
+            <div><strong>{{ courts|length }}</strong><span>Spielfelder aktiv</span></div>
+        </article>
+    </section>
+
+    <div class="dashboard-section-grid">
+        <section class="panel dashboard-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Live</p>
+                    <h2>Laufende Wettbewerbe</h2>
+                </div>
+                <span class="badge läuft"><span class="status-dot" aria-hidden="true"></span>{{ running|length }} aktiv</span>
+            </div>
+
+            <div class="competition-card-list">
+                {% for s in running %}
+                <article class="live-competition-card type-turnier">
+                    <div class="competition-card-icon">{{ ui.sport_icon(s.sportart, "Turnier") }}</div>
+                    <div class="competition-card-main">
+                        <div class="competition-card-title">
+                            <div>
+                                <p class="competition-sport">{{ s.sportart }}</p>
+                                <h3>{{ s.competition_name }}</h3>
+                            </div>
+                            {{ ui.status_badge("läuft") }}
+                        </div>
+                        <div class="live-score">
+                            <strong>{{ s.team_a or "?" }}</strong>
+                            <span>{{ s.score_a if s.score_a is not none else "–" }} : {{ s.score_b if s.score_b is not none else "–" }}</span>
+                            <strong>{{ s.team_b or "?" }}</strong>
+                        </div>
+                        <div class="competition-card-meta">
+                            <span>👥 Jahrgang {{ s.jahrgang }}</span>
+                            <span>🕒 {{ s.startzeit }}</span>
+                            <span>📍 {{ s.court_name or "Ohne Feld" }}</span>
+                        </div>
+                    </div>
+                </article>
+                {% else %}
+                <div class="empty-state">
+                    <span aria-hidden="true">✓</span>
+                    <div>
+                        <strong>Momentan läuft kein Spiel</strong>
+                        <p>Die nächsten geplanten Begegnungen stehen direkt daneben.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel dashboard-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Ausblick</p>
+                    <h2>Beginnt als Nächstes</h2>
+                </div>
+                <span class="badge gleich"><span class="status-dot" aria-hidden="true"></span>gleich</span>
+            </div>
+
+            <div class="upcoming-list">
+                {% for s in upcoming[:4] %}
+                {% set competition = competitions|selectattr("id", "equalto", s.competition_id)|first %}
+                <article class="upcoming-card">
+                    <time>{{ s.startzeit }}</time>
+                    <div>
+                        <p>{{ competition.sportart if competition else "Wettbewerb" }}</p>
+                        <strong>
+                            {% if s.slot_typ == "Spiel" %}
+                                {{ s.team_a or "?" }} <span>vs</span> {{ s.team_b or "?" }}
+                            {% else %}
+                                {{ s.note or s.slot_typ }}
+                            {% endif %}
+                        </strong>
+                        <small>
+                            {{ s.competition_name }}
+                            {% if competition %} · Jahrgang {{ competition.jahrgang }}{% endif %}
+                            · 📍 {{ s.court_name or "Ohne Feld" }}
+                        </small>
+                    </div>
+                    {{ ui.status_badge("gleich" if loop.first else "geplant") }}
+                </article>
+                {% else %}
+                <div class="empty-state compact">
+                    <span aria-hidden="true">✓</span>
+                    <div>
+                        <strong>Keine weiteren Slots geplant</strong>
+                        <p>Der aktuelle Spielplan enthält keinen offenen Eintrag.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <section class="panel dashboard-section dashboard-schedule">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Tagesplan</p>
+                <h2>{{ schedule_event.name if schedule_event else "Aktive bzw. nächste Veranstaltung" }}</h2>
+            </div>
+            {% if schedule.completed %}
+                {{ ui.status_badge("beendet") }}
+            {% elif schedule.current_block %}
+                {{ ui.status_badge("läuft") }}
+            {% else %}
+                {{ ui.status_badge("geplant") }}
+            {% endif %}
+        </div>
+        {% if schedule_event %}
+            {% set day_schedule_compact = true %}
+            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
+            {% include "partials/day_schedule.html" %}
+        {% else %}
+        <div class="empty-state compact">
+            <span aria-hidden="true">🗓</span>
+            <div><strong>Kein Tagesplan verfügbar</strong><p>Es gibt keine aktive oder kommende Veranstaltung.</p></div>
+        </div>
+        {% endif %}
+    </section>
+
+    <div class="dashboard-lower-grid">
+        <section class="panel dashboard-section ranking-callout">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Wertung</p>
+                    <h2>Gesamtwertung</h2>
+                </div>
+                <span class="ranking-icon" aria-hidden="true">🏅</span>
+            </div>
+            {% if next_event %}
+            <p>Alle Turnier- und Sechskampfwertungen der Veranstaltung nach Jahrgang gebündelt.</p>
+            <a class="button primary" href="/events/{{ next_event.id }}#gesamtwertung">Gesamtwertung öffnen</a>
+            {% else %}
+            <p class="muted">Für eine Gesamtwertung wird zuerst eine Veranstaltung benötigt.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel dashboard-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Termine</p>
+                    <h2>Weitere Veranstaltungen</h2>
+                </div>
+            </div>
+            <div class="event-compact-list">
+                {% for event in additional_upcoming_events %}
+                <a href="/events/{{ event.id }}">
+                    <time>{{ event.event_date }}</time>
+                    <span><strong>{{ event.name }}</strong><small>{{ event.competition_count }} Wettbewerbe</small></span>
+                    <b aria-hidden="true">›</b>
+                </a>
+                {% else %}
+                <div class="empty-state compact">
+                    <span aria-hidden="true">🗓</span>
+                    <div><strong>Keine weiteren Termine</strong><p>Aktuell sind keine weiteren Veranstaltungen geplant.</p></div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel dashboard-section dashboard-info-panel">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Hinweise</p>
+                    <h2>Informationen</h2>
+                </div>
+            </div>
+            {% if dashboard_info_html %}
+            <div class="dashboard-info-text">{{ dashboard_info_html|safe }}</div>
+            {% else %}
+            <div class="empty-state compact">
+                <span aria-hidden="true">i</span>
+                <div><strong>Keine aktuellen Hinweise</strong><p>Informationen können in den Einstellungen hinterlegt werden.</p></div>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</div>
 
 <script>
 function updateDashboardClock() {
@@ -102,5 +237,4 @@ function updateDashboardClock() {
 updateDashboardClock();
 setInterval(updateDashboardClock, 1000);
 </script>
-</div>
 {% endblock %}

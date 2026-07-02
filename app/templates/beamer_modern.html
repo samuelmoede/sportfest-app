@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sportfest Live · Modern</title>
+    <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+    <link rel="stylesheet" href="/static/theme-modern.css">
+</head>
+<body class="modern-beamer">
+    <header class="modern-beamer-topbar">
+        <div class="modern-beamer-brand">
+            <span aria-hidden="true">S</span>
+            <div>
+                <strong>Sportfest Live</strong>
+                <small>Aktuelle Begegnungen und Tabelle</small>
+            </div>
+        </div>
+
+        <div class="modern-beamer-context">
+            {% if current %}
+            <strong>{{ current.competition_name }}</strong>
+            <span>
+                {{ current.sportart }}
+                {% if current.year_group_label %} · {{ current.year_group_label }}{% endif %}
+                {% if current.group_label %} · {{ current.group_label }}{% endif %}
+                {% if current.location_label %} · {{ current.location_label }}{% endif %}
+            </span>
+            {% else %}
+            <strong>Keine aktive Begegnung</strong>
+            <span>Der Beamer aktualisiert sich automatisch</span>
+            {% endif %}
+        </div>
+
+        <div class="modern-beamer-clock">
+            <span id="beamer-clock">--:--</span>
+            <small>
+                Refresh {{ refresh_seconds }} s ·
+                <a href="/beamer">Classic</a>
+            </small>
+        </div>
+    </header>
+
+    <main class="modern-beamer-layout">
+        <section class="modern-beamer-stage">
+            <div class="modern-beamer-section-head">
+                <div>
+                    <p>Live auf den Spielfeldern</p>
+                    <h1>
+                        {% if running_slots %}
+                            {{ running_slots|length }} laufende{{ "s Spiel" if running_slots|length == 1 else " Spiele" }}
+                        {% elif current %}
+                            Als Nächstes
+                        {% else %}
+                            Aktuell kein Spiel
+                        {% endif %}
+                    </h1>
+                </div>
+                {% if running_slots %}
+                <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+                {% elif current %}
+                <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+                {% else %}
+                <span class="modern-status is-done"><i aria-hidden="true"></i>Pause</span>
+                {% endif %}
+            </div>
+
+            <div class="modern-beamer-matches count-{{ running_slots|length }}">
+                {% if running_slots %}
+                    {% for match in running_slots %}
+                    <article class="modern-beamer-match">
+                        <div class="modern-beamer-match-meta">
+                            <time>{{ match.startzeit }}</time>
+                            <div class="modern-beamer-match-context">
+                                <strong>{{ match.competition_name }}</strong>
+                                <span>
+                                    {{ match.sportart }}
+                                    {% if match.year_group_label %} · {{ match.year_group_label }}{% endif %}
+                                    {% if match.group_label %} · {{ match.group_label }}{% endif %}
+                                    {% if match.location_label %} · {{ match.location_label }}{% endif %}
+                                </span>
+                            </div>
+                            <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+                        </div>
+                        <div class="modern-beamer-teams">
+                            <strong>{{ match.team_a or "?" }}</strong>
+                            <div class="modern-beamer-score">
+                                <span>{{ match.score_a if match.score_a is not none else "–" }}</span>
+                                <i>:</i>
+                                <span>{{ match.score_b if match.score_b is not none else "–" }}</span>
+                            </div>
+                            <strong>{{ match.team_b or "?" }}</strong>
+                        </div>
+                    </article>
+                    {% endfor %}
+                {% elif current %}
+                    <article class="modern-beamer-match is-next">
+                        <div class="modern-beamer-match-meta">
+                            <time>{{ current.startzeit }}</time>
+                            <div class="modern-beamer-match-context">
+                                <strong>{{ current.competition_name }}</strong>
+                                <span>
+                                    {{ current.sportart }}
+                                    {% if current.year_group_label %} · {{ current.year_group_label }}{% endif %}
+                                    {% if current.group_label %} · {{ current.group_label }}{% endif %}
+                                    {% if current.location_label %} · {{ current.location_label }}{% endif %}
+                                </span>
+                            </div>
+                            <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+                        </div>
+                        {% if current.slot_typ == "Spiel" %}
+                        <div class="modern-beamer-teams">
+                            <strong>{{ current.team_a or "?" }}</strong>
+                            <div class="modern-beamer-score">
+                                <span>{{ current.score_a if current.score_a is not none else "–" }}</span>
+                                <i>:</i>
+                                <span>{{ current.score_b if current.score_b is not none else "–" }}</span>
+                            </div>
+                            <strong>{{ current.team_b or "?" }}</strong>
+                        </div>
+                        {% else %}
+                        <div class="modern-beamer-pause">{{ current.note or current.slot_typ }}</div>
+                        {% endif %}
+                    </article>
+                {% else %}
+                    <div class="modern-beamer-empty">
+                        <span aria-hidden="true">○</span>
+                        <strong>Kein aktuelles Spiel</strong>
+                        <p>Sobald ein Wettbewerb läuft, erscheinen hier Begegnungen und Spielstände.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <aside class="modern-beamer-table">
+            <div class="modern-beamer-section-head">
+                <div>
+                    <p>Zwischenstand</p>
+                    <h2>Tabelle</h2>
+                </div>
+                <span aria-hidden="true">🏆</span>
+            </div>
+
+            {% if table_rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Team</th>
+                        <th>Tore</th>
+                        <th>Pkt.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in table_rows %}
+                    <tr class="{% if loop.index == 1 %}is-first{% elif loop.index == 2 %}is-second{% elif loop.index == 3 %}is-third{% endif %}">
+                        <td><span>{{ loop.index }}</span></td>
+                        <td><strong>{{ r.team }}</strong></td>
+                        <td>
+                            {{ r.plus }}:{{ r.minus }}
+                            <small>{{ "%+d"|format(r.diff) }}</small>
+                        </td>
+                        <td><b>{{ r.pkt_display }}</b></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="modern-beamer-empty compact">
+                <span aria-hidden="true">–</span>
+                <strong>Noch keine Tabelle vorhanden</strong>
+            </div>
+            {% endif %}
+        </aside>
+    </main>
+
+    <footer class="modern-beamer-dock">
+        <section class="modern-beamer-next">
+            <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+            {% if next_slot %}
+            <time>{{ next_slot.startzeit }}</time>
+            <div>
+                <strong>
+                    {% if next_slot.slot_typ == "Spiel" %}
+                        {{ next_slot.team_a or "?" }} <span>vs</span> {{ next_slot.team_b or "?" }}
+                    {% else %}
+                        {{ next_slot.note or next_slot.slot_typ }}
+                    {% endif %}
+                </strong>
+                <small>{{ next_slot.competition_name }}</small>
+                <small>
+                    {{ next_slot.sportart }}
+                    {% if next_slot.year_group_label %} · {{ next_slot.year_group_label }}{% endif %}
+                    {% if next_slot.group_label %} · {{ next_slot.group_label }}{% endif %}
+                    {% if next_slot.location_label %} · {{ next_slot.location_label }}{% endif %}
+                </small>
+            </div>
+            {% else %}
+            <div>
+                <strong>Keine weiteren Slots geplant</strong>
+                <small>Der aktuelle Ablauf enthält keinen nächsten Eintrag.</small>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="modern-beamer-next-board" aria-label="Nächste Slots">
+            <div class="modern-beamer-next-board-head">
+                <strong>Nächste Slots nach Spielfeld</strong>
+                {% if next_slots %}
+                <span>{{ next_slots|length }} parallel</span>
+                {% endif %}
+            </div>
+            <div class="modern-beamer-courts">
+                {% for slot in next_slots[:4] %}
+                <article>
+                    <div>
+                        <strong>{{ slot.court_name or "Ohne Feld" }}</strong>
+                        <span class="modern-status is-soon">{{ slot.status_label }}</span>
+                    </div>
+                    <span>{{ slot.startzeit }} · {{ slot.sportart }}{% if slot.year_group_label %} · {{ slot.year_group_label }}{% endif %}</span>
+                    <small>
+                        {% if slot.slot_typ == "Spiel" %}
+                            {{ slot.team_a or "?" }} vs {{ slot.team_b or "?" }}
+                        {% else %}
+                            {{ slot.note or slot.slot_typ }}
+                        {% endif %}
+                    </small>
+                </article>
+                {% else %}
+                    {% for item in court_summaries[:4] %}
+                    <article>
+                        <div>
+                            <strong>{{ item.court.name }}</strong>
+                            <span>{{ item.open_count }} offen</span>
+                        </div>
+                        {% if item.next %}
+                        <span>{{ item.next.startzeit }} · {{ item.next.sportart }}{% if item.next.year_group_label %} · {{ item.next.year_group_label }}{% endif %}</span>
+                        <small>{{ item.next.team_a or "?" }} vs {{ item.next.team_b or "?" }}</small>
+                        {% else %}
+                        <small>frei</small>
+                        {% endif %}
+                    </article>
+                    {% else %}
+                    <article>
+                        <strong>Keine Spielfelder</strong>
+                        <small>Aktuell sind keine aktiven Felder vorhanden.</small>
+                    </article>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </section>
+    </footer>
+
+    <script>
+    function updateBeamerClock() {
+        const clock = document.getElementById("beamer-clock");
+        if (!clock) return;
+
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        clock.textContent = `${hh}:${mm}`;
+    }
+
+    updateBeamerClock();
+    setInterval(updateBeamerClock, 1000);
+    </script>
+</body>
+</html>

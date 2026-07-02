@@ -1,0 +1,19 @@
+{% macro sport_icon(sportart="", competition_type="") -%}
+    {% set sport = (sportart or "")|lower %}
+    <span class="ui-icon" aria-hidden="true">
+        {%- if competition_type == "Sechskampf" -%}🏃
+        {%- elif "fußball" in sport or "fussball" in sport -%}⚽
+        {%- elif "volleyball" in sport -%}🏐
+        {%- elif "tischtennis" in sport -%}🏓
+        {%- elif "lauf" in sport -%}🏃
+        {%- else -%}🏆
+        {%- endif -%}
+    </span>
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge {{ status }}">
+    <span class="status-dot" aria-hidden="true"></span>
+    {{ status }}
+</span>
+{%- endmacro %}

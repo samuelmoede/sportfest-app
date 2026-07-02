@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Tabellen</h1>
-<p class="muted">Automatisch berechnete Ranglisten</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Auswertung</p>
+        <h1>Tabellen</h1>
+        <p>Automatisch berechnete Ranglisten für Turniere und Sechskampf.</p>
+    </div>
+</header>
 
 <form method="get" action="/tabellen" class="filter-row">
     <select name="event_id">
@@ -27,8 +32,8 @@
         {% endfor %}
     </select>
 
-    <button type="submit">Anzeigen</button>
-    <button type="submit" formaction="/tabellen/csv">CSV exportieren</button>
+    <button class="primary" type="submit">Anzeigen</button>
+    <button class="secondary" type="submit" formaction="/tabellen/csv">CSV exportieren</button>
 </form>
 
 {% if not tables %}
@@ -38,8 +43,14 @@
 {% endif %}
 
 {% for t in tables %}
-<section class="panel">
-    <h2>{{ t.competition.name }}</h2>
+<section class="panel standings-panel type-{{ t.competition.competition_type|lower }}">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">{{ t.competition.competition_type }} · Jahrgang {{ t.competition.jahrgang }}</p>
+            <h2>{{ t.competition.name }}</h2>
+        </div>
+        <span class="competition-kind">{{ t.competition.competition_type }}</span>
+    </div>
     {% if t.competition.competition_type == "Sechskampf" %}
     <p class="muted">
         Disziplinpunkte je Team und aktuelle Punktzahl.

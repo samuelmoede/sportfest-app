@@ -1,0 +1,478 @@
+/*
+ * Bestehende responsive Regeln für Desktop, Tablet und Smartphone.
+ * Originalreihenfolge: Zeilen 2598-3070 aus style.css vor dem Refactoring.
+ */
+
+/* Responsive layout */
+html,
+body {
+    min-width: 0;
+}
+
+.filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.filter-row select {
+    min-width: 200px;
+}
+
+@media (max-width: 1100px) {
+    .sidebar {
+        width: 220px;
+    }
+    .content {
+        margin-left: 220px;
+        width: calc(100% - 220px);
+        padding: 36px 24px;
+    }
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .cards {
+        grid-template-columns: repeat(2, minmax(240px, 1fr));
+    }
+
+    body.sidebar-collapsed .sidebar {
+        width: 72px;
+    }
+
+    body.sidebar-collapsed .content {
+        margin-left: 72px;
+        width: calc(100% - 72px);
+    }
+}
+
+@media (max-width: 860px) {
+    .sidebar {
+        width: 200px;
+        min-width: 0;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        padding: 14px 12px;
+    }
+    .content {
+        margin-left: 200px;
+        width: calc(100% - 200px);
+        padding: 20px 14px;
+    }
+    .sidebar nav {
+        display: block;
+    }
+    .sidebar nav a {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 6px;
+        padding: 10px 12px;
+    }
+    .sidebar .nav-group {
+        width: auto;
+        margin-top: 16px;
+    }
+    .sidebar-footer {
+        display: block;
+        margin-top: auto;
+    }
+    .beamer-link {
+        width: auto;
+        text-align: left;
+        margin-top: 16px;
+    }
+    .stats {
+        grid-template-columns: 1fr;
+    }
+    .grid {
+        grid-template-columns: 1fr;
+    }
+    .cards {
+        grid-template-columns: 1fr;
+    }
+    .panel,
+    .card,
+    .result-card,
+    .court-column,
+    .ko-box,
+    .generator-box {
+        padding: 18px;
+    }
+    .schedule-editor-page .schedule-board {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+    .editor-time-grid {
+        grid-template-columns: 68px repeat(var(--editor-court-count), minmax(260px, 1fr));
+        grid-auto-rows: minmax(156px, auto);
+    }
+    .editor-court-column {
+        min-width: 260px;
+    }
+    .schedule-editor-page .filter-row,
+    .schedule-editor-page .generator-grid,
+    .schedule-editor-page .admin-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        align-items: stretch;
+    }
+    .schedule-editor-page .filter-row button,
+    .schedule-editor-page .generator-grid button,
+    .schedule-editor-page .admin-form button {
+        width: 100%;
+        grid-column: auto;
+    }
+    .schedule-editor-page .filter-row select,
+    .schedule-editor-page .generator-grid input,
+    .schedule-editor-page .generator-grid select,
+    .schedule-editor-page .admin-form input,
+    .schedule-editor-page .admin-form select,
+    .schedule-editor-page .admin-form button {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+    .schedule-editor-page .modal-backdrop {
+        padding: 12px;
+    }
+    .schedule-editor-page .modal {
+        width: 100%;
+        padding: 18px;
+    }
+    .schedule-editor-page .modal-header {
+        min-width: 0;
+    }
+    .schedule-editor-page .modal-header h2 {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+    .schedule-editor-page .modal-close {
+        flex: 0 0 42px;
+    }
+    .admin-form,
+    .points-form,
+    .generator-grid,
+    .court-form,
+    .discipline-form,
+    .compact-form,
+    .filter-row,
+    .inline-form {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        align-items: stretch;
+    }
+    .admin-form button,
+    .points-form button,
+    .court-form button,
+    .filter-row button {
+        width: 100%;
+        grid-column: auto;
+    }
+    .filter-row > *,
+    .filter-row label,
+    .filter-row select,
+    .filter-row button {
+        min-width: 0;
+        max-width: 100%;
+    }
+    .filter-row label,
+    .filter-row select {
+        width: 100%;
+    }
+    .card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .table-scroll,
+    .panel table {
+        display: block;
+        overflow-x: auto;
+        width: 100%;
+        min-width: 100%;
+    }
+    .panel th,
+    .panel td {
+        white-space: nowrap;
+    }
+    .result-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .result-form input {
+        width: 100%;
+    }
+    .slot-teams,
+    .slot-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .competition-summary {
+        padding: 18px;
+    }
+    .competition-create-body {
+        padding: 18px;
+    }
+    .competition-summary-meta {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .competition-meta-item {
+        border-radius: 12px;
+    }
+    .competition-details-body {
+        padding: 18px;
+    }
+    .competition-card-details .points-form {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .competition-card-details .points-form button {
+        grid-column: auto;
+    }
+    .competition-save-feedback {
+        grid-column: auto;
+        margin-top: -4px;
+    }
+    .form-submit-row {
+        align-items: flex-start;
+    }
+    .competition-card-details .discipline-row,
+    .discipline-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .competition-card-details .discipline-delete-form {
+        flex-basis: auto;
+    }
+    .save-six {
+        width: 100%;
+    }
+
+    .event-competition-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .event-competition-actions {
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    .event-plan-entry {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .event-plan-heading {
+        flex-wrap: wrap;
+    }
+
+    .location-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .location-competition-card {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    .location-competition-time {
+        white-space: normal;
+    }
+
+    .sportplatz-timeline-item {
+        grid-template-columns: 1fr;
+        gap: 5px;
+    }
+
+    .dashboard-page,
+    .dashboard-page * {
+        min-width: 0;
+    }
+
+    .dashboard-page .match {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .dashboard-page .match > span {
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .match > span:last-of-type {
+        text-align: right;
+    }
+
+    .dashboard-page .match strong {
+        font-size: 18px;
+        padding: 6px 9px;
+        white-space: nowrap;
+    }
+
+    .dashboard-page .match em {
+        grid-column: 1 / -1;
+        margin-left: 0;
+    }
+
+    .dashboard-page .list-row {
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: flex-start;
+    }
+
+    .dashboard-page .list-row > div {
+        flex: 1 1 220px;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-page .list-row > a {
+        flex: 0 0 auto;
+    }
+}
+
+@media (max-width: 760px) {
+    .competition-card-details .discipline-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .mobile-topbar {
+        display: flex;
+    }
+
+    .mobile-menu-drawer {
+        display: block;
+    }
+
+    .layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        display: none;
+    }
+
+    .content {
+        margin-left: 0;
+        width: 100%;
+        padding: 20px 14px;
+    }
+
+    .schedule-page-head,
+    .location-venue-head {
+        flex-direction: column;
+    }
+
+    .schedule-page-head .schedule-view-link,
+    .location-pill {
+        align-self: flex-start;
+    }
+
+    .location-venue-section {
+        padding: 14px;
+    }
+
+    .schedule-editor-page .toolbar,
+    .schedule-editor-page .ko-actions,
+    .schedule-editor-page .slot-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+    }
+
+    .schedule-editor-page .toolbar > *,
+    .schedule-editor-page .toolbar form,
+    .schedule-editor-page .ko-actions form,
+    .schedule-editor-page .slot-actions form,
+    .schedule-editor-page .toolbar button,
+    .schedule-editor-page .ko-actions button,
+    .schedule-editor-page .slot-actions button {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page .dashboard-head {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .dashboard-page .dashboard-clock {
+        font-size: 1.1rem;
+    }
+
+    .dashboard-page .next-event-meta {
+        gap: 8px;
+    }
+
+    .dashboard-page .list-row {
+        flex-direction: column;
+    }
+
+    .dashboard-page .list-row > a {
+        align-self: flex-start;
+    }
+
+    .day-schedule-block {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 9px;
+    }
+
+    .day-schedule-block > header {
+        align-items: center;
+        justify-content: space-between;
+        flex-direction: row;
+    }
+
+    .day-schedule-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .day-schedule-card-head {
+        flex-wrap: wrap;
+    }
+
+    .day-now-marker {
+        gap: 6px;
+    }
+
+    .day-now-marker > strong {
+        font-size: 0.65rem;
+    }
+}
+
+@media (max-width: 460px) {
+    .dashboard-page .match {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .dashboard-page .match > span:last-of-type {
+        text-align: left;
+    }
+
+    .dashboard-page .match strong {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 520px) {
+    .logo {
+        padding: 10px;
+        font-size: 18px;
+    }
+    .brand span {
+        font-size: 12px;
+    }
+}
+

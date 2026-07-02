@@ -159,6 +159,17 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_change_log_competition
             ON change_log (competition_id, discipline_id, team_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS competition_teams (
+            competition_id INTEGER NOT NULL,
+            team_id INTEGER NOT NULL,
+            PRIMARY KEY (competition_id, team_id),
+            FOREIGN KEY (competition_id) REFERENCES competitions(id),
+            FOREIGN KEY (team_id) REFERENCES teams(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_competition_teams_lookup
+            ON competition_teams (competition_id, team_id);
         """)
 
         columns = [

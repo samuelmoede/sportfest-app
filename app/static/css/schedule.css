@@ -1,0 +1,348 @@
+/*
+ * Spielplan-Editor, Zeitraster, Slots, Drag-and-Drop und Timerzustände.
+ * Originalreihenfolge: Zeilen 1949-2291 aus style.css vor dem Refactoring.
+ */
+
+.schedule-editor-page,
+.schedule-editor-page > *,
+.schedule-editor-page form,
+.schedule-editor-page .panel,
+.schedule-editor-page .generator-box,
+.schedule-editor-page .ko-box,
+.schedule-editor-page .schedule-board,
+.schedule-editor-page .court-column,
+.schedule-editor-page .slot-card,
+.schedule-editor-page .modal {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page input,
+.schedule-editor-page select,
+.schedule-editor-page button {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page select {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-editor-page button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.schedule-editor-page .generator-grid > *,
+.schedule-editor-page .filter-row > *,
+.schedule-editor-page .admin-form > *,
+.schedule-editor-page .toolbar > *,
+.schedule-editor-page .ko-actions > *,
+.schedule-editor-page .slot-actions > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page .court-column h2,
+.schedule-editor-page .court-checkboxes label,
+.schedule-editor-page .slot-card strong,
+.schedule-editor-page .slot-type,
+.schedule-editor-page .slot-footer > *,
+.schedule-editor-page .phase-label {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.schedule-editor-page .slot-duration,
+.schedule-editor-page .slot-started,
+.schedule-editor-page .slot-footer .badge {
+    white-space: normal;
+}
+
+.schedule-editor-page .slot-teams,
+.schedule-editor-page .slot-footer,
+.schedule-editor-page .slot-actions {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.schedule-editor-page .slot-footer {
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.schedule-editor-page .slot-actions > form {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.editor-time-grid-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scrollbar-gutter: stable;
+}
+
+.editor-time-grid {
+    display: grid;
+    grid-template-columns: 76px repeat(var(--editor-court-count), minmax(300px, 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: minmax(168px, auto);
+    gap: 12px;
+    width: max-content;
+    min-width: 100%;
+    align-items: stretch;
+}
+
+.editor-time-corner,
+.editor-time-label {
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 14px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--navy);
+    color: white;
+    font-weight: 800;
+    box-shadow: 5px 0 10px rgba(15, 27, 45, 0.08);
+}
+
+.editor-time-corner {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    z-index: 7;
+}
+
+.editor-time-label {
+    grid-column: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.editor-court-column {
+    display: grid;
+    grid-template-rows: subgrid;
+    gap: 12px;
+    padding: 0 10px 10px;
+    min-height: 0;
+    min-width: 300px;
+    max-width: none;
+}
+
+.editor-court-heading {
+    grid-row: 1;
+    margin: 0 -10px;
+    padding: 16px;
+    border-radius: 14px 14px 0 0;
+    background: #e2e8f0;
+}
+
+
+.editor-time-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-self: stretch;
+    min-height: 132px;
+    padding: 6px;
+    border: 1px dashed transparent;
+    border-radius: 12px;
+}
+
+.editor-time-cell.is-empty {
+    border-color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.48);
+}
+
+.editor-time-cell.is-empty::after {
+    content: "";
+    display: block;
+    flex: 1 1 auto;
+    min-height: 92px;
+    border-radius: 8px;
+}
+
+.editor-time-cell.drag-over {
+    border-color: var(--orange);
+    background: #fff7ed;
+}
+
+.editor-time-cell .slot-card {
+    flex: 0 0 auto;
+}
+.editor-court-column .slot-card {
+    align-self: stretch;
+    margin: 0;
+    overflow: hidden;
+}
+
+.editor-empty-court {
+    grid-row: 2;
+    padding: 12px;
+}
+
+#move-time-warnings {
+    margin: 0 0 18px;
+}
+
+.schedule-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 22px;
+    align-items: start;
+}
+
+.court-column {
+    background: #eef2f7;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    min-height: 220px;
+}
+
+.court-column h2 {
+    margin-top: 0;
+}
+
+.slot-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    cursor: grab;
+}
+
+.slot-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.slot-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.slot-card.dragging {
+    opacity: 0.5;
+}
+
+.dropzone.drag-over {
+    outline: 3px dashed var(--orange);
+    background: #fff7ed;
+}
+
+.slot-time {
+    font-weight: 800;
+    color: var(--navy2);
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.time-input {
+    width: 120px;
+}
+
+.slot-type {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.slot-teams {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 20px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.slot-teams.tournament-match {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+}
+
+.tournament-team {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tournament-team-b {
+    text-align: right;
+}
+
+.tournament-score {
+    min-width: 42px;
+    padding: 3px 7px;
+    border-radius: 7px;
+    background: #eef2f7;
+    color: var(--muted);
+    font-size: 0.9em;
+    font-weight: 800;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.tournament-score.has-result {
+    background: var(--navy);
+    color: white;
+}
+
+.slot-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.slot-duration,
+.slot-started {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    background: #eef6ff;
+    color: #0f2f66;
+    border: 1px solid #c7ddff;
+    white-space: nowrap;
+    font-size: 0.85rem;
+}
+
+.slot-duration.on-time {
+    background: #eef6ff;
+    color: #0f2f66;
+    border-color: #c7ddff;
+}
+
+.slot-duration.near-end {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.slot-duration.overrun {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+

@@ -1,0 +1,172 @@
+/*
+ * Status-Badges, Ergebnis-Karten, Ergebnisformulare und gemeinsame Aktionsgrundlagen.
+ * Originalreihenfolge: Zeilen 1031-1180 aus style.css vor dem Refactoring.
+ */
+
+.next-event-panel {
+    border-color: #c7ddff;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.next-event-name {
+    margin: 0 0 12px;
+    font-size: 1.5rem;
+}
+
+.next-event-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.list-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+}
+
+.badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.badge.läuft {
+    background: #ffedd5;
+    color: #ea580c;
+}
+
+.badge.geplant {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.badge.aktiv {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.badge.beendet {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.pill {
+    background: #eef2f7;
+    padding: 6px 12px;
+    border-radius: 999px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+th,
+td {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+    text-align: left;
+}
+
+.score-small {
+    background: #eef2f7;
+    padding: 4px 8px;
+    border-radius: 6px;
+    margin: 0 8px;
+}
+
+.result-card {
+    margin-bottom: 16px;
+    border-color: #fdba74;
+}
+
+.result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.change-counter {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.result-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.result-form-row .result-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.result-form-row .result-actions button {
+    margin-top: 0;
+}
+
+.result-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+input,
+select {
+    font-size: 16px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.result-form input {
+    font-size: 20px;
+    width: 80px;
+}
+
+button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 16px;
+    background: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button.green {
+    background: var(--green);
+    color: white;
+}
+
+button.outline {
+    margin-top: 12px;
+    color: var(--orange);
+}
+
+.submit-restore-highlight {
+    outline: 3px solid rgba(37, 99, 235, 0.38);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.12);
+    transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+}
+

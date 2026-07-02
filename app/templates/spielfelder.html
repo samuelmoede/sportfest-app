@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Spielfelder</h1>
-<p class="muted">Spielfelder hinzufügen, einem Ort zuordnen, umbenennen oder löschen.</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Spielorte</p>
+        <h1>Spielfelder</h1>
+        <p>Spielfelder hinzufügen, einem Ort zuordnen und verwalten.</p>
+    </div>
+</header>
 
 {% if delete_status == "blocked" %}
 <p class="error-text">Spielfeld kann nicht gelöscht werden, da es bereits verwendet wird.</p>
@@ -13,8 +18,11 @@
 <p class="success-text">Spielfeld wurde gelöscht.</p>
 {% endif %}
 
-<section class="panel">
-    <h2>Spielfeld hinzufügen</h2>
+<section class="panel form-panel compact-form-panel">
+    <div class="section-heading">
+        <div><p class="eyebrow">Neu</p><h2>Spielfeld hinzufügen</h2></div>
+        <span class="section-icon" aria-hidden="true">📍</span>
+    </div>
 
     <form method="post" action="/court/create" class="admin-form">
         <label>Name</label>
@@ -30,12 +38,14 @@
         <label>Sportart</label>
         <input type="text" name="sportart" placeholder="z. B. Fußball, Zweifelderball, Volleyball">
 
-        <button class="green" type="submit">Spielfeld hinzufügen</button>
+        <button class="primary" type="submit">Spielfeld hinzufügen</button>
     </form>
 </section>
 
 <section class="panel team-panel">
-    <h2>Bestehende Spielfelder</h2>
+    <div class="section-heading">
+        <div><p class="eyebrow">Übersicht</p><h2>Bestehende Spielfelder</h2></div>
+    </div>
     <div class="table-scroll">
         <table class="team-table court-table">
             <thead>
@@ -74,12 +84,12 @@
                         </label>
                     </td>
                     <td class="team-actions court-actions">
-                        <button form="court-update-{{ c.id }}" class="green" type="submit">Speichern</button>
+                        <button form="court-update-{{ c.id }}" class="primary" type="submit">Speichern</button>
                         {% if saved_court_id == c.id and saved_at %}
                         <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
                         {% endif %}
                         <form method="post" action="/court/{{ c.id }}/delete" onsubmit="return confirm('Spielfeld wirklich löschen? Das Löschen ist nur möglich, wenn keine Verknüpfungen in Spielen oder Zeitslots bestehen.');">
-                            <button type="submit">Spielfeld löschen</button>
+                            <button class="danger" type="submit">Löschen</button>
                         </form>
                     </td>
                 </tr>

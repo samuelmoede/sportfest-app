@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Spielplan bearbeiten</h1>
-<p class="muted">Feste Slots anlegen, bearbeiten, Turniere filtern und automatische Vorschläge erzeugen.</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Turnierplanung</p>
+        <h1>Spielplan bearbeiten</h1>
+        <p>Feste Slots anlegen, Turniere filtern und automatische Vorschläge erzeugen.</p>
+    </div>
+</header>
 
 <style>
     .generator-box {
@@ -208,7 +213,7 @@
         <form method="post"
               action="/competition/{{ selected_competition_id }}/delete-planned-slots"
               onsubmit="return confirm('Alle geplanten Slots dieses Turniers löschen? Laufende und beendete Spiele bleiben erhalten.');">
-            <button type="submit">Alle geplanten Slots dieses Turniers löschen</button>
+            <button class="danger" type="submit">Alle geplanten Slots dieses Turniers löschen</button>
         </form>
         {% elif not selected_competition_id %}
         <span class="muted">Wähle ein einzelnes Turnier aus, um geplante Slots gesammelt zu löschen.</span>
@@ -617,7 +622,7 @@
     {% for group in groups %}
     <div class="court-column editor-court-column"
          data-court-id="{{ group.court.id }}"
-         style="grid-column: {{ loop.index + 2 }}; grid-row: 1 / span {{ editor_time_marks|length + 2 }};">
+         style="grid-column: {{ loop.index + 1 }}; grid-row: 1 / span {{ editor_time_marks|length + 2 }};">
         <h2 class="editor-court-heading">{{ group.court.name }}</h2>
 
         {% for cell in group.time_cells %}
@@ -704,7 +709,7 @@
                     </form>
 
                     <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Slot wirklich löschen?');">
-                        <button type="submit" onclick="event.stopPropagation();">Löschen</button>
+                        <button class="danger" type="submit" onclick="event.stopPropagation();">Löschen</button>
                     </form>
                 </div>
             </div>

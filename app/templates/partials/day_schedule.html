@@ -1,7 +1,75 @@
+{% macro render_now_marker(marker) %}
+<div class="day-now-marker" role="status" aria-label="{{ marker.label }}">
+    <span aria-hidden="true"></span>
+    <strong>{{ marker.label }}</strong>
+    <span aria-hidden="true"></span>
+</div>
+{% endmacro %}
+
 {% if schedule.rows %}
 <p class="muted">{{ schedule.hint_text }}</p>
+
+{% if day_schedule_compact|default(false) %}
+<div class="day-schedule-cards">
+    {% for row in schedule.rows %}
+        {% if schedule.now_marker and schedule.now_marker.row_index == loop.index0 %}
+            {{ render_now_marker(schedule.now_marker) }}
+        {% endif %}
+
+        <section class="day-schedule-block status-{{ row.status_key|default('planned') }}{% if row.current %} current-row{% endif %}">
+            <header>
+                <time>{{ row.display_time }}</time>
+                <span class="day-status status-{{ row.status_key|default('planned') }}">
+                    {{ row.status_label|default("geplant") }}
+                </span>
+            </header>
+
+            <div class="day-schedule-card-grid">
+                {% for item in row["items"]|default([]) %}
+                <article class="day-schedule-card">
+                    <div class="day-schedule-card-head">
+                        <strong>{{ item.name }}</strong>
+                        <span class="day-status status-{{ item.status_key }}">{{ item.status_label }}</span>
+                    </div>
+                    <div class="day-schedule-card-meta">
+                        {% if item.sportart %}
+                        <span class="day-card-sport">{{ item.sportart }}</span>
+                        {% endif %}
+                        {% if item.location %}
+                        <span class="day-card-location">{{ item.location }}</span>
+                        {% endif %}
+                    </div>
+                    <time>{{ item.display_time }}</time>
+                </article>
+                {% else %}
+                    {% for column in schedule.columns %}
+                        {% for item in row.cells[column] %}
+                        <article class="day-schedule-card">
+                            <div class="day-schedule-card-head">
+                                <strong>{{ item }}</strong>
+                                <span class="day-status status-{{ row.status_key|default('planned') }}">
+                                    {{ row.status_label|default("geplant") }}
+                                </span>
+                            </div>
+                            <div class="day-schedule-card-meta">
+                                <span>{{ column }}</span>
+                            </div>
+                            <time>{{ row.display_time }}</time>
+                        </article>
+                        {% endfor %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </section>
+    {% endfor %}
+
+    {% if schedule.now_marker and schedule.now_marker.row_index == schedule.rows|length %}
+        {{ render_now_marker(schedule.now_marker) }}
+    {% endif %}
+</div>
+{% else %}
 <div class="table-scroll">
-    <table class="schedule-table{% if day_schedule_compact|default(false) %} compact{% endif %}">
+    <table class="schedule-table">
         <thead>
             <tr>
                 <th>Zeit</th>
@@ -12,7 +80,14 @@
         </thead>
         <tbody>
             {% for row in schedule.rows %}
-            <tr{% if row.current %} class="current-row"{% endif %}>
+            {% if schedule.now_marker and schedule.now_marker.row_index == loop.index0 %}
+            <tr class="day-now-marker-row">
+                <td colspan="{{ schedule.columns|length + 1 }}">
+                    {{ render_now_marker(schedule.now_marker) }}
+                </td>
+            </tr>
+            {% endif %}
+            <tr class="status-{{ row.status_key|default('planned') }}{% if row.current %} current-row{% endif %}">
                 <td>{{ row.display_time }}</td>
                 {% for column in schedule.columns %}
                 <td>
@@ -27,9 +102,17 @@
                 {% endfor %}
             </tr>
             {% endfor %}
+            {% if schedule.now_marker and schedule.now_marker.row_index == schedule.rows|length %}
+            <tr class="day-now-marker-row">
+                <td colspan="{{ schedule.columns|length + 1 }}">
+                    {{ render_now_marker(schedule.now_marker) }}
+                </td>
+            </tr>
+            {% endif %}
         </tbody>
     </table>
 </div>
+{% endif %}
 {% else %}
 <p class="muted">{{ day_schedule_empty_text|default("Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar.") }}</p>
 {% endif %}

@@ -1,51 +1,75 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Teams / Klassen</h1>
-<p class="muted">{{ teams|length }} Teams gesamt</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Teilnehmende</p>
+        <h1>Teams / Klassen</h1>
+        <p>{{ teams|length }} Teams verwalten, bearbeiten und Wettbewerben zuordnen.</p>
+    </div>
+</header>
 
-<section class="panel">
-    <h2>Team hinzufügen</h2>
+<section class="panel form-panel compact-form-panel">
+    <div class="section-heading">
+        <div><p class="eyebrow">Neu</p><h2>Team hinzufügen</h2></div>
+        <span class="section-icon" aria-hidden="true">👥</span>
+    </div>
 
     <form method="post" action="/team/create" class="admin-form">
         <label>Teamname</label>
         <input type="text" name="name" placeholder="z. B. 7a" required>
 
-        <label>Jahrgang</label>
-        <input type="number" name="jahrgang" min="1" max="13" required>
+        <label>Gruppe</label>
+        <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST, Lehrer" list="gruppe-suggestions" required>
+        <datalist id="gruppe-suggestions">
+            {% for gruppe in teams|map(attribute='jahrgang')|map('string')|unique|sort %}
+            <option value="{{ gruppe }}">
+            {% endfor %}
+        </datalist>
 
-        <button class="green" type="submit">Team hinzufügen</button>
+        <button class="primary" type="submit">Team hinzufügen</button>
     </form>
 </section>
 
-<section class="panel team-panel">
-    <h2>Bestehende Teams</h2>
-    <form method="post" action="/teams/bulk-action" id="team-bulk-form">
-        <div class="bulk-actions">
-            <button class="green" type="submit" name="action" value="deactivate">Ausgewählte deaktivieren</button>
-            <button class="red" type="submit" name="action" value="delete" onclick="return confirmBulkDelete();">Ausgewählte löschen</button>
+<form method="post" action="/teams/bulk-action" id="team-bulk-form">
+    <div class="bulk-actions panel" style="margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 20px;">
+        <span class="muted" style="font-size: 0.85rem; font-weight: 600; margin-right: 4px;">Ausgewählte:</span>
+        <button class="secondary" type="submit" name="action" value="deactivate">Deaktivieren</button>
+        <button class="danger" type="submit" name="action" value="delete" onclick="return confirmBulkDelete();">Löschen</button>
+    </div>
+
+    {% set gruppen = teams | groupby('jahrgang') %}
+    {% for gruppe_key, gruppe_teams in gruppen %}
+    {% set gruppe_list = gruppe_teams | list %}
+    <section class="panel team-gruppe-card" style="margin-bottom: 20px;">
+        <div class="team-gruppe-header">
+            <div>
+                <p class="eyebrow">Gruppe</p>
+                <h2 class="team-gruppe-title">{{ gruppe_key }}</h2>
+            </div>
+            <span class="team-gruppe-count">{{ gruppe_list | length }} Team{{ 's' if gruppe_list | length != 1 else '' }}</span>
         </div>
         <div class="table-scroll">
             <table class="team-table">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"></th>
+                        <th><input type="checkbox" class="gruppe-select-all" data-gruppe="{{ gruppe_key }}" title="Alle in dieser Gruppe auswählen"></th>
                         <th>Name</th>
-                        <th>Jahrgang</th>
+                        <th>Gruppe</th>
                         <th>Status</th>
                         <th>Verwendet in</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for t in teams %}
-                    <tr>
-                        <td><input type="checkbox" name="team_ids" value="{{ t.id }}"></td>
+                    {% for t in gruppe_list %}
+                    <tr class="{% if not t.active %}team-row-inactive{% endif %}">
+                        <td><input type="checkbox" name="team_ids" value="{{ t.id }}" class="team-check" data-gruppe="{{ t.jahrgang }}"></td>
                         <td>
                             <form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
                             <input form="team-update-{{ t.id }}" type="text" name="name" value="{{ t.name }}" required>
                         </td>
                         <td>
-                            <input form="team-update-{{ t.id }}" type="number" name="jahrgang" min="1" max="13" value="{{ t.jahrgang }}" required>
+                            <input form="team-update-{{ t.id }}" type="text" name="jahrgang" value="{{ t.jahrgang }}" list="gruppe-suggestions" required style="max-width: 120px;">
                         </td>
                         <td>
                             <input form="team-update-{{ t.id }}" type="hidden" name="active" value="0">
@@ -56,25 +80,24 @@
                         </td>
                         <td>
                             {% if t.dependent_count > 0 %}
-                            {{ t.dependent_count }} abhängige Datensätze
+                            <span class="muted small">{{ t.dependent_count }} Datensätze</span>
                             {% else %}
-                            —
+                            <span class="muted">—</span>
                             {% endif %}
                         </td>
                         <td class="team-actions">
-                            <button form="team-update-{{ t.id }}" class="green" type="submit">Speichern</button>
+                            <button form="team-update-{{ t.id }}" class="primary" type="submit">Speichern</button>
                             {% if saved_team_id == t.id and saved_at %}
-                            <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+                            <span class="save-feedback-inline">✓ {{ saved_at }}</span>
                             {% endif %}
                             {% if t.deletable %}
-                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen? Zugehörige Spiele können dadurch Platzhalter verlieren.');">
-                                <button type="submit">Löschen</button>
+                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen?');">
+                                <button class="danger" type="submit">Löschen</button>
                             </form>
                             {% else %}
                             <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team inkl. aller zugehörigen Daten löschen? {{ t.dependent_count }} abhängige Datensätze werden entfernt.');">
-                                <button type="submit" class="red">Team inkl. aller Daten löschen</button>
+                                <button type="submit" class="danger">Löschen inkl. Daten</button>
                             </form>
-                            <span class="muted small">In Verwendung; Deaktivierung oder Komplettlöschung möglich</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -82,15 +105,24 @@
                 </tbody>
             </table>
         </div>
-    </form>
-</section>
+    </section>
+    {% else %}
+    <section class="panel">
+        <p class="muted">Noch keine Teams vorhanden.</p>
+    </section>
+    {% endfor %}
+</form>
 
 <script>
-function toggleSelectAll(checkbox) {
-    document.querySelectorAll('#team-bulk-form input[name="team_ids"]').forEach(function(input) {
-        input.checked = checkbox.checked;
+// Group-level select-all toggles
+document.querySelectorAll('.gruppe-select-all').forEach(function(groupCheckbox) {
+    groupCheckbox.addEventListener('change', function() {
+        const gruppe = this.dataset.gruppe;
+        document.querySelectorAll('.team-check[data-gruppe="' + gruppe + '"]').forEach(function(cb) {
+            cb.checked = groupCheckbox.checked;
+        });
     });
-}
+});
 
 function confirmBulkDelete() {
     const selected = document.querySelectorAll('#team-bulk-form input[name="team_ids"]:checked');

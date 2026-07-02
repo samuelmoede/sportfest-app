@@ -2,418 +2,519 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sportfest Live</title>
     <meta http-equiv="refresh" content="{{ refresh_seconds }}">
     <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0b1525;
+            --surface:  #17243a;
+            --surface2: #1e2d44;
+            --border:   #263852;
+            --text:     #f0f4f8;
+            --muted:    #8fa3be;
+            --accent:   #facc15;
+            --green:    #4ade80;
+        }
 
         body {
-            margin: 0;
             font-family: Arial, sans-serif;
-            background: #0d1728;
-            color: #f8fafc;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        .top {
-            height: 54px;
-            background: #17243a;
-            border-bottom: 1px solid #263852;
+        /* ── HEADER ── */
+        .bm-header {
+            flex-shrink: 0;
+            height: 58px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 0 28px;
-        }
-
-        .brand {
-            font-size: 20px;
-            font-weight: 800;
-        }
-
-        .subbar {
-            height: 44px;
-            background: #121f34;
-            border-bottom: 1px solid #263852;
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            padding: 0 28px;
-            text-transform: uppercase;
-            font-weight: 800;
-            font-size: 14px;
-        }
-
-        .subbar .status {
-            margin-left: auto;
-        }
-
-        .grid {
-            height: calc(100vh - 98px);
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-        }
-
-        .main {
-            position: relative;
-            border-right: 1px solid #263852;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding-bottom: 240px;
-        }
-
-        .current {
-            width: 100%;
-            text-align: center;
-        }
-
-        .label {
-            color: #93a4bd;
-            font-weight: 800;
-            letter-spacing: 1px;
-            margin-bottom: 24px;
-        }
-
-        .label span {
-            margin-left: 16px;
-            color: #cbd5e1;
-        }
-
-        .multi-matches {
-            width: 100%;
-            padding: 0 70px;
-            display: grid;
-            gap: 24px;
-        }
-
-        .multi-match {
-            display: grid;
-            grid-template-columns: 1fr 1.25fr 1fr;
-            align-items: center;
-            gap: 34px;
-        }
-
-        .team {
-            font-size: 72px;
-            font-weight: 900;
-            text-align: center;
-        }
-
-        .score {
-            background: #1e2d44;
-            border-radius: 20px;
-            padding: 22px 32px;
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            align-items: center;
-            font-size: 78px;
-            font-weight: 900;
-        }
-
-        .score .colon {
-            color: #64748b;
-        }
-
-        .pause {
-            font-size: 76px;
-            font-weight: 900;
-            color: #facc15;
-        }
-
-        .bottom {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 240px;
-            border-top: 1px solid #263852;
-            padding: 22px 30px;
-            background: #0d1728;
-        }
-
-        .bottom h3 {
-            margin: 0 0 12px 0;
-            color: #64748b;
-            font-size: 13px;
-            letter-spacing: 2px;
-        }
-
-        .next {
-            border: 1px solid #806b15;
-            background: #25291f;
-            border-radius: 12px;
-            padding: 16px 20px;
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            margin-bottom: 18px;
-        }
-
-        .next strong {
-            color: #fff;
-        }
-
-        .next .type {
-            color: #facc15;
-            font-weight: 900;
-        }
-
-        .next em {
-            color: #9fb0c8;
-            font-style: normal;
-        }
-
-        .courts {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            padding: 0 24px;
             gap: 12px;
         }
 
-        .court {
-            background: #1b2940;
-            border-radius: 10px;
-            padding: 12px;
-            min-height: 58px;
-        }
-
-        .court strong {
-            display: block;
-            color: #cbd5e1;
-        }
-
-        .court span {
-            display: block;
-            color: #93a4bd;
-            font-size: 13px;
-        }
-
-        .court em {
-            display: block;
-            color: #fff;
-            font-size: 13px;
-            font-style: normal;
-            margin-top: 4px;
-        }
-
-        .table-panel {
-            background: #0b1425;
-            padding: 28px;
-        }
-
-        .table-panel h2 {
-            margin-top: 0;
+        .bm-brand {
             font-size: 20px;
-            letter-spacing: 1px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 10px;
-        }
-
-        th {
-            color: #64748b;
-            font-size: 13px;
-            text-transform: uppercase;
-            text-align: left;
-            padding: 8px 12px;
-        }
-
-        td {
-            background: #1a263b;
-            padding: 14px 12px;
-            font-size: 20px;
-        }
-
-        td:first-child {
-            border-radius: 12px 0 0 12px;
-            width: 40px;
-            color: #94a3b8;
-        }
-
-        td:last-child {
-            border-radius: 0 12px 12px 0;
-            text-align: center;
-        }
-
-        .rank-one td {
-            background: #3a3320;
-            outline: 1px solid #786516;
-        }
-
-        .rank-two td {
-            background: #1e2d44;
-        }
-
-        .teamname {
             font-weight: 900;
-            font-size: 24px;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            margin-right: 8px;
         }
 
-        .goals {
-            font-size: 15px;
-            color: #cbd5e1;
+        .bm-comp-pills {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+            min-width: 0;
         }
 
-        .diff {
-            color: #22c55e;
-            font-size: 14px;
-        }
-
-        .points {
-            display: inline-block;
-            background: #facc15;
-            color: #111827;
-            font-weight: 900;
+        .bm-comp-pill {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
             border-radius: 999px;
-            padding: 8px 14px;
-            min-width: 46px;
+            padding: 3px 11px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 220px;
         }
 
-        .empty {
-            color: #94a3b8;
-            font-size: 24px;
+        .bm-clock {
+            flex-shrink: 0;
+            font-size: 34px;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── LIVE STRIP (nur wenn Spiele laufen) ── */
+        .bm-live-strip {
+            flex-shrink: 0;
+            background: #0e1e10;
+            border-bottom: 1px solid #1e3820;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            height: 58px;
+            overflow: hidden;
+        }
+
+        .bm-live-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--green);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bm-live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+
+        .bm-live-divider {
+            width: 1px;
+            height: 28px;
+            background: #1e3820;
+            flex-shrink: 0;
+        }
+
+        .bm-live-games {
+            display: flex;
+            gap: 12px;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .bm-live-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(74, 222, 128, 0.07);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            border-radius: 10px;
+            padding: 6px 14px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bm-live-chip-field {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--accent);
+        }
+
+        .bm-live-chip-teams {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .bm-live-chip-score {
+            font-size: 16px;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: var(--green);
+            letter-spacing: 0.05em;
+        }
+
+        .bm-live-chip-sport {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* ── MAIN AREA ── */
+        .bm-main {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 3fr 1.25fr;
+        }
+
+        /* ── LEFT: FIELD CARDS ── */
+        .bm-fields-panel {
+            border-right: 1px solid var(--border);
+            padding: 18px 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bm-section-heading {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 14px;
+            flex-shrink: 0;
+        }
+
+        .bm-field-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 12px;
+            align-content: start;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .bm-field-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .bm-field-card.has-game {
+            border-color: #806b15;
+            background: #1c2112;
+        }
+
+        .bm-field-card-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .bm-field-name {
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bm-field-pending {
+            font-size: 11px;
+            color: #5a7a55;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bm-field-game {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        .bm-field-game + .bm-field-game {
+            border-top: 1px solid rgba(255,255,255,0.06);
+            padding-top: 5px;
+        }
+
+        .bm-field-game-time {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--muted);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bm-field-game-teams {
+            font-size: 18px;
+            font-weight: 900;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bm-field-game-meta {
+            font-size: 10px;
+            color: var(--muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .bm-field-free {
+            font-size: 14px;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        /* ── RIGHT: RECENT RESULTS ── */
+        .bm-recent-panel {
+            padding: 18px 18px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bm-result-list {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .bm-result-card {
+            background: var(--surface2);
+            border-radius: 11px;
+            padding: 9px 13px;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bm-result-team {
+            font-size: 17px;
+            font-weight: 800;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bm-result-team.right {
+            text-align: right;
+        }
+
+        .bm-result-center {
             text-align: center;
-            padding: 40px;
+            flex-shrink: 0;
+        }
+
+        .bm-result-score {
+            font-size: 19px;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        .bm-result-meta {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .bm-no-results {
+            color: var(--muted);
+            font-size: 14px;
+            text-align: center;
+            padding: 24px 0;
+        }
+
+        /* ── NO ACTIVE COMPETITIONS ── */
+        .bm-idle {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            color: var(--muted);
+        }
+
+        .bm-idle-title {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .bm-idle-sub {
+            font-size: 15px;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-height: 700px) {
+            .bm-header { height: 48px; }
+            .bm-live-strip { height: 48px; }
+            .bm-field-teams { font-size: 17px; }
+            .bm-field-name { font-size: 11px; }
+            .bm-result-team { font-size: 14px; }
+            .bm-result-score { font-size: 16px; }
+        }
+
+        @media (max-width: 1100px) {
+            .bm-main { grid-template-columns: 2.5fr 1fr; }
+            .bm-field-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+            .bm-field-teams { font-size: 18px; }
         }
     </style>
 </head>
-
 <body>
-<header class="top">
-    <div class="brand">⚡ Sportfest</div>
-    <div>↻ Auto-Refresh alle {{ refresh_seconds }} s</div>
+
+<!-- HEADER -->
+<header class="bm-header">
+    <div class="bm-brand">⚡ Sportfest</div>
+    <div class="bm-comp-pills">
+        {% set seen_comps = namespace(names=[]) %}
+        {% for item in court_summaries if item.next_games %}
+            {% for game in item.next_games %}
+            {% if game.competition_name and game.competition_name not in seen_comps.names %}
+            <span class="bm-comp-pill">{{ game.competition_name }}</span>
+            {% set seen_comps.names = seen_comps.names + [game.competition_name] %}
+            {% endif %}
+            {% endfor %}
+        {% endfor %}
+        {% for s in running_slots %}
+            {% if s.competition_name and s.competition_name not in seen_comps.names %}
+            <span class="bm-comp-pill" style="border-color:rgba(74,222,128,0.35);color:#4ade80;">{{ s.competition_name }}</span>
+            {% set seen_comps.names = seen_comps.names + [s.competition_name] %}
+            {% endif %}
+        {% endfor %}
+    </div>
+    <strong class="bm-clock" id="beamer-clock">--:--</strong>
 </header>
 
-<div class="subbar">
-    {% if current %}
-        <span>{{ current.sportart }}</span>
-        <span>Jahrgang {{ current.jahrgang }}</span>
-        <strong>{{ current.competition_name }}</strong>
-        <span class="status">● läuft</span>
-    {% else %}
-        <span>Kein aktuelles Spiel</span>
-    {% endif %}
-</div>
-
-<main class="grid">
-    <section class="main">
-        <div class="current">
-            {% if running_slots %}
-                <div class="label">
-                    AKTUELLE SPIELE
-                    <span>{{ running_slots|length }} laufend</span>
-                </div>
-
-                <div class="multi-matches">
-                    {% for match in running_slots %}
-                    <div class="multi-match">
-                        <div class="team">{{ match.team_a or "?" }}</div>
-                        <div>
-                            <div class="label">
-                                {{ match.startzeit }}
-                                <span>{{ match.court_name or "-" }}</span>
-                            </div>
-                            <div class="score">
-                                <span>{{ match.score_a if match.score_a is not none else "-" }}</span>
-                                <span class="colon">:</span>
-                                <span>{{ match.score_b if match.score_b is not none else "-" }}</span>
-                            </div>
-                        </div>
-                        <div class="team">{{ match.team_b or "?" }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-            {% elif current %}
-                <div class="label">
-                    AKTUELLES
-                    <span>{{ current.startzeit }}</span>
-                    <span>{{ current.court_name or "-" }}</span>
-                </div>
-
-                {% if current.slot_typ == "Spiel" %}
-                    <div class="multi-match">
-                        <div class="team">{{ current.team_a or "?" }}</div>
-                        <div class="score">
-                            <span>{{ current.score_a if current.score_a is not none else "-" }}</span>
-                            <span class="colon">:</span>
-                            <span>{{ current.score_b if current.score_b is not none else "-" }}</span>
-                        </div>
-                        <div class="team">{{ current.team_b or "?" }}</div>
-                    </div>
-                {% else %}
-                    <div class="pause">{{ current.slot_typ }}</div>
-                {% endif %}
-            {% else %}
-                <div class="pause">Kein aktuelles Spiel</div>
+<!-- LIVE STRIP (nur wenn Spiele laufen) -->
+{% if running_slots %}
+<div class="bm-live-strip">
+    <div class="bm-live-label">
+        <span class="bm-live-dot"></span>
+        Läuft gerade
+    </div>
+    <div class="bm-live-divider"></div>
+    <div class="bm-live-games">
+        {% for match in running_slots %}
+        <div class="bm-live-chip">
+            {% if match.court_name %}
+            <span class="bm-live-chip-field">{{ match.court_name }}</span>
+            {% endif %}
+            <span class="bm-live-chip-teams">{{ match.team_a or "?" }}</span>
+            <span class="bm-live-chip-score">{{ match.score_a if match.score_a is not none else "–" }} : {{ match.score_b if match.score_b is not none else "–" }}</span>
+            <span class="bm-live-chip-teams">{{ match.team_b or "?" }}</span>
+            {% if match.sportart %}
+            <span class="bm-live-chip-sport">{{ match.sportart }}{% if match.group_label %} · {{ match.group_label }}{% endif %}</span>
             {% endif %}
         </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 
-        <div class="bottom">
-            <h3>NÄCHSTES</h3>
-            {% if next_slot %}
-                <div class="next">
-                    <strong>{{ next_slot.startzeit }}</strong>
-                    <span class="type">{{ next_slot.slot_typ }}</span>
-                    <em>
-                        {% if next_slot.slot_typ == "Spiel" %}
-                            {{ next_slot.team_a or "?" }} vs {{ next_slot.team_b or "?" }}
-                        {% else %}
-                            {{ next_slot.note or next_slot.slot_typ }}
-                        {% endif %}
-                    </em>
+<!-- MAIN -->
+{% if court_summaries %}
+<div class="bm-main">
+
+    <!-- LINKS: Spielfeld-Karten -->
+    <section class="bm-fields-panel">
+        <div class="bm-section-heading">Nächste Spiele · nach Spielfeld</div>
+        <div class="bm-field-grid">
+            {% for item in court_summaries %}
+            <div class="bm-field-card{% if item.next_games %} has-game{% endif %}">
+                <div class="bm-field-card-top">
+                    <span class="bm-field-name">{{ item.court.name }}</span>
+                    {% if item.open_count > 0 %}
+                    <span class="bm-field-pending">{{ item.open_count }} ausstehend</span>
+                    {% endif %}
                 </div>
-            {% else %}
-                <div class="next">Keine weiteren Slots geplant.</div>
-            {% endif %}
-
-            <h3>SPIELE JE SPIELFELD</h3>
-            <div class="courts">
-                {% for item in court_summaries %}
-                    <div class="court">
-                        <strong>{{ item.court.name }}</strong>
-                        <span>{{ item.open_count }} ausstehend</span>
-                        {% if item.next %}
-                            <em>{{ item.next.startzeit }} · {{ item.next.team_a or "?" }} vs {{ item.next.team_b or "?" }}</em>
-                        {% else %}
-                            <em>frei</em>
-                        {% endif %}
-                    </div>
+                {% for game in item.next_games %}
+                <div class="bm-field-game">
+                    <span class="bm-field-game-time">{{ game.startzeit }}</span>
+                    <span class="bm-field-game-teams">{{ game.team_a or "?" }} vs {{ game.team_b or "?" }}</span>
+                    <span class="bm-field-game-meta">{{ game.sportart }}{% if game.group_label %} · {{ game.group_label }}{% endif %}</span>
+                </div>
+                {% else %}
+                <div class="bm-field-free">frei</div>
                 {% endfor %}
             </div>
+            {% endfor %}
         </div>
     </section>
 
-    <aside class="table-panel">
-        <h2>🏆 TABELLE</h2>
-
-        {% if table_rows %}
-            <table>
-                <tr>
-                    <th>#</th>
-                    <th>Team</th>
-                    <th>T</th>
-                    <th>PKT</th>
-                </tr>
-
-                {% for r in table_rows %}
-                <tr class="{% if loop.index == 1 %}rank-one{% elif loop.index == 2 %}rank-two{% endif %}">
-                    <td>{{ loop.index }}</td>
-                    <td class="teamname">{{ r.team }}</td>
-                    <td>
-                        <div class="goals">{{ r.plus }}:{{ r.minus }}</div>
-                        <div class="diff">{{ "%+d"|format(r.diff) }}</div>
-                    </td>
-                    <td><span class="points">{{ r.pkt_display }}</span></td>
-                </tr>
-                {% endfor %}
-            </table>
+    <!-- RECHTS: Letzte Ergebnisse -->
+    <aside class="bm-recent-panel">
+        <div class="bm-section-heading">Letzte Ergebnisse</div>
+        {% if recent_results %}
+        <div class="bm-result-list">
+            {% for r in recent_results %}
+            <div class="bm-result-card">
+                <div class="bm-result-team">{{ r.team_a or "?" }}</div>
+                <div class="bm-result-center">
+                    <div class="bm-result-score">{{ r.score_a }}:{{ r.score_b }}</div>
+                    <div class="bm-result-meta">{{ r.sportart }}{% if r.group_label %} · {{ r.group_label }}{% endif %}</div>
+                </div>
+                <div class="bm-result-team right">{{ r.team_b or "?" }}</div>
+            </div>
+            {% endfor %}
+        </div>
         {% else %}
-            <div class="empty">Noch keine Tabelle vorhanden.</div>
+        <div class="bm-no-results">Noch keine Ergebnisse</div>
         {% endif %}
     </aside>
-</main>
+
+</div>
+{% else %}
+<div class="bm-idle">
+    <div class="bm-idle-title">Kein aktiver Wettbewerb</div>
+    <div class="bm-idle-sub">Wettbewerb auf „läuft" setzen, um die Anzeige zu starten.</div>
+</div>
+{% endif %}
+
+<script>
+function updateBeamerClock() {
+    const el = document.getElementById("beamer-clock");
+    if (!el) return;
+    const now = new Date();
+    el.textContent = String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0");
+}
+updateBeamerClock();
+setInterval(updateBeamerClock, 1000);
+</script>
 </body>
 </html>

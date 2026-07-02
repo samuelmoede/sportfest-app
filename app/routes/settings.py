@@ -27,6 +27,7 @@ from app.services.settings_service import (
     set_dashboard_info_text,
     set_setting,
 )
+from app.database import get_conn
 from app.web import templates
 
 
@@ -40,6 +41,7 @@ def einstellungen(
     backup_file: str = "",
     settings_status: str = "",
     security_status: str = "",
+    reset_status: str = "",
     saved_at: str = "",
 ):
     try:
@@ -54,6 +56,7 @@ def einstellungen(
         "backup_file": backup_file,
         "settings_status": settings_status,
         "security_status": security_status,
+        "reset_status": reset_status,
         "saved_at": saved_at_value,
         "security_enabled": is_security_enabled(),
         "security_requested": get_security_enabled_setting(),
@@ -89,6 +92,15 @@ def dokumentation(request: Request):
         request=request,
         name="dokumentation.html",
         context={"documentation_text": load_documentation_text()},
+    )
+
+
+@router.get("/impressum")
+def impressum(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="impressum.html",
+        context={},
     )
 
 
@@ -172,5 +184,16 @@ def update_dashboard_info(
     saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/einstellungen?settings_status=dashboard_info_saved&saved_at={saved_at}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/reset-aenderungszaehler")
+def reset_aenderungszaehler():
+    with get_conn() as conn:
+        conn.execute("DELETE FROM change_log")
+        conn.commit()
+    return RedirectResponse(
+        "/einstellungen?reset_status=ok",
         status_code=303,
     )

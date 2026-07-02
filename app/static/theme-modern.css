@@ -1,0 +1,1582 @@
+/*
+ * Phase 8 – alternative UI/UX-Vorschau.
+ *
+ * Diese Datei ergänzt das appweite Designsystem ausschließlich für
+ * dashboard_modern.html und beamer_modern.html.
+ */
+
+.modern-dashboard {
+    --modern-ink: #10233f;
+    --modern-muted: #65758b;
+    --modern-line: #dce5ef;
+    --modern-surface: #ffffff;
+    --modern-soft: #f4f7fb;
+    --modern-blue: #2563eb;
+    --modern-running: #0f9f6e;
+    --modern-running-soft: #dff8ee;
+    --modern-planned: #64748b;
+    --modern-planned-soft: #edf1f5;
+    --modern-soon: #e9a208;
+    --modern-soon-soft: #fff5d9;
+    --modern-done: #64748b;
+    --modern-done-soft: #edf1f5;
+    color: var(--modern-ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.modern-dashboard *,
+.modern-beamer * {
+    box-sizing: border-box;
+}
+
+.modern-dashboard a:focus-visible,
+.modern-beamer a:focus-visible {
+    outline: 3px solid #60a5fa;
+    outline-offset: 3px;
+}
+
+.modern-dashboard-hero {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    justify-content: space-between;
+    gap: 32px;
+    min-height: 210px;
+    padding: 34px 38px;
+    overflow: hidden;
+    border-radius: 26px;
+    background:
+        radial-gradient(circle at 82% 14%, rgba(96, 165, 250, 0.34), transparent 28%),
+        linear-gradient(135deg, #0e2343 0%, #173c72 56%, #2563a7 100%);
+    box-shadow: 0 24px 55px rgba(30, 64, 175, 0.18);
+    color: white;
+}
+
+.modern-dashboard-hero::after {
+    position: absolute;
+    z-index: -1;
+    right: -100px;
+    bottom: -175px;
+    width: 390px;
+    height: 390px;
+    border: 60px solid rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+    content: "";
+}
+
+.modern-dashboard-title {
+    align-self: center;
+    min-width: 0;
+}
+
+.modern-dashboard-title h1 {
+    max-width: 850px;
+    margin: 4px 0 14px;
+    color: white;
+    font-size: clamp(2rem, 4vw, 3.35rem);
+    line-height: 1.04;
+    letter-spacing: -0.045em;
+    overflow-wrap: anywhere;
+}
+
+.modern-eyebrow {
+    margin: 0 0 6px;
+    color: #4f6b8d;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.modern-dashboard-hero .modern-eyebrow {
+    color: #b9d7ff;
+}
+
+.modern-event-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    color: #dceaff;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.modern-clock-card {
+    flex: 0 0 220px;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 22px 26px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    background: rgba(8, 28, 57, 0.44);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+}
+
+.modern-clock-card > span {
+    color: #b9d7ff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.modern-clock-card strong {
+    margin: 3px 0 9px;
+    color: white;
+    font-size: clamp(3.1rem, 6vw, 4.6rem);
+    line-height: 1;
+    letter-spacing: -0.06em;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-clock-card a {
+    align-self: flex-start;
+    color: #dbeafe;
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-underline-offset: 3px;
+}
+
+.modern-quick-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin: 18px 0;
+    padding: 8px;
+    border: 1px solid var(--modern-line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 8px 24px rgba(15, 35, 63, 0.06);
+}
+
+.modern-quick-nav a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    color: #53657d;
+    text-decoration: none;
+    transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.modern-quick-nav a:hover {
+    background: #f0f5fb;
+    color: var(--modern-ink);
+    transform: translateY(-1px);
+}
+
+.modern-quick-nav a.is-active {
+    background: #e8f1ff;
+    color: #1d5cc5;
+}
+
+.modern-quick-nav a > span {
+    display: grid;
+    width: 27px;
+    height: 27px;
+    place-items: center;
+    border-radius: 8px;
+    background: #6b7d93;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.modern-quick-nav a.is-active > span {
+    background: var(--modern-blue);
+}
+
+.modern-status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.modern-stat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    min-height: 88px;
+    padding: 16px 18px;
+    border: 1px solid var(--modern-line);
+    border-radius: 18px;
+    background: var(--modern-surface);
+    box-shadow: 0 8px 24px rgba(15, 35, 63, 0.055);
+}
+
+.modern-stat-icon {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 13px;
+    background: var(--modern-done-soft);
+    color: var(--modern-done);
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.modern-stat > div {
+    min-width: 0;
+}
+
+.modern-stat strong,
+.modern-stat span {
+    display: block;
+}
+
+.modern-stat strong {
+    font-size: 1.7rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-stat > div > span {
+    margin-top: 5px;
+    color: var(--modern-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.modern-stat.is-running .modern-stat-icon {
+    background: var(--modern-running-soft);
+    color: var(--modern-running);
+}
+
+.modern-stat.is-planned .modern-stat-icon {
+    background: var(--modern-planned-soft);
+    color: var(--modern-planned);
+}
+
+.modern-stat.is-done .modern-stat-icon {
+    background: var(--modern-done-soft);
+    color: var(--modern-done);
+}
+
+.modern-dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.85fr);
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.modern-panel {
+    min-width: 0;
+    margin: 0;
+    padding: 22px;
+    border: 1px solid var(--modern-line);
+    border-radius: 20px;
+    background: var(--modern-surface);
+    box-shadow: 0 10px 30px rgba(15, 35, 63, 0.065);
+}
+
+.modern-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.modern-panel-head h2 {
+    margin: 0;
+    color: var(--modern-ink);
+    font-size: 1.25rem;
+    letter-spacing: -0.025em;
+}
+
+.modern-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 27px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--modern-done-soft);
+    color: var(--modern-done);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 900;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.modern-status i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.modern-status.is-running {
+    background: var(--modern-running-soft);
+    color: #087453;
+}
+
+.modern-status.is-planned {
+    background: var(--modern-planned-soft);
+    color: #5b6b7e;
+}
+
+.modern-status.is-soon {
+    background: var(--modern-soon-soft);
+    color: #a56400;
+}
+
+.modern-status.is-done {
+    background: var(--modern-done-soft);
+    color: #53657d;
+}
+
+.modern-dashboard-hero .modern-status {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+.modern-match-list,
+.modern-upcoming-list,
+.modern-event-list {
+    display: grid;
+    gap: 10px;
+}
+
+.modern-match-card {
+    padding: 14px 16px;
+    border: 1px solid #d8e5ee;
+    border-left: 4px solid var(--modern-running);
+    border-radius: 15px;
+    background: linear-gradient(90deg, #f4fcf9, white 48%);
+}
+
+.modern-match-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    margin-bottom: 10px;
+    color: var(--modern-muted);
+    font-size: 0.76rem;
+    font-weight: 750;
+}
+
+.modern-match-time {
+    color: #087453;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-match-score {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+}
+
+.modern-match-score > strong {
+    min-width: 0;
+    color: var(--modern-ink);
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    overflow-wrap: anywhere;
+}
+
+.modern-match-score > strong:last-child {
+    text-align: right;
+}
+
+.modern-match-score > span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 13px;
+    border: 1px solid #cde7dd;
+    border-radius: 11px;
+    background: white;
+    color: var(--modern-ink);
+    font-size: 1.5rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 4px 12px rgba(15, 159, 110, 0.08);
+}
+
+.modern-match-score > span i {
+    color: #93a4b7;
+    font-style: normal;
+}
+
+.modern-upcoming-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e7edf4;
+}
+
+.modern-upcoming-card:last-child {
+    border-bottom: 0;
+}
+
+.modern-upcoming-card > time {
+    min-width: 62px;
+    color: var(--modern-ink);
+    font-size: 1.35rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-upcoming-card > div {
+    min-width: 0;
+}
+
+.modern-upcoming-card > div strong {
+    display: block;
+    color: var(--modern-ink);
+    overflow-wrap: anywhere;
+}
+
+.modern-upcoming-card > div strong span {
+    color: #8b9aab;
+    font-size: 0.76em;
+    font-weight: 700;
+}
+
+.modern-upcoming-card p {
+    margin: 3px 0 0;
+    color: var(--modern-muted);
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+}
+
+.modern-empty-state {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 126px;
+    padding: 18px;
+    border: 1px dashed #cbd7e4;
+    border-radius: 15px;
+    background: var(--modern-soft);
+    color: var(--modern-muted);
+}
+
+.modern-empty-state > span {
+    display: grid;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 12px;
+    background: white;
+    color: #7a8ca3;
+    font-weight: 900;
+}
+
+.modern-empty-state strong {
+    color: var(--modern-ink);
+}
+
+.modern-empty-state p,
+.modern-empty-note {
+    margin: 4px 0 0;
+    color: var(--modern-muted);
+    font-size: 0.83rem;
+}
+
+.modern-dashboard-hero .modern-empty-note {
+    color: #cbdcf4;
+}
+
+.modern-empty-state.compact {
+    min-height: 88px;
+    padding: 14px;
+}
+
+.modern-schedule-panel {
+    margin-bottom: 18px;
+}
+
+.modern-schedule-focus {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.modern-focus-card {
+    display: grid;
+    grid-template-columns: auto minmax(105px, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px 16px;
+    padding: 14px;
+    border: 1px solid #d7e3ee;
+    border-radius: 15px;
+    background: var(--modern-soft);
+}
+
+.modern-focus-card.is-running {
+    border-color: #bce9d9;
+    background: #f0fbf7;
+}
+
+.modern-focus-card.is-soon {
+    border-color: #f1dda1;
+    background: #fffaf0;
+}
+
+.modern-focus-card time {
+    color: var(--modern-ink);
+    font-size: clamp(1.15rem, 2.3vw, 1.65rem);
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.modern-focus-card > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    min-width: 0;
+}
+
+.modern-focus-card > div span {
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: white;
+    color: #42556e;
+    font-size: 0.76rem;
+    overflow-wrap: anywhere;
+}
+
+.modern-focus-card > div b {
+    color: var(--modern-ink);
+}
+
+.modern-focus-card > p {
+    grid-column: 2 / -1;
+    margin: -5px 0 0;
+    color: #087453;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.modern-progress {
+    height: 6px;
+    margin: 0 0 14px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e6edf4;
+}
+
+.modern-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #0f9f6e, #42d3a0);
+}
+
+.modern-schedule-panel > .muted {
+    margin: 0 0 10px;
+    color: var(--modern-muted);
+    font-size: 0.8rem;
+}
+
+.modern-schedule-panel .table-scroll {
+    border: 1px solid var(--modern-line);
+    border-radius: 15px;
+}
+
+.modern-schedule-panel .schedule-table {
+    margin: 0;
+    border-collapse: collapse;
+}
+
+.modern-schedule-panel .schedule-table th,
+.modern-schedule-panel .schedule-table td {
+    padding: 11px 13px;
+    border-width: 0 0 1px 1px;
+    border-color: #e5ebf2;
+    background: white;
+}
+
+.modern-schedule-panel .schedule-table th {
+    background: #f3f7fb;
+    color: #53657d;
+    font-size: 0.74rem;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+}
+
+.modern-schedule-panel .schedule-table th:first-child,
+.modern-schedule-panel .schedule-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 130px;
+    border-left: 0;
+    color: var(--modern-ink);
+    font-size: 1rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-schedule-panel .schedule-table tr.current-row td {
+    background: #edfaf5;
+}
+
+.modern-schedule-panel .schedule-table tr.current-row td:first-child {
+    color: #087453;
+}
+
+.modern-schedule-panel .schedule-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.modern-lower-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modern-event-list a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 62px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--modern-ink);
+    text-decoration: none;
+}
+
+.modern-event-list a:hover {
+    background: var(--modern-soft);
+}
+
+.modern-event-list time {
+    min-width: 88px;
+    color: #1d5cc5;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-event-list span {
+    min-width: 0;
+}
+
+.modern-event-list strong,
+.modern-event-list small {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.modern-event-list small {
+    margin-top: 3px;
+    color: var(--modern-muted);
+}
+
+.modern-event-list a > b {
+    color: #91a0b2;
+    font-size: 1.5rem;
+}
+
+.modern-info-text {
+    padding: 16px 18px;
+    border-left: 4px solid var(--modern-blue);
+    border-radius: 5px 13px 13px 5px;
+    background: #f2f7ff;
+    color: #334964;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+/* Moderne Beameransicht */
+
+.modern-beamer {
+    --beamer-bg: #07111f;
+    --beamer-surface: #101f33;
+    --beamer-surface-2: #152940;
+    --beamer-line: #263b54;
+    --beamer-text: #f8fbff;
+    --beamer-muted: #9eb0c6;
+    --modern-running: #2dd4a1;
+    --modern-running-soft: rgba(45, 212, 161, 0.14);
+    --modern-planned: #a5b4c7;
+    --modern-planned-soft: rgba(165, 180, 199, 0.15);
+    --modern-soon: #fbbf24;
+    --modern-soon-soft: rgba(251, 191, 36, 0.14);
+    --modern-done: #9aa9ba;
+    --modern-done-soft: rgba(154, 169, 186, 0.13);
+    display: grid;
+    grid-template-rows: 88px minmax(0, 1fr) 160px;
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 32% -12%, rgba(37, 99, 235, 0.16), transparent 32%),
+        var(--beamer-bg);
+    color: var(--beamer-text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.modern-beamer-topbar {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.8fr) minmax(300px, 1.2fr) minmax(190px, 0.65fr);
+    align-items: center;
+    gap: 28px;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--beamer-line);
+    background: rgba(9, 23, 40, 0.82);
+}
+
+.modern-beamer-brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+}
+
+.modern-beamer-brand > span {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 13px;
+    background: linear-gradient(145deg, #3180ee, #1d4fb4);
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.3);
+    font-size: 1.2rem;
+    font-weight: 950;
+}
+
+.modern-beamer-brand strong,
+.modern-beamer-brand small,
+.modern-beamer-context strong,
+.modern-beamer-context span,
+.modern-beamer-clock span,
+.modern-beamer-clock small {
+    display: block;
+}
+
+.modern-beamer-brand strong {
+    font-size: 1.06rem;
+}
+
+.modern-beamer-brand small,
+.modern-beamer-context span,
+.modern-beamer-clock small {
+    margin-top: 3px;
+    color: var(--beamer-muted);
+    font-size: 0.68rem;
+}
+
+.modern-beamer-context {
+    min-width: 0;
+    text-align: center;
+}
+
+.modern-beamer-context strong,
+.modern-beamer-context span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-beamer-context strong {
+    font-size: 1rem;
+}
+
+.modern-beamer-clock {
+    text-align: right;
+}
+
+.modern-beamer-clock > span {
+    font-size: clamp(2rem, 3vw, 2.7rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -0.055em;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-beamer-clock a {
+    color: #b9d7ff;
+    text-underline-offset: 2px;
+}
+
+.modern-beamer-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.75fr) minmax(370px, 0.75fr);
+    min-height: 0;
+}
+
+.modern-beamer-stage,
+.modern-beamer-table {
+    min-width: 0;
+    min-height: 0;
+    padding: 22px 26px;
+}
+
+.modern-beamer-stage {
+    border-right: 1px solid var(--beamer-line);
+}
+
+.modern-beamer-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 15px;
+}
+
+.modern-beamer-section-head p {
+    margin: 0 0 3px;
+    color: #6f86a0;
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+}
+
+.modern-beamer-section-head h1,
+.modern-beamer-section-head h2 {
+    margin: 0;
+    color: var(--beamer-text);
+    line-height: 1.05;
+}
+
+.modern-beamer-section-head h1 {
+    font-size: clamp(1.45rem, 2.3vw, 2.1rem);
+}
+
+.modern-beamer-section-head h2 {
+    font-size: clamp(1.25rem, 2vw, 1.7rem);
+}
+
+.modern-beamer .modern-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--modern-done-soft);
+    color: var(--modern-done);
+    font-size: 0.66rem;
+    font-weight: 950;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.modern-beamer .modern-status i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.modern-beamer .modern-status.is-running {
+    background: var(--modern-running-soft);
+    color: var(--modern-running);
+}
+
+.modern-beamer .modern-status.is-planned {
+    background: var(--modern-planned-soft);
+    color: var(--modern-planned);
+}
+
+.modern-beamer .modern-status.is-soon {
+    background: var(--modern-soon-soft);
+    color: var(--modern-soon);
+}
+
+.modern-beamer .modern-status.is-done {
+    background: var(--modern-done-soft);
+    color: var(--modern-done);
+}
+
+.modern-beamer-matches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 410px), 1fr));
+    align-content: center;
+    gap: 16px;
+    min-height: calc(100% - 58px);
+}
+
+.modern-beamer-matches.count-1 {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.modern-beamer-match {
+    min-width: 0;
+    padding: clamp(18px, 2.3vw, 30px);
+    border: 1px solid #29435e;
+    border-top: 4px solid var(--modern-running);
+    border-radius: 21px;
+    background:
+        radial-gradient(circle at 50% 100%, rgba(45, 212, 161, 0.08), transparent 42%),
+        linear-gradient(155deg, #12263e, #0d1c2e);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.modern-beamer-match.is-next {
+    border-top-color: var(--modern-soon);
+}
+
+.modern-beamer-match-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: clamp(20px, 3vh, 34px);
+    color: var(--beamer-muted);
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+.modern-beamer-match-meta time {
+    color: white;
+    font-size: 1.12rem;
+    font-weight: 950;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-beamer-match-context {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.modern-beamer-match-context strong,
+.modern-beamer-match-context span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-beamer-match-context strong {
+    color: white;
+    font-size: 0.8rem;
+}
+
+.modern-beamer-match-context span {
+    margin-top: 3px;
+    color: var(--beamer-muted);
+    font-size: 0.7rem;
+}
+
+.modern-beamer-match-meta .modern-status {
+    margin-left: auto;
+}
+
+.modern-beamer-teams {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(14px, 2vw, 30px);
+}
+
+.modern-beamer-teams > strong {
+    min-width: 0;
+    font-size: clamp(1.9rem, 4vw, 4.8rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.modern-beamer-score {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(10px, 1.4vw, 24px);
+    min-width: clamp(150px, 16vw, 260px);
+    padding: clamp(14px, 2vw, 26px);
+    border: 1px solid #31506f;
+    border-radius: 17px;
+    background: #091728;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.modern-beamer-score span {
+    min-width: 0.7em;
+    font-size: clamp(3.2rem, 6.5vw, 7rem);
+    font-weight: 950;
+    line-height: 0.86;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-beamer-score i {
+    color: #5e748c;
+    font-size: clamp(2rem, 4vw, 4rem);
+    font-style: normal;
+    font-weight: 800;
+}
+
+.modern-beamer-pause {
+    display: grid;
+    min-height: 180px;
+    place-items: center;
+    color: var(--modern-soon);
+    font-size: clamp(2.5rem, 6vw, 6rem);
+    font-weight: 950;
+    text-align: center;
+}
+
+.modern-beamer-table {
+    overflow: hidden;
+    background: rgba(5, 15, 27, 0.45);
+}
+
+.modern-beamer-table > .modern-beamer-section-head > span {
+    font-size: 1.45rem;
+}
+
+.modern-beamer-table table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 7px;
+    table-layout: fixed;
+}
+
+.modern-beamer-table th {
+    padding: 0 9px 4px;
+    color: #6f86a0;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.modern-beamer-table th:first-child {
+    width: 54px;
+}
+
+.modern-beamer-table th:nth-child(3) {
+    width: 78px;
+}
+
+.modern-beamer-table th:last-child {
+    width: 64px;
+    text-align: center;
+}
+
+.modern-beamer-table td {
+    height: 49px;
+    padding: 8px 9px;
+    background: var(--beamer-surface);
+    color: var(--beamer-text);
+    font-size: 0.78rem;
+}
+
+.modern-beamer-table td:first-child {
+    border-radius: 11px 0 0 11px;
+}
+
+.modern-beamer-table td:last-child {
+    border-radius: 0 11px 11px 0;
+    text-align: center;
+}
+
+.modern-beamer-table td:first-child span {
+    display: grid;
+    width: 29px;
+    height: 29px;
+    place-items: center;
+    border-radius: 9px;
+    background: #22354a;
+    color: #b8c8d9;
+    font-weight: 950;
+}
+
+.modern-beamer-table td:nth-child(2) strong {
+    display: block;
+    overflow: hidden;
+    font-size: 0.94rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-beamer-table td:nth-child(3) small {
+    display: block;
+    margin-top: 1px;
+    color: var(--modern-running);
+    font-size: 0.62rem;
+}
+
+.modern-beamer-table td:last-child b {
+    display: inline-grid;
+    min-width: 38px;
+    height: 30px;
+    padding: 0 8px;
+    place-items: center;
+    border-radius: 9px;
+    background: #253b54;
+    color: white;
+}
+
+.modern-beamer-table tr.is-first td {
+    background: #2c2b20;
+}
+
+.modern-beamer-table tr.is-first td:first-child span {
+    background: var(--modern-soon);
+    color: #2d2205;
+}
+
+.modern-beamer-table tr.is-first td:last-child b {
+    background: var(--modern-soon);
+    color: #2d2205;
+}
+
+.modern-beamer-table tr.is-second td:first-child span,
+.modern-beamer-table tr.is-third td:first-child span {
+    background: #36506c;
+    color: white;
+}
+
+.modern-beamer-empty {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    min-height: 240px;
+    padding: 30px;
+    border: 1px dashed #30455d;
+    border-radius: 20px;
+    color: var(--beamer-muted);
+    text-align: center;
+}
+
+.modern-beamer-empty > span {
+    display: grid;
+    width: 58px;
+    height: 58px;
+    margin-bottom: 14px;
+    place-items: center;
+    border-radius: 18px;
+    background: var(--beamer-surface);
+    color: #67809b;
+    font-size: 1.5rem;
+}
+
+.modern-beamer-empty strong {
+    color: white;
+    font-size: 1.25rem;
+}
+
+.modern-beamer-empty p {
+    max-width: 520px;
+    margin: 7px 0 0;
+    font-size: 0.82rem;
+}
+
+.modern-beamer-empty.compact {
+    min-height: 160px;
+}
+
+.modern-beamer-dock {
+    display: grid;
+    grid-template-columns: minmax(370px, 0.9fr) minmax(0, 1.6fr);
+    gap: 18px;
+    min-width: 0;
+    padding: 16px 26px;
+    border-top: 1px solid var(--beamer-line);
+    background: #0a1828;
+}
+
+.modern-beamer-next {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    padding: 12px 15px;
+    border: 1px solid #594a1b;
+    border-radius: 15px;
+    background: rgba(251, 191, 36, 0.07);
+}
+
+.modern-beamer-next time {
+    color: white;
+    font-size: 1.55rem;
+    font-weight: 950;
+    font-variant-numeric: tabular-nums;
+}
+
+.modern-beamer-next > div {
+    min-width: 0;
+}
+
+.modern-beamer-next strong,
+.modern-beamer-next small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-beamer-next strong {
+    font-size: 0.96rem;
+}
+
+.modern-beamer-next strong span {
+    color: var(--beamer-muted);
+    font-size: 0.75em;
+}
+
+.modern-beamer-next small {
+    margin-top: 3px;
+    color: var(--beamer-muted);
+    font-size: 0.7rem;
+}
+
+.modern-beamer-next-board {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 7px;
+    min-width: 0;
+}
+
+.modern-beamer-next-board-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #d8e4f1;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.modern-beamer-next-board-head > span {
+    color: var(--modern-soon);
+    font-weight: 900;
+}
+
+.modern-beamer-courts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    min-width: 0;
+}
+
+.modern-beamer-courts article {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--beamer-line);
+    border-radius: 14px;
+    background: var(--beamer-surface);
+}
+
+.modern-beamer-courts article > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+}
+
+.modern-beamer-courts article .modern-status {
+    min-height: 19px;
+    padding: 3px 6px;
+    font-size: 0.56rem;
+}
+
+.modern-beamer-courts strong,
+.modern-beamer-courts span,
+.modern-beamer-courts small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.modern-beamer-courts strong {
+    font-size: 0.8rem;
+}
+
+.modern-beamer-courts span {
+    margin: 2px 0;
+    color: var(--modern-running);
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.modern-beamer-courts small {
+    color: var(--beamer-muted);
+    font-size: 0.63rem;
+}
+
+@media (max-width: 1200px) {
+    .modern-dashboard-grid {
+        grid-template-columns: minmax(0, 1.3fr) minmax(310px, 0.85fr);
+    }
+
+    .modern-focus-card {
+        grid-template-columns: 1fr;
+    }
+
+    .modern-focus-card > p {
+        grid-column: auto;
+        margin-top: 0;
+    }
+
+    .modern-beamer-layout {
+        grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.8fr);
+    }
+
+    .modern-beamer-teams > strong {
+        font-size: clamp(1.65rem, 3.5vw, 3.6rem);
+    }
+
+    .modern-beamer-courts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 980px) {
+    .modern-dashboard-grid,
+    .modern-lower-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modern-schedule-focus {
+        grid-template-columns: 1fr;
+    }
+
+    .modern-quick-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .modern-dashboard-hero {
+        flex-direction: column;
+        min-height: 0;
+        padding: 25px 22px;
+        border-radius: 20px;
+    }
+
+    .modern-clock-card {
+        flex: 0 0 auto;
+        align-self: auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 2px 14px;
+        padding: 16px 18px;
+    }
+
+    .modern-clock-card > span {
+        align-self: end;
+    }
+
+    .modern-clock-card strong {
+        grid-row: 1 / 3;
+        grid-column: 2;
+        margin: 0;
+        font-size: clamp(2.6rem, 13vw, 4rem);
+    }
+
+    .modern-clock-card a {
+        grid-column: 1;
+    }
+
+    .modern-quick-nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .modern-quick-nav a {
+        justify-content: flex-start;
+        min-height: 44px;
+    }
+
+    .modern-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .modern-stat {
+        min-height: 76px;
+        padding: 13px;
+    }
+
+    .modern-stat-icon {
+        flex-basis: 36px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .modern-panel {
+        padding: 17px;
+        border-radius: 17px;
+    }
+
+    .modern-panel-head {
+        gap: 10px;
+    }
+
+    .modern-upcoming-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .modern-upcoming-card > .modern-status {
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    .modern-focus-card {
+        gap: 9px;
+    }
+
+    .modern-schedule-panel .schedule-table th:first-child,
+    .modern-schedule-panel .schedule-table td:first-child {
+        min-width: 112px;
+        font-size: 0.9rem;
+    }
+
+    .modern-event-list a {
+        grid-template-columns: 1fr auto;
+    }
+
+    .modern-event-list time {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 480px) {
+    .modern-dashboard-title h1 {
+        font-size: 1.85rem;
+    }
+
+    .modern-event-meta {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .modern-quick-nav {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .modern-quick-nav a {
+        padding-inline: 9px;
+        font-size: 0.84rem;
+    }
+
+    .modern-status-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .modern-stat {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 9px;
+    }
+
+    .modern-match-score {
+        grid-template-columns: 1fr;
+    }
+
+    .modern-match-score > strong:last-child {
+        text-align: left;
+    }
+
+    .modern-match-score > span {
+        justify-self: start;
+        grid-row: 2;
+    }
+}
+
+@media (max-height: 760px) and (min-width: 901px) {
+    .modern-beamer {
+        grid-template-rows: 74px minmax(0, 1fr) 142px;
+    }
+
+    .modern-beamer-topbar {
+        padding-block: 9px;
+    }
+
+    .modern-beamer-stage,
+    .modern-beamer-table {
+        padding-block: 15px;
+    }
+
+    .modern-beamer-section-head {
+        margin-bottom: 10px;
+    }
+
+    .modern-beamer-match {
+        padding: 16px 20px;
+    }
+
+    .modern-beamer-match-meta {
+        margin-bottom: 15px;
+    }
+
+    .modern-beamer-table {
+        padding-inline: 20px;
+    }
+
+    .modern-beamer-table table {
+        border-spacing: 0 5px;
+    }
+
+    .modern-beamer-table td {
+        height: 42px;
+        padding-block: 6px;
+    }
+
+    .modern-beamer-dock {
+        padding-block: 12px;
+    }
+
+    .modern-beamer-courts article {
+        padding: 8px 10px;
+    }
+}
+
+@media (max-width: 900px) {
+    .modern-beamer {
+        display: block;
+        height: auto;
+        min-height: 100vh;
+        overflow: auto;
+    }
+
+    .modern-beamer-topbar {
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+    }
+
+    .modern-beamer-context {
+        display: none;
+    }
+
+    .modern-beamer-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .modern-beamer-stage {
+        min-height: 520px;
+        border-right: 0;
+        border-bottom: 1px solid var(--beamer-line);
+    }
+
+    .modern-beamer-table {
+        min-height: 480px;
+    }
+
+    .modern-beamer-dock {
+        grid-template-columns: 1fr;
+    }
+}

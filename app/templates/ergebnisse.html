@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Ergebniseingabe</h1>
-<p class="muted">
-    {% if is_sixkampf %}
-    Klassenwerte für {{ selected_competition.name }} erfassen.
-    {% else %}
-    Aktive Spiele erfassen. Beendete Spiele erscheinen unten im Archiv und können korrigiert werden.
-    {% endif %}
-</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Live-Erfassung</p>
+        <h1>Ergebniseingabe</h1>
+        <p>
+            {% if is_sixkampf %}
+            Klassenwerte für {{ selected_competition.name }} erfassen.
+            {% else %}
+            Aktive Spiele erfassen; beendete Spiele bleiben für Korrekturen im Archiv.
+            {% endif %}
+        </p>
+    </div>
+</header>
 
 {% set results_return_to = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 
@@ -34,7 +39,7 @@
             {% endfor %}
         </select>
     </label>
-    <button type="submit">Anzeigen</button>
+    <button class="primary" type="submit">Anzeigen</button>
 </form>
 
 {% if is_sixkampf %}
@@ -385,6 +390,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                 Änderungen: {{ s.change_count }}
             </span>
         </div>
+        <div class="result-form-row">
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
             <strong>{{ s.team_a or "?" }}</strong>
@@ -392,8 +398,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span>:</span>
             <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
             <strong>{{ s.team_b or "?" }}</strong>
-            <button name="finish" value="0">Zwischenspeichern</button>
-            <button class="green" name="finish" value="1">Beenden & Speichern</button>
+            <button class="secondary" name="finish" value="0">Zwischenspeichern</button>
+            <button class="primary" name="finish" value="1">Beenden & Speichern</button>
         </form>
         <div class="result-actions">
             {% if s.status == "geplant" %}
@@ -405,6 +411,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                 <button class="outline">Start rückgängig</button>
             </form>
             {% endif %}
+        </div>
         </div>
     </section>
     {% else %}
@@ -437,14 +444,14 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span>:</span>
             <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
             <strong>{{ s.team_b or "?" }}</strong>
-            <button class="green" name="finish" value="1">Korrigieren & beendet speichern</button>
+            <button class="primary" name="finish" value="1">Korrigieren & beendet speichern</button>
         </form>
         <div class="archive-actions">
-            <form method="post" action="/slot/{{ s.id }}/reactivate"><button type="submit">Reaktivieren</button></form>
+            <form method="post" action="/slot/{{ s.id }}/reactivate"><button class="secondary" type="submit">Reaktivieren</button></form>
             <form method="post" action="/slot/{{ s.id }}/clear-result"
                   onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
                 <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                <button type="submit">Ergebnis löschen</button>
+                <button class="danger" type="submit">Ergebnis löschen</button>
             </form>
         </div>
     </section>

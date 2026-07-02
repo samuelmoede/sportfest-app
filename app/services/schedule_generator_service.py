@@ -33,13 +33,22 @@ def generate_group_plan(
         if not court_ids:
             return []
 
-        teams = conn.execute("""
-            SELECT *
-            FROM teams
-            WHERE active = 1
-              AND jahrgang = ?
-            ORDER BY name
-        """, (competition["jahrgang"],)).fetchall()
+        explicit_teams = conn.execute("""
+            SELECT t.* FROM teams t
+            JOIN competition_teams ct ON ct.team_id = t.id
+            WHERE ct.competition_id = ?
+            ORDER BY t.jahrgang, t.name
+        """, (competition_id,)).fetchall()
+        if explicit_teams:
+            teams = list(explicit_teams)
+        else:
+            teams = conn.execute("""
+                SELECT *
+                FROM teams
+                WHERE active = 1
+                  AND jahrgang = ?
+                ORDER BY name
+            """, (competition["jahrgang"],)).fetchall()
 
     selected_ids = set(court_ids)
     court_order = {court_id: index for index, court_id in enumerate(court_ids)}

@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Rechte erweitern</h1>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Zugriff</p>
+        <h1>Rechte erweitern</h1>
+        <p>Für öffentliche Ansichten ist keine Anmeldung nötig.</p>
+    </div>
+</header>
 
-<section class="panel">
+<section class="panel login-panel">
     {% if logged_out %}
         <p class="success-text">Du wurdest abgemeldet.</p>
     {% endif %}
 
-    <p>Für die reine Anzeige ist keine Anmeldung nötig.</p>
     <p>Aktuelle Rolle: <strong>{{ current_role_label }}</strong></p>
 
     {% if not security_enabled %}
@@ -32,7 +37,7 @@
                 required
                 autofocus
             >
-            <button type="submit">Als Schiedsrichter anmelden</button>
+            <button class="primary" type="submit">Als Schiedsrichter anmelden</button>
         </form>
         {% endif %}
 
@@ -49,7 +54,7 @@
                 required
                 {% if current_role == "referee" %}autofocus{% endif %}
             >
-            <button type="submit">Als Admin anmelden</button>
+            <button class="primary" type="submit">Als Admin anmelden</button>
         </form>
         {% if not admin_login_prepared %}
             <p class="muted">Noch kein Admin-Passwort konfiguriert. Der Verwaltungsschutz bleibt automatisch deaktiviert.</p>

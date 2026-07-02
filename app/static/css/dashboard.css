@@ -1,0 +1,591 @@
+/*
+ * Dashboard, Tagesplan, Ortsübersichten, Fortschritt und Spielkarten.
+ * Originalreihenfolge: Zeilen 445-1030 aus style.css vor dem Refactoring.
+ */
+
+.dashboard-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.dashboard-clock {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--navy2);
+    white-space: nowrap;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin: 32px 0;
+}
+
+.stat,
+.panel,
+.card,
+.result-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+}
+
+.stat strong {
+    font-size: 32px;
+    display: block;
+}
+
+.stat span {
+    color: var(--muted);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.panel {
+    margin-bottom: 24px;
+}
+
+.schedule-table th,
+.schedule-table td {
+    padding: 12px 10px;
+    border: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.schedule-table th {
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.schedule-table tr.current-row {
+    background: #f0f9ff;
+}
+
+.location-schedule {
+    margin: 24px 0;
+}
+
+.schedule-page-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.schedule-page-head h1 {
+    margin-bottom: 6px;
+}
+
+.schedule-view-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 22px;
+}
+
+.schedule-view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: white;
+    color: var(--navy2);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.schedule-view-link.is-active {
+    border-color: var(--navy2);
+    background: var(--navy2);
+    color: white;
+}
+
+.location-venue-section {
+    min-width: 0;
+    margin: 24px 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: white;
+}
+
+.location-venue-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.location-venue-head h2 {
+    margin: 0 0 4px;
+}
+
+.location-venue-head p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.location-pill {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #075985;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.location-fußballplatz .location-pill {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.location-außenbereich .location-pill {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.location-court-board {
+    margin-top: 16px;
+}
+
+.location-court-board .court-column h3 {
+    margin-top: 0;
+}
+
+.dashboard-info-text {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-info-settings-form textarea {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+}
+
+.day-schedule-event {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin: -4px 0 14px;
+}
+
+.day-schedule-event span {
+    color: var(--muted);
+}
+
+.day-now-marker {
+    display: grid;
+    grid-template-columns: minmax(18px, 1fr) auto minmax(18px, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin: 9px 0;
+    color: #dc2626;
+}
+
+.day-now-marker > span {
+    height: 2px;
+    border-radius: 999px;
+    background: #dc2626;
+}
+
+.day-now-marker > strong {
+    padding: 3px 8px;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fff7f7;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    letter-spacing: 0.045em;
+    white-space: nowrap;
+}
+
+.day-now-marker-row > td {
+    padding: 4px 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+.day-schedule-cards {
+    display: grid;
+    gap: 8px;
+}
+
+.day-schedule-block {
+    display: grid;
+    grid-template-columns: minmax(125px, 155px) minmax(0, 1fr);
+    gap: 12px;
+    padding: 11px;
+    border: 1px solid var(--border);
+    border-left: 4px solid #60a5fa;
+    border-radius: 13px;
+    background: #f8fafc;
+}
+
+.day-schedule-block.status-running {
+    border-left-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.day-schedule-block.status-next,
+.day-schedule-block.status-soon {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.day-schedule-block.status-done {
+    border-left-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.day-schedule-block > header {
+    display: flex;
+    align-content: flex-start;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 4px;
+}
+
+.day-schedule-block > header time {
+    color: var(--navy2);
+    font-size: 1.08rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+
+.day-schedule-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+    gap: 8px;
+    min-width: 0;
+}
+
+.day-schedule-card {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid #dfe6f0;
+    border-radius: 10px;
+    background: white;
+}
+
+.day-schedule-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.day-schedule-card-head strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.day-schedule-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    color: var(--muted);
+    font-size: 0.77rem;
+}
+
+.day-schedule-card-meta span {
+    overflow-wrap: anywhere;
+}
+
+.day-schedule-card-meta .day-card-sport {
+    color: var(--navy2);
+    font-weight: 800;
+}
+
+.day-schedule-card-meta .day-card-location::before {
+    margin-right: 4px;
+    content: "⌖";
+}
+
+.day-schedule-card > time {
+    color: var(--muted);
+    font-size: 0.73rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.day-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 23px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.67rem;
+    font-weight: 900;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.day-status.status-running {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.day-status.status-next {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.day-status.status-soon {
+    background: #fef3c7;
+    color: #a16207;
+}
+
+.day-status.status-done {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.schedule-table tr.status-running td {
+    background: #f0fdf4;
+}
+
+.schedule-table tr.status-next td,
+.schedule-table tr.status-soon td {
+    background: #fffbeb;
+}
+
+.schedule-table tr.status-done td {
+    color: #64748b;
+    background: #f8fafc;
+}
+
+.timing-forecast {
+    display: grid;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid #bae6fd;
+    border-radius: 12px;
+    background: #f0f9ff;
+}
+
+.timing-forecast > div:not(.timing-forecast-courts) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 10px;
+}
+
+.timing-forecast-courts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.timing-forecast-courts span {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: white;
+    color: var(--navy2);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.timing-forecast-courts .is-overrun {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.preview-forecast {
+    margin: 0 0 16px;
+}
+
+.location-schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.location-schedule-group {
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: white;
+}
+
+.location-schedule-group h3 {
+    margin: 0 0 12px;
+    color: var(--navy2);
+}
+
+.location-subgroup-title {
+    margin: 14px 0 10px;
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.location-competition-list {
+    display: grid;
+    gap: 10px;
+}
+
+.location-competition-card {
+    display: grid;
+    grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--orange);
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.location-competition-time {
+    color: var(--navy2);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.location-competition-content {
+    min-width: 0;
+}
+
+.location-competition-meta {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.location-station-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 14px;
+    margin: 9px 0 0;
+    padding-left: 18px;
+    font-size: 0.85rem;
+}
+
+.sportplatz-timeline {
+    margin: 24px 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: white;
+}
+
+.sportplatz-timeline h2 {
+    margin-top: 0;
+}
+
+.sportplatz-timeline-list {
+    display: grid;
+    gap: 10px;
+}
+
+.sportplatz-timeline-item {
+    display: grid;
+    grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
+    gap: 16px;
+    align-items: center;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--green);
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.sportplatz-timeline-time {
+    display: flex;
+    gap: 5px;
+    color: var(--navy2);
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.sportplatz-timeline-content {
+    min-width: 0;
+}
+
+.sportplatz-timeline-content > strong {
+    overflow-wrap: anywhere;
+}
+
+.sportplatz-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 14px;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.location-schedule-group + .location-schedule-group {
+    margin-top: 8px;
+}
+
+.schedule-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 12px;
+}
+
+.schedule-list li {
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    position: relative;
+    height: 10px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-bar span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.match {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    border: 1px solid #ffd7ad;
+    background: #fff7ed;
+    padding: 18px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.match strong {
+    font-size: 24px;
+    background: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+}
+
+.match em {
+    margin-left: auto;
+    color: var(--muted);
+}
+

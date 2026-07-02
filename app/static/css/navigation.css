@@ -1,0 +1,356 @@
+/*
+ * Mobile Navigation, Sidebar, Rollenanzeige und Navigationsaktionen.
+ * Originalreihenfolge: Zeilen 28-365 aus style.css vor dem Refactoring.
+ */
+
+.mobile-topbar,
+.mobile-menu-drawer,
+.mobile-menu-overlay {
+    display: none;
+}
+
+.mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1200;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(17, 29, 51, 0.96);
+    border-bottom: 1px solid #314167;
+    color: white;
+    backdrop-filter: blur(3px);
+}
+
+.mobile-brand {
+    display: grid;
+    line-height: 1.1;
+}
+
+.mobile-brand strong {
+    font-size: 1rem;
+}
+
+.mobile-brand span {
+    font-size: 0.8rem;
+    color: #b8c4d6;
+}
+
+.mobile-access {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mobile-menu-toggle,
+.mobile-menu-close {
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #314167;
+    border-radius: 8px;
+    background: #1c2e56;
+    color: white;
+    font-weight: 700;
+}
+
+.mobile-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1240;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.mobile-menu-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(86vw, 340px);
+    z-index: 1250;
+    padding: 14px 12px;
+    background: var(--navy);
+    color: white;
+    overflow-y: auto;
+    transform: translateX(105%);
+    transition: transform 0.24s ease;
+}
+
+.mobile-menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 10px;
+}
+
+.mobile-menu-drawer .nav-group {
+    margin-top: 18px;
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.mobile-menu-drawer .nav-link,
+.mobile-menu-drawer .beamer-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #cbd5e1;
+    text-decoration: none;
+    padding: 12px 12px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: transparent;
+}
+
+.mobile-menu-drawer .nav-link:hover,
+.mobile-menu-drawer .beamer-link:hover {
+    background: var(--navy2);
+    color: white;
+}
+
+body.mobile-menu-open {
+    overflow: hidden;
+}
+
+body.mobile-menu-open .mobile-menu-drawer {
+    transform: translateX(0);
+}
+
+body.mobile-menu-open .mobile-menu-overlay {
+    display: block;
+}
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 270px;
+    background: var(--navy);
+    color: white;
+    padding: 24px 16px;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar > nav {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #314167 transparent;
+}
+
+.brand {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 36px;
+}
+.brand-text {
+    min-width: 0;
+}
+
+.brand span {
+    display: block;
+    color: #aab6c8;
+    font-size: 14px;
+}
+
+.logo {
+    background: var(--orange);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 22px;
+}
+
+nav .nav-group {
+    margin-top: 24px;
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+nav a,
+.beamer-link {
+    display: block;
+    color: #cbd5e1;
+    text-decoration: none;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.nav-icon {
+    width: 1.4rem;
+    text-align: center;
+    flex: 0 0 1.4rem;
+}
+.nav-text {
+    min-width: 0;
+}
+.sidebar-toggle {
+    margin-left: auto;
+    padding: 6px 10px;
+    min-height: 32px;
+    line-height: 1;
+    background: var(--navy2);
+    color: #cbd5e1;
+    border-color: #314167;
+}
+.sidebar-toggle:hover {
+    color: white;
+}
+.beamer-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.beamer-icon {
+    width: 1.4rem;
+    text-align: center;
+    flex: 0 0 1.4rem;
+}
+
+nav a:hover,
+.beamer-link {
+    background: var(--navy2);
+    color: white;
+}
+
+.beamer-link {
+    margin-top: 32px;
+    background: #4b2a24;
+    color: var(--orange);
+    font-weight: bold;
+}
+
+.sidebar-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #293957;
+}
+
+.sidebar-footer .beamer-link {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+}
+
+.access-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mobile-access-strip {
+    justify-content: space-between;
+    margin-top: 18px;
+    padding: 12px;
+    border: 1px solid #314167;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.role-badge-prefix {
+    margin-right: 4px;
+    opacity: 0.72;
+    font-weight: 600;
+}
+
+.role-viewer {
+    border-color: #52617a;
+    background: #25324a;
+    color: #d7deea;
+}
+
+.role-station_helper {
+    border-color: #14b8a6;
+    background: #134e4a;
+    color: #ccfbf1;
+}
+
+.role-referee {
+    border-color: #3b82f6;
+    background: #173663;
+    color: #dbeafe;
+}
+
+.role-admin {
+    border-color: #f97316;
+    background: #4a2a24;
+    color: #ffedd5;
+}
+
+.access-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    min-width: 0;
+    padding: 5px 8px;
+    border-radius: 7px;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-decoration: none;
+    text-align: center;
+}
+
+.access-action:hover {
+    background: var(--navy2);
+    color: white;
+}
+
+.access-action-icon {
+    display: none;
+}
+
+.app-version {
+    margin-top: 8px;
+    color: #7f8da3;
+    font-size: 0.7rem;
+}
+
+.impressum-link {
+    display: block;
+    margin-top: 6px;
+    color: #7f8da3;
+    font-size: 0.7rem;
+    text-decoration: none;
+}
+
+.impressum-link:hover {
+    color: var(--text-primary, #f0f4f8);
+    text-decoration: underline;
+}
+

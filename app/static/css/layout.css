@@ -1,0 +1,84 @@
+/*
+ * Inhaltsbereich, eingeklappte Sidebar und grundlegende Seitentypografie.
+ * Originalreihenfolge: Zeilen 366-444 aus style.css vor dem Refactoring.
+ */
+
+.content {
+    margin-left: 270px;
+    padding: 48px;
+    width: calc(100% - 270px);
+}
+@media (min-width: 701px) {
+    body.sidebar-collapsed .sidebar {
+        width: 76px;
+        padding: 18px 10px;
+    }
+
+    body.sidebar-collapsed .content {
+        margin-left: 76px;
+        width: calc(100% - 76px);
+    }
+
+    body.sidebar-collapsed .brand {
+        margin-bottom: 18px;
+        justify-content: center;
+    }
+
+    body.sidebar-collapsed .brand-text,
+    body.sidebar-collapsed .nav-text,
+    body.sidebar-collapsed .sidebar .nav-group,
+    body.sidebar-collapsed .beamer-text,
+    body.sidebar-collapsed .app-version {
+        display: none;
+    }
+
+    body.sidebar-collapsed .sidebar-toggle {
+        margin-left: 0;
+    }
+
+    body.sidebar-collapsed .nav-link,
+    body.sidebar-collapsed .beamer-link {
+        justify-content: center;
+        padding: 10px;
+    }
+
+    body.sidebar-collapsed .sidebar-footer {
+        padding-top: 10px;
+    }
+
+    body.sidebar-collapsed .access-strip {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    body.sidebar-collapsed .role-badge {
+        max-width: 56px;
+        padding-inline: 6px;
+        font-size: 0.68rem;
+    }
+
+    body.sidebar-collapsed .access-action {
+        width: 34px;
+        min-height: 34px;
+        padding: 0;
+        border: 1px solid #314167;
+    }
+
+    body.sidebar-collapsed .access-action-icon {
+        display: inline;
+    }
+
+    body.sidebar-collapsed .access-action-label {
+        display: none;
+    }
+}
+
+h1 {
+    font-size: 34px;
+    margin-bottom: 4px;
+}
+
+.muted {
+    color: var(--muted);
+}
+

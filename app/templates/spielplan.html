@@ -37,12 +37,13 @@
 {% endmacro %}
 
 {% block content %}
-<div class="schedule-page-head">
+<header class="page-header schedule-page-head">
     <div>
+        <p class="eyebrow">Öffentliche Ansicht</p>
         <h1>Spielplan nach Ort</h1>
-        <p class="muted">Öffentliche Übersicht für Turnhalle, Fußballplatz und Außenbereich.</p>
+        <p>Turnhalle, Fußballplatz und Außenbereich auf einen Blick.</p>
     </div>
-</div>
+</header>
 
 <form method="get" action="/spielplan" class="filter-row">
     <select name="event_id" aria-label="Veranstaltung">
@@ -75,7 +76,7 @@
         {% endfor %}
     </select>
 
-    <button type="submit">Filtern</button>
+    <button class="primary" type="submit">Filtern</button>
 </form>
 
 {% for section in location_sections %}

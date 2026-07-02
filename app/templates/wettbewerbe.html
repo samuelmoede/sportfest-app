@@ -1,7 +1,13 @@
 {% extends "base.html" %}
+{% import "partials/ui_macros.html" as ui %}
 {% block content %}
-<h1>Wettbewerbe</h1>
-<p class="muted">Wettbewerbe anlegen, Status setzen, Punktevergabe einstellen, archivieren oder löschen.</p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Sportprogramm</p>
+        <h1>Wettbewerbe</h1>
+        <p>Turniere und Sechskampf übersichtlich planen und verwalten.</p>
+    </div>
+</header>
 
 <form method="get" action="/wettbewerbe" class="filter-row">
     <label>
@@ -44,12 +50,14 @@
             {% endfor %}
         </select>
 
-        <label>Jahrgang</label>
-        <select name="jahrgang" required>
-            {% for year in team_years %}
-            <option value="{{ year }}">Jahrgang {{ year }}</option>
+        <label>Gruppe</label>
+        <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST, Lehrer, Mixed"
+               list="gruppe-suggestions-create" id="create-jahrgang-input">
+        <datalist id="gruppe-suggestions-create">
+            {% for gruppe in all_groups %}
+            <option value="{{ gruppe }}">
             {% endfor %}
-        </select>
+        </datalist>
 
         <label>Typ</label>
         <select name="competition_type" required>
@@ -57,21 +65,21 @@
             <option value="Sechskampf">Sechskampf</option>
         </select>
 
-        <label class="tournament-timing">Spielzeit in Minuten</label>
+        <label class="tournament-timing">Spielzeit (Min.)</label>
         <input class="tournament-timing" type="number" name="game_duration_minutes"
                value="{{ default_game_duration_minutes }}" min="1" required>
 
-        <label class="tournament-timing">Wechselzeit in Minuten</label>
+        <label class="tournament-timing">Wechselzeit (Min.)</label>
         <input class="tournament-timing" type="number" name="changeover_duration_minutes"
                value="{{ default_changeover_duration_minutes }}" min="0" required>
 
         <label class="sixkampf-points" hidden>Punkte für Platz 1</label>
         <input class="sixkampf-points" hidden type="number" name="points_first_place"
-               value="{{ team_counts_by_year.get(11, 7) }}" min="1" required>
+               value="7" min="1" required>
 
-         <label>Platzpunkte</label>
-         <input type="text" name="placement_points" value="7,6,5,4,3,2,1"
-             placeholder="z. B. 7,6,5,4,3,2,1">
+        <label>Platzpunkte</label>
+        <input type="text" name="placement_points" value="7,6,5,4,3,2,1"
+            placeholder="z. B. 7,6,5,4,3,2,1">
 
         <label>Veranstaltung</label>
         <select name="event_id">
@@ -98,33 +106,67 @@
         <label>Punkte Niederlage</label>
         <input type="number" step="0.5" name="points_loss" value="0" required>
 
-        <button class="green" type="submit">Wettbewerb anlegen</button>
+        {% if all_teams %}
+        <label style="align-self: start; padding-top: 6px;">Teams (optional)</label>
+        <div class="team-selector-panel">
+            <p class="team-selector-hint">Teams explizit auswählen — überschreibt die Gruppenfilterung. Leer lassen für automatische Auswahl per Gruppe.</p>
+            {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+            <div class="team-selector-gruppe">
+                <label class="team-selector-gruppe-label">
+                    <input type="checkbox" class="gruppe-all-create" data-gruppe="{{ gruppe_key }}">
+                    <strong>Gruppe {{ gruppe_key }}</strong>
+                    <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
+                </label>
+                <div class="team-selector-items">
+                    {% for team in gruppe_teams %}
+                    <label class="team-selector-item">
+                        <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-create" data-gruppe="{{ gruppe_key }}">
+                        {{ team.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <button class="primary" type="submit" style="grid-column: 2;">Wettbewerb anlegen</button>
     </form>
     </div>
 </details>
 
 <section class="cards competition-list">
 {% for c in competitions %}
-    <details id="competition-{{ c.id }}" class="competition-card-details {% if c.status == 'archiviert' %}archived-card{% endif %}" {% if saved_competition_id == c.id %}open{% endif %}>
+    <details id="competition-{{ c.id }}" class="competition-card-details type-{{ c.competition_type|lower }} {% if c.status == 'archiviert' %}archived-card{% endif %}" {% if saved_competition_id == c.id %}open{% endif %}>
         <summary class="competition-summary">
-            <div class="competition-summary-head">
-                <span class="badge {{ c.status }}">{{ c.status }}</span>
-                <span class="competition-toggle-indicator" aria-hidden="true">▾</span>
+            <div class="competition-summary-icon">
+                {{ ui.sport_icon(c.sportart, c.competition_type) }}
             </div>
-            <h2>{{ c.name }}</h2>
-            <div class="competition-summary-meta">
-                <span class="competition-meta-item"><strong>Sportart:</strong> {{ c.sportart }}</span>
-                <span class="competition-meta-item"><strong>Jahrgang:</strong> {{ c.jahrgang }}</span>
-                <span class="competition-meta-item"><strong>Typ:</strong> {{ c.competition_type }}</span>
+            <div class="competition-summary-content">
+                <p class="competition-event-name">
+                    {{ events_by_id[c.event_id].name if c.event_id and events_by_id.get(c.event_id) else 'Ohne Veranstaltung' }}
+                </p>
+                <div class="competition-summary-head">
+                    <div>
+                        <p class="competition-sport">{{ c.sportart }}</p>
+                        <h2>{{ c.name }}</h2>
+                    </div>
+                    {{ ui.status_badge(c.status) }}
+                </div>
+                <div class="competition-summary-meta">
+                    <span class="competition-meta-item">👥 Gruppe {{ c.jahrgang }}</span>
+                    {% if competition_explicit_team_ids.get(c.id) %}
+                    <span class="competition-meta-item explicit-teams-badge">{{ competition_explicit_team_ids[c.id]|length }} Teams explizit</span>
+                    {% endif %}
+                    <span class="competition-meta-item">🕒 {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
+                    <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
+                    <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
+                </div>
                 {% if c.competition_type == "Turnier" %}
-                <span class="competition-meta-item"><strong>Zeiten:</strong> {{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</span>
+                <p class="competition-detail-note">{{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</p>
                 {% endif %}
-                {% if c.location %}
-                <span class="competition-meta-item"><strong>Ort:</strong> {{ c.location }}</span>
-                {% endif %}
-                <span class="competition-meta-item"><strong>Veranstaltung:</strong> {{ events_by_id[c.event_id].name if c.event_id and events_by_id.get(c.event_id) else 'Ohne Veranstaltung' }}</span>
+                <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">▾</span></span>
             </div>
-            <span class="competition-summary-action">Details anzeigen</span>
         </summary>
 
         <div class="competition-details-body">
@@ -135,14 +177,14 @@
                 <label>Sportart</label>
                 <input type="text" name="sportart" value="{{ c.sportart }}" required>
 
-                <label>Jahrgang</label>
-                <select name="jahrgang" required>
-                    {% for year in team_years %}
-                    <option value="{{ year }}" {% if c.jahrgang == year %}selected{% endif %}>
-                        Jahrgang {{ year }}
-                    </option>
+                <label>Gruppe</label>
+                <input type="text" name="jahrgang" value="{{ c.jahrgang }}"
+                       list="gruppe-suggestions-edit" placeholder="z. B. 7, 8, GOST, Mixed">
+                <datalist id="gruppe-suggestions-edit">
+                    {% for gruppe in all_groups %}
+                    <option value="{{ gruppe }}">
                     {% endfor %}
-                </select>
+                </datalist>
 
                 <label>Typ</label>
                 <select name="competition_type" required>
@@ -150,12 +192,12 @@
                     <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
                 </select>
 
-                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Spielzeit in Minuten</label>
+                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Spielzeit (Min.)</label>
                 <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
                        type="number" name="game_duration_minutes"
                        value="{{ c.game_duration_minutes or default_game_duration_minutes }}" min="1" required>
 
-                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Wechselzeit in Minuten</label>
+                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Wechselzeit (Min.)</label>
                 <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
                        type="number" name="changeover_duration_minutes"
                        value="{{ c.changeover_duration_minutes if c.changeover_duration_minutes is not none else default_changeover_duration_minutes }}" min="0" required>
@@ -207,9 +249,37 @@
                 <label>Niederlage</label>
                 <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
 
-                <button class="green" type="submit">Speichern</button>
+                {% if all_teams %}
+                <label style="align-self: start; padding-top: 6px;">Teams</label>
+                {% set explicit_ids = competition_explicit_team_ids.get(c.id) or [] %}
+                <div class="team-selector-panel team-selector-compact">
+                    <p class="team-selector-hint">Explizit auswählen oder leer für Gruppenfilter.</p>
+                    {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+                    <div class="team-selector-gruppe">
+                        <label class="team-selector-gruppe-label">
+                            <input type="checkbox" class="gruppe-all-edit" data-form="competition-{{ c.id }}-edit" data-gruppe="{{ gruppe_key }}"
+                                   {% if gruppe_teams | selectattr('id', 'in', explicit_ids) | list | length == gruppe_teams | length and gruppe_teams | length > 0 %}checked{% endif %}>
+                            <strong>{{ gruppe_key }}</strong>
+                            <span class="muted" style="font-size:0.8rem;">({{ gruppe_teams | length }})</span>
+                        </label>
+                        <div class="team-selector-items">
+                            {% for team in gruppe_teams %}
+                            <label class="team-selector-item">
+                                <input type="checkbox" name="team_ids" value="{{ team.id }}"
+                                       class="team-check-edit" data-gruppe="{{ gruppe_key }}"
+                                       {% if team.id in explicit_ids %}checked{% endif %}>
+                                {{ team.name }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <button class="primary" type="submit" style="grid-column: 2;">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
-                <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+                <span class="save-feedback-inline" style="grid-column: 2;">✓ Gespeichert um {{ saved_at }}</span>
                 {% endif %}
             </form>
 
@@ -236,7 +306,7 @@
                     <form method="post" action="/discipline/{{ discipline.id }}/delete"
                         onsubmit="return confirm('Disziplin wirklich löschen?');"
                         class="discipline-delete-form">
-                        <button type="submit">Löschen</button>
+                        <button class="danger" type="submit">Löschen</button>
                     </form>
                 </div>
                 {% else %}
@@ -252,7 +322,7 @@
                         <option value="higher">Höher ist besser</option>
                         <option value="lower">Niedriger ist besser</option>
                     </select>
-                    <button class="green" type="submit">Hinzufügen</button>
+                    <button class="primary" type="submit">Hinzufügen</button>
                 </form>
             </div>
 
@@ -262,27 +332,27 @@
             <div class="competition-actions">
                 {% if c.status == "archiviert" %}
                     <form method="post" action="/competition/{{ c.id }}/restore">
-                        <button type="submit">Wiederherstellen</button>
+                        <button class="secondary" type="submit">Wiederherstellen</button>
                     </form>
                 {% else %}
                     <form method="post" action="/competition/{{ c.id }}/archive"
                         onsubmit="return confirm('Turnier archivieren? Es verschwindet dann aus Spielplan, Ergebnissen und Tabellen.');">
-                        <button type="submit">Archivieren</button>
+                        <button class="secondary" type="submit">Archivieren</button>
                     </form>
                 {% endif %}
 
                 <form method="post" action="/competition/{{ c.id }}/duplicate">
-                    <button type="submit">Duplizieren</button>
+                    <button class="secondary" type="submit">Duplizieren</button>
                 </form>
 
                 <form method="post" action="/competition/{{ c.id }}/reset"
                     onsubmit="return confirm('Wettbewerb wirklich zurücksetzen? Alle zugehörigen Slots und Ergebnisse werden gelöscht.');">
-                    <button type="submit">Zurücksetzen</button>
+                    <button class="danger" type="submit">Zurücksetzen</button>
                 </form>
 
                 <form method="post" action="/competition/{{ c.id }}/delete"
                     onsubmit="return confirm('Turnier wirklich endgültig löschen? Alle zugehörigen Spiele werden ebenfalls gelöscht.');">
-                    <button type="submit">Löschen</button>
+                    <button class="danger" type="submit">Löschen</button>
                 </form>
             </div>
         </div>
@@ -291,6 +361,7 @@
     <p class="muted">Noch keine Wettbewerbe vorhanden.</p>
 {% endfor %}
 </section>
+
 <script>
 const teamCountsByYear = {{ team_counts_by_year|tojson }};
 
@@ -311,15 +382,38 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
     toggleTypeFields();
 });
 
+// Create form: group-all toggles
+document.querySelectorAll('.gruppe-all-create').forEach(function(groupCb) {
+    groupCb.addEventListener('change', function() {
+        const gruppe = this.dataset.gruppe;
+        this.closest('.team-selector-gruppe').querySelectorAll('.team-check-create[data-gruppe="' + gruppe + '"]').forEach(function(cb) {
+            cb.checked = groupCb.checked;
+        });
+    });
+});
+
+// Edit forms: group-all toggles
+document.querySelectorAll('.gruppe-all-edit').forEach(function(groupCb) {
+    groupCb.addEventListener('change', function() {
+        const gruppe = this.dataset.gruppe;
+        this.closest('.team-selector-gruppe').querySelectorAll('.team-check-edit[data-gruppe="' + gruppe + '"]').forEach(function(cb) {
+            cb.checked = groupCb.checked;
+        });
+    });
+});
+
 const createForm = document.querySelector('form[action="/competition/create"]');
 if (createForm) {
-    const yearInput = createForm.querySelector('[name="jahrgang"]');
+    const jahrgangInput = createForm.querySelector('[name="jahrgang"]');
     const pointsInput = createForm.querySelector('[name="points_first_place"]');
-    yearInput.addEventListener("change", () => {
-        pointsInput.value = teamCountsByYear[yearInput.value] || 7;
-    });
+    if (jahrgangInput && pointsInput) {
+        jahrgangInput.addEventListener("change", () => {
+            const val = jahrgangInput.value.trim();
+            if (val && teamCountsByYear[val]) {
+                pointsInput.value = teamCountsByYear[val];
+            }
+        });
+    }
 }
-
 </script>
 {% endblock %}
-

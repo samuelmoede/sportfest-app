@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>{{ competition.name }} – Sechskampf</h1>
-<p class="muted">Teilnehmer werden klassenweise ohne Personennamen verwaltet.</p>
-<p><a href="/wettbewerbe">← Wettbewerbe und Disziplinen verwalten</a></p>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Sechskampf · Jahrgang {{ competition.jahrgang }}</p>
+        <h1>{{ competition.name }}</h1>
+        <p>Teilnehmer werden klassenweise ohne Personennamen verwaltet.</p>
+    </div>
+    <a class="button secondary" href="/wettbewerbe">Wettbewerbe verwalten</a>
+</header>
 
 <section class="panel">
     <h2>Teilnehmer erzeugen</h2>
@@ -10,12 +15,12 @@
         <form method="post" action="/competition/{{ competition.id }}/participants/generate" class="compact-form">
             <input type="text" name="class_name" placeholder="Klasse, z. B. 7a" required>
             <input type="number" name="participant_count" min="1" placeholder="Anzahl" required>
-            <button class="green" type="submit">Klasse automatisch erzeugen</button>
+            <button class="primary" type="submit">Klasse automatisch erzeugen</button>
         </form>
         <form method="post" action="/competition/{{ competition.id }}/participants/create" class="compact-form">
             <input type="text" name="class_name" placeholder="Klasse" required>
             <input type="number" name="participant_number" min="1" placeholder="Schüler-Nr." required>
-            <button type="submit">Teilnehmer ergänzen</button>
+            <button class="secondary" type="submit">Teilnehmer ergänzen</button>
         </form>
     </div>
     <p class="muted">{{ participant_count }} Teilnehmer insgesamt. Erneutes Erzeugen ergänzt nur fehlende Nummern.</p>
@@ -56,7 +61,7 @@
                 </form>
                 <form method="post" action="/participants/{{ participant.id }}/delete"
                       onsubmit="return confirm('Teilnehmer und Ergebnisse löschen?');">
-                    <button type="submit">Löschen</button>
+                    <button class="danger" type="submit">Löschen</button>
                 </form>
             </td>
         </tr>

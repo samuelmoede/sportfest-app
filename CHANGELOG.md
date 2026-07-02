@@ -4,6 +4,16 @@ Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unreleased]
 
+- CSS-Struktur refaktoriert: `app/static/style.css` ist jetzt eine reine Import-Datei; die unveraenderten Regeln liegen in thematischen Dateien unter `app/static/css/`. Kaskadenreihenfolge, Klassen und Darstellung bleiben erhalten.
+- Phase 8 appweit umgesetzt: Navigation, Typografie, Abstaende, Karten, Statusfarben, Formulare, Buttons und Tabellen verwenden jetzt ein gemeinsames responsives Designsystem.
+- Dashboard neu gegliedert: aktive Veranstaltung, Kennzahlen, laufende Wettbewerbe, naechste Begegnungen, Tagesplan, Gesamtwertung, weitere Termine und Hinweise besitzen eine klare visuelle Hierarchie.
+- Veranstaltungs- und Wettbewerbskarten vereinheitlicht: Veranstaltung beziehungsweise Wettbewerb, Sportart, Jahrgang/Gruppe, Uhrzeit, Ort, Typ und Status sind in fester Reihenfolge schnell erfassbar; Turnier und Sechskampf erhalten eine blaue beziehungsweise violette Orientierung.
+- Bedienung geschaerft: aktive Navigation wird markiert, Primaer-, Sekundaer- und Gefahr-Aktionen sind konsistent, grosse Formulare werden gruppiert und Tabellen besitzen ruhigere Kopfzeilen, mehr Zeilenabstand und dezente Hover-Zustaende.
+- Die UI-Modernisierung aendert keine Datenbankstruktur, API, Datenmodelle oder Turnier-, Spielplan-, Sechskampf-, Tabellen- und Gesamtwertungsberechnung.
+- Phase 8 gestartet: Dashboard und Beamer besitzen jetzt getrennte moderne Testansichten mit groesseren Uhrzeiten, kompakteren Karten, responsivem Dashboard und einheitlichen Statusfarben fuer geplant, laeuft, gleich und erledigt.
+- UI-Ruecksprung abgesichert: Ohne `ui_theme`-Parameter bleiben die bisherigen Classic-Templates und `style.css` aktiv; `?ui_theme=modern` laedt ausschliesslich die neuen Templates und `app/static/theme-modern.css`. Datenbank und Fachlogik bleiben unveraendert.
+- Tagesplan-Orientierung verbessert: Eine rote, als eigene Zeile platzierte Jetzt-Markierung steht vor dem laufenden beziehungsweise naechsten Zeitblock; kompakte Dashboard-Karten zeigen Zeit, Wettbewerb, Sportart, Jahrgang/Gruppe, Ort und farbigen Status.
+- Beameransichten erweitert: Laufende und naechste Spiele zeigen Wettbewerb, Sportart, Jahrgang/Gruppe sowie Ort/Spielfeld; parallele Folgeslots werden kompakt nach Spielfeld dargestellt. Die Aufbereitung liegt als reine View-Logik in `app/services/ui_view_service.py`.
 - Dashboard: Bereich "Naechste Spiele" durch ein in den Einstellungen pflegbares Infofeld mit Zeilenumbruechen und sicherer Bold-HTML-Unterstuetzung ersetzt.
 - Veranstaltungen: Statuslogik auf geplant/aktiv/archiviert erweitert, genau eine aktive Veranstaltung erzwungen und Dashboard, Tagesplan sowie Standardfilter auf aktive bzw. naechste nicht archivierte Veranstaltung ausgerichtet.
 - Ergebniseingabe: Neuer Veranstaltungsfilter mit heutiger bzw. nächster Veranstaltung als Standard; Wettbewerbe werden je Veranstaltung nach Jahrgang und Name sortiert.
