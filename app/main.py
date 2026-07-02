@@ -1,3 +1,4 @@
+from collections import Counter
 import csv
 from datetime import date, datetime
 import io
@@ -6,6 +7,7 @@ from math import isfinite
 import os
 import re
 import secrets
+import time
 from typing import Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
@@ -1139,8 +1141,8 @@ def calculate_event_overall_ranking(event_id: int):
                 "jahrgang": team["jahrgang"],
                 "points_by_competition": {},
                 "total_points": 0.0,
-                "first_places": 0,
-                "second_places": 0,
+                "placements": [],
+                "tournament_score_diff": 0,
             })
             record["points_by_competition"].setdefault(
                 competition["id"],
@@ -1185,14 +1187,11 @@ def calculate_event_overall_ranking(event_id: int):
                     "jahrgang": row["team"]["jahrgang"],
                     "points_by_competition": {},
                     "total_points": 0.0,
-                    "first_places": 0,
-                    "second_places": 0,
+                    "placements": [],
+                    "tournament_score_diff": 0,
                 })
                 record["points_by_competition"][competition_id] = row["scoring_points"]
-                if row["placement"] == 1:
-                    record["first_places"] += 1
-                elif row["placement"] == 2:
-                    record["second_places"] += 1
+                record["placements"].append(row["placement"])
         else:
             rows = calculate_tournament_points(competition)
             for row in rows:
@@ -1203,14 +1202,12 @@ def calculate_event_overall_ranking(event_id: int):
                     "jahrgang": competition["jahrgang"],
                     "points_by_competition": {},
                     "total_points": 0.0,
-                    "first_places": 0,
-                    "second_places": 0,
+                    "placements": [],
+                    "tournament_score_diff": 0,
                 })
                 record["points_by_competition"][competition_id] = row.get("competition_points", 0)
-                if row["placement"] == 1:
-                    record["first_places"] += 1
-                elif row["placement"] == 2:
-                    record["second_places"] += 1
+                record["tournament_score_diff"] += row.get("diff", 0)
+                record["placements"].append(row["placement"])
 
     for record in overall.values():
         record["total_points"] = sum(
@@ -1219,6 +1216,14 @@ def calculate_event_overall_ranking(event_id: int):
             if isinstance(value, (int, float))
         )
         record["total_points_display"] = format_points_value(record["total_points"])
+        record["placement_counts"] = Counter(record["placements"])
+        record["placement_bilanz_display"] = (
+            ", ".join(str(place) for place in sorted(record["placements"]))
+            if record["placements"] else "–"
+        )
+        record["tournament_score_diff_display"] = (
+            f"{record['tournament_score_diff']:+d}"
+        )
         record["points_by_competition_display"] = {
             competition_id: format_points_value(value)
             for competition_id, value in record["points_by_competition"].items()
@@ -1245,10 +1250,22 @@ def calculate_event_overall_ranking(event_id: int):
         if not rows:
             continue
 
+        # Platzierungsbilanz: Anzahl 1. Plaetze vergleichen, bei Gleichstand
+        # Anzahl 2. Plaetze usw. Erst wenn auch das komplett gleich ist,
+        # entscheidet die aufsummierte Tor-/Punktedifferenz.
+        max_place = max(
+            (max(row["placements"], default=0) for row in rows),
+            default=0,
+        )
+
+        def placement_bilanz_key(row):
+            counts = row["placement_counts"]
+            return tuple(-counts.get(place, 0) for place in range(1, max_place + 1))
+
         rows.sort(key=lambda row: (
             -row["total_points"],
-            -row["first_places"],
-            -row["second_places"],
+            placement_bilanz_key(row),
+            -row["tournament_score_diff"],
             row["team"].lower(),
         ))
 
@@ -1257,8 +1274,8 @@ def calculate_event_overall_ranking(event_id: int):
         for index, row in enumerate(rows, start=1):
             rank_key = (
                 row["total_points"],
-                row["first_places"],
-                row["second_places"],
+                placement_bilanz_key(row),
+                row["tournament_score_diff"],
             )
             if previous_rank_key is None or rank_key != previous_rank_key:
                 place = index
@@ -1422,6 +1439,51 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
     )
 
 
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_ATTEMPT_WINDOW_SECONDS = 600
+LOGIN_LOCKOUT_SECONDS = 300
+
+# Prozess-lokaler Speicher reicht hier: die App laeuft als Einzelprozess
+# (siehe README/Dockerfile), ein Neustart loescht die Sperren mit.
+_login_failures: dict[str, list[float]] = {}
+_login_lockouts: dict[str, float] = {}
+
+
+def _login_client_key(request: Request) -> str:
+    # Hinter dem Cloudflare-Tunnel ist request.client.host die Tunnel-IP;
+    # CF-Connecting-IP traegt die tatsaechliche Besucher-IP.
+    forwarded = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _login_lockout_remaining(key: str) -> Optional[float]:
+    locked_until = _login_lockouts.get(key)
+    if locked_until is None:
+        return None
+    remaining = locked_until - time.monotonic()
+    if remaining <= 0:
+        _login_lockouts.pop(key, None)
+        return None
+    return remaining
+
+
+def _register_login_failure(key: str) -> None:
+    now = time.monotonic()
+    attempts = [t for t in _login_failures.get(key, []) if now - t < LOGIN_ATTEMPT_WINDOW_SECONDS]
+    attempts.append(now)
+    if len(attempts) >= LOGIN_ATTEMPT_LIMIT:
+        _login_lockouts[key] = now + LOGIN_LOCKOUT_SECONDS
+        attempts = []
+    _login_failures[key] = attempts
+
+
+def _register_login_success(key: str) -> None:
+    _login_failures.pop(key, None)
+    _login_lockouts.pop(key, None)
+
+
 @app.post("/login")
 def login(
     request: Request,
@@ -1429,16 +1491,43 @@ def login(
     next: str = Form("/"),
     target_role: str = Form("admin"),
 ):
+    client_key = _login_client_key(request)
+    lockout_remaining = _login_lockout_remaining(client_key)
+    if lockout_remaining is not None:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "next_url": safe_next_url(next),
+                "admin_login_prepared": is_login_prepared(),
+                "helper_login_prepared": bool(get_referee_password()),
+                "security_enabled": is_security_enabled(),
+                "logged_in": is_logged_in(request),
+                "current_role": get_current_role(request),
+                "current_role_label": get_current_role_label(request),
+                "logged_out": False,
+                "login_error": (
+                    "Zu viele Fehlversuche. Bitte in "
+                    f"{max(1, int(lockout_remaining // 60) + 1)} Minute(n) erneut versuchen."
+                ),
+            },
+            status_code=429,
+        )
+
     role_passwords = {
         "referee": get_referee_password(),
         "admin": get_admin_password(),
     }
     configured_password = role_passwords.get(target_role, "")
     if configured_password and secrets.compare_digest(password, configured_password):
+        _register_login_success(client_key)
         request.session.clear()
         request.session["admin_logged_in"] = target_role == "admin"
         request.session["role"] = target_role
         return RedirectResponse(safe_next_url(next), status_code=303)
+
+    if configured_password:
+        _register_login_failure(client_key)
 
     role_label = ROLE_LABELS.get(target_role, "ausgewählte")
     return templates.TemplateResponse(

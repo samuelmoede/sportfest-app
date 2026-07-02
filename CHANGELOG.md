@@ -2,7 +2,7 @@
 
 Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
 
-## [Unreleased]
+## [1.0] - 2026-07-02
 
 - CSS-Struktur refaktoriert: `app/static/style.css` ist jetzt eine reine Import-Datei; die unveraenderten Regeln liegen in thematischen Dateien unter `app/static/css/`. Kaskadenreihenfolge, Klassen und Darstellung bleiben erhalten.
 - Phase 8 appweit umgesetzt: Navigation, Typografie, Abstaende, Karten, Statusfarben, Formulare, Buttons und Tabellen verwenden jetzt ein gemeinsames responsives Designsystem.

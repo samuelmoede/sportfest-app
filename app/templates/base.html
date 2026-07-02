@@ -118,7 +118,7 @@
                 <strong>Sportfest</strong>
                 <span>Manager</span>
             </div>
-            <button type="button" class="sidebar-toggle" aria-label="Seitenleiste umschalten" aria-expanded="true">◀</button>
+            <button type="button" class="sidebar-toggle" aria-label="Seitenleiste umschalten" aria-expanded="true">☰</button>
         </div>
 
         <nav>
@@ -186,8 +186,8 @@
                 <span class="beamer-text">Beamer-Ansicht öffnen</span>
             </a>
             <div class="access-strip" aria-label="Zugriff">
-                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
-                    <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
+                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+                    <span class="role-badge-prefix">Rolle:</span> <span class="role-badge-label">{{ access_role_label }}</span>
                 </span>
                 {% if access_logged_in %}
                 <a class="access-action" href="/logout" aria-label="Abmelden">
@@ -262,7 +262,6 @@
         const enabled = Boolean(collapsed) && isDesktopSidebar();
         body.classList.toggle("sidebar-collapsed", enabled);
         toggle.setAttribute("aria-expanded", enabled ? "false" : "true");
-        toggle.textContent = enabled ? "▶" : "◀";
     };
 
     let savedCollapsed = false;
@@ -428,6 +427,34 @@
                 highlightedSubmitter.classList.remove("submit-restore-highlight");
             }, 1800);
         }
+    });
+})();
+
+(() => {
+    const eyeOpenIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const eyeOffIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.36 18.36 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a18.36 18.36 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+    document.querySelectorAll('input[type="password"]').forEach((input) => {
+        const wrap = document.createElement("div");
+        wrap.className = "password-field-wrap";
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "password-toggle";
+        toggle.setAttribute("aria-label", "Passwort anzeigen");
+        toggle.setAttribute("aria-pressed", "false");
+        toggle.innerHTML = eyeOffIcon;
+        wrap.appendChild(toggle);
+
+        toggle.addEventListener("click", () => {
+            const isHidden = input.type === "password";
+            input.type = isHidden ? "text" : "password";
+            toggle.setAttribute("aria-pressed", isHidden ? "true" : "false");
+            toggle.setAttribute("aria-label", isHidden ? "Passwort verbergen" : "Passwort anzeigen");
+            toggle.innerHTML = isHidden ? eyeOpenIcon : eyeOffIcon;
+        });
     });
 })();
 </script>

@@ -24,6 +24,7 @@
         justify-content: center;
     }
 
+    body.sidebar-collapsed .logo,
     body.sidebar-collapsed .brand-text,
     body.sidebar-collapsed .nav-text,
     body.sidebar-collapsed .sidebar .nav-group,
@@ -51,10 +52,18 @@
         gap: 6px;
     }
 
-    body.sidebar-collapsed .role-badge {
-        max-width: 56px;
-        padding-inline: 6px;
-        font-size: 0.68rem;
+    body.sidebar-collapsed .sidebar-footer .role-badge {
+        width: 14px;
+        height: 14px;
+        min-height: 0;
+        padding: 0;
+        border-radius: 50%;
+        overflow: hidden;
+    }
+
+    body.sidebar-collapsed .sidebar-footer .role-badge-prefix,
+    body.sidebar-collapsed .sidebar-footer .role-badge-label {
+        display: none;
     }
 
     body.sidebar-collapsed .access-action {

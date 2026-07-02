@@ -199,6 +199,10 @@ body {
     .panel td {
         white-space: nowrap;
     }
+    .result-form-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
     .result-form {
         flex-direction: column;
         align-items: stretch;

@@ -109,6 +109,18 @@
     margin-top: 12px;
 }
 
+.backup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.backup-actions .inline-form {
+    align-items: center;
+    gap: 8px;
+}
+
 .admin-form {
     display: grid;
     grid-template-columns: 180px 1fr;

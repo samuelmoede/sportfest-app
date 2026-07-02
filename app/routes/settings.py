@@ -4,7 +4,11 @@ import secrets
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
-from app.services.backup_service import create_database_backup
+from app.services.backup_service import (
+    create_database_backup,
+    delete_backup_file,
+    restore_database_backup,
+)
 from app.services.settings_service import (
     ROLE_DESCRIPTIONS,
     ROLE_LABELS,
@@ -42,6 +46,8 @@ def einstellungen(
     settings_status: str = "",
     security_status: str = "",
     reset_status: str = "",
+    restore_status: str = "",
+    delete_status: str = "",
     saved_at: str = "",
 ):
     try:
@@ -57,6 +63,8 @@ def einstellungen(
         "settings_status": settings_status,
         "security_status": security_status,
         "reset_status": reset_status,
+        "restore_status": restore_status,
+        "delete_status": delete_status,
         "saved_at": saved_at_value,
         "security_enabled": is_security_enabled(),
         "security_requested": get_security_enabled_setting(),
@@ -153,6 +161,37 @@ def create_backup():
 
     return RedirectResponse(
         f"/einstellungen?backup_status=ok&backup_file={backup_name}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/backup/restore")
+def restore_backup(
+    backup_file: str = Form(...),
+    admin_password: str = Form(...),
+):
+    configured_password = get_admin_password()
+    if not configured_password or not secrets.compare_digest(
+        admin_password,
+        configured_password,
+    ):
+        return RedirectResponse(
+            "/einstellungen?restore_status=invalid_password",
+            status_code=303,
+        )
+
+    restore_status = restore_database_backup(backup_file)
+    return RedirectResponse(
+        f"/einstellungen?restore_status={restore_status}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/backup/delete")
+def delete_backup(backup_file: str = Form(...)):
+    delete_status = delete_backup_file(backup_file)
+    return RedirectResponse(
+        f"/einstellungen?delete_status={delete_status}",
         status_code=303,
     )
 

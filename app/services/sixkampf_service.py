@@ -32,12 +32,15 @@ def _assign_placements(rows, *, value_key: str, descending: bool):
         _team_name(row["team"]),
     ))
 
+    # Dichte Platzvergabe (1, 1, 2, 3, ...) statt Skip-Konvention (1, 1, 3, 4, ...),
+    # damit die Platzierung zur Punktevergabe in assign_points_by_placement_groups passt,
+    # die ebenfalls je Ergebnis-Gruppe (nicht je Zeilenindex) zaehlt.
     previous_value = None
     placement = 0
-    for index, row in enumerate(rows, start=1):
+    for row in rows:
         value = row[value_key]
         if previous_value is None or value != previous_value:
-            placement = index
+            placement += 1
             previous_value = value
         row["placement"] = placement
 

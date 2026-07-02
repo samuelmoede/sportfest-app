@@ -56,31 +56,11 @@
             {% endif %}
         </div>
         <div class="settings-item">
-            <strong>Admin-Login vorbereitet:</strong>
-            {% if login_prepared %}
-                <span class="status-pill ok">Ja</span>
-            {% else %}
-                <span class="status-pill">Nein</span>
-            {% endif %}
-        </div>
-        <div class="settings-item">
-            <strong>Schiedsrichter-Login vorbereitet:</strong>
-            {% if helper_login_prepared %}
-                <span class="status-pill ok">Ja</span>
-            {% else %}
-                <span class="status-pill">Nein</span>
-            {% endif %}
-        </div>
-        <div class="settings-item">
             <strong>Aktuelle Rolle:</strong>
             <span class="role-badge role-{{ current_role }}" title="{{ current_role_description }}">
                 <span class="role-badge-prefix">Rolle:</span> {{ current_role_label }}
             </span>
             <small class="role-description">{{ current_role_description }}</small>
-        </div>
-        <div class="settings-item">
-            <strong>Rollenmodell vorbereitet:</strong>
-            <span class="status-pill ok">Ja</span>
         </div>
     </div>
     <div class="role-overview" aria-label="Vorbereitete Rollen">
@@ -233,8 +213,7 @@
 
 <section class="panel">
     <h2>Backups</h2>
-    <p>Erstellt eine Kopie der aktuellen SQLite-Datenbank im Ordner <strong>backups/</strong>.</p>
-    <p class="error-text">Wiederherstellung ist noch nicht über die Oberfläche möglich.</p>
+    <p>Erstellt eine vollst&auml;ndige Kopie der Datenbank (alle Veranstaltungen, Wettbewerbe, Teams, Spielpl&auml;ne und Ergebnisse) im Ordner <strong>data/backups/</strong>.</p>
 
     <div class="settings-grid backup-summary-grid">
         <div class="settings-item">
@@ -258,6 +237,26 @@
         <p class="error-text">Backup konnte nicht erstellt werden.</p>
     {% endif %}
 
+    {% if restore_status == "ok" %}
+        <p class="success-text">Backup erfolgreich wiederhergestellt. Der vorherige Stand wurde zuvor automatisch gesichert.</p>
+    {% elif restore_status == "invalid_password" %}
+        <p class="error-text">Admin-Kennwort war nicht korrekt, Backup wurde nicht wiederhergestellt.</p>
+    {% elif restore_status == "not_found" or restore_status == "invalid" %}
+        <p class="error-text">Backup-Datei wurde nicht gefunden.</p>
+    {% elif restore_status == "invalid_db" %}
+        <p class="error-text">Diese Datei ist keine gültige Sportfest-Datenbank und wurde nicht eingespielt.</p>
+    {% elif restore_status == "error" %}
+        <p class="error-text">Backup konnte nicht wiederhergestellt werden.</p>
+    {% endif %}
+
+    {% if delete_status == "ok" %}
+        <p class="success-text">Backup gelöscht.</p>
+    {% elif delete_status == "not_found" or delete_status == "invalid" %}
+        <p class="error-text">Backup-Datei wurde nicht gefunden.</p>
+    {% elif delete_status == "error" %}
+        <p class="error-text">Backup konnte nicht gelöscht werden.</p>
+    {% endif %}
+
     <h3>Vorhandene Backups</h3>
     {% if backups %}
         <table class="backup-table">
@@ -266,6 +265,7 @@
                     <th>Dateiname</th>
                     <th>Größe</th>
                     <th>Erstellungszeitpunkt</th>
+                    <th>Aktion</th>
                 </tr>
             </thead>
             <tbody>
@@ -274,6 +274,19 @@
                     <td>{{ backup.name }}</td>
                     <td>{{ backup.size_display }}</td>
                     <td>{{ backup.created_at_display }}</td>
+                    <td class="backup-actions">
+                        <form method="post" action="/einstellungen/backup/restore" class="inline-form restore-form"
+                              onsubmit="return confirm('Backup {{ backup.name }} wirklich einspielen? Der aktuelle Datenbankstand wird dabei komplett ersetzt (vorher wird automatisch ein Sicherungs-Backup angelegt).');">
+                            <input type="hidden" name="backup_file" value="{{ backup.name }}">
+                            <input type="password" name="admin_password" placeholder="Admin-Kennwort" autocomplete="current-password" required>
+                            <button class="danger" type="submit">Wiederherstellen</button>
+                        </form>
+                        <form method="post" action="/einstellungen/backup/delete" class="inline-form"
+                              onsubmit="return confirm('Backup {{ backup.name }} wirklich unwiderruflich löschen?');">
+                            <input type="hidden" name="backup_file" value="{{ backup.name }}">
+                            <button class="secondary" type="submit">Löschen</button>
+                        </form>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -289,10 +302,4 @@
     <code>{{ request.base_url }}beamer</code>
 </section>
 
-<section class="panel">
-    <h2>CSV-Import Format</h2>
-    <pre>startzeit;slotTyp;wettbewerb;spielfeld;teamA;teamB;phase;gruppe;notiz
-09:00;Spiel;Zweifelderball Jahrgang 7;Feld 1;7a;7b;Gruppenphase;A;
-10:00;Pause;Zweifelderball Jahrgang 7;;;;Pause;;Frühstückspause</pre>
-</section>
 {% endblock %}

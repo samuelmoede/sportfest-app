@@ -11,10 +11,16 @@ def get_conn():
     return conn
 
 
-def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+def init_db(db_path=None):
+    """Legt/aktualisiert das Schema. Optionaler db_path erlaubt es, die
+    Migration auch auf eine andere Datei anzuwenden (z.B. ein wiederherzu-
+    stellendes Backup mit veraltetem Schema) statt der aktiven Datenbank."""
+    target_path = Path(db_path) if db_path is not None else DB_PATH
+    target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with get_conn() as conn:
+    conn = sqlite3.connect(target_path)
+    conn.row_factory = sqlite3.Row
+    with conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS teams (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -375,4 +381,5 @@ def init_db():
         """)
 
         conn.commit()
+    conn.close()
 
