@@ -416,7 +416,10 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         </form>
         <div class="result-actions">
             {% if s.status == "geplant" %}
-            <form method="post" action="/slot/{{ s.id }}/start"><button class="outline">Starten</button></form>
+            <form method="post" action="/slot/{{ s.id }}/start"
+                  data-start-slot data-planned-duration="{{ s.planned_duration_seconds or '' }}">
+                <button class="outline" type="submit">Starten</button>
+            </form>
             {% endif %}
             {% if s.status == "läuft" %}
             <form method="post" action="/slot/{{ s.id }}/unstart"
@@ -551,8 +554,19 @@ function updateResultTimers() {
 updateResultTimers();
 setInterval(updateResultTimers, 1000);
 
-document.querySelectorAll('form[action$="/start"]').forEach(form => {
-    form.addEventListener('submit', () => {
+document.querySelectorAll('[data-start-slot]').forEach(form => {
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        const card = form.closest('.result-card');
+        const meta = card?.querySelector('.result-meta');
+        const badge = meta?.querySelector('.badge');
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+
+        if (!button || !card || !meta || !badge) return;
+
         let startedInput = form.querySelector('input[name="started_at"]');
         if (!startedInput) {
             startedInput = document.createElement('input');
@@ -561,6 +575,60 @@ document.querySelectorAll('form[action$="/start"]').forEach(form => {
             form.appendChild(startedInput);
         }
         startedInput.value = formatLocalTimestamp(new Date());
+
+        button.disabled = true;
+        button.textContent = 'Wird gestartet…';
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Start fehlgeschlagen (${response.status})`);
+            }
+
+            let timer = meta.querySelector('.slot-duration');
+            if (!timer) {
+                timer = document.createElement('span');
+                timer.className = 'slot-duration';
+                badge.before(timer);
+            }
+            timer.dataset.startedAt = startedInput.value;
+            timer.dataset.plannedDuration = form.dataset.plannedDuration || '';
+            timer.textContent = '00m 00s';
+
+            badge.classList.remove('geplant');
+            badge.classList.add('läuft');
+            badge.textContent = 'läuft';
+
+            const unstartForm = document.createElement('form');
+            unstartForm.method = 'post';
+            unstartForm.action = form.action.replace(/\/start$/, '/unstart');
+            unstartForm.addEventListener('submit', unstartEvent => {
+                if (!window.confirm(
+                    'Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten, der Timer wird jedoch zurückgesetzt.'
+                )) {
+                    unstartEvent.preventDefault();
+                }
+            });
+
+            const unstartButton = document.createElement('button');
+            unstartButton.className = 'outline';
+            unstartButton.type = 'submit';
+            unstartButton.textContent = 'Start rückgängig';
+            unstartForm.appendChild(unstartButton);
+            form.replaceWith(unstartForm);
+
+            updateResultTimers();
+            requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Starten';
+            window.alert('Das Spiel konnte nicht gestartet werden. Bitte erneut versuchen.');
+            console.error(error);
+        }
     });
 });
 </script>
