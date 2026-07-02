@@ -166,6 +166,17 @@ def app_now_db_timestamp():
     return app_now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def slot_starts_soon(startzeit, now, threshold_minutes=7):
+    """True if startzeit (HH:MM) lies within the next threshold_minutes from now."""
+    try:
+        hour, minute = (int(part) for part in startzeit.split(":")[:2])
+    except (AttributeError, ValueError):
+        return False
+    slot_minutes = hour * 60 + minute
+    now_minutes = now.hour * 60 + now.minute
+    return 0 <= (slot_minutes - now_minutes) <= threshold_minutes
+
+
 
 
 templates.env.globals["get_current_role"] = get_current_role
@@ -744,7 +755,8 @@ def fetch_dashboard_data():
             ORDER BY slots.startzeit, slots.court_id
         """).fetchall()
 
-        upcoming = conn.execute("""
+        now = app_now()
+        upcoming = [dict(row) for row in conn.execute("""
             SELECT slots.*, c.name AS competition_name, co.name AS court_name,
                    ta.name AS team_a, tb.name AS team_b
             FROM slots
@@ -756,7 +768,9 @@ def fetch_dashboard_data():
               AND c.status != 'archiviert'
             ORDER BY slots.startzeit, slots.court_id
             LIMIT 8
-        """).fetchall()
+        """).fetchall()]
+        for slot in upcoming:
+            slot["is_soon"] = slot_starts_soon(slot.get("startzeit"), now)
 
         ended_count = conn.execute("""
             SELECT COUNT(*) AS n
@@ -766,7 +780,7 @@ def fetch_dashboard_data():
               AND c.status != 'archiviert'
         """).fetchone()["n"]
 
-        today = app_now().date()
+        today = now.date()
         next_event = get_dashboard_event(conn, today)
         additional_upcoming_events = get_upcoming_events(
             conn,

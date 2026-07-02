@@ -148,8 +148,8 @@
                         </strong>
                         <p>{{ s.competition_name }} · {{ s.court_name or "Ohne Feld" }}</p>
                     </div>
-                    <span class="modern-status {% if loop.first %}is-soon{% else %}is-planned{% endif %}">
-                        {{ "gleich" if loop.first else "geplant" }}
+                    <span class="modern-status {% if s.is_soon %}is-soon{% else %}is-planned{% endif %}">
+                        {{ "gleich" if s.is_soon else "geplant" }}
                     </span>
                 </article>
                 {% else %}

@@ -123,7 +123,7 @@
                             · 📍 {{ s.court_name or "Ohne Feld" }}
                         </small>
                     </div>
-                    {{ ui.status_badge("gleich" if loop.first else "geplant") }}
+                    {{ ui.status_badge("gleich" if s.is_soon else "geplant") }}
                 </article>
                 {% else %}
                 <div class="empty-state compact">
