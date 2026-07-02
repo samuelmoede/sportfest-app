@@ -17,10 +17,15 @@ def get_app_version():
 
 
 def get_style_version():
-    style_path = APP_DIR / "static" / "style.css"
+    style_dir = APP_DIR / "static"
+    style_files = [
+        style_dir / "style.css",
+        style_dir / "theme-modern.css",
+        *sorted((style_dir / "css").glob("*.css")),
+    ]
     try:
-        return str(int(style_path.stat().st_mtime))
-    except FileNotFoundError:
+        return str(int(max(f.stat().st_mtime for f in style_files if f.exists())))
+    except ValueError:
         return get_app_version()
 
 

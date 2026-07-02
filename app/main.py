@@ -62,7 +62,7 @@ from app.services.settings_service import (
     is_login_prepared,
     is_security_enabled,
 )
-from app.web import APP_DIR, templates
+from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
     format_points_value,
     format_score,
@@ -152,6 +152,21 @@ app.add_middleware(
 )
 
 APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
+
+STYLE_IMPORT_RE = re.compile(r'url\("(css/[^"]+\.css)"\)')
+
+
+# Muss vor dem /static-Mount registriert werden, sonst faengt der Mount die
+# Anfrage zuerst ab. Versioniert jeden @import einzeln, damit z.B. der
+# Cloudflare-Tunnel nach CSS-Aenderungen nicht einzelne Teildateien veraltet
+# aus dem Edge-Cache ausliefert.
+@app.get("/static/style.css")
+def style_css():
+    version = get_style_version()
+    content = (APP_DIR / "static" / "style.css").read_text(encoding="utf-8")
+    versioned = STYLE_IMPORT_RE.sub(lambda m: f'url("{m.group(1)}?v={version}")', content)
+    return Response(content=versioned, media_type="text/css")
+
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 def app_now():

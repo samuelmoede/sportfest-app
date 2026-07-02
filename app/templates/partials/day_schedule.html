@@ -26,10 +26,9 @@
 
             <div class="day-schedule-card-grid">
                 {% for item in row["items"]|default([]) %}
-                <article class="day-schedule-card">
+                <a class="day-schedule-card" href="/spielplan?competition_id={{ item.competition_id }}">
                     <div class="day-schedule-card-head">
                         <strong>{{ item.name }}</strong>
-                        <span class="day-status status-{{ item.status_key }}">{{ item.status_label }}</span>
                     </div>
                     <div class="day-schedule-card-meta">
                         {% if item.sportart %}
@@ -40,16 +39,13 @@
                         {% endif %}
                     </div>
                     <time>{{ item.display_time }}</time>
-                </article>
+                </a>
                 {% else %}
                     {% for column in schedule.columns %}
                         {% for item in row.cells[column] %}
                         <article class="day-schedule-card">
                             <div class="day-schedule-card-head">
                                 <strong>{{ item }}</strong>
-                                <span class="day-status status-{{ row.status_key|default('planned') }}">
-                                    {{ row.status_label|default("geplant") }}
-                                </span>
                             </div>
                             <div class="day-schedule-card-meta">
                                 <span>{{ column }}</span>

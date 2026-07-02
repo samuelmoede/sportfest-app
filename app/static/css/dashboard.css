@@ -287,6 +287,19 @@
     background: white;
 }
 
+a.day-schedule-card {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+a.day-schedule-card:hover,
+a.day-schedule-card:focus-visible {
+    border-color: var(--navy2, #1d3a6e);
+    box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
+}
+
 .day-schedule-card-head {
     display: flex;
     align-items: flex-start;
