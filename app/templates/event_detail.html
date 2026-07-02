@@ -53,10 +53,12 @@
                             <th>{{ short_name }}</th>
                             {% endfor %}
                             <th>Gesamtpunkte</th>
+                            <th title="Summe der Ergebnisdifferenzen aus allen Turnierwettbewerben; Sechskampf zählt nicht mit.">
+                                Turnier-Differenz
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% set top_points = group.rows[0].total_points if group.rows else None %}
                         {% for row in group.rows %}
                         <tr>
                             <td class="overall-place">{{ row.place }}</td>
@@ -71,9 +73,10 @@
                                 {% endif %}
                             </td>
                             {% endfor %}
-                            <td class="overall-total{% if top_points is not none and row.total_points == top_points %} is-top{% endif %}">
+                            <td class="overall-total{% if row.place == 1 %} is-top{% endif %}">
                                 <strong>{{ row.total_points_display }}</strong>
                             </td>
+                            <td><strong>{{ row.tournament_score_diff_display }}</strong></td>
                         </tr>
                         {% endfor %}
                     </tbody>

@@ -1141,6 +1141,7 @@ def calculate_event_overall_ranking(event_id: int):
                 "total_points": 0.0,
                 "first_places": 0,
                 "second_places": 0,
+                "tournament_score_diff": 0,
             })
             record["points_by_competition"].setdefault(
                 competition["id"],
@@ -1187,6 +1188,7 @@ def calculate_event_overall_ranking(event_id: int):
                     "total_points": 0.0,
                     "first_places": 0,
                     "second_places": 0,
+                    "tournament_score_diff": 0,
                 })
                 record["points_by_competition"][competition_id] = row["scoring_points"]
                 if row["placement"] == 1:
@@ -1205,8 +1207,10 @@ def calculate_event_overall_ranking(event_id: int):
                     "total_points": 0.0,
                     "first_places": 0,
                     "second_places": 0,
+                    "tournament_score_diff": 0,
                 })
                 record["points_by_competition"][competition_id] = row.get("competition_points", 0)
+                record["tournament_score_diff"] += row.get("diff", 0)
                 if row["placement"] == 1:
                     record["first_places"] += 1
                 elif row["placement"] == 2:
@@ -1219,6 +1223,9 @@ def calculate_event_overall_ranking(event_id: int):
             if isinstance(value, (int, float))
         )
         record["total_points_display"] = format_points_value(record["total_points"])
+        record["tournament_score_diff_display"] = (
+            f"{record['tournament_score_diff']:+d}"
+        )
         record["points_by_competition_display"] = {
             competition_id: format_points_value(value)
             for competition_id, value in record["points_by_competition"].items()
@@ -1247,8 +1254,7 @@ def calculate_event_overall_ranking(event_id: int):
 
         rows.sort(key=lambda row: (
             -row["total_points"],
-            -row["first_places"],
-            -row["second_places"],
+            -row["tournament_score_diff"],
             row["team"].lower(),
         ))
 
@@ -1257,8 +1263,7 @@ def calculate_event_overall_ranking(event_id: int):
         for index, row in enumerate(rows, start=1):
             rank_key = (
                 row["total_points"],
-                row["first_places"],
-                row["second_places"],
+                row["tournament_score_diff"],
             )
             if previous_rank_key is None or rank_key != previous_rank_key:
                 place = index
