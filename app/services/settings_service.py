@@ -343,6 +343,14 @@ def load_documentation_text():
         return "Die Dokumentation wurde nicht gefunden."
 
 
+def load_roadmap_text():
+    roadmap_path = ROOT_DIR / "ROADMAP.md"
+    try:
+        return roadmap_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "Die Roadmap wurde nicht gefunden."
+
+
 def app_now_db_timestamp():
     timezone_name = os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin")
     try:

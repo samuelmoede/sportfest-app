@@ -37,7 +37,17 @@ from app.services.schedule_time_service import (
     parse_slot_time,
     recalculate_competition_court_times,
 )
+from app.services.results_filter_service import build_results_redirect_url
 from app.web import templates
+
+
+def _phase_generation_redirect_target(competition_id: int, results_return_to: str) -> str:
+    """Schiedsrichter, die die Bestätigung in der Ergebniseingabe auslösen,
+    sollen dorthin zurückkehren; Admins, die den Button in der
+    Spielplan-Bearbeitung nutzen, weiterhin dorthin."""
+    if results_return_to:
+        return build_results_redirect_url(results_return_to, competition_id=competition_id)
+    return f"/spielplan-bearbeiten?competition_id={competition_id}"
 
 
 def create_router(
@@ -452,12 +462,13 @@ def create_router(
         )
 
     @router.post("/competition/{competition_id}/generate-semifinals")
-    def generate_semifinals(competition_id: int):
+    def generate_semifinals(competition_id: int, results_return_to: str = Form("")):
+        redirect_target = _phase_generation_redirect_target(competition_id, results_return_to)
         group_a = calculate_group_table(competition_id, "A")
         group_b = calculate_group_table(competition_id, "B")
 
         if len(group_a) < 2 or len(group_b) < 2:
-            return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+            return RedirectResponse(redirect_target, status_code=303)
 
         team_1a = group_a[0]["team_id"]
         team_2a = group_a[1]["team_id"]
@@ -500,10 +511,11 @@ def create_router(
 
             conn.commit()
 
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+        return RedirectResponse(redirect_target, status_code=303)
 
     @router.post("/competition/{competition_id}/generate-finals")
-    def generate_finals(competition_id: int):
+    def generate_finals(competition_id: int, results_return_to: str = Form("")):
+        redirect_target = _phase_generation_redirect_target(competition_id, results_return_to)
         with get_conn() as conn:
             semifinals = conn.execute("""
                 SELECT *
@@ -520,13 +532,13 @@ def create_router(
             """, (competition_id,)).fetchall()
 
             if len(semifinals) < 2:
-                return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+                return RedirectResponse(redirect_target, status_code=303)
 
             winner_1, loser_1 = get_winner_loser(semifinals[0])
             winner_2, loser_2 = get_winner_loser(semifinals[1])
 
             if None in (winner_1, loser_1, winner_2, loser_2):
-                return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+                return RedirectResponse(redirect_target, status_code=303)
 
             final_slot = conn.execute("""
                 SELECT *
@@ -600,7 +612,7 @@ def create_router(
 
             conn.commit()
 
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+        return RedirectResponse(redirect_target, status_code=303)
 
     @router.post("/slot/create")
     def create_slot(

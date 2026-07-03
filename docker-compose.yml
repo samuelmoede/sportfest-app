@@ -16,6 +16,7 @@ services:
       - ./data:/app/data
       - ./VERSION:/app/VERSION
       - ./CHANGELOG.md:/app/CHANGELOG.md
+      - ./ROADMAP.md:/app/ROADMAP.md
       - ./DOKUMENTATION.md:/app/DOKUMENTATION.md
     command: >
       uvicorn app.main:app

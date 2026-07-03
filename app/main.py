@@ -39,6 +39,11 @@ from app.services.results_filter_service import (
     sort_result_teams,
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
+from app.services.schedule_generator_service import (
+    get_winner_loser,
+    group_phase_finished,
+    semifinals_finished,
+)
 from app.services.sixkampf_service import calculate_sixkampf_team_ranking
 from app.services.ui_view_service import (
     enrich_beamer_view,
@@ -93,6 +98,7 @@ AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
     ("/einstellungen", "admin"),
     ("/dokumentation", "admin"),
+    ("/roadmap", "admin"),
     ("/spielfelder", "admin"),
     ("/wettbewerbe", "admin"),
     ("/events", "admin"),
@@ -116,12 +122,16 @@ ACTION_ACCESS_RULES = (
         ),
         "referee",
     ),
+    (
+        re.compile(r"^/competition/[^/]+/(?:generate-semifinals|generate-finals)$"),
+        "referee",
+    ),
     (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
     (re.compile(r"^/court(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
     (re.compile(r"^/competition/create$"), "admin"),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete|delete-planned-slots|generate-semifinals|generate-finals)$"
+            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete|delete-planned-slots)$"
         ),
         "admin",
     ),
@@ -336,6 +346,9 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
                 )
             else:
                 rows = calculate_table(competition["id"])
+                for index, row in enumerate(rows, start=1):
+                    row.setdefault("placement", index)
+                rows = apply_ko_bracket_placements(rows, competition["id"])
             tables.append({"competition": competition, "rows": rows, "disciplines": disciplines})
 
     overall_ranking = []
@@ -1003,6 +1016,93 @@ def calculate_table(competition_id: int):
     return sort_table_rows(rows, slots, competition)
 
 
+def _ko_slot_complete(slot):
+    return (
+        slot is not None
+        and slot["status"] == "beendet"
+        and slot["team_a_id"] is not None
+        and slot["team_b_id"] is not None
+        and slot["score_a"] is not None
+        and slot["score_b"] is not None
+    )
+
+
+def get_ko_phase_slots(competition_id: int):
+    with get_conn() as conn:
+        finale = conn.execute("""
+            SELECT * FROM slots
+            WHERE competition_id = ? AND slot_typ = 'Spiel' AND phase = 'Finale'
+            ORDER BY startzeit, court_id, id
+        """, (competition_id,)).fetchall()
+
+        platz3 = conn.execute("""
+            SELECT * FROM slots
+            WHERE competition_id = ? AND slot_typ = 'Spiel'
+              AND phase IN ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung')
+            ORDER BY startzeit, court_id, id
+        """, (competition_id,)).fetchall()
+
+        halbfinale = conn.execute("""
+            SELECT * FROM slots
+            WHERE competition_id = ? AND slot_typ = 'Spiel' AND phase = 'Halbfinale'
+            ORDER BY startzeit, court_id, id
+        """, (competition_id,)).fetchall()
+
+    return finale, platz3, halbfinale
+
+
+def apply_ko_bracket_placements(rows, competition_id: int):
+    """Überschreibt row["placement"] für Finalisten/Halbfinalisten anhand des
+    K.-o.-Baums (Sieger Finale = Platz 1 usw.), sobald Finale (und ggf. Spiel
+    um Platz 3) beendet sind. Alle übrigen Teams behalten ihre bisherige,
+    punktebasierte Reihenfolge bei, nur um die belegten Podiumsplätze verschoben.
+    Solange die K.-o.-Phase nicht vollständig entschieden ist, bleiben die
+    übergebenen rows/placements unverändert."""
+    finale_slots, platz3_slots, halbfinale_slots = get_ko_phase_slots(competition_id)
+
+    if not finale_slots or not _ko_slot_complete(finale_slots[0]):
+        return rows
+
+    winner_final, loser_final = get_winner_loser(finale_slots[0])
+    if winner_final is None:
+        return rows
+
+    podium = {winner_final: 1, loser_final: 2}
+    next_free_place = 3
+
+    if platz3_slots:
+        if not _ko_slot_complete(platz3_slots[0]):
+            return rows
+        winner_p3, loser_p3 = get_winner_loser(platz3_slots[0])
+        if winner_p3 is not None:
+            podium[winner_p3] = 3
+            podium[loser_p3] = 4
+            next_free_place = 5
+    else:
+        semifinal_losers = [
+            get_winner_loser(slot)[1]
+            for slot in halbfinale_slots
+            if _ko_slot_complete(slot)
+        ]
+        semifinal_losers = [team_id for team_id in semifinal_losers if team_id not in podium]
+        for team_id in semifinal_losers:
+            podium[team_id] = 3
+        if semifinal_losers:
+            next_free_place = 3 + len(semifinal_losers)
+
+    remaining_rows = [row for row in rows if row["team_id"] not in podium]
+
+    for row in rows:
+        if row["team_id"] in podium:
+            row["placement"] = podium[row["team_id"]]
+
+    for offset, row in enumerate(remaining_rows):
+        row["placement"] = next_free_place + offset
+
+    rows.sort(key=lambda row: row["placement"])
+    return rows
+
+
 def calculate_tournament_points(competition):
     with get_conn() as conn:
         slots = conn.execute("""
@@ -1040,6 +1140,8 @@ def calculate_tournament_points(competition):
         row["placement"] = place
         previous = row
         previous_place = place
+
+    rows = apply_ko_bracket_placements(rows, competition["id"])
 
     assign_points_by_placement_groups(
         rows,
@@ -1582,6 +1684,8 @@ def ergebnisse(
     discipline_id: str = "",
     saved_team_id: str = "",
     saved_at: str = "",
+    phase_ready: str = "",
+    phase_ready_competition_id: str = "",
 ):
     filter_state = build_results_filter_state(
         get_active_competitions(),
@@ -1603,6 +1707,27 @@ def ergebnisse(
     selected_court_id = parse_filter_id(court_id)
     if selected_court_id not in {court["id"] for court in courts}:
         selected_court_id = None
+
+    phase_ready_prompt = None
+    phase_ready_dismiss_url = None
+    parsed_phase_ready_competition_id = parse_filter_id(phase_ready_competition_id)
+    if (
+        phase_ready in ("Halbfinale", "Finale")
+        and parsed_phase_ready_competition_id is not None
+        and parsed_phase_ready_competition_id == selected_competition_id
+    ):
+        phase_ready_prompt = {
+            "phase": phase_ready,
+            "action": (
+                f"/competition/{parsed_phase_ready_competition_id}/generate-semifinals"
+                if phase_ready == "Halbfinale"
+                else f"/competition/{parsed_phase_ready_competition_id}/generate-finals"
+            ),
+        }
+        current_url = request.url.path
+        if request.url.query:
+            current_url += f"?{request.url.query}"
+        phase_ready_dismiss_url = build_results_redirect_url(current_url)
 
     if (
         selected_competition is not None
@@ -1710,6 +1835,8 @@ def ergebnisse(
                 "saved_at": saved_at_value,
                 "slots": [],
                 "archived_slots": [],
+                "phase_ready_prompt": None,
+                "phase_ready_dismiss_url": None,
             }
         )
 
@@ -1745,6 +1872,8 @@ def ergebnisse(
             "selected_competition_id": selected_competition_id,
             "courts": courts,
             "selected_court_id": selected_court_id,
+            "phase_ready_prompt": phase_ready_prompt,
+            "phase_ready_dismiss_url": phase_ready_dismiss_url,
         }
     )
 
@@ -1912,7 +2041,7 @@ def save_slot(
     with get_conn() as conn:
         slot = conn.execute(
             """
-            SELECT competition_id, status, started_at, score_a, score_b
+            SELECT competition_id, status, started_at, score_a, score_b, phase, slot_typ
             FROM slots
             WHERE id = ?
             """,
@@ -1958,9 +2087,30 @@ def save_slot(
             )
         conn.commit()
 
+    # Nur wenn genau dieses Spiel die Phase gerade komplettiert (nicht bei einer
+    # nachträglichen Korrektur eines längst beendeten Spiels), bieten wir an,
+    # die nächste Phase zu besetzen - unabhängig davon, wann das Spiel gestartet
+    # wurde, sondern rein danach, ob alle anderen Spiele der Phase bereits
+    # gespeichert sind.
+    phase_ready = None
+    just_completed = (
+        slot is not None
+        and new_status == "beendet"
+        and slot["status"] != "beendet"
+        and slot["slot_typ"] == "Spiel"
+    )
+    if just_completed:
+        if slot["phase"] == "Gruppenphase" and group_phase_finished(slot["competition_id"]):
+            phase_ready = "Halbfinale"
+        elif slot["phase"] == "Halbfinale" and semifinals_finished(slot["competition_id"]):
+            phase_ready = "Finale"
+
     redirect_updates = {}
     if not results_return_to and slot is not None:
         redirect_updates["competition_id"] = slot["competition_id"]
+    if phase_ready:
+        redirect_updates["phase_ready"] = phase_ready
+        redirect_updates["phase_ready_competition_id"] = slot["competition_id"]
     return RedirectResponse(
         build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,

@@ -111,7 +111,9 @@ def get_default_result_event_id(events, today):
 
 
 _RESULTS_REDIRECT_PATH = "/ergebnisse"
-_RESULTS_TRANSIENT_PARAMS = {"saved_team_id", "saved_at"}
+_RESULTS_TRANSIENT_PARAMS = {
+    "saved_team_id", "saved_at", "phase_ready", "phase_ready_competition_id",
+}
 
 
 def build_results_redirect_url(return_to="", **updates):

@@ -243,6 +243,21 @@
     opacity: 0.5;
 }
 
+.slot-card.slot-gap {
+    background: transparent;
+    border: 1px dashed var(--border);
+    box-shadow: none;
+    cursor: default;
+}
+
+.slot-card.slot-gap .slot-footer span:first-child {
+    color: var(--muted);
+}
+
+.placeholder {
+    visibility: hidden;
+}
+
 .dropzone.drag-over {
     outline: 3px dashed var(--orange);
     background: #fff7ed;
@@ -263,6 +278,40 @@
     color: var(--muted);
     font-size: 14px;
     margin-bottom: 8px;
+}
+
+.phase-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 27px;
+    line-height: 1;
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.result-meta .phase-pill {
+    margin-bottom: 0;
+}
+
+.phase-pill.phase-gruppe {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.phase-pill.phase-halbfinale {
+    background: #ffedd5;
+    color: #ea580c;
+}
+
+.phase-pill.phase-finale {
+    background: #fef08a;
+    color: #92400e;
+}
+
+.phase-pill.phase-platz3 {
+    background: #e2e8f0;
+    color: #475569;
 }
 
 .slot-teams {

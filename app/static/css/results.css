@@ -86,6 +86,28 @@ td {
     border-color: #fdba74;
 }
 
+.phase-ready-banner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.phase-ready-content strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.phase-ready-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
 .result-meta {
     display: flex;
     flex-wrap: wrap;

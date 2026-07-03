@@ -359,6 +359,51 @@ def get_competition_timeline_for_location(
     return timeline
 
 
+def _insert_group_phase_gaps(location_slots):
+    """Fügt Pause-Platzhalter ein, wenn ein Wettbewerb auf einem seiner Felder
+    zu einer Zeit kein Spiel hat, die eines seiner anderen Felder aber schon
+    genutzt hat (z.B. weil bei ungerader Teamzahl eine Gruppenphasen-Runde
+    nicht alle Felder füllt). Ohne diese Lücke rutschen die Karten der
+    beiden Felder in der einfachen Listenansicht gegeneinander, sodass z.B.
+    ein Halbfinale optisch in derselben Zeile wie ein Gruppenspiel des
+    anderen Feldes steht, obwohl die Uhrzeiten unterschiedlich sind."""
+    slot_times_by_court = defaultdict(set)
+    game_slots_by_competition = defaultdict(list)
+    for slot in location_slots:
+        if slot["court_id"] is not None:
+            slot_times_by_court[slot["court_id"]].add(slot["startzeit"])
+        if slot["slot_typ"] == "Spiel":
+            game_slots_by_competition[slot["competition_id"]].append(slot)
+
+    gap_slots = []
+    for competition_id, comp_slots in game_slots_by_competition.items():
+        courts_used = sorted({
+            slot["court_id"] for slot in comp_slots if slot["court_id"] is not None
+        })
+        if len(courts_used) < 2:
+            continue
+
+        all_times = sorted({slot["startzeit"] for slot in comp_slots})
+        competition_name = comp_slots[0]["competition_name"]
+
+        for court_id in courts_used:
+            for startzeit in all_times:
+                if startzeit in slot_times_by_court[court_id]:
+                    continue
+                gap_slots.append({
+                    "id": f"gap-{competition_id}-{court_id}-{startzeit}",
+                    "competition_id": competition_id,
+                    "competition_name": competition_name,
+                    "court_id": court_id,
+                    "startzeit": startzeit,
+                    "slot_typ": "Pause",
+                    "is_gap": True,
+                })
+                slot_times_by_court[court_id].add(startzeit)
+
+    return location_slots + gap_slots
+
+
 def get_location_schedule_sections(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
@@ -409,6 +454,7 @@ def get_location_schedule_sections(
                 if slot.get("effective_competition_location") == location
             ]
             if location_slots:
+                location_slots = _insert_group_phase_gaps(location_slots)
                 courts = filter_courts_for_location(all_courts, location)
                 grouped = {
                     court["id"]: {"court": court, "slots": []}
@@ -421,6 +467,8 @@ def get_location_schedule_sections(
                 for slot in location_slots:
                     target = grouped.get(slot["court_id"], without_court)
                     target["slots"].append(slot)
+                for group in (*grouped.values(), without_court):
+                    group["slots"].sort(key=lambda slot: slot["startzeit"])
                 court_groups = [
                     group
                     for group in (*grouped.values(), without_court)

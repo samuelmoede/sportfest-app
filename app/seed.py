@@ -19,7 +19,7 @@ with get_conn() as conn:
         ("Feld 2", "Zweifelderball", "Turnhalle"),
         ("Feld 3", "Reserve", "Turnhalle"),
         ("Rasenplatz", "Fußball", "Fußballplatz"),
-        ("Tartanplatz", "Fußball", "Fußballplatz"),
+        ("Käfig", "Fußball", "Fußballplatz"),
         ("Halle A", "Volleyball", "Turnhalle"),
     ]
     for name, sportart, location in courts:

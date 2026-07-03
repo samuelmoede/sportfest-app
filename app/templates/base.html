@@ -91,6 +91,10 @@
             <span class="nav-icon" aria-hidden="true">📘</span>
             <span class="nav-text">Dokumentation</span>
         </a>
+        <a class="nav-link{% if current_path == '/roadmap' %} is-active{% endif %}" href="/roadmap" {% if current_path == '/roadmap' %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true">🗺️</span>
+            <span class="nav-text">Roadmap</span>
+        </a>
         {% endif %}
         <a class="beamer-link" href="/beamer" target="_blank">
             <span class="beamer-icon" aria-hidden="true">⚡</span>
@@ -176,6 +180,10 @@
             <a class="nav-link{% if current_path == '/dokumentation' %} is-active{% endif %}" href="/dokumentation" {% if current_path == '/dokumentation' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">📘</span>
                 <span class="nav-text">Dokumentation</span>
+            </a>
+            <a class="nav-link{% if current_path == '/roadmap' %} is-active{% endif %}" href="/roadmap" {% if current_path == '/roadmap' %}aria-current="page"{% endif %}>
+                <span class="nav-icon" aria-hidden="true">🗺️</span>
+                <span class="nav-text">Roadmap</span>
             </a>
             {% endif %}
         </nav>

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Hilfe</p>
+        <h1>Roadmap</h1>
+        <p>Aktueller Entwicklungsstand aus <strong>ROADMAP.md</strong>.</p>
+    </div>
+</header>
+
+<section class="panel documentation-panel">
+    <pre class="documentation-content">{{ roadmap_text }}</pre>
+</section>
+{% endblock %}

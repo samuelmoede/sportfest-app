@@ -283,8 +283,11 @@ class EventOverallAndTournamentTests(unittest.TestCase):
         main = import_main_for_tests()
 
         class FakeCursor:
+            def __init__(self, rows):
+                self._rows = rows
+
             def fetchall(self):
-                return [object()]
+                return self._rows
 
         class FakeConn:
             def __enter__(self):
@@ -293,8 +296,13 @@ class EventOverallAndTournamentTests(unittest.TestCase):
             def __exit__(self, exc_type, exc, tb):
                 return False
 
-            def execute(self, *_args, **_kwargs):
-                return FakeCursor()
+            def execute(self, sql, *_args, **_kwargs):
+                # Queries against the K.-o.-phase (Finale/Halbfinale/Platz 3)
+                # filter by "phase" and should report "no such slots" here,
+                # so calculate_tournament_points falls back to the flat table.
+                if "phase" in sql:
+                    return FakeCursor([])
+                return FakeCursor([object()])
 
         table_rows = [
             {"team_id": 1, "team": "7a", "pkt": 9, "diff": 6, "plus": 10},
@@ -312,6 +320,85 @@ class EventOverallAndTournamentTests(unittest.TestCase):
                 rows = main.calculate_tournament_points(competition)
 
         self.assertEqual([row["competition_points"] for row in rows], [7, 6, 5])
+
+    def test_ko_bracket_placement_overrides_flat_table_order(self):
+        main = import_main_for_tests()
+
+        def make_slot(phase, team_a_id, team_b_id, score_a, score_b):
+            return {
+                "phase": phase,
+                "status": "beendet",
+                "team_a_id": team_a_id,
+                "team_b_id": team_b_id,
+                "score_a": score_a,
+                "score_b": score_b,
+            }
+
+        # Team 1 dominated the group phase (most table points), but lost the
+        # final to team 2 - the bracket result must decide places 1-4, not
+        # the aggregated group-phase table.
+        finale = make_slot("Finale", 2, 1, 3, 1)
+        platz3 = make_slot("Spiel um Platz 3", 3, 4, 2, 0)
+
+        def fake_get_ko_phase_slots(competition_id):
+            return [finale], [platz3], []
+
+        table_rows = [
+            {"team_id": 1, "team": "7a", "pkt": 9, "diff": 6, "plus": 10},
+            {"team_id": 2, "team": "7b", "pkt": 6, "diff": 3, "plus": 7},
+            {"team_id": 3, "team": "7c", "pkt": 3, "diff": 1, "plus": 4},
+            {"team_id": 4, "team": "7d", "pkt": 0, "diff": -10, "plus": 0},
+            {"team_id": 5, "team": "7e", "pkt": 0, "diff": -8, "plus": 1},
+        ]
+        for index, row in enumerate(table_rows, start=1):
+            row["placement"] = index
+
+        with patch.object(main, "get_ko_phase_slots", side_effect=fake_get_ko_phase_slots):
+            rows = main.apply_ko_bracket_placements(table_rows, competition_id=1)
+
+        placements_by_team = {row["team_id"]: row["placement"] for row in rows}
+        self.assertEqual(placements_by_team[2], 1)  # Finalsieger
+        self.assertEqual(placements_by_team[1], 2)  # Finalverlierer
+        self.assertEqual(placements_by_team[3], 3)  # Sieger Spiel um Platz 3
+        self.assertEqual(placements_by_team[4], 4)  # Verlierer Spiel um Platz 3
+        self.assertEqual(placements_by_team[5], 5)  # in Gruppenphase ausgeschieden
+        self.assertEqual([row["team_id"] for row in rows], [2, 1, 3, 4, 5])
+
+    def test_ko_bracket_placement_shares_third_place_without_platz3_game(self):
+        main = import_main_for_tests()
+
+        def make_slot(phase, team_a_id, team_b_id, score_a, score_b):
+            return {
+                "phase": phase,
+                "status": "beendet",
+                "team_a_id": team_a_id,
+                "team_b_id": team_b_id,
+                "score_a": score_a,
+                "score_b": score_b,
+            }
+
+        finale = make_slot("Finale", 2, 1, 3, 1)
+        halbfinale_1 = make_slot("Halbfinale", 1, 3, 2, 0)
+        halbfinale_2 = make_slot("Halbfinale", 2, 4, 2, 1)
+
+        def fake_get_ko_phase_slots(competition_id):
+            return [finale], [], [halbfinale_1, halbfinale_2]
+
+        table_rows = [
+            {"team_id": 1, "team": "7a", "pkt": 9, "diff": 6, "plus": 10, "placement": 1},
+            {"team_id": 2, "team": "7b", "pkt": 6, "diff": 3, "plus": 7, "placement": 2},
+            {"team_id": 3, "team": "7c", "pkt": 3, "diff": 1, "plus": 4, "placement": 3},
+            {"team_id": 4, "team": "7d", "pkt": 0, "diff": -10, "plus": 0, "placement": 4},
+        ]
+
+        with patch.object(main, "get_ko_phase_slots", side_effect=fake_get_ko_phase_slots):
+            rows = main.apply_ko_bracket_placements(table_rows, competition_id=1)
+
+        placements_by_team = {row["team_id"]: row["placement"] for row in rows}
+        self.assertEqual(placements_by_team[2], 1)  # Finalsieger
+        self.assertEqual(placements_by_team[1], 2)  # Finalverlierer
+        self.assertEqual(placements_by_team[3], 3)  # Halbfinal-Verlierer, geteilt
+        self.assertEqual(placements_by_team[4], 3)  # Halbfinal-Verlierer, geteilt
 
 
 if __name__ == "__main__":

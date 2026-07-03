@@ -385,6 +385,36 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 </script>
 
 {% else %}
+{% if phase_ready_prompt %}
+<section class="panel phase-ready-banner">
+    <div class="phase-ready-content">
+        <strong>
+            {% if phase_ready_prompt.phase == "Halbfinale" %}
+            Die Gruppenphase ist vollständig gespeichert.
+            {% else %}
+            Die Halbfinals sind vollständig gespeichert.
+            {% endif %}
+        </strong>
+        <p class="muted">
+            {% if phase_ready_prompt.phase == "Halbfinale" %}
+            Sollen die Halbfinal-Paarungen jetzt anhand der Gruppentabellen besetzt werden?
+            {% else %}
+            Sollen Finale und Spiel um Platz 3 jetzt anhand der Halbfinal-Ergebnisse besetzt werden?
+            {% endif %}
+        </p>
+    </div>
+    <div class="phase-ready-actions">
+        {% if phase_ready_dismiss_url %}
+        <a class="outline" href="{{ phase_ready_dismiss_url }}">Nicht jetzt</a>
+        {% endif %}
+        <form method="post" action="{{ phase_ready_prompt.action }}"
+              onsubmit="return confirm('{{ phase_ready_prompt.phase }} jetzt automatisch besetzen?');">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+            <button class="green" type="submit">{{ phase_ready_prompt.phase }} jetzt besetzen</button>
+        </form>
+    </div>
+</section>
+{% endif %}
 <section class="panel">
     <h2>Aktive Spiele</h2>
     {% for s in slots %}
@@ -393,6 +423,17 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <strong>{{ s.startzeit }}</strong>
             <span class="pill">{{ s.court_name }}</span>
             <span>{{ s.competition_name }}</span>
+            {% if s.competition_type != "Sechskampf" and s.phase %}
+            <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
+                {%- if s.phase == "Gruppenphase" -%}
+                    {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+                {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+                    Spiel um Platz 3
+                {%- else -%}
+                    {{ s.phase }}
+                {%- endif -%}
+            </span>
+            {% endif %}
             {% if s.started_at and s.status == 'läuft' %}
             <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
             {% elif s.started_at %}
@@ -420,9 +461,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             </form>
             {% endif %}
             {% if s.status == "läuft" %}
-            <form method="post" action="/slot/{{ s.id }}/unstart"
-                  onsubmit="return confirm('Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten, der Timer wird jedoch zurückgesetzt.');">
-                <button class="outline">Start rückgängig</button>
+            <form method="post" action="/slot/{{ s.id }}/unstart" data-unstart-slot>
+                <button class="outline" type="submit">Start rückgängig</button>
             </form>
             {% endif %}
             <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Zwischenspeichern</button>
@@ -445,6 +485,17 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <strong>{{ s.startzeit }}</strong>
             <span class="pill">{{ s.court_name }}</span>
             <span>{{ s.competition_name }}</span>
+            {% if s.competition_type != "Sechskampf" and s.phase %}
+            <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
+                {%- if s.phase == "Gruppenphase" -%}
+                    {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+                {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+                    Spiel um Platz 3
+                {%- else -%}
+                    {{ s.phase }}
+                {%- endif -%}
+            </span>
+            {% endif %}
             {% if s.started_at %}
             <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
             {% endif %}
@@ -554,7 +605,7 @@ function updateResultTimers() {
 updateResultTimers();
 setInterval(updateResultTimers, 1000);
 
-document.querySelectorAll('[data-start-slot]').forEach(form => {
+function attachStartHandler(form) {
     form.addEventListener('submit', async event => {
         event.preventDefault();
 
@@ -595,8 +646,9 @@ document.querySelectorAll('[data-start-slot]').forEach(form => {
                 timer.className = 'slot-duration';
                 badge.before(timer);
             }
+            const plannedDuration = form.dataset.plannedDuration || '';
             timer.dataset.startedAt = startedInput.value;
-            timer.dataset.plannedDuration = form.dataset.plannedDuration || '';
+            timer.dataset.plannedDuration = plannedDuration;
             timer.textContent = '00m 00s';
 
             badge.classList.remove('geplant');
@@ -606,19 +658,15 @@ document.querySelectorAll('[data-start-slot]').forEach(form => {
             const unstartForm = document.createElement('form');
             unstartForm.method = 'post';
             unstartForm.action = form.action.replace(/\/start$/, '/unstart');
-            unstartForm.addEventListener('submit', unstartEvent => {
-                if (!window.confirm(
-                    'Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten, der Timer wird jedoch zurückgesetzt.'
-                )) {
-                    unstartEvent.preventDefault();
-                }
-            });
+            unstartForm.setAttribute('data-unstart-slot', '');
+            unstartForm.dataset.plannedDuration = plannedDuration;
 
             const unstartButton = document.createElement('button');
             unstartButton.className = 'outline';
             unstartButton.type = 'submit';
             unstartButton.textContent = 'Start rückgängig';
             unstartForm.appendChild(unstartButton);
+            attachUnstartHandler(unstartForm);
             form.replaceWith(unstartForm);
 
             updateResultTimers();
@@ -630,7 +678,72 @@ document.querySelectorAll('[data-start-slot]').forEach(form => {
             console.error(error);
         }
     });
-});
+}
+
+function attachUnstartHandler(form) {
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        if (!window.confirm(
+            'Start wirklich rückgängig machen? Das Ergebnis bleibt als Zwischenstand erhalten, der Timer wird jedoch zurückgesetzt.'
+        )) {
+            return;
+        }
+
+        const button = form.querySelector('button[type="submit"]');
+        const card = form.closest('.result-card');
+        const meta = card?.querySelector('.result-meta');
+        const badge = meta?.querySelector('.badge');
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+
+        if (!button || !card || !meta || !badge) return;
+
+        button.disabled = true;
+        button.textContent = 'Wird zurückgesetzt…';
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Zurücksetzen fehlgeschlagen (${response.status})`);
+            }
+
+            const timer = meta.querySelector('.slot-duration');
+            if (timer) timer.remove();
+
+            badge.classList.remove('läuft');
+            badge.classList.add('geplant');
+            badge.textContent = 'geplant';
+
+            const startForm = document.createElement('form');
+            startForm.method = 'post';
+            startForm.action = form.action.replace(/\/unstart$/, '/start');
+            startForm.setAttribute('data-start-slot', '');
+            startForm.dataset.plannedDuration = form.dataset.plannedDuration || '';
+
+            const startButton = document.createElement('button');
+            startButton.className = 'outline';
+            startButton.type = 'submit';
+            startButton.textContent = 'Starten';
+            startForm.appendChild(startButton);
+            attachStartHandler(startForm);
+            form.replaceWith(startForm);
+            requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Start rückgängig';
+            window.alert('Der Start konnte nicht rückgängig gemacht werden. Bitte erneut versuchen.');
+            console.error(error);
+        }
+    });
+}
+
+document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
+document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
 </script>
 {% endblock %}
 

@@ -8,7 +8,7 @@ NO_SLOT_LOCATION = "Außenbereich"
 
 COURT_NAMES_BY_LOCATION = {
     "Turnhalle": ("Feld 1", "Feld 2", "Feld 3"),
-    "Fußballplatz": ("Rasenplatz", "Tartanplatz"),
+    "Fußballplatz": ("Rasenplatz", "Käfig"),
 }
 COURT_LOCATION_BY_NAME = {
     court_name: location

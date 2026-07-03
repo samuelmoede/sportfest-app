@@ -1,11 +1,39 @@
 {% extends "base.html" %}
 
 {% macro render_slot(s) %}
+{% if s.is_gap %}
+<article class="slot-card slot-gap">
+    <div class="slot-time">{{ s.startzeit }}</div>
+    <div class="slot-type">&nbsp;</div>
+    <span class="pill phase-pill phase-gruppe placeholder">&nbsp;</span>
+    <div class="slot-teams tournament-match">
+        <strong class="tournament-team tournament-team-a">&nbsp;</strong>
+        <span class="tournament-score">&nbsp;</span>
+        <strong class="tournament-team tournament-team-b">&nbsp;</strong>
+    </div>
+    <div class="slot-footer">
+        <span>Pause auf diesem Feld</span>
+        <span class="badge placeholder">&nbsp;</span>
+    </div>
+</article>
+{% else %}
 <article class="slot-card {{ s.status }}">
     <div class="slot-time">
         Geplant {{ s.startzeit }}{% if s.game_end_time %}–{{ s.game_end_time }}{% endif %}
     </div>
     <div class="slot-type">{{ s.slot_typ }}</div>
+
+    {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" and s.phase %}
+    <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
+        {%- if s.phase == "Gruppenphase" -%}
+            {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+        {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+            Spiel um Platz 3
+        {%- else -%}
+            {{ s.phase }}
+        {%- endif -%}
+    </span>
+    {% endif %}
 
     {% if s.slot_typ == "Spiel" and s.competition_type != "Sechskampf" %}
     <div class="slot-teams tournament-match">
@@ -34,6 +62,7 @@
         <span class="badge {{ s.status }}">{{ s.status }}</span>
     </div>
 </article>
+{% endif %}
 {% endmacro %}
 
 {% block content %}

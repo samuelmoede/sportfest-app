@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
+from itertools import permutations
 from typing import List
 
 from app.database import get_conn
@@ -8,6 +9,32 @@ from app.services.schedule_location_service import (
     schedule_planning_available,
 )
 from app.services.schedule_time_service import get_competition_timing, get_game_end_time
+
+
+def _assign_courts_for_round(round_selections, court_ids, last_court_by_team):
+    """Verteilt die für diesen Durchgang bereits feststehenden Paarungen auf die
+    Felder so, dass Teams nach Möglichkeit auf ihrem zuletzt genutzten Feld
+    bleiben, statt unnötig zwischen Feldern zu wechseln. Welche Teams
+    gegeneinander antreten und wann, bleibt davon unberührt - es wird nur
+    entschieden, welches Feld welche bereits gewählte Paarung bekommt."""
+    best_combo = None
+    best_penalty = None
+
+    for court_combo in permutations(court_ids, len(round_selections)):
+        penalty = 0
+        for court_id, (team_a, team_b, _gruppe, _index) in zip(court_combo, round_selections):
+            for team in (team_a, team_b):
+                last_court = last_court_by_team.get(team)
+                if last_court is not None and last_court != court_id:
+                    penalty += 1
+
+        if best_penalty is None or penalty < best_penalty:
+            best_penalty = penalty
+            best_combo = court_combo
+            if best_penalty == 0:
+                break
+
+    return list(zip(best_combo, round_selections))
 
 
 def generate_group_plan(
@@ -108,16 +135,15 @@ def generate_group_plan(
 
     remaining_pairings = pairings[:]
     last_round_by_team = {team_name: -1000 for team_name in team_names}
+    last_court_by_team = {}
     round_index = 0
 
     while remaining_pairings:
         time_value = current_time.strftime("%H:%M")
         used_teams = set()
-        scheduled_indices = []
+        round_selections = []
 
-        for court_id in court_ids:
-            selected_index = None
-
+        for _ in court_ids:
             candidate_scores = []
             for index, (team_a, team_b, _gruppe) in enumerate(remaining_pairings):
                 if team_a in used_teams or team_b in used_teams:
@@ -133,15 +159,22 @@ def generate_group_plan(
                     index,
                 ))
 
-            if candidate_scores:
-                candidate_scores.sort()
-                selected_index = candidate_scores[0][3]
-
-            if selected_index is None:
+            if not candidate_scores:
                 break
 
+            candidate_scores.sort()
+            selected_index = candidate_scores[0][3]
             team_a, team_b, gruppe = remaining_pairings[selected_index]
+            round_selections.append((team_a, team_b, gruppe, selected_index))
+            used_teams.add(team_a)
+            used_teams.add(team_b)
 
+        if not round_selections:
+            break
+
+        for court_id, (team_a, team_b, gruppe, _index) in _assign_courts_for_round(
+            round_selections, court_ids, last_court_by_team
+        ):
             proposed_slots.append({
                 "competition_id": competition_id,
                 "competition_name": competition["name"],
@@ -158,13 +191,12 @@ def generate_group_plan(
                 "note": "",
             })
 
-            used_teams.add(team_a)
-            used_teams.add(team_b)
             last_round_by_team[team_a] = round_index
             last_round_by_team[team_b] = round_index
-            scheduled_indices.append(selected_index)
+            last_court_by_team[team_a] = court_id
+            last_court_by_team[team_b] = court_id
 
-        for index in sorted(scheduled_indices, reverse=True):
+        for index in sorted((selection[3] for selection in round_selections), reverse=True):
             remaining_pairings.pop(index)
 
         current_time += timedelta(minutes=slot_interval_minutes)

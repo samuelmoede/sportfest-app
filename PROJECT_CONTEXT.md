@@ -89,7 +89,7 @@ Unterbereiche werden vor allem in der Spielplanbearbeitung relevant.
 ### Fußballplatz
 
 - Ort fuer Fussballturniere oder andere Aussensportarten mit Platzlogik.
-- Geplante bzw. genutzte Unterbereiche: Rasenplatz und Tartanplatz.
+- Geplante bzw. genutzte Unterbereiche: Rasenplatz und Käfig.
 - Der oeffentliche Spielplan soll Fussballplatz-Wettbewerbe getrennt von Hallenwettbewerben darstellen.
 
 ### Außenbereich

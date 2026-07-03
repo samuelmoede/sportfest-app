@@ -27,6 +27,7 @@ from app.services.settings_service import (
     is_login_prepared,
     is_security_enabled,
     load_documentation_text,
+    load_roadmap_text,
     set_beamer_refresh_seconds,
     set_dashboard_info_text,
     set_setting,
@@ -100,6 +101,15 @@ def dokumentation(request: Request):
         request=request,
         name="dokumentation.html",
         context={"documentation_text": load_documentation_text()},
+    )
+
+
+@router.get("/roadmap")
+def roadmap(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="roadmap.html",
+        context={"roadmap_text": load_roadmap_text()},
     )
 
 

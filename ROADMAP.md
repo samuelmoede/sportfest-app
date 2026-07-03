@@ -60,6 +60,34 @@ Später:
 [x] Außenbereich: keine Slotplanung
 [x] /spielplan-bearbeiten zeigt je nach Ort passende Spalten
 
+## Phase 4.7 – Spielplan-Generator: Robustheit für andere Schulen
+
+Audit vom Juli 2026 (KO-Runden-Zuweisung und Generator), vor Weitergabe an andere Schulen abzuarbeiten. Nach Priorität sortiert.
+
+Kritisch:
+
+[ ] Halbfinale/Finale: Überschreiben bereits gespielter Ergebnisse verhindern (Status-Check statt bedingungslosem Reset auf `geplant`)
+[ ] "Halbfinale/Finale automatisch besetzen": sichtbare Fehlermeldung statt stillem Redirect, wenn keine gültigen Gruppen vorhanden sind
+[ ] Ergebniseingabe: dauerhaften Button zum (erneuten) Besetzen von Halbfinale/Finale anbieten (nicht nur das einmalige Bestätigungs-Banner direkt nach Abschluss der Vorphase), damit Schiedsrichter nach einer nachträglichen Ergebniskorrektur nicht wieder einen Admin für den Spielplan-Editor brauchen
+
+Hoch:
+
+[ ] Fallback-Paarungsalgorithmus durch korrektes Rundenverfahren ersetzen (aktuell keine garantiert faire Spielanzahl bei Teamzahlen ≠ 6/7, siehe Testfall mit 8 Teams)
+[ ] Gruppenbildung für KO-Runden generalisieren statt hart auf 6/7 Teams kodiert
+[ ] Cross-Wettbewerb-Konfliktprüfung: Team- und Feldkollisionen gegen den gesamten bestehenden Spielplan prüfen, nicht nur innerhalb des aktuellen Vorschlags
+
+Mittel:
+
+[ ] Feld-Auswahl fürs Spiel um Platz 3 über bestehende Orts-Filterung laufen lassen statt beliebiges freies Feld
+[ ] Serverseitige Validierung beim Übernehmen des Vorschlags nachrüsten (bisher nur Template-seitig ausgeblendet)
+[ ] Unentschieden im Halbfinale: Fehlermeldung plus Lösung (manuelle Korrektur oder Verlängerung/Neunmeterschießen)
+
+Niedrig:
+
+[ ] HF1/HF2-Zuordnung robuster machen (aktuell nur über Sortierreihenfolge der Slots)
+[ ] Gruppentabelle bei 4er-Gruppen: Hinweis, dass nicht jeder gegen jeden spielt (unvollständiger Round-Robin)
+[ ] generate_semifinals/generate_finals: schedule_planning_available() prüfen (Konsistenz zu anderen Spielplan-Routen)
+[ ] Mit Testdaten für 4, 5, 8, 9, 10, 12 Teams pro Jahrgang durchspielen, bevor eine andere Schule live geht
 
 ## Phase 5 – Sechskampf 2.0
 

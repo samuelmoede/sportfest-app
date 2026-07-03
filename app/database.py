@@ -217,7 +217,7 @@ def init_db(db_path=None):
         conn.execute("""
             UPDATE courts
             SET location = 'Fußballplatz'
-            WHERE name IN ('Rasenplatz', 'Tartanplatz')
+            WHERE name IN ('Rasenplatz', 'Käfig')
               AND (location IS NULL OR TRIM(location) = '')
         """)
 
@@ -236,7 +236,7 @@ def init_db(db_path=None):
 
         for name, sportart, location in (
             ("Rasenplatz", "Fußball", "Fußballplatz"),
-            ("Tartanplatz", "Fußball", "Fußballplatz"),
+            ("Käfig", "Fußball", "Fußballplatz"),
         ):
             conn.execute("""
                 INSERT INTO courts (name, sportart, location, active)
