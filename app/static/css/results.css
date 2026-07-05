@@ -101,6 +101,45 @@ td {
     margin-bottom: 4px;
 }
 
+.overwrite-warning-banner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.overwrite-warning-banner p {
+    margin: 8px 0 0;
+}
+
+.correction-blocked-banner {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.correction-blocked-banner p {
+    margin: 8px 0 0;
+}
+
+.draw-warning-pill {
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: 700;
+}
+
+.patt-warning-text {
+    color: #92400e;
+    margin: 6px 0 0;
+}
+
+.correction-locked-note {
+    color: var(--muted);
+    margin: 0;
+}
+
 .phase-ready-actions {
     display: flex;
     align-items: center;

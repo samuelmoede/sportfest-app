@@ -254,6 +254,27 @@
     {% endif %}
 </section>
 
+{% if overwrite_warning_prompt %}
+<section class="ko-box overwrite-warning-banner">
+    <h2>Achtung: {{ overwrite_warning_prompt.phase }} wurde bereits gespielt</h2>
+    <p>
+        Aktuell gespeichert:
+        {% for result in overwrite_warning_prompt.results %}
+        <br>{{ result }}
+        {% endfor %}
+    </p>
+    <p class="muted">
+        Beim Fortfahren werden diese Ergebnisse gelöscht und die Paarungen neu berechnet.
+        Der bisherige Stand wird im Änderungsprotokoll gesichert.
+    </p>
+    <form method="post" action="{{ overwrite_warning_prompt.action }}"
+          onsubmit="return confirm('Wirklich das gespeicherte Ergebnis überschreiben? Das kann nicht rückgängig gemacht werden.');">
+        <input type="hidden" name="confirm_overwrite" value="1">
+        <button class="danger" type="submit">Ja, überschreiben</button>
+    </form>
+</section>
+{% endif %}
+
 {% if selected_competition_id and schedule_planning_enabled %}
 <section class="ko-box">
     <h2>Nächste Phase automatisch besetzen</h2>

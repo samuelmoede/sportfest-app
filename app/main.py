@@ -39,12 +39,20 @@ from app.services.results_filter_service import (
     sort_result_teams,
 )
 from app.services.ranking_points_service import assign_points_by_placement_groups
+from app.services.change_log_service import insert_change_log_entry
 from app.services.schedule_generator_service import (
+    KO_DECISIVE_PHASES,
+    get_already_played_ko_targets,
+    get_next_phase_names,
     get_winner_loser,
     group_phase_finished,
+    is_next_phase_started,
     semifinals_finished,
 )
-from app.services.sixkampf_service import calculate_sixkampf_team_ranking
+from app.services.sixkampf_service import (
+    calculate_sixkampf_station_rotation,
+    calculate_sixkampf_team_ranking,
+)
 from app.services.ui_view_service import (
     enrich_beamer_view,
     enrich_day_schedule_view,
@@ -231,26 +239,18 @@ def record_change(
     discipline_id: Optional[int] = None,
     team_id: Optional[int] = None,
 ):
-    conn.execute(
-        """
-        INSERT INTO change_log (
-            created_at, actor_role, action, entity_type, entity_id,
-            competition_id, discipline_id, team_id, old_value, new_value
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            app_now_db_timestamp(),
-            get_current_role(request),
-            action,
-            entity_type,
-            entity_id,
-            competition_id,
-            discipline_id,
-            team_id,
-            old_value,
-            new_value,
-        ),
+    insert_change_log_entry(
+        conn,
+        request=request,
+        created_at=app_now_db_timestamp(),
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        competition_id=competition_id,
+        old_value=old_value,
+        new_value=new_value,
+        discipline_id=discipline_id,
+        team_id=team_id,
     )
 
 
@@ -327,6 +327,7 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
             disciplines = []
             if competition["competition_type"] == "Sechskampf":
                 teams = get_teams_for_competition(conn, competition["id"], competition["jahrgang"])
+                teams = include_teams_with_existing_sixkampf_results(conn, competition["id"], teams)
                 disciplines = conn.execute("""
                     SELECT * FROM competition_disciplines
                     WHERE competition_id = ?
@@ -880,26 +881,139 @@ def calculate_direct_comparison(team_a: str, team_b: str, slots, competition):
     return 0
 
 
+TIE_BREAK_LABELS = {
+    "tordifferenz": "Platzierung durch Tordifferenz entschieden",
+    "tore": "Platzierung durch Anzahl geschossener Tore entschieden",
+    "mini_pkt": "Platzierung durch Punkte im direkten Vergleich der punktgleichen Teams entschieden",
+    "mini_diff": "Platzierung durch Tordifferenz im direkten Vergleich der punktgleichen Teams entschieden",
+    "mini_tore": "Platzierung durch Tore im direkten Vergleich der punktgleichen Teams entschieden",
+    "unentschieden": "Punktgleichstand ohne eindeutige Entscheidung – Reihenfolge alphabetisch",
+    "zyklus": "Zyklischer Gleichstand (z.B. A schlägt B, B schlägt C, C schlägt A) – keine eindeutige Auflösung möglich, Reihenfolge alphabetisch",
+}
+
+
+def _mini_league_stats(team_names, slots, competition):
+    """FIFA-Style Mini-Tabelle: Punkte, Tordifferenz und Tore ausschliesslich aus
+    den Spielen zwischen den uebergebenen (bereits komplett gleichauf liegenden)
+    Teams - nicht aus der Gesamttabelle."""
+    team_set = set(team_names)
+    stats = {team: {"pkt": 0.0, "diff": 0, "plus": 0} for team in team_names}
+    for slot in slots:
+        team_a, team_b = slot["team_a"], slot["team_b"]
+        if team_a not in team_set or team_b not in team_set or team_a == team_b:
+            continue
+        score_a, score_b = slot["score_a"], slot["score_b"]
+        if score_a is None or score_b is None:
+            continue
+        stats[team_a]["plus"] += score_a
+        stats[team_b]["plus"] += score_b
+        stats[team_a]["diff"] += score_a - score_b
+        stats[team_b]["diff"] += score_b - score_a
+        if score_a > score_b:
+            stats[team_a]["pkt"] += competition["points_win"]
+            stats[team_b]["pkt"] += competition["points_loss"]
+        elif score_b > score_a:
+            stats[team_b]["pkt"] += competition["points_win"]
+            stats[team_a]["pkt"] += competition["points_loss"]
+        else:
+            stats[team_a]["pkt"] += competition["points_draw"]
+            stats[team_b]["pkt"] += competition["points_draw"]
+    return stats
+
+
+def _resolve_tied_group(team_names, slots, competition):
+    """Loest eine Gruppe von Teams auf, die in der Gesamttabelle komplett gleichauf
+    liegen (Punkte, Tordifferenz, Tore), per Mini-Tabelle nur aus den Duellen
+    untereinander - im Unterschied zu einem reinen Nachbar-Vergleich werden dabei
+    alle Teams der Gruppe gemeinsam betrachtet. Bleiben Teams auch danach gleichauf
+    (z.B. ein echter Zyklus A schlaegt B, B schlaegt C, C schlaegt A - bei 3
+    punktgleichen Teams im Rundenspiel ohne Unentschieden rechnerisch zwangslaeufig),
+    werden sie explizit als unaufloesbar markiert statt eine der Reihenfolgen als
+    vermeintlich "entschieden" auszugeben. Gibt die neue Teamreihenfolge sowie einen
+    tie_note-Grund je Team zurueck."""
+    if len(team_names) < 2:
+        return list(team_names), {}
+
+    mini = _mini_league_stats(team_names, slots, competition)
+    ordered = sorted(
+        team_names,
+        key=lambda t: (-mini[t]["pkt"], -mini[t]["diff"], -mini[t]["plus"], t.lower()),
+    )
+
+    tie_notes = {}
+    i = 0
+    while i < len(ordered):
+        j = i
+        while (
+            j + 1 < len(ordered)
+            and mini[ordered[j + 1]]["pkt"] == mini[ordered[i]]["pkt"]
+            and mini[ordered[j + 1]]["diff"] == mini[ordered[i]]["diff"]
+            and mini[ordered[j + 1]]["plus"] == mini[ordered[i]]["plus"]
+        ):
+            j += 1
+
+        if j > i:
+            reason = "zyklus" if (j - i + 1) >= 3 else "unentschieden"
+            label = TIE_BREAK_LABELS[reason]
+            for team in ordered[i:j + 1]:
+                tie_notes[team] = label
+        elif i > 0:
+            previous = ordered[i - 1]
+            if mini[ordered[i]]["pkt"] != mini[previous]["pkt"]:
+                reason = "mini_pkt"
+            elif mini[ordered[i]]["diff"] != mini[previous]["diff"]:
+                reason = "mini_diff"
+            else:
+                reason = "mini_tore"
+            label = TIE_BREAK_LABELS[reason]
+            tie_notes[previous] = label
+            tie_notes[ordered[i]] = label
+
+        i = j + 1
+
+    return ordered, tie_notes
+
+
 def sort_table_rows(rows, slots, competition):
     rows.sort(key=lambda r: (-r["pkt"], -r["diff"], -r["plus"], r["team"].lower()))
 
+    for row in rows:
+        row["tie_note"] = None
+
     i = 0
-    while i < len(rows) - 1:
-        current = rows[i]
-        next_row = rows[i + 1]
+    while i < len(rows):
+        j = i
+        while (
+            j + 1 < len(rows)
+            and rows[j + 1]["pkt"] == rows[i]["pkt"]
+            and rows[j + 1]["diff"] == rows[i]["diff"]
+            and rows[j + 1]["plus"] == rows[i]["plus"]
+        ):
+            j += 1
 
-        same_basic_rank = (
-            current["pkt"] == next_row["pkt"]
-            and current["diff"] == next_row["diff"]
-            and current["plus"] == next_row["plus"]
-        )
+        if j > i:
+            group_names = [row["team"] for row in rows[i:j + 1]]
+            ordered_names, tie_notes = _resolve_tied_group(group_names, slots, competition)
+            rows_by_team = {row["team"]: row for row in rows[i:j + 1]}
+            rows[i:j + 1] = [rows_by_team[name] for name in ordered_names]
+            for row in rows[i:j + 1]:
+                row["tie_note"] = tie_notes.get(row["team"])
 
-        if same_basic_rank:
-            direct = calculate_direct_comparison(current["team"], next_row["team"], slots, competition)
-            if direct < 0:
-                rows[i], rows[i + 1] = rows[i + 1], rows[i]
+        i = j + 1
 
-        i += 1
+    # Punktgleichstand, den schon die Gesamttabelle ueber Tordifferenz oder Tore
+    # entscheidet (kein Duell noetig) - nur ergaenzen, wo noch kein Grund feststeht.
+    for i in range(len(rows) - 1):
+        if rows[i]["pkt"] != rows[i + 1]["pkt"]:
+            continue
+        if rows[i]["diff"] == rows[i + 1]["diff"] and rows[i]["plus"] == rows[i + 1]["plus"]:
+            continue
+        reason = "tordifferenz" if rows[i]["diff"] != rows[i + 1]["diff"] else "tore"
+        label = TIE_BREAK_LABELS[reason]
+        if rows[i]["tie_note"] is None:
+            rows[i]["tie_note"] = label
+        if rows[i + 1]["tie_note"] is None:
+            rows[i + 1]["tie_note"] = label
 
     for row in rows:
         if float(row["pkt"]).is_integer():
@@ -927,6 +1041,34 @@ def get_teams_for_competition(conn, competition_id: int, jahrgang):
         WHERE active = 1 AND jahrgang = ?
         ORDER BY name
     """, (jahrgang,)).fetchall()
+
+
+def include_teams_with_existing_sixkampf_results(conn, competition_id: int, teams):
+    """Ergaenzt eine Team-Liste (z.B. aus get_teams_for_competition, das inaktive
+    Teams ausschliesst) um Teams, fuer die in diesem Wettbewerb bereits
+    Sechskampf-Ergebnisse gespeichert sind - unabhaengig vom aktuellen
+    active-Status. Ohne das wuerde ein nachtraeglich deaktiviertes Team (z.B. bei
+    einer Rueckwaerts-Bereinigung der Klassenliste nach der Veranstaltung)
+    spurlos aus Tabelle und Gesamtwertung verschwinden, obwohl die Ergebnisse
+    weiterhin in der Datenbank stehen - anders als bei Turnieren, deren Tabelle
+    sich direkt aus den gespielten Spielen speist und daher vom active-Status
+    unabhaengig ist."""
+    known_ids = {team["id"] for team in teams}
+    missing_ids = [
+        row["team_id"]
+        for row in conn.execute(
+            "SELECT DISTINCT team_id FROM sixkampf_team_results WHERE competition_id = ?",
+            (competition_id,),
+        ).fetchall()
+        if row["team_id"] not in known_ids
+    ]
+    if not missing_ids:
+        return teams
+    placeholders = ", ".join("?" for _ in missing_ids)
+    extra_teams = conn.execute(
+        f"SELECT * FROM teams WHERE id IN ({placeholders})", missing_ids
+    ).fetchall()
+    return list(teams) + list(extra_teams)
 
 
 def calculate_table(competition_id: int):
@@ -1269,6 +1411,9 @@ def calculate_event_overall_ranking(event_id: int):
                     "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
                     (competition_id,)
                 ).fetchall()
+                competition_teams = include_teams_with_existing_sixkampf_results(
+                    conn, competition_id, competition_teams
+                )
 
             if not result_rows:
                 continue
@@ -1475,6 +1620,132 @@ def calculate_group_table(competition_id: int, gruppe: str):
         rows.append(row)
 
     return sort_table_rows(rows, slots, competition)
+
+
+def _fetch_group_decided_slots(competition_id: int, gruppe: str):
+    with get_conn() as conn:
+        return conn.execute("""
+            SELECT slots.*, ta.name AS team_a, tb.name AS team_b
+            FROM slots
+            LEFT JOIN teams ta ON ta.id = slots.team_a_id
+            LEFT JOIN teams tb ON tb.id = slots.team_b_id
+            WHERE competition_id = ?
+              AND slot_typ = 'Spiel'
+              AND phase = 'Gruppenphase'
+              AND gruppe = ?
+              AND status = 'beendet'
+              AND team_a_id IS NOT NULL
+              AND team_b_id IS NOT NULL
+        """, (competition_id, gruppe)).fetchall()
+
+
+def _format_group_patt_message(team_a, team_b, scores, max_score):
+    draw_scores = {(value, value) for value in range(max_score + 1)}
+    if draw_scores.issubset(set(scores)):
+        return (
+            f"Bei einem Unentschieden zwischen {team_a} und {team_b} steht kein eindeutiger "
+            "Gruppensieger fest (Punkte, Tordifferenz und Tore wären dann komplett gleich)."
+        )
+    examples = ", ".join(f"{a}:{b}" for a, b in scores[:6])
+    suffix = " …" if len(scores) > 6 else ""
+    return (
+        f"Bei bestimmten Ergebnissen (z. B. {examples}{suffix}) zwischen {team_a} und {team_b} "
+        "steht kein eindeutiger Gruppensieger fest (Punkte, Tordifferenz und Tore komplett gleich)."
+    )
+
+
+def find_group_patt_risk(
+    competition_id: int,
+    gruppe: str,
+    pending_team_a: str,
+    pending_team_b: str,
+    qualifying_count: int = 2,
+    max_score: int = 12,
+):
+    """Prueft fuer das noch offene, letzte Gruppenspiel, ob es Ergebnisse gibt, die
+    an der Qualifikationsgrenze (Platz `qualifying_count`/`qualifying_count`+1) zu
+    einem komplett unaufloesbaren Gleichstand fuehren wuerden (Punkte, Tordifferenz,
+    Tore und Direktvergleich alle gleich). Gibt es solche Ergebnisse, kann der
+    Schiedsrichter waehrend des Spiels reagieren (z. B. Verlaengerung, Neunmeter)."""
+    with get_conn() as conn:
+        competition = conn.execute(
+            "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+        ).fetchone()
+    if competition is None:
+        return None
+
+    base_table = calculate_group_table(competition_id, gruppe)
+    if len(base_table) < qualifying_count + 1:
+        return None
+
+    decided_slots = _fetch_group_decided_slots(competition_id, gruppe)
+    base_by_team = {row["team"]: row for row in base_table}
+    empty_base = {"team_id": None, "pkt": 0.0, "diff": 0, "plus": 0}
+    base_a = base_by_team.get(pending_team_a, empty_base)
+    base_b = base_by_team.get(pending_team_b, empty_base)
+
+    def _project(team_name, base_row, own_score, opp_score):
+        pkt = base_row["pkt"]
+        if own_score > opp_score:
+            pkt += competition["points_win"]
+        elif own_score < opp_score:
+            pkt += competition["points_loss"]
+        else:
+            pkt += competition["points_draw"]
+        return {
+            "team": team_name,
+            "team_id": base_row.get("team_id"),
+            "pkt": pkt,
+            "diff": base_row["diff"] + (own_score - opp_score),
+            "plus": base_row["plus"] + own_score,
+        }
+
+    risky_scores = []
+    for score_a in range(max_score + 1):
+        for score_b in range(max_score + 1):
+            rows = [
+                dict(row) for row in base_table
+                if row["team"] not in (pending_team_a, pending_team_b)
+            ]
+            hypothetical_slot = {
+                "team_a": pending_team_a, "team_b": pending_team_b,
+                "score_a": score_a, "score_b": score_b,
+            }
+            all_slots = list(decided_slots) + [hypothetical_slot]
+            rows.append(_project(pending_team_a, base_a, score_a, score_b))
+            rows.append(_project(pending_team_b, base_b, score_b, score_a))
+
+            sorted_rows = sort_table_rows(rows, all_slots, competition)
+
+            # Jede Rang-Grenze bis zur Qualifikationsgrenze pruefen (nicht nur den
+            # Cutoff selbst): ein unaufloesbarer Gleichstand um Platz 1 bedeutet
+            # "kein eindeutiger Gruppensieger" (relevant fuer die KO-Auslosung),
+            # auch wenn beide Teams ohnehin qualifiziert waeren.
+            for boundary_index in range(qualifying_count):
+                lower_boundary = sorted_rows[boundary_index]
+                upper_boundary = sorted_rows[boundary_index + 1]
+                involves_pending_match = pending_team_a in (
+                    lower_boundary["team"], upper_boundary["team"]
+                ) or pending_team_b in (lower_boundary["team"], upper_boundary["team"])
+                if not involves_pending_match:
+                    continue
+                unresolved_labels = (TIE_BREAK_LABELS["unentschieden"], TIE_BREAK_LABELS["zyklus"])
+                if (
+                    lower_boundary["tie_note"] in unresolved_labels
+                    and lower_boundary["tie_note"] == upper_boundary["tie_note"]
+                ):
+                    risky_scores.append((score_a, score_b))
+                    break
+
+    if not risky_scores:
+        return None
+
+    return {
+        "team_a": pending_team_a,
+        "team_b": pending_team_b,
+        "scores": risky_scores,
+        "message": _format_group_patt_message(pending_team_a, pending_team_b, risky_scores, max_score),
+    }
 
 
 def fetch_beamer_data():
@@ -1686,6 +1957,8 @@ def ergebnisse(
     saved_at: str = "",
     phase_ready: str = "",
     phase_ready_competition_id: str = "",
+    overwrite_warning: str = "",
+    correction_blocked: str = "",
 ):
     filter_state = build_results_filter_state(
         get_active_competitions(),
@@ -1728,6 +2001,28 @@ def ergebnisse(
         if request.url.query:
             current_url += f"?{request.url.query}"
         phase_ready_dismiss_url = build_results_redirect_url(current_url)
+
+    overwrite_warning_prompt = None
+    overwrite_warning_dismiss_url = None
+    if overwrite_warning in ("Halbfinale", "Finale") and selected_competition_id is not None:
+        already_played = get_already_played_ko_targets(selected_competition_id, overwrite_warning)
+        if already_played:
+            overwrite_warning_prompt = {
+                "phase": overwrite_warning,
+                "results": [
+                    f"{slot['phase']}: {slot['team_a'] or '?'} {slot['score_a']}:{slot['score_b']} {slot['team_b'] or '?'}"
+                    for slot in already_played
+                ],
+                "action": (
+                    f"/competition/{selected_competition_id}/generate-semifinals"
+                    if overwrite_warning == "Halbfinale"
+                    else f"/competition/{selected_competition_id}/generate-finals"
+                ),
+            }
+            current_url = request.url.path
+            if request.url.query:
+                current_url += f"?{request.url.query}"
+            overwrite_warning_dismiss_url = build_results_redirect_url(current_url)
 
     if (
         selected_competition is not None
@@ -1837,6 +2132,9 @@ def ergebnisse(
                 "archived_slots": [],
                 "phase_ready_prompt": None,
                 "phase_ready_dismiss_url": None,
+                "overwrite_warning_prompt": None,
+                "overwrite_warning_dismiss_url": None,
+                "correction_blocked": False,
             }
         )
 
@@ -1860,12 +2158,46 @@ def ergebnisse(
         slot for slot in slots
         if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
     ]
+    archived_slots = list(reversed(archived_slots))[:20]
+
+    group_pending_counts = {}
+    for slot in slots:
+        if slot["slot_typ"] == "Spiel" and slot["phase"] == "Gruppenphase" and slot["gruppe"]:
+            if slot["status"] != "beendet":
+                key = (slot["competition_id"], slot["gruppe"])
+                group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
+
+    for slot in active_slots:
+        slot["group_patt_risk"] = None
+        if (
+            slot["slot_typ"] == "Spiel"
+            and slot["phase"] == "Gruppenphase"
+            and slot["gruppe"]
+            and slot["team_a"]
+            and slot["team_b"]
+            and group_pending_counts.get((slot["competition_id"], slot["gruppe"])) == 1
+        ):
+            slot["group_patt_risk"] = find_group_patt_risk(
+                slot["competition_id"], slot["gruppe"], slot["team_a"], slot["team_b"]
+            )
+
+    for slot in active_slots + archived_slots:
+        slot["is_draw_unresolved"] = (
+            slot["phase"] in KO_DECISIVE_PHASES
+            and slot["score_a"] is not None
+            and slot["score_a"] == slot["score_b"]
+        )
+    for slot in archived_slots:
+        slot["correction_locked"] = is_next_phase_started(
+            slot["competition_id"], slot["phase"]
+        )
+
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
             "slots": active_slots,
-            "archived_slots": list(reversed(archived_slots))[:20],
+            "archived_slots": archived_slots,
             "competitions": competitions,
             "event_options": event_options,
             "selected_event_id": selected_event_id,
@@ -1874,6 +2206,9 @@ def ergebnisse(
             "selected_court_id": selected_court_id,
             "phase_ready_prompt": phase_ready_prompt,
             "phase_ready_dismiss_url": phase_ready_dismiss_url,
+            "overwrite_warning_prompt": overwrite_warning_prompt,
+            "overwrite_warning_dismiss_url": overwrite_warning_dismiss_url,
+            "correction_blocked": correction_blocked == "1",
         }
     )
 
@@ -2038,6 +2373,7 @@ def save_slot(
 
     new_status = "beendet" if finish == "1" else "läuft"
 
+    correction_blocked = False
     with get_conn() as conn:
         slot = conn.execute(
             """
@@ -2047,45 +2383,98 @@ def save_slot(
             """,
             (slot_id,)
         ).fetchone()
-        started_at_value = slot["started_at"] if slot else None
-        if new_status == "läuft" and not started_at_value:
-            started_at_value = app_now_db_timestamp()
-        if new_status == "geplant":
-            started_at_value = None
 
-        conn.execute("""
-            UPDATE slots
-            SET score_a = ?,
-                score_b = ?,
-                status = ?,
-                started_at = ?
-            WHERE id = ?
-        """, (
-            score_a,
-            score_b,
-            new_status,
-            started_at_value,
-            slot_id
-        ))
-        if slot is not None and (
-            slot["score_a"] != score_a or slot["score_b"] != score_b
-        ):
-            action = (
-                "Ergebnis erfasst"
-                if slot["score_a"] is None and slot["score_b"] is None
-                else "Ergebnis geändert"
-            )
-            record_change(
-                conn,
-                request=request,
-                action=action,
-                entity_type="slot_result",
-                entity_id=slot_id,
-                competition_id=slot["competition_id"],
-                old_value=format_score(slot["score_a"], slot["score_b"]),
-                new_value=format_score(score_a, score_b),
-            )
-        conn.commit()
+        is_correction = (
+            slot is not None
+            and slot["status"] == "beendet"
+            and (slot["score_a"] != score_a or slot["score_b"] != score_b)
+        )
+        if is_correction and is_next_phase_started(slot["competition_id"], slot["phase"]):
+            # Die nächste Phase (Halbfinale/Finale) hat bereits begonnen -
+            # ein Nachtragen der davon abhängigen Spiele ist am Turniertag aus
+            # Zeitgründen nicht vorgesehen, daher bleibt das Ergebnis gesperrt.
+            correction_blocked = True
+
+        if not correction_blocked:
+            started_at_value = slot["started_at"] if slot else None
+            if new_status == "läuft" and not started_at_value:
+                started_at_value = app_now_db_timestamp()
+            if new_status == "geplant":
+                started_at_value = None
+
+            conn.execute("""
+                UPDATE slots
+                SET score_a = ?,
+                    score_b = ?,
+                    status = ?,
+                    started_at = ?
+                WHERE id = ?
+            """, (
+                score_a,
+                score_b,
+                new_status,
+                started_at_value,
+                slot_id
+            ))
+            if slot is not None and (
+                slot["score_a"] != score_a or slot["score_b"] != score_b
+            ):
+                action = (
+                    "Ergebnis erfasst"
+                    if slot["score_a"] is None and slot["score_b"] is None
+                    else "Ergebnis geändert"
+                )
+                record_change(
+                    conn,
+                    request=request,
+                    action=action,
+                    entity_type="slot_result",
+                    entity_id=slot_id,
+                    competition_id=slot["competition_id"],
+                    old_value=format_score(slot["score_a"], slot["score_b"]),
+                    new_value=format_score(score_a, score_b),
+                )
+
+            if is_correction:
+                # Eine Korrektur eines bereits entschiedenen Gruppen-/Halbfinalspiels
+                # kann die Besetzung einer bereits ausgelosten, aber noch nicht
+                # gestarteten Folgephase ungueltig machen (z.B. anderer Gruppensieger).
+                # is_next_phase_started() hat oben nur "laeuft"/"beendet" gesperrt -
+                # eine lediglich ausgeloste (noch 'geplant') Folgephase wuerde sonst
+                # unbemerkt mit den alten, jetzt falschen Teams stehen bleiben.
+                next_phases = get_next_phase_names(slot["phase"])
+                if next_phases:
+                    placeholders = ", ".join("?" for _ in next_phases)
+                    stale_slots = conn.execute(f"""
+                        SELECT id FROM slots
+                        WHERE competition_id = ? AND slot_typ = 'Spiel'
+                          AND phase IN ({placeholders})
+                          AND status = 'geplant'
+                          AND (team_a_id IS NOT NULL OR team_b_id IS NOT NULL)
+                    """, (slot["competition_id"], *next_phases)).fetchall()
+                    if stale_slots:
+                        stale_ids = [row["id"] for row in stale_slots]
+                        id_placeholders = ", ".join("?" for _ in stale_ids)
+                        conn.execute(f"""
+                            UPDATE slots
+                            SET team_a_id = NULL, team_b_id = NULL,
+                                score_a = NULL, score_b = NULL,
+                                status = 'geplant', started_at = NULL, finished_at = NULL
+                            WHERE id IN ({id_placeholders})
+                        """, stale_ids)
+                        for stale_id in stale_ids:
+                            record_change(
+                                conn,
+                                request=request,
+                                action="Auslosung zurückgesetzt (Korrektur einer vorherigen Phase)",
+                                entity_type="slot_result",
+                                entity_id=stale_id,
+                                competition_id=slot["competition_id"],
+                                old_value=None,
+                                new_value=None,
+                            )
+
+            conn.commit()
 
     # Nur wenn genau dieses Spiel die Phase gerade komplettiert (nicht bei einer
     # nachträglichen Korrektur eines längst beendeten Spiels), bieten wir an,
@@ -2111,6 +2500,8 @@ def save_slot(
     if phase_ready:
         redirect_updates["phase_ready"] = phase_ready
         redirect_updates["phase_ready_competition_id"] = slot["competition_id"]
+    if correction_blocked:
+        redirect_updates["correction_blocked"] = "1"
     return RedirectResponse(
         build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,
@@ -2119,12 +2510,23 @@ def save_slot(
 
 @app.post("/slot/{slot_id}/reactivate")
 def reactivate_slot(slot_id: int, results_return_to: str = Form("")):
+    correction_blocked = False
     with get_conn() as conn:
-        conn.execute("UPDATE slots SET status = 'läuft' WHERE id = ?", (slot_id,))
-        conn.commit()
+        slot = conn.execute(
+            "SELECT competition_id, phase FROM slots WHERE id = ?",
+            (slot_id,)
+        ).fetchone()
+        if slot is not None and is_next_phase_started(slot["competition_id"], slot["phase"]):
+            correction_blocked = True
+        else:
+            conn.execute("UPDATE slots SET status = 'läuft' WHERE id = ?", (slot_id,))
+            conn.commit()
 
+    redirect_updates = {}
+    if correction_blocked:
+        redirect_updates["correction_blocked"] = "1"
     return RedirectResponse(
-        build_results_redirect_url(results_return_to),
+        build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,
     )
 
@@ -2135,41 +2537,48 @@ def clear_slot_result(
     request: Request,
     results_return_to: str = Form(""),
 ):
+    correction_blocked = False
     with get_conn() as conn:
         slot = conn.execute(
             """
-            SELECT competition_id, score_a, score_b
+            SELECT competition_id, score_a, score_b, phase
             FROM slots
             WHERE id = ?
             """,
             (slot_id,),
         ).fetchone()
-        conn.execute("""
-            UPDATE slots
-            SET score_a = NULL,
-                score_b = NULL,
-                status = 'geplant',
-                started_at = NULL
-            WHERE id = ?
-        """, (slot_id,))
-        if slot is not None and (
-            slot["score_a"] is not None or slot["score_b"] is not None
-        ):
-            record_change(
-                conn,
-                request=request,
-                action="Ergebnis gelöscht",
-                entity_type="slot_result",
-                entity_id=slot_id,
-                competition_id=slot["competition_id"],
-                old_value=format_score(slot["score_a"], slot["score_b"]),
-                new_value="–",
-            )
-        conn.commit()
+
+        if slot is not None and is_next_phase_started(slot["competition_id"], slot["phase"]):
+            correction_blocked = True
+        else:
+            conn.execute("""
+                UPDATE slots
+                SET score_a = NULL,
+                    score_b = NULL,
+                    status = 'geplant',
+                    started_at = NULL
+                WHERE id = ?
+            """, (slot_id,))
+            if slot is not None and (
+                slot["score_a"] is not None or slot["score_b"] is not None
+            ):
+                record_change(
+                    conn,
+                    request=request,
+                    action="Ergebnis gelöscht",
+                    entity_type="slot_result",
+                    entity_id=slot_id,
+                    competition_id=slot["competition_id"],
+                    old_value=format_score(slot["score_a"], slot["score_b"]),
+                    new_value="–",
+                )
+            conn.commit()
 
     redirect_updates = {}
     if not results_return_to and slot is not None:
         redirect_updates["competition_id"] = slot["competition_id"]
+    if correction_blocked:
+        redirect_updates["correction_blocked"] = "1"
     return RedirectResponse(
         build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,
@@ -2223,6 +2632,8 @@ app.include_router(create_schedule_router(
     parse_jahrgang_filter=parse_jahrgang_filter,
     get_active_competitions=get_active_competitions,
     calculate_group_table=calculate_group_table,
+    get_teams_for_competition=get_teams_for_competition,
+    calculate_sixkampf_station_rotation=calculate_sixkampf_station_rotation,
 ))
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,

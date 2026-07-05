@@ -179,3 +179,28 @@ def calculate_sixkampf_team_ranking(
         row["scoring_points_display"] = format_points_value(row["scoring_points"])
 
     return ranking, totals_by_team_discipline, overall_totals
+
+
+def calculate_sixkampf_station_rotation(teams, disciplines):
+    """Rotationsplan je Klasse: die 1. Klasse startet an der 1. Station, die
+    2. an der 2. usw.; jede Runde rueckt jede Klasse eine Station weiter. Gibt
+    es mehr Klassen als Stationen, fuellen zusaetzliche 'Pause'-Plaetze die
+    Differenz auf, sodass in jeder Runde weiterhin genau eine Klasse je
+    Station steht und die ueberzaehligen Klassen reihum pausieren."""
+    station_count = len(disciplines)
+    team_count = len(teams)
+    if station_count == 0 or team_count == 0:
+        return []
+
+    pause_count = max(0, team_count - station_count)
+    cycle_length = station_count + pause_count
+    slot_names = [_get(discipline, "name") for discipline in disciplines] + ["Pause"] * pause_count
+
+    rotation = []
+    for index, team in enumerate(teams):
+        rounds = [
+            slot_names[(index + offset) % cycle_length]
+            for offset in range(cycle_length)
+        ]
+        rotation.append({"team": team, "rounds": rounds})
+    return rotation

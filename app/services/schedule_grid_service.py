@@ -404,6 +404,38 @@ def _insert_group_phase_gaps(location_slots):
     return location_slots + gap_slots
 
 
+def build_location_print_grid(court_groups):
+    """Baut aus den court_groups einer Ortssektion (siehe get_location_schedule_sections)
+    ein Zeit-x-Feld-Raster fuer den Aushang-Druck: jede Zeile eine Startzeit, jede
+    Spalte ein Feld dieses Ortes. Pause-Platzhalter (is_gap, nur fuer die
+    Editor-Kartenansicht gedacht) werden uebersprungen, da ein leeres Feld in der
+    Rasterzelle bereits eindeutig "keine Begegnung" bedeutet. Jede Zelle ist eine
+    Liste (nicht nur ein einzelner Slot): faellt ein Feld zur selben Zeit versehentlich
+    zwei Wettbewerben zu (Cross-Wettbewerb-Kollision, siehe ROADMAP.md), sollen auf dem
+    Aushang trotzdem beide Begegnungen sichtbar bleiben statt eine davon stillschweigend
+    zu verlieren."""
+    courts = [group["court"] for group in court_groups]
+    time_values = sorted({
+        slot["startzeit"]
+        for group in court_groups
+        for slot in group["slots"]
+        if not slot.get("is_gap")
+    }, key=parse_slot_time)
+
+    rows = []
+    for startzeit in time_values:
+        cells = []
+        for group in court_groups:
+            matching_slots = [
+                s for s in group["slots"]
+                if s["startzeit"] == startzeit and not s.get("is_gap")
+            ]
+            cells.append(matching_slots)
+        rows.append({"startzeit": startzeit, "cells": cells})
+
+    return courts, rows
+
+
 def get_location_schedule_sections(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,

@@ -1,16 +1,19 @@
 from datetime import date, datetime, timedelta
 from typing import Callable, List
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.database import get_conn
+from app.services.change_log_service import insert_change_log_entry
 from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     resolve_selected_event_id,
 )
 from app.services.schedule_generator_service import (
     generate_group_plan,
+    get_already_played_ko_targets,
     get_winner_loser,
     group_phase_finished,
     semifinals_finished,
@@ -18,6 +21,7 @@ from app.services.schedule_generator_service import (
 )
 from app.services.schedule_grid_service import (
     build_editor_time_grid,
+    build_location_print_grid,
     get_location_schedule_sections,
     get_slots_grouped_by_court,
 )
@@ -41,13 +45,26 @@ from app.services.results_filter_service import build_results_redirect_url
 from app.web import templates
 
 
-def _phase_generation_redirect_target(competition_id: int, results_return_to: str) -> str:
+def _phase_generation_redirect_target(
+    competition_id: int, results_return_to: str, **extra_params: str
+) -> str:
     """Schiedsrichter, die die Bestätigung in der Ergebniseingabe auslösen,
     sollen dorthin zurückkehren; Admins, die den Button in der
-    Spielplan-Bearbeitung nutzen, weiterhin dorthin."""
+    Spielplan-Bearbeitung nutzen, weiterhin dorthin. extra_params landen in
+    beiden Fällen als zusätzliche Query-Parameter im Ziel (z.B. eine
+    Überschreib-Warnung)."""
     if results_return_to:
-        return build_results_redirect_url(results_return_to, competition_id=competition_id)
-    return f"/spielplan-bearbeiten?competition_id={competition_id}"
+        return build_results_redirect_url(
+            results_return_to, competition_id=competition_id, **extra_params
+        )
+    query = urlencode({"competition_id": competition_id, **extra_params})
+    return f"/spielplan-bearbeiten?{query}"
+
+
+def _format_slot_result(slot) -> str:
+    team_a = slot["team_a"] or "?"
+    team_b = slot["team_b"] or "?"
+    return f"{team_a} {slot['score_a']}:{slot['score_b']} {team_b}"
 
 
 def create_router(
@@ -58,8 +75,15 @@ def create_router(
     parse_jahrgang_filter: Callable,
     get_active_competitions: Callable,
     calculate_group_table: Callable,
+    get_teams_for_competition: Callable,
+    calculate_sixkampf_station_rotation: Callable,
 ) -> APIRouter:
     router = APIRouter()
+
+    def record_change(conn, request, **kwargs):
+        insert_change_log_entry(
+            conn, request=request, created_at=app_now_db_timestamp(), **kwargs
+        )
 
     def get_competition_event_id(competition_id):
         if competition_id is None:
@@ -97,6 +121,7 @@ def create_router(
         plan_timing=None,
         plan_end_time_forecast=None,
         selected_court_ids=None,
+        overwrite_warning=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
@@ -197,6 +222,25 @@ def create_router(
             elif can_generate_finals:
                 ko_hint = "Die Halbfinals sind beendet. Finale und Spiel um Platz 3 können automatisch besetzt werden."
 
+        overwrite_warning_prompt = None
+        if (
+            overwrite_warning in ("Halbfinale", "Finale")
+            and selected_competition_id is not None
+        ):
+            already_played = get_already_played_ko_targets(
+                selected_competition_id, overwrite_warning
+            )
+            if already_played:
+                overwrite_warning_prompt = {
+                    "phase": overwrite_warning,
+                    "results": [_format_slot_result(slot) for slot in already_played],
+                    "action": (
+                        f"/competition/{selected_competition_id}/generate-semifinals"
+                        if overwrite_warning == "Halbfinale"
+                        else f"/competition/{selected_competition_id}/generate-finals"
+                    ),
+                }
+
         return {
             "groups": groups,
             "competitions": competitions,
@@ -221,6 +265,7 @@ def create_router(
             "ko_hint": ko_hint,
             "can_generate_semifinals": can_generate_semifinals,
             "can_generate_finals": can_generate_finals,
+            "overwrite_warning_prompt": overwrite_warning_prompt,
         }
 
     def render_editor(request, selected_competition_id, **context_overrides):
@@ -283,6 +328,27 @@ def create_router(
         )
         available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
 
+        sixkampf_rotation_competition = next(
+            (
+                competition for competition in competitions
+                if competition["id"] == selected_competition_id
+                and competition["competition_type"] == "Sechskampf"
+            ),
+            None,
+        )
+        sixkampf_rotation = []
+        if sixkampf_rotation_competition is not None:
+            with get_conn() as conn:
+                disciplines = conn.execute("""
+                    SELECT * FROM competition_disciplines
+                    WHERE competition_id = ?
+                    ORDER BY sort_order, id
+                """, (selected_competition_id,)).fetchall()
+                teams = get_teams_for_competition(
+                    conn, selected_competition_id, sixkampf_rotation_competition["jahrgang"]
+                )
+            sixkampf_rotation = calculate_sixkampf_station_rotation(teams, disciplines)
+
         return templates.TemplateResponse(
             request=request,
             name="spielplan.html",
@@ -296,6 +362,47 @@ def create_router(
                 "selected_location": selected_location,
                 "competition_locations": COMPETITION_LOCATIONS,
                 "available_jahrgaenge": available_jahrgaenge,
+                "sixkampf_rotation_competition": sixkampf_rotation_competition,
+                "sixkampf_rotation": sixkampf_rotation,
+            }
+        )
+
+    @router.get("/spielplan/aushang")
+    def spielplan_aushang(
+        request: Request,
+        ort: str = "",
+        event_id: str = "",
+        jahrgang: str = "",
+    ):
+        printable_locations = [
+            location for location in COMPETITION_LOCATIONS
+            if location != "Außenbereich"
+        ]
+        selected_location = normalize_competition_location(ort) or printable_locations[0]
+        selected_jahrgang = parse_jahrgang_filter(jahrgang)
+        event_options, selected_event_id = resolve_event_context(request, event_id)
+
+        location_sections = get_location_schedule_sections(
+            None, selected_jahrgang, selected_location, event_id=selected_event_id,
+        )
+        section = next(
+            (s for s in location_sections if s["location"] == selected_location), None
+        )
+        courts, rows = build_location_print_grid(
+            section["court_groups"] if section else []
+        )
+
+        return templates.TemplateResponse(
+            request=request,
+            name="spielplan_aushang.html",
+            context={
+                "printable_locations": printable_locations,
+                "selected_location": selected_location,
+                "selected_jahrgang": selected_jahrgang,
+                "event_options": event_options,
+                "selected_event_id": selected_event_id,
+                "courts": courts,
+                "rows": rows,
             }
         )
 
@@ -304,6 +411,7 @@ def create_router(
         request: Request,
         event_id: str = "",
         competition_id: str = "",
+        overwrite_warning: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
         event_options, selected_event_id = resolve_event_context(
@@ -316,6 +424,7 @@ def create_router(
             selected_competition_id,
             selected_event_id=selected_event_id,
             event_options=event_options,
+            overwrite_warning=overwrite_warning,
         )
 
     @router.post("/plan-generator/preview")
@@ -462,8 +571,23 @@ def create_router(
         )
 
     @router.post("/competition/{competition_id}/generate-semifinals")
-    def generate_semifinals(competition_id: int, results_return_to: str = Form("")):
+    def generate_semifinals(
+        competition_id: int,
+        request: Request,
+        results_return_to: str = Form(""),
+        confirm_overwrite: str = Form("0"),
+    ):
         redirect_target = _phase_generation_redirect_target(competition_id, results_return_to)
+
+        already_played = get_already_played_ko_targets(competition_id, "Halbfinale")
+        if already_played and confirm_overwrite != "1":
+            return RedirectResponse(
+                _phase_generation_redirect_target(
+                    competition_id, results_return_to, overwrite_warning="Halbfinale"
+                ),
+                status_code=303,
+            )
+
         group_a = calculate_group_table(competition_id, "A")
         group_b = calculate_group_table(competition_id, "B")
 
@@ -484,6 +608,17 @@ def create_router(
                   AND phase = 'Halbfinale'
                 ORDER BY startzeit, court_id, id
             """, (competition_id,)).fetchall()
+
+            for slot in already_played:
+                record_change(
+                    conn, request,
+                    action="Halbfinale neu besetzt (vorheriges Ergebnis überschrieben)",
+                    entity_type="slot_result",
+                    entity_id=slot["id"],
+                    competition_id=competition_id,
+                    old_value=_format_slot_result(slot),
+                    new_value=None,
+                )
 
             if len(semifinals) >= 1:
                 conn.execute("""
@@ -514,8 +649,23 @@ def create_router(
         return RedirectResponse(redirect_target, status_code=303)
 
     @router.post("/competition/{competition_id}/generate-finals")
-    def generate_finals(competition_id: int, results_return_to: str = Form("")):
+    def generate_finals(
+        competition_id: int,
+        request: Request,
+        results_return_to: str = Form(""),
+        confirm_overwrite: str = Form("0"),
+    ):
         redirect_target = _phase_generation_redirect_target(competition_id, results_return_to)
+
+        already_played = get_already_played_ko_targets(competition_id, "Finale")
+        if already_played and confirm_overwrite != "1":
+            return RedirectResponse(
+                _phase_generation_redirect_target(
+                    competition_id, results_return_to, overwrite_warning="Finale"
+                ),
+                status_code=303,
+            )
+
         with get_conn() as conn:
             semifinals = conn.execute("""
                 SELECT *
@@ -539,6 +689,17 @@ def create_router(
 
             if None in (winner_1, loser_1, winner_2, loser_2):
                 return RedirectResponse(redirect_target, status_code=303)
+
+            for slot in already_played:
+                record_change(
+                    conn, request,
+                    action=f"{slot['phase']} neu besetzt (vorheriges Ergebnis überschrieben)",
+                    entity_type="slot_result",
+                    entity_id=slot["id"],
+                    competition_id=competition_id,
+                    old_value=_format_slot_result(slot),
+                    new_value=None,
+                )
 
             final_slot = conn.execute("""
                 SELECT *

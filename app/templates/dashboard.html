@@ -100,7 +100,6 @@
                     <p class="eyebrow">Ausblick</p>
                     <h2>Beginnt als Nächstes</h2>
                 </div>
-                <span class="badge gleich"><span class="status-dot" aria-hidden="true"></span>gleich</span>
             </div>
 
             <div class="upcoming-list">
@@ -144,13 +143,6 @@
                 <p class="eyebrow">Tagesplan</p>
                 <h2>{{ schedule_event.name if schedule_event else "Aktive bzw. nächste Veranstaltung" }}</h2>
             </div>
-            {% if schedule.completed %}
-                {{ ui.status_badge("beendet") }}
-            {% elif schedule.current_block %}
-                {{ ui.status_badge("läuft") }}
-            {% else %}
-                {{ ui.status_badge("geplant") }}
-            {% endif %}
         </div>
         {% if schedule_event %}
             {% set day_schedule_compact = true %}

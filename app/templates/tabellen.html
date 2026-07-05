@@ -77,7 +77,7 @@
         </tr>
         {% for r in t.rows %}
         <tr>
-            <td class="sixkampf-rank">{{ loop.index }}</td>
+            <td class="sixkampf-rank">{{ r.placement }}</td>
             <td class="sixkampf-team"><strong>{{ r.team.name }}</strong></td>
             {% for discipline in t.disciplines %}
             {% set discipline_points = r.discipline_points_display.get(discipline.id) %}
@@ -102,7 +102,10 @@
         {% for r in t.rows %}
         <tr>
             <td>{{ loop.index }}</td>
-            <td><strong>{{ r.team }}</strong></td>
+            <td>
+                <strong>{{ r.team }}</strong>
+                {% if r.tie_note and can_view_results %}<br><small class="muted">{{ r.tie_note }}</small>{% endif %}
+            </td>
             <td>{{ r.sp }}</td>
             <td>{{ r.s }}</td>
             <td>{{ r.u }}</td>

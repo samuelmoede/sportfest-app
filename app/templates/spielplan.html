@@ -108,7 +108,42 @@
     <button class="primary" type="submit">Filtern</button>
 </form>
 
+{% if sixkampf_rotation_competition %}
+<section class="panel sixkampf-rotation-panel">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Sechskampf · Jahrgang {{ sixkampf_rotation_competition.jahrgang }}</p>
+            <h2>{{ sixkampf_rotation_competition.name }} · Stationsreihenfolge</h2>
+        </div>
+    </div>
+    {% if sixkampf_rotation %}
+    <p class="muted">Kein fester Zeitplan – die Klassen rotieren reihum durch die Stationen.</p>
+    <div class="table-scroll">
+        <table class="sixkampf-rotation-table">
+            <tr>
+                <th>Klasse</th>
+                {% for round_index in range(sixkampf_rotation[0].rounds|length) %}
+                <th>Runde {{ round_index + 1 }}</th>
+                {% endfor %}
+            </tr>
+            {% for entry in sixkampf_rotation %}
+            <tr>
+                <td><strong>{{ entry.team.name }}</strong></td>
+                {% for station in entry.rounds %}
+                <td{% if station == "Pause" %} class="sixkampf-rotation-pause"{% endif %}>{{ station }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">Für diesen Wettbewerb sind noch keine Stationen oder Klassen hinterlegt.</p>
+    {% endif %}
+</section>
+{% endif %}
+
 {% for section in location_sections %}
+{% if not (sixkampf_rotation_competition and section.location == "Außenbereich") %}
 <section class="location-venue-section location-{{ section.location_key|lower }}">
     <header class="location-venue-head">
         <div>
@@ -123,7 +158,12 @@
             <p>Bestehende Wettbewerbe ohne Ortszuordnung</p>
             {% endif %}
         </div>
-        <span class="location-pill">{{ section.location }}</span>
+        <div class="location-venue-head-actions">
+            <span class="location-pill">{{ section.location }}</span>
+            {% if section.location != "Außenbereich" %}
+            <a class="button secondary" href="/spielplan/aushang?ort={{ section.location }}{% if selected_event_id %}&event_id={{ selected_event_id }}{% endif %}">Aushang drucken</a>
+            {% endif %}
+        </div>
     </header>
 
     {% if section.timeline %}
@@ -187,6 +227,7 @@
     <p class="muted">Für diesen Ort sind in der aktuellen Auswahl keine Einträge vorhanden.</p>
     {% endif %}
 </section>
+{% endif %}
 {% else %}
 <section class="panel">
     <p class="muted">Für die aktuelle Auswahl ist kein Spielplan vorhanden.</p>

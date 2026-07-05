@@ -119,6 +119,7 @@ Vorhanden sind derzeit:
 - Mehrere Werte pro Team und Disziplin unterstützen
 - Ranglisten und Wertungspunkte berechnen
 - Ergebnisse in die bestehende Veranstaltungsdarstellung einbinden
+- Stationsrotation je Klasse anzeigen (1. Klasse startet an Station 1, 2. an Station 2 usw., rotierend je Runde; bei mehr Klassen als Stationen pausieren die überzähligen reihum)
 
 Wichtig:
 
@@ -145,6 +146,8 @@ Vorhanden sind derzeit:
 - Tabellen pro Wettbewerb anzeigen
 - Veranstaltungsbezogene Gesamtwertung auf der Detailseite anzeigen
 - Gesamtwertung nach Jahrgängen gruppiert darstellen
+- Hinweis in Tabellen, wodurch ein Punktgleichstand aufgelöst wurde (Tordifferenz, Tore, Mini-Tabelle unter den punktgleichen Teams oder ein weiterhin unaufgelöster/zyklischer Gleichstand)
+- Warnung vor dem letzten offenen Gruppenspiel, wenn bestimmte Ergebnisse zu einem unauflösbaren Gleichstand führen würden
 
 Aktueller Stand:
 
@@ -159,6 +162,7 @@ Vorhanden sind derzeit:
 - Tagesplan auf Veranstaltungsdetailseite
 - Dashboard mit nächster Veranstaltung und weiteren kommenden Veranstaltungen
 - Beameransicht für laufende Wettbewerbe
+- Spielplan-Aushang zum Ausdrucken je Ort (Turnhalle, Fußballplatz) als kompaktes Zeit-x-Feld-Raster auf A4, über den Browser-Druckdialog als PDF speicherbar
 - global konfigurierbares Aktualisierungsintervall für den Beamer
 
 ## Typische Nutzung

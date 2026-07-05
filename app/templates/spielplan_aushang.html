@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/aushang.css?v={{ style_version() }}">
+{% endblock %}
+{% block content %}
+<div class="aushang-controls no-print">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Aushang</p>
+            <h1>Spielplan zum Ausdrucken</h1>
+            <p>Ein Ort pro Seite, passend für A4 - zum Aushängen direkt am jeweiligen Ort.</p>
+        </div>
+    </header>
+
+    <form method="get" action="/spielplan/aushang" class="filter-row">
+        <select name="event_id">
+            <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
+            {% for event in event_options %}
+            <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+                {{ event.name }}{% if event.status == "aktiv" %} &middot; aktiv{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <select name="ort">
+            {% for location in printable_locations %}
+            <option value="{{ location }}" {% if selected_location == location %}selected{% endif %}>{{ location }}</option>
+            {% endfor %}
+        </select>
+
+        <button class="primary" type="submit">Anzeigen</button>
+        <button class="secondary" type="button" onclick="window.print()">Drucken / Als PDF speichern</button>
+    </form>
+</div>
+
+<section class="aushang-page">
+    <header class="aushang-page-head">
+        <h2>{{ selected_location }}</h2>
+        <p>
+            {% if selected_event_id and event_options %}
+                {% for event in event_options %}{% if event.id == selected_event_id %}{{ event.name }}{% if event.event_date %} &middot; {{ event.event_date }}{% endif %}{% endif %}{% endfor %}
+            {% else %}
+                Aktuelle bzw. nächste Veranstaltung
+            {% endif %}
+        </p>
+    </header>
+
+    {% if rows %}
+    <table class="aushang-table">
+        <thead>
+            <tr>
+                <th class="aushang-time-col">Uhrzeit</th>
+                {% for court in courts %}
+                <th>{{ court.name }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="aushang-time-col">{{ row.startzeit }}</td>
+                {% for cell in row.cells %}
+                <td class="aushang-cell">
+                    {% if cell %}
+                    {% for slot in cell %}
+                    <div class="aushang-entry">
+                        <div class="aushang-comp">
+                            {{ slot.competition_name.split(' Jahrgang')[0].strip() }}
+                            {%- if slot.gruppe %} &middot; Gr. {{ slot.gruppe }}
+                            {%- elif slot.phase == "Halbfinale" %} &middot; HF
+                            {%- elif slot.phase == "Finale" %} &middot; Finale
+                            {%- elif slot.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") %} &middot; Platz 3
+                            {%- endif %}
+                        </div>
+                        <div class="aushang-match">{{ slot.team_a or "?" }} <span>–</span> {{ slot.team_b or "?" }}</div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <span class="aushang-empty">–</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Für diesen Ort sind in der aktuellen Auswahl keine Spiele geplant.</p>
+    {% endif %}
+</section>
+{% endblock %}

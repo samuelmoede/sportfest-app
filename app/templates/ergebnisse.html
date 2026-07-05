@@ -415,6 +415,45 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </div>
 </section>
 {% endif %}
+{% if overwrite_warning_prompt %}
+<section class="panel overwrite-warning-banner">
+    <div class="phase-ready-content">
+        <strong>Achtung: {{ overwrite_warning_prompt.phase }} wurde bereits gespielt.</strong>
+        <p>
+            Aktuell gespeichert:
+            {% for result in overwrite_warning_prompt.results %}
+            <br>{{ result }}
+            {% endfor %}
+        </p>
+        <p class="muted">
+            Wenn du fortfährst, werden diese Ergebnisse gelöscht und die Paarungen anhand der
+            aktuellen Gruppen- bzw. Halbfinal-Ergebnisse neu berechnet. Der bisherige Stand wird
+            im Änderungsprotokoll gesichert, ist danach aber nicht mehr aktiv nutzbar.
+        </p>
+    </div>
+    <div class="phase-ready-actions">
+        {% if overwrite_warning_dismiss_url %}
+        <a class="outline" href="{{ overwrite_warning_dismiss_url }}">Abbrechen</a>
+        {% endif %}
+        <form method="post" action="{{ overwrite_warning_prompt.action }}"
+              onsubmit="return confirm('Wirklich das gespeicherte Ergebnis überschreiben? Das kann nicht rückgängig gemacht werden.');">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+            <input type="hidden" name="confirm_overwrite" value="1">
+            <button class="danger" type="submit">Ja, überschreiben</button>
+        </form>
+    </div>
+</section>
+{% endif %}
+{% if correction_blocked %}
+<section class="panel correction-blocked-banner">
+    <strong>Diese Korrektur ist nicht mehr möglich.</strong>
+    <p class="muted">
+        Die darauf aufbauende Phase (Halbfinale bzw. Finale/Spiel um Platz 3) hat bereits begonnen.
+        Ein nachträgliches Ändern des Ergebnisses würde dazu führen, dass bereits gespielte
+        Folgespiele nicht mehr zu den Teams passen - daher bleibt der gespeicherte Stand erhalten.
+    </p>
+</section>
+{% endif %}
 <section class="panel">
     <h2>Aktive Spiele</h2>
     {% for s in slots %}
@@ -443,7 +482,16 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span class="change-counter" title="Protokollierte Ergebnisänderungen">
                 Änderungen: {{ s.change_count }}
             </span>
+            {% if s.is_draw_unresolved %}
+            <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
+            {% endif %}
+            {% if s.group_patt_risk %}
+            <span class="pill draw-warning-pill">⚠ Patt möglich</span>
+            {% endif %}
         </div>
+        {% if s.group_patt_risk %}
+        <p class="muted patt-warning-text">{{ s.group_patt_risk.message }}</p>
+        {% endif %}
         <div class="result-form-row">
         <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form">
             <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
@@ -503,7 +551,16 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             <span class="change-counter" title="Protokollierte Ergebnisänderungen">
                 Änderungen: {{ s.change_count }}
             </span>
+            {% if s.is_draw_unresolved %}
+            <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
+            {% endif %}
         </div>
+        {% if s.correction_locked %}
+        <p class="correction-locked-note">
+            <strong>{{ s.team_a or "?" }} {{ s.score_a }} : {{ s.score_b }} {{ s.team_b or "?" }}</strong>
+            &ndash; nicht mehr korrigierbar, da die nächste Phase bereits begonnen hat.
+        </p>
+        {% else %}
         <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
             <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
             <strong>{{ s.team_a or "?" }}</strong>
@@ -524,6 +581,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                 <button class="danger" type="submit">Ergebnis löschen</button>
             </form>
         </div>
+        {% endif %}
     </section>
     {% else %}
     <p class="muted">Noch keine gespeicherten Ergebnisse im Archiv.</p>

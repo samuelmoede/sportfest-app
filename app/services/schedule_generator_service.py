@@ -11,6 +11,44 @@ from app.services.schedule_location_service import (
 from app.services.schedule_time_service import get_competition_timing, get_game_end_time
 
 
+def _generate_balanced_pairings(team_names, games_per_team):
+    """Faires Rundenverfahren (Circle-Method) statt einer Greedy-Paarung in
+    Namensreihenfolge: Ein Team fest, alle anderen rotieren jede Runde um eine
+    Position; bei ungerader Teamzahl bekommt pro Runde ein Team ein Freilos.
+    Damit bekommt in jeder der ersten `games_per_team` Runden jedes Team genau
+    ein Spiel (Ausnahme: das Team mit Freilos in dieser Runde) und nie zweimal
+    denselben Gegner - im Unterschied zur vorherigen Greedy-Variante, die z.B.
+    bei 10 Teams/2 Spielen pro Team ein Team komplett ohne Spiel lassen konnte,
+    waehrend alle anderen ihre volle Spielanzahl bekamen (unfaire Tabelle als
+    Folge, da die Platzierung rein aus den tatsaechlich gespielten Spielen
+    berechnet wird)."""
+    teams = list(team_names)
+    if len(teams) < 2:
+        return []
+
+    bye = object()
+    if len(teams) % 2 == 1:
+        teams = teams + [bye]
+
+    team_count = len(teams)
+    max_rounds = team_count - 1
+    rounds_needed = min(games_per_team, max_rounds)
+
+    fixed = teams[0]
+    rotating = teams[1:]
+    pairings = []
+
+    for _ in range(rounds_needed):
+        round_teams = [fixed] + rotating
+        for i in range(team_count // 2):
+            team_a, team_b = round_teams[i], round_teams[team_count - 1 - i]
+            if team_a is not bye and team_b is not bye:
+                pairings.append((team_a, team_b))
+        rotating = rotating[-1:] + rotating[:-1]
+
+    return pairings
+
+
 def _assign_courts_for_round(round_selections, court_ids, last_court_by_team):
     """Verteilt die für diesen Durchgang bereits feststehenden Paarungen auf die
     Felder so, dass Teams nach Möglichkeit auf ihrem zuletzt genutzten Feld
@@ -121,14 +159,8 @@ def generate_group_plan(
         ]
 
     else:
-        counts = {team: 0 for team in team_names}
-
-        for i, team_a in enumerate(team_names):
-            for team_b in team_names[i + 1:]:
-                if counts[team_a] < games_per_team and counts[team_b] < games_per_team:
-                    pairings.append((team_a, team_b, ""))
-                    counts[team_a] += 1
-                    counts[team_b] += 1
+        for team_a, team_b in _generate_balanced_pairings(team_names, games_per_team):
+            pairings.append((team_a, team_b, ""))
 
     proposed_slots = []
     current_time = datetime.strptime(startzeit, "%H:%M")
@@ -405,6 +437,68 @@ def semifinals_finished(competition_id: int):
         """, (competition_id,)).fetchone()["n"]
 
     return total >= 2 and unfinished == 0
+
+
+def get_already_played_ko_targets(competition_id: int, phase: str):
+    """Liefert die Zielspiele einer K.-o.-Phase (Halbfinale bei
+    generate_semifinals; Finale/Spiel um Platz 3 bei generate_finals), die
+    bereits ein gespeichertes Ergebnis haben. Grundlage für die
+    Sicherheitsabfrage vor dem Überschreiben durch eine Neu-Besetzung."""
+    if phase == "Halbfinale":
+        target_phases = ("Halbfinale",)
+    else:
+        target_phases = ("Finale", "Spiel um Platz 3", "Kleines Finale", "Platzierung")
+
+    placeholders = ", ".join("?" for _ in target_phases)
+    with get_conn() as conn:
+        rows = conn.execute(f"""
+            SELECT slots.*, ta.name AS team_a, tb.name AS team_b
+            FROM slots
+            LEFT JOIN teams ta ON ta.id = slots.team_a_id
+            LEFT JOIN teams tb ON tb.id = slots.team_b_id
+            WHERE competition_id = ?
+              AND slot_typ = 'Spiel'
+              AND phase IN ({placeholders})
+              AND status = 'beendet'
+            ORDER BY startzeit, court_id, id
+        """, (competition_id, *target_phases)).fetchall()
+
+    return [dict(row) for row in rows]
+
+
+KO_DECISIVE_PHASES = ("Halbfinale", "Finale", "Spiel um Platz 3", "Kleines Finale", "Platzierung")
+
+
+def get_next_phase_names(phase: str):
+    """Welche Phase(n) auf `phase` aufbauen (deren Besetzung von `phase`
+    abhängt). Leer, wenn `phase` eine Endphase ist (Finale/Platz 3)."""
+    if phase == "Gruppenphase":
+        return ("Halbfinale",)
+    if phase == "Halbfinale":
+        return ("Finale", "Spiel um Platz 3", "Kleines Finale", "Platzierung")
+    return ()
+
+
+def is_next_phase_started(competition_id: int, phase: str) -> bool:
+    """True, wenn die auf `phase` aufbauende K.-o.-Phase bereits läuft oder
+    beendet ist. Grundlage dafür, eine nachträgliche Korrektur eines längst
+    gespielten Gruppen-/Halbfinalspiels zu sperren, sobald die nächste Runde
+    schon begonnen hat - ein Nachholen der bereits gespielten Folgespiele ist
+    aus Zeitgründen am Turniertag nicht vorgesehen."""
+    next_phases = get_next_phase_names(phase)
+    if not next_phases:
+        return False
+
+    placeholders = ", ".join("?" for _ in next_phases)
+    with get_conn() as conn:
+        row = conn.execute(f"""
+            SELECT COUNT(*) AS n FROM slots
+            WHERE competition_id = ? AND slot_typ = 'Spiel'
+              AND phase IN ({placeholders})
+              AND status IN ('läuft', 'beendet')
+        """, (competition_id, *next_phases)).fetchone()
+
+    return row["n"] > 0
 
 
 def get_winner_loser(slot):

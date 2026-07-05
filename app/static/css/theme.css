@@ -2006,6 +2006,18 @@ section.cards.competition-list {
     color: var(--navy2);
 }
 
+/* --- Sechskampf-Stationsrotation --- */
+.sixkampf-rotation-table td:first-child {
+    font-weight: 800;
+    color: var(--navy2);
+}
+
+.sixkampf-rotation-table .sixkampf-rotation-pause {
+    color: var(--muted);
+    background: var(--surface-soft);
+    font-style: italic;
+}
+
 /* --- Teams-Seite: Gruppenweise Karten --- */
 .team-gruppe-card {
     padding: 0;

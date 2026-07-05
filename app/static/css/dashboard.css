@@ -139,6 +139,13 @@
     color: var(--muted);
 }
 
+.location-venue-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .location-pill {
     flex: 0 0 auto;
     padding: 6px 10px;
