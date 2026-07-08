@@ -205,9 +205,30 @@ section.cards.competition-list {
     flex: 1 1 1fr;
 }
 
+.discipline-drag-handle {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--muted);
+    cursor: grab;
+    align-self: center;
+}
+
+.discipline-row.is-dragging {
+    opacity: 0.4;
+}
+
+.discipline-drag-hint {
+    margin: 0 0 10px;
+    font-size: 0.85rem;
+}
+
 .competition-card-details .discipline-form {
     display: grid;
-    grid-template-columns: 70px minmax(140px, 1.5fr) minmax(120px, 1fr) 130px minmax(180px, 1.2fr) auto;
+    grid-template-columns: 70px minmax(130px, 1.3fr) minmax(140px, 1.3fr) minmax(110px, 1fr) 130px minmax(180px, 1.2fr) auto;
     gap: 8px;
     align-items: center;
     width: 100%;

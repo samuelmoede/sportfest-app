@@ -25,12 +25,17 @@ from app.routes.venues import create_router as create_venues_router
 from app.services.schedule_grid_service import get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
+    filter_courts_for_location,
+    get_effective_competition_location,
+    natural_sort_key,
     normalize_competition_location,
 )
 from app.services.event_status_service import (
+    fetch_events_with_competition_counts,
     get_dashboard_event,
     get_upcoming_events,
     normalize_event_statuses,
+    resolve_selected_event_id,
 )
 from app.services.results_filter_service import (
     build_results_filter_state,
@@ -54,6 +59,7 @@ from app.services.sixkampf_service import (
     calculate_sixkampf_team_ranking,
 )
 from app.services.ui_view_service import (
+    classify_yeargang,
     enrich_beamer_view,
     enrich_day_schedule_view,
 )
@@ -77,6 +83,7 @@ from app.services.settings_service import (
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
+    render_rich_text_html,
 )
 from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
@@ -139,12 +146,12 @@ ACTION_ACCESS_RULES = (
     (re.compile(r"^/competition/create$"), "admin"),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|archive|restore|reset|delete|delete-planned-slots)$"
+            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
         ),
         "admin",
     ),
     (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "admin"),
-    (re.compile(r"^/plan-generator/(?:preview|apply)$"), "admin"),
+    (re.compile(r"^/plan-generator/(?:preview|preview-schulpokal|apply)$"), "admin"),
     (
         re.compile(r"^/slot(?:/create|/[^/]+/(?:update|delete|move|copy))$"),
         "admin",
@@ -296,11 +303,32 @@ def parse_jahrgang_filter(value):
 
 
 
-def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competition_id: str = ""):
-    selected_event_id = parse_competition_id(event_id)
+def collect_tabellen_view_data(
+    event_id: str = "",
+    jahrgang: str = "",
+    competition_id: str = "",
+    *,
+    event_filter_present: bool = False,
+    today=None,
+):
     selected_jahrgang = parse_jahrgang_filter(jahrgang)
     selected_competition_id = parse_competition_id(competition_id)
     competitions = get_active_competitions()
+
+    with get_conn() as conn:
+        event_options = fetch_events_with_competition_counts(conn, include_archived=True)
+
+    fallback_event_id = next(
+        (c["event_id"] for c in competitions if c["id"] == selected_competition_id),
+        None,
+    )
+    selected_event_id = resolve_selected_event_id(
+        event_options,
+        event_id_value=event_id,
+        event_filter_present=event_filter_present,
+        today=today or date.today(),
+        fallback_event_id=fallback_event_id,
+    )
 
     visible_competitions = []
     for competition in competitions:
@@ -343,7 +371,7 @@ def collect_tabellen_view_data(event_id: str = "", jahrgang: str = "", competiti
                     result_rows,
                     competition["points_first_place"],
                     require_result_entry=True,
-                    placement_points=get_competition_placement_points(competition),
+                    placement_points=get_competition_placement_points(competition, len(teams)),
                 )
             else:
                 rows = calculate_table(competition["id"])
@@ -479,32 +507,6 @@ def parse_event_date(value: str):
         return None
 
 
-def classify_yeargang(value):
-    if value is None:
-        return None
-    try:
-        year = int(value)
-    except (TypeError, ValueError):
-        normalized = str(value).strip().lower()
-        if "oberstufe" in normalized or normalized in ("go", "gost", "sg"):
-            return "Oberstufe"
-        # Handle patterns like "10a", "11b", "12/1", "13" as Oberstufe
-        for grade in range(10, 14):
-            if normalized.startswith(str(grade)):
-                return "Oberstufe"
-        return None  # Lehrer, Mixed, Finalrunde, Eltern, etc. → no column
-
-    if year == 7:
-        return "Jahrgang 7"
-    if year == 8:
-        return "Jahrgang 8"
-    if year == 9:
-        return "Jahrgang 9"
-    if year >= 10:
-        return "Oberstufe"
-    return None
-
-
 def parse_placement_points_config(raw_value: Optional[str]):
     if raw_value is None:
         return []
@@ -534,11 +536,13 @@ def build_default_placement_points(points_first_place: int):
     return [float(value) for value in range(highest_points, 0, -1)]
 
 
-def get_competition_placement_points(competition):
+def get_competition_placement_points(competition, team_count=None):
     configured_points = parse_placement_points_config(competition["placement_points"])
     if configured_points:
         return configured_points
-    return build_default_placement_points(competition["points_first_place"])
+    if team_count is None:
+        team_count = competition["points_first_place"]
+    return build_default_placement_points(team_count)
 
 def combine_time_on_date(value: datetime, target_date: date):
     if value is None or target_date is None:
@@ -764,12 +768,18 @@ def get_active_competitions():
 
 def fetch_dashboard_data():
     with get_conn() as conn:
+        now = app_now()
+        today = now.date()
+        next_event = get_dashboard_event(conn, today)
+        event_id = next_event["id"] if next_event else None
+
         competitions = [dict(row) for row in conn.execute("""
             SELECT *
             FROM competitions
             WHERE status != 'archiviert'
+              AND (? IS NULL OR event_id = ?)
             ORDER BY jahrgang, name
-        """).fetchall()]
+        """, (event_id, event_id)).fetchall()]
 
         teams = conn.execute("SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name").fetchall()
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
@@ -784,10 +794,10 @@ def fetch_dashboard_data():
             LEFT JOIN teams tb ON tb.id = slots.team_b_id
             WHERE slots.status = 'läuft'
               AND c.status != 'archiviert'
+              AND (? IS NULL OR c.event_id = ?)
             ORDER BY slots.startzeit, slots.court_id
-        """).fetchall()
+        """, (event_id, event_id)).fetchall()
 
-        now = app_now()
         upcoming = [dict(row) for row in conn.execute("""
             SELECT slots.*, c.name AS competition_name, co.name AS court_name,
                    ta.name AS team_a, tb.name AS team_b
@@ -798,9 +808,10 @@ def fetch_dashboard_data():
             LEFT JOIN teams tb ON tb.id = slots.team_b_id
             WHERE slots.status = 'geplant'
               AND c.status != 'archiviert'
+              AND (? IS NULL OR c.event_id = ?)
             ORDER BY slots.startzeit, slots.court_id
             LIMIT 8
-        """).fetchall()]
+        """, (event_id, event_id)).fetchall()]
         for slot in upcoming:
             slot["is_soon"] = slot_starts_soon(slot.get("startzeit"), now)
 
@@ -810,16 +821,17 @@ def fetch_dashboard_data():
             JOIN competitions c ON c.id = slots.competition_id
             WHERE slots.status = 'beendet'
               AND c.status != 'archiviert'
-        """).fetchone()["n"]
+              AND (? IS NULL OR c.event_id = ?)
+        """, (event_id, event_id)).fetchone()["n"]
 
-        today = now.date()
-        next_event = get_dashboard_event(conn, today)
         additional_upcoming_events = get_upcoming_events(
             conn,
             today,
             limit=4,
             exclude_event_id=next_event["id"] if next_event else None,
         )
+
+    next_event_details_text = (next_event["details"] or "").strip() if next_event else ""
 
     return {
         "competitions": competitions,
@@ -832,6 +844,9 @@ def fetch_dashboard_data():
         "schedule_event": next_event,
         "additional_upcoming_events": additional_upcoming_events,
         "dashboard_info_html": get_dashboard_info_html(),
+        "next_event_details_html": (
+            render_rich_text_html(next_event_details_text) if next_event_details_text else ""
+        ),
     }
 
 
@@ -921,24 +936,33 @@ def _mini_league_stats(team_names, slots, competition):
     return stats
 
 
-def _resolve_tied_group(team_names, slots, competition):
-    """Loest eine Gruppe von Teams auf, die in der Gesamttabelle komplett gleichauf
-    liegen (Punkte, Tordifferenz, Tore), per Mini-Tabelle nur aus den Duellen
-    untereinander - im Unterschied zu einem reinen Nachbar-Vergleich werden dabei
-    alle Teams der Gruppe gemeinsam betrachtet. Bleiben Teams auch danach gleichauf
-    (z.B. ein echter Zyklus A schlaegt B, B schlaegt C, C schlaegt A - bei 3
-    punktgleichen Teams im Rundenspiel ohne Unentschieden rechnerisch zwangslaeufig),
-    werden sie explizit als unaufloesbar markiert statt eine der Reihenfolgen als
-    vermeintlich "entschieden" auszugeben. Gibt die neue Teamreihenfolge sowie einen
-    tie_note-Grund je Team zurueck."""
-    if len(team_names) < 2:
-        return list(team_names), {}
+def _resolve_points_tied_group(rows_group, slots, competition):
+    """Loest eine Gruppe von Teams auf, die in der Gesamttabelle punktgleich sind:
+    zuerst per direktem Vergleich (Mini-Tabelle nur aus den Duellen untereinander -
+    Punkte, dann Tordifferenz, dann Tore je nur aus diesen Duellen), danach - falls
+    dabei noch nicht getrennt (z.B. weil zwei Teams nie gegeneinander gespielt haben) -
+    per Gesamttabelle-Tordifferenz und -Toren. Bleiben Teams auch danach gleichauf
+    (z.B. ein echter Zyklus A schlaegt B, B schlaegt C, C schlaegt A), werden sie
+    explizit als unaufloesbar markiert statt eine der Reihenfolgen als vermeintlich
+    "entschieden" auszugeben. Setzt row['tie_note'] direkt und gibt die neu
+    sortierten Zeilen zurueck."""
+    if len(rows_group) < 2:
+        for row in rows_group:
+            row["tie_note"] = None
+        return rows_group
 
+    team_names = [row["team"] for row in rows_group]
+    rows_by_team = {row["team"]: row for row in rows_group}
     mini = _mini_league_stats(team_names, slots, competition)
-    ordered = sorted(
-        team_names,
-        key=lambda t: (-mini[t]["pkt"], -mini[t]["diff"], -mini[t]["plus"], t.lower()),
-    )
+
+    def sort_key(team):
+        row = rows_by_team[team]
+        return (
+            -mini[team]["pkt"], -mini[team]["diff"], -mini[team]["plus"],
+            -row["diff"], -row["plus"], team.lower(),
+        )
+
+    ordered = sorted(team_names, key=sort_key)
 
     tie_notes = {}
     i = 0
@@ -949,6 +973,8 @@ def _resolve_tied_group(team_names, slots, competition):
             and mini[ordered[j + 1]]["pkt"] == mini[ordered[i]]["pkt"]
             and mini[ordered[j + 1]]["diff"] == mini[ordered[i]]["diff"]
             and mini[ordered[j + 1]]["plus"] == mini[ordered[i]]["plus"]
+            and rows_by_team[ordered[j + 1]]["diff"] == rows_by_team[ordered[i]]["diff"]
+            and rows_by_team[ordered[j + 1]]["plus"] == rows_by_team[ordered[i]]["plus"]
         ):
             j += 1
 
@@ -963,57 +989,39 @@ def _resolve_tied_group(team_names, slots, competition):
                 reason = "mini_pkt"
             elif mini[ordered[i]]["diff"] != mini[previous]["diff"]:
                 reason = "mini_diff"
-            else:
+            elif mini[ordered[i]]["plus"] != mini[previous]["plus"]:
                 reason = "mini_tore"
+            elif rows_by_team[ordered[i]]["diff"] != rows_by_team[previous]["diff"]:
+                reason = "tordifferenz"
+            else:
+                reason = "tore"
             label = TIE_BREAK_LABELS[reason]
             tie_notes[previous] = label
             tie_notes[ordered[i]] = label
 
         i = j + 1
 
-    return ordered, tie_notes
+    for row in rows_group:
+        row["tie_note"] = tie_notes.get(row["team"])
+
+    return [rows_by_team[name] for name in ordered]
 
 
 def sort_table_rows(rows, slots, competition):
-    rows.sort(key=lambda r: (-r["pkt"], -r["diff"], -r["plus"], r["team"].lower()))
-
-    for row in rows:
-        row["tie_note"] = None
+    rows.sort(key=lambda r: (-r["pkt"], r["team"].lower()))
 
     i = 0
     while i < len(rows):
         j = i
-        while (
-            j + 1 < len(rows)
-            and rows[j + 1]["pkt"] == rows[i]["pkt"]
-            and rows[j + 1]["diff"] == rows[i]["diff"]
-            and rows[j + 1]["plus"] == rows[i]["plus"]
-        ):
+        while j + 1 < len(rows) and rows[j + 1]["pkt"] == rows[i]["pkt"]:
             j += 1
 
         if j > i:
-            group_names = [row["team"] for row in rows[i:j + 1]]
-            ordered_names, tie_notes = _resolve_tied_group(group_names, slots, competition)
-            rows_by_team = {row["team"]: row for row in rows[i:j + 1]}
-            rows[i:j + 1] = [rows_by_team[name] for name in ordered_names]
-            for row in rows[i:j + 1]:
-                row["tie_note"] = tie_notes.get(row["team"])
+            rows[i:j + 1] = _resolve_points_tied_group(rows[i:j + 1], slots, competition)
+        else:
+            rows[i]["tie_note"] = None
 
         i = j + 1
-
-    # Punktgleichstand, den schon die Gesamttabelle ueber Tordifferenz oder Tore
-    # entscheidet (kein Duell noetig) - nur ergaenzen, wo noch kein Grund feststeht.
-    for i in range(len(rows) - 1):
-        if rows[i]["pkt"] != rows[i + 1]["pkt"]:
-            continue
-        if rows[i]["diff"] == rows[i + 1]["diff"] and rows[i]["plus"] == rows[i + 1]["plus"]:
-            continue
-        reason = "tordifferenz" if rows[i]["diff"] != rows[i + 1]["diff"] else "tore"
-        label = TIE_BREAK_LABELS[reason]
-        if rows[i]["tie_note"] is None:
-            rows[i]["tie_note"] = label
-        if rows[i + 1]["tie_note"] is None:
-            rows[i + 1]["tie_note"] = label
 
     for row in rows:
         if float(row["pkt"]).is_integer():
@@ -1263,7 +1271,7 @@ def calculate_tournament_points(competition):
         return []
 
     rows = calculate_table(competition["id"])
-    placement_points = get_competition_placement_points(competition)
+    placement_points = get_competition_placement_points(competition, len(rows))
 
     previous = None
     previous_place = 0
@@ -1395,7 +1403,6 @@ def calculate_event_overall_ranking(event_id: int):
 
     for competition in competitions:
         competition_id = competition["id"]
-        placement_points = get_competition_placement_points(competition)
         if competition["competition_type"] == "Sechskampf":
             competition_teams = (
                 explicit_teams_by_competition.get(competition_id)
@@ -1424,7 +1431,7 @@ def calculate_event_overall_ranking(event_id: int):
                 result_rows,
                 competition["points_first_place"],
                 require_result_entry=True,
-                placement_points=placement_points,
+                placement_points=get_competition_placement_points(competition, len(competition_teams)),
             )
             for row in ranking:
                 team_id = row["team"]["id"]
@@ -1752,8 +1759,17 @@ def fetch_beamer_data():
     with get_conn() as conn:
         active_comps = conn.execute("""
             SELECT id FROM competitions
-            WHERE status = 'läuft' AND competition_type = 'Turnier'
+            WHERE status = 'läuft' AND competition_type IN ('Turnier', 'Schulpokal')
         """).fetchall()
+        # Sechskampf-Wettbewerbe erzeugen keine Spielfeld-Slots und tauchen daher nie
+        # in running_slots/recent_results auf - ohne diesen Hinweis wirkt die
+        # Beamer-Ansicht faelschlich komplett leer, waehrend tatsaechlich nur
+        # Sechskampf-Stationen laufen (die im Spielplan sichtbar sind).
+        active_sixkampf = conn.execute("""
+            SELECT 1 FROM competitions
+            WHERE status = 'läuft' AND competition_type = 'Sechskampf'
+            LIMIT 1
+        """).fetchone()
         courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
 
     active_comp_ids = {row["id"] for row in active_comps}
@@ -1762,7 +1778,8 @@ def fetch_beamer_data():
         return enrich_beamer_view({
             "running_slots": [],
             "recent_results": [],
-            "court_summaries": [{"court": dict(c), "open_count": 0, "next": None} for c in courts],
+            "court_summaries": [{"court": dict(c), "open_count": 0, "next_games": []} for c in courts],
+            "sixkampf_active": active_sixkampf is not None,
         }, [])
 
     all_slots = get_all_slots()
@@ -1791,6 +1808,7 @@ def fetch_beamer_data():
         "running_slots": running_slots,
         "recent_results": recent_results,
         "court_summaries": court_summaries,
+        "sixkampf_active": False,
     }, slots)
 
 @app.get("/login")
@@ -1946,12 +1964,41 @@ def dashboard(request: Request):
     return templates.TemplateResponse(request=request, name=template_name, context=data)
 
 
+def _group_slots_by_court(slots, courts):
+    """Buendelt Slots nach Feld fuer eine spaltenweise Darstellung wie im
+    oeffentlichen Spielplan - wichtig bei vielen parallelen Feldern (z.B. 12
+    Tischtennisplatten), damit der Schiedsrichter nicht alle Spiele
+    chronologisch durchsuchen muss, sondern je Feld eine eigene Spalte sieht.
+    Ein per Filter ausgewaehltes Feld liefert dadurch automatisch nur noch
+    eine einzelne Spalte, ohne separate Fallunterscheidung."""
+    slots_by_court = {}
+    for slot in slots:
+        slots_by_court.setdefault(slot["court_id"], []).append(slot)
+
+    columns = []
+    for court in sorted(courts, key=lambda c: natural_sort_key(c["name"])):
+        if court["id"] in slots_by_court:
+            columns.append({
+                "court_id": court["id"],
+                "court_name": court["name"],
+                "slots": slots_by_court[court["id"]],
+            })
+    if None in slots_by_court:
+        columns.append({
+            "court_id": None,
+            "court_name": "Ohne Feld",
+            "slots": slots_by_court[None],
+        })
+    return columns
+
+
 @app.get("/ergebnisse")
 def ergebnisse(
     request: Request,
     event_id: str = "",
     competition_id: str = "",
     court_id: str = "",
+    ort: str = "",
     discipline_id: str = "",
     saved_team_id: str = "",
     saved_at: str = "",
@@ -1972,11 +2019,26 @@ def ergebnisse(
     selected_event_id = filter_state["selected_event_id"]
     selected_competition_id = filter_state["selected_competition_id"]
     selected_competition = filter_state["selected_competition"]
+    visible_competition_ids = filter_state["visible_competition_ids"]
+
+    selected_ort = normalize_competition_location(ort)
+    if selected_ort is not None:
+        competitions = [
+            competition for competition in competitions
+            if get_effective_competition_location(competition) == selected_ort
+        ]
+        visible_competition_ids = {competition["id"] for competition in competitions}
+        if selected_competition_id not in visible_competition_ids:
+            selected_competition_id = None
+            selected_competition = None
 
     with get_conn() as conn:
-        courts = conn.execute(
-            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
-        ).fetchall()
+        courts = sorted(
+            conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall(),
+            key=lambda c: natural_sort_key(c["name"]),
+        )
+    if selected_ort is not None:
+        courts = filter_courts_for_location(courts, selected_ort)
     selected_court_id = parse_filter_id(court_id)
     if selected_court_id not in {court["id"] for court in courts}:
         selected_court_id = None
@@ -2084,7 +2146,7 @@ def ergebnisse(
                 teams, disciplines, result_rows,
                 selected_competition["points_first_place"],
                 require_result_entry=show_evaluation,
-                placement_points=get_competition_placement_points(selected_competition),
+                placement_points=get_competition_placement_points(selected_competition, len(teams)),
             )
         )
         values = {
@@ -2114,6 +2176,8 @@ def ergebnisse(
                 "selected_competition": selected_competition,
                 "courts": courts,
                 "selected_court_id": selected_court_id,
+                "ort_options": COMPETITION_LOCATIONS,
+                "selected_ort": selected_ort,
                 "disciplines": disciplines,
                 "selected_discipline": selected_discipline,
                 "show_evaluation": show_evaluation,
@@ -2130,6 +2194,8 @@ def ergebnisse(
                 "saved_at": saved_at_value,
                 "slots": [],
                 "archived_slots": [],
+                "active_columns": [],
+                "archived_columns": [],
                 "phase_ready_prompt": None,
                 "phase_ready_dismiss_url": None,
                 "overwrite_warning_prompt": None,
@@ -2139,8 +2205,7 @@ def ergebnisse(
         )
 
     slots = get_all_slots(selected_competition_id)
-    if selected_competition_id is None and selected_event_id is not None:
-        visible_competition_ids = filter_state["visible_competition_ids"]
+    if selected_competition_id is None:
         slots = [
             slot for slot in slots
             if slot["competition_id"] in visible_competition_ids
@@ -2154,11 +2219,14 @@ def ergebnisse(
         ),
         key=lambda slot: (slot["startzeit"], slot["id"]),
     )
-    archived_slots = [
-        slot for slot in slots
-        if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
-    ]
-    archived_slots = list(reversed(archived_slots))[:20]
+    archived_slots = sorted(
+        (
+            slot for slot in slots
+            if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
+        ),
+        key=lambda slot: (slot["finished_at"] or "", slot["startzeit"], slot["id"]),
+        reverse=True,
+    )
 
     group_pending_counts = {}
     for slot in slots:
@@ -2192,18 +2260,29 @@ def ergebnisse(
             slot["competition_id"], slot["phase"]
         )
 
+    active_columns = _group_slots_by_court(active_slots, courts)
+    archived_columns = _group_slots_by_court(archived_slots, courts)
+    # Pro Feld begrenzen statt global - sonst verdraengen Felder mit vielen
+    # Ergebnissen andere Felder komplett aus dem sichtbaren Archiv.
+    for column in archived_columns:
+        column["slots"] = column["slots"][:20]
+
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
             "slots": active_slots,
             "archived_slots": archived_slots,
+            "active_columns": active_columns,
+            "archived_columns": archived_columns,
             "competitions": competitions,
             "event_options": event_options,
             "selected_event_id": selected_event_id,
             "selected_competition_id": selected_competition_id,
             "courts": courts,
             "selected_court_id": selected_court_id,
+            "ort_options": COMPETITION_LOCATIONS,
+            "selected_ort": selected_ort,
             "phase_ready_prompt": phase_ready_prompt,
             "phase_ready_dismiss_url": phase_ready_dismiss_url,
             "overwrite_warning_prompt": overwrite_warning_prompt,
@@ -2377,7 +2456,7 @@ def save_slot(
     with get_conn() as conn:
         slot = conn.execute(
             """
-            SELECT competition_id, status, started_at, score_a, score_b, phase, slot_typ
+            SELECT competition_id, status, started_at, finished_at, score_a, score_b, phase, slot_typ
             FROM slots
             WHERE id = ?
             """,
@@ -2402,18 +2481,24 @@ def save_slot(
             if new_status == "geplant":
                 started_at_value = None
 
+            finished_at_value = (
+                app_now_db_timestamp() if new_status == "beendet" else None
+            )
+
             conn.execute("""
                 UPDATE slots
                 SET score_a = ?,
                     score_b = ?,
                     status = ?,
-                    started_at = ?
+                    started_at = ?,
+                    finished_at = ?
                 WHERE id = ?
             """, (
                 score_a,
                 score_b,
                 new_status,
                 started_at_value,
+                finished_at_value,
                 slot_id
             ))
             if slot is not None and (
@@ -2592,7 +2677,13 @@ def tabellen(
     jahrgang: str = "",
     competition_id: str = "",
 ):
-    view_data = collect_tabellen_view_data(event_id, jahrgang, competition_id)
+    view_data = collect_tabellen_view_data(
+        event_id,
+        jahrgang,
+        competition_id,
+        event_filter_present="event_id" in request.query_params,
+        today=app_now().date(),
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -2611,11 +2702,18 @@ def tabellen(
 
 @app.get("/tabellen/csv")
 def tabellen_csv_export(
+    request: Request,
     event_id: str = "",
     jahrgang: str = "",
     competition_id: str = "",
 ):
-    view_data = collect_tabellen_view_data(event_id, jahrgang, competition_id)
+    view_data = collect_tabellen_view_data(
+        event_id,
+        jahrgang,
+        competition_id,
+        event_filter_present="event_id" in request.query_params,
+        today=app_now().date(),
+    )
     csv_content = build_tabellen_csv_content(view_data)
     filename = build_tabellen_csv_filename(view_data)
 
@@ -2657,6 +2755,25 @@ app.include_router(create_events_router(
     get_unique_competition_name=get_unique_competition_name,
     copy_competition_disciplines=copy_competition_disciplines,
 ))
+
+
+@app.get("/siegerehrung/{event_id}")
+def siegerehrung_public(request: Request, event_id: int):
+    with get_conn() as conn:
+        event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+
+    if event is None or not event["siegerehrung_public"]:
+        return templates.TemplateResponse(
+            request=request, name="siegerehrung_public.html",
+            context={"event": event, "is_public": False, "overall_ranking": []},
+            status_code=404 if event is None else 200,
+        )
+
+    overall_ranking = calculate_event_overall_ranking(event_id)
+    return templates.TemplateResponse(
+        request=request, name="siegerehrung_public.html",
+        context={"event": event, "is_public": True, "overall_ranking": overall_ranking},
+    )
 
 
 @app.get("/beamer")

@@ -1,14 +1,18 @@
-COMPETITION_LOCATIONS = ("Turnhalle", "Fußballplatz", "Außenbereich")
+import re
+
+COMPETITION_LOCATIONS = ("Turnhalle", "Fußballplatz", "Schulhaus", "Mensa")
 COMPETITION_LOCATION_ALIASES = {
     "Sportplatz": "Fußballplatz",
-    "Aussenbereich": "Außenbereich",
+    "Aussenbereich": "Schulhaus",
+    "Außenbereich": "Schulhaus",
 }
 DEFAULT_COMPETITION_LOCATION = "Turnhalle"
-NO_SLOT_LOCATION = "Außenbereich"
+NO_SLOT_LOCATION = "Schulhaus"
 
 COURT_NAMES_BY_LOCATION = {
     "Turnhalle": ("Feld 1", "Feld 2", "Feld 3"),
     "Fußballplatz": ("Rasenplatz", "Käfig"),
+    "Mensa": tuple(f"Platte {i}" for i in range(1, 13)),
 }
 COURT_LOCATION_BY_NAME = {
     court_name: location
@@ -68,14 +72,26 @@ def get_allowed_court_names(competition):
     return COURT_NAMES_BY_LOCATION.get(location, ())
 
 
+def natural_sort_key(name):
+    """'Platte 2' vor 'Platte 10': Text/Zahl-Abschnitte getrennt vergleichen,
+    statt rein alphabetisch (sonst 'Platte 10' < 'Platte 2')."""
+    return [
+        int(part) if part.isdigit() else part
+        for part in re.split(r"(\d+)", str(name))
+    ]
+
+
 def filter_courts_for_location(courts, location):
     normalized_location = normalize_competition_location(location) or DEFAULT_COMPETITION_LOCATION
     if normalized_location == NO_SLOT_LOCATION:
         return []
-    return [
-        court for court in courts
-        if get_court_location(court) == normalized_location
-    ]
+    return sorted(
+        (
+            court for court in courts
+            if get_court_location(court) == normalized_location
+        ),
+        key=lambda court: natural_sort_key(_get_value(court, "name", "")),
+    )
 
 
 def filter_courts_for_competition(courts, competition):

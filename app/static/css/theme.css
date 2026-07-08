@@ -1075,44 +1075,6 @@ nav .nav-group {
     font-weight: 600;
 }
 
-.dashboard-schedule .day-schedule-cards {
-    margin-top: 18px;
-}
-
-.day-schedule-block {
-    border-color: var(--border);
-    border-left-width: 4px;
-    background: #f8fafc;
-}
-
-.day-schedule-card {
-    padding: 13px;
-    border-color: var(--border);
-    border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(23, 32, 51, 0.025);
-}
-
-.day-schedule-card-meta {
-    flex-direction: column;
-    gap: 2px;
-}
-
-.day-schedule-card-meta .day-card-sport::before {
-    margin-right: 5px;
-    content: "🏆";
-    filter: saturate(0.65);
-}
-
-.day-schedule-card-meta .day-card-location::before {
-    content: "📍";
-}
-
-.day-schedule-card > time::before {
-    margin-right: 5px;
-    content: "🕒";
-    filter: saturate(0.65);
-}
-
 .dashboard-lower-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2016,6 +1978,13 @@ section.cards.competition-list {
     color: var(--muted);
     background: var(--surface-soft);
     font-style: italic;
+}
+
+.sixkampf-rotation-location {
+    display: block;
+    font-size: 0.78em;
+    font-weight: 400;
+    color: var(--muted);
 }
 
 /* --- Teams-Seite: Gruppenweise Karten --- */

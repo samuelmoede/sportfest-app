@@ -41,9 +41,11 @@ def init_db(db_path=None):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             description TEXT,
+            details TEXT,
             event_date TEXT,
             status TEXT NOT NULL DEFAULT 'geplant',
-            event_type TEXT NOT NULL DEFAULT 'Sonstiges'
+            event_type TEXT NOT NULL DEFAULT 'Sonstiges',
+            siegerehrung_public INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS competitions (
@@ -63,6 +65,8 @@ def init_db(db_path=None):
             changeover_duration_minutes INTEGER NOT NULL DEFAULT 3,
             location TEXT,
             location_subarea TEXT,
+            regeln TEXT,
+            siegerehrung_published_at TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -74,6 +78,7 @@ def init_db(db_path=None):
             unit TEXT,
             scoring_direction TEXT NOT NULL DEFAULT 'higher',
             values_per_team INTEGER NOT NULL DEFAULT 1,
+            location TEXT,
             FOREIGN KEY (competition_id) REFERENCES competitions(id)
         );
 
@@ -216,6 +221,12 @@ def init_db(db_path=None):
 
         conn.execute("""
             UPDATE courts
+            SET location = 'Schulhaus'
+            WHERE location = 'Außenbereich'
+        """)
+
+        conn.execute("""
+            UPDATE courts
             SET location = 'Fußballplatz'
             WHERE name IN ('Rasenplatz', 'Käfig')
               AND (location IS NULL OR TRIM(location) = '')
@@ -253,6 +264,14 @@ def init_db(db_path=None):
         if "event_type" not in event_columns:
             conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT DEFAULT 'Sonstiges'")
 
+        if "details" not in event_columns:
+            conn.execute("ALTER TABLE events ADD COLUMN details TEXT")
+
+        if "siegerehrung_public" not in event_columns:
+            conn.execute(
+                "ALTER TABLE events ADD COLUMN siegerehrung_public INTEGER NOT NULL DEFAULT 0"
+            )
+
         conn.execute("""
             UPDATE events
             SET event_type = 'Sonstiges'
@@ -271,6 +290,14 @@ def init_db(db_path=None):
             conn.execute("""
                 ALTER TABLE competitions
                 ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
+            """)
+
+        # Nur bei competition_type = 'Schulpokal' relevant; Schluessel aus
+        # schedule_generator_service.SCHULPOKAL_MODES (aktuell nur "jeder_gegen_jeden").
+        if "tournament_mode" not in competition_columns:
+            conn.execute("""
+                ALTER TABLE competitions
+                ADD COLUMN tournament_mode TEXT
             """)
 
         if "game_duration_minutes" not in competition_columns:
@@ -318,10 +345,22 @@ def init_db(db_path=None):
         if "location_subarea" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN location_subarea TEXT")
 
+        if "regeln" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN regeln TEXT")
+
+        if "siegerehrung_published_at" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN siegerehrung_published_at TEXT")
+
         conn.execute("""
             UPDATE competitions
             SET location = 'Fußballplatz'
             WHERE location = 'Sportplatz'
+        """)
+
+        conn.execute("""
+            UPDATE competitions
+            SET location = 'Schulhaus'
+            WHERE location = 'Außenbereich'
         """)
 
         conn.execute("""
@@ -365,6 +404,9 @@ def init_db(db_path=None):
                 ADD COLUMN values_per_team INTEGER NOT NULL DEFAULT 1
             """)
 
+        if "location" not in discipline_columns:
+            conn.execute("ALTER TABLE competition_disciplines ADD COLUMN location TEXT")
+
         conn.execute("""
             INSERT OR IGNORE INTO settings (key, value)
             VALUES ('beamer_refresh_seconds', '30')
@@ -377,7 +419,7 @@ def init_db(db_path=None):
 
         conn.execute("""
             INSERT OR IGNORE INTO settings (key, value)
-            VALUES ('dashboard_info_text', '')
+            VALUES ('dashboard_info_text', 'Achtung - bei Regen wird Plan B durchgeführt.')
         """)
 
         conn.commit()

@@ -359,6 +359,22 @@
             padding: 24px 0;
         }
 
+        /* ── HINWEIS: SECHSKAMPF LAEUFT ── */
+        .bm-sixkampf-hint {
+            flex-shrink: 0;
+            background: #1c2112;
+            border-bottom: 1px solid #806b15;
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 700;
+            padding: 10px 20px;
+        }
+
+        .bm-sixkampf-hint a {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
         /* ── NO ACTIVE COMPETITIONS ── */
         .bm-idle {
             flex: 1;
@@ -444,6 +460,13 @@
         </div>
         {% endfor %}
     </div>
+</div>
+{% endif %}
+
+<!-- HINWEIS: Sechskampf-Stationen laufen, tauchen hier aber nicht als Spiele auf -->
+{% if not running_slots and sixkampf_active %}
+<div class="bm-sixkampf-hint">
+    Aktuell laufen Sechskampf-Stationen &ndash; Details dazu gibt es im <a href="/spielplan">Spielplan</a>.
 </div>
 {% endif %}
 

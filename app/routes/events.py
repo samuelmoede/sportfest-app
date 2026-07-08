@@ -11,6 +11,7 @@ from app.services.event_status_service import (
     EVENT_STATUS_SET,
     archive_event,
     clear_active_events,
+    deactivate_event,
     fetch_events_with_competition_counts,
     restore_event,
     set_active_event,
@@ -66,6 +67,7 @@ def create_router(
     @router.post("/events/create")
     def event_create(
         name: str = Form(...), description: str = Form(""),
+        details: str = Form(""),
         event_date: str = Form(""), status: str = Form("geplant"),
         event_type: str = Form(...),
     ):
@@ -82,10 +84,10 @@ def create_router(
             if status == EVENT_STATUS_ACTIVE:
                 clear_active_events(conn)
             conn.execute("""
-                INSERT INTO events (name, description, event_date, status, event_type)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO events (name, description, details, event_date, status, event_type)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (
-                name.strip(), description.strip() or None,
+                name.strip(), description.strip() or None, details.strip() or None,
                 event_date or None, status, event_type,
             ))
             conn.commit()
@@ -116,6 +118,7 @@ def create_router(
     @router.post("/events/{event_id}/update")
     def event_update(
         event_id: int, name: str = Form(...), description: str = Form(""),
+        details: str = Form(""),
         event_date: str = Form(""), status: str = Form("geplant"),
         event_type: str = Form(...),
     ):
@@ -137,10 +140,10 @@ def create_router(
                 clear_active_events(conn, except_event_id=event_id)
             conn.execute("""
                 UPDATE events
-                SET name = ?, description = ?, event_date = ?, status = ?, event_type = ?
+                SET name = ?, description = ?, details = ?, event_date = ?, status = ?, event_type = ?
                 WHERE id = ?
             """, (
-                name.strip(), description.strip() or None,
+                name.strip(), description.strip() or None, details.strip() or None,
                 event_date or None, status, event_type, event_id,
             ))
             conn.commit()
@@ -152,6 +155,14 @@ def create_router(
         with get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             set_active_event(conn, event_id)
+            conn.commit()
+        return RedirectResponse("/events", status_code=303)
+
+    @router.post("/events/{event_id}/deactivate")
+    def event_deactivate(event_id: int):
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            deactivate_event(conn, event_id)
             conn.commit()
         return RedirectResponse("/events", status_code=303)
 
@@ -168,6 +179,24 @@ def create_router(
             restore_event(conn, event_id)
             conn.commit()
         return RedirectResponse("/events", status_code=303)
+
+    @router.post("/events/{event_id}/siegerehrung-public")
+    def event_siegerehrung_public(event_id: int):
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE events SET siegerehrung_public = 1 WHERE id = ?", (event_id,)
+            )
+            conn.commit()
+        return RedirectResponse(f"/events/{event_id}", status_code=303)
+
+    @router.post("/events/{event_id}/siegerehrung-private")
+    def event_siegerehrung_private(event_id: int):
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE events SET siegerehrung_public = 0 WHERE id = ?", (event_id,)
+            )
+            conn.commit()
+        return RedirectResponse(f"/events/{event_id}", status_code=303)
 
     @router.post("/events/{event_id}/delete")
     def event_delete(event_id: int):
@@ -189,11 +218,11 @@ def create_router(
             if event is None:
                 return RedirectResponse("/events", status_code=303)
             cursor = conn.execute("""
-                INSERT INTO events (name, description, event_date, status, event_type)
-                VALUES (?, ?, ?, 'geplant', ?)
+                INSERT INTO events (name, description, details, event_date, status, event_type)
+                VALUES (?, ?, ?, ?, 'geplant', ?)
             """, (
                 get_unique_event_name(conn, event["name"]),
-                event["description"], None, event["event_type"],
+                event["description"], event["details"], event["event_date"], event["event_type"],
             ))
             new_event_id = cursor.lastrowid
             competitions = conn.execute(

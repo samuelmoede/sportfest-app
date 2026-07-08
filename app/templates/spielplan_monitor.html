@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+    <title>Sportfest Monitor{% if selected_location %} – {{ selected_location }}{% endif %}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0b1525;
+            --surface:  #17243a;
+            --surface2: #1e2d44;
+            --border:   #263852;
+            --text:     #f0f4f8;
+            --muted:    #8fa3be;
+            --accent:   #facc15;
+            --green:    #4ade80;
+            --red:      #f87171;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .mon-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mon-brand {
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        .mon-location {
+            flex: 1;
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .mon-clock {
+            font-size: 30px;
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mon-fullscreen-btn {
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .mon-body {
+            padding: 20px 24px 60px;
+            display: grid;
+            gap: 20px;
+        }
+
+        .mon-court {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 20px;
+        }
+
+        .mon-court-name {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        .mon-section-label {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 14px 0 8px;
+        }
+
+        .mon-section-label:first-of-type {
+            margin-top: 0;
+        }
+
+        .mon-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto 1fr;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .mon-row + .mon-row {
+            margin-top: 4px;
+        }
+
+        .mon-row.is-running {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+        }
+
+        .mon-row.is-recent {
+            color: var(--muted);
+        }
+
+        .mon-row-time {
+            font-size: 15px;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mon-row-team.right {
+            text-align: right;
+        }
+
+        .mon-row-score {
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent);
+            min-width: 70px;
+        }
+
+        .mon-row.is-running .mon-row-score {
+            color: var(--green);
+        }
+
+        .mon-empty {
+            color: var(--muted);
+            font-size: 15px;
+            font-style: italic;
+            padding: 4px 12px;
+        }
+
+        .mon-no-courts {
+            text-align: center;
+            color: var(--muted);
+            padding: 60px 0;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+<header class="mon-header">
+    <div class="mon-brand">⚡ Sportfest</div>
+    <div class="mon-location">{{ selected_location or "Alle Orte" }}</div>
+    <button class="mon-fullscreen-btn" id="mon-fullscreen-btn" type="button">Vollbild</button>
+    <strong class="mon-clock" id="mon-clock">--:--</strong>
+</header>
+
+<main class="mon-body">
+    {% if court_views %}
+        {% for view in court_views %}
+        <section class="mon-court">
+            <div class="mon-court-name">{{ view.court.name }}</div>
+
+            {% if view.running %}
+            <div class="mon-section-label">Läuft</div>
+            {% for s in view.running %}
+            <div class="mon-row is-running">
+                <span class="mon-row-time">{{ s.startzeit }}</span>
+                <span class="mon-row-team">{{ s.team_a or "?" }}</span>
+                <span class="mon-row-score">{{ s.score_a if s.score_a is not none else "–" }} : {{ s.score_b if s.score_b is not none else "–" }}</span>
+                <span class="mon-row-team right">{{ s.team_b or "?" }}</span>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if view.upcoming %}
+            <div class="mon-section-label">Als Nächstes</div>
+            {% for s in view.upcoming %}
+            <div class="mon-row">
+                <span class="mon-row-time">{{ s.startzeit }}</span>
+                <span class="mon-row-team">{{ s.team_a or "?" }}</span>
+                <span class="mon-row-score">vs</span>
+                <span class="mon-row-team right">{{ s.team_b or "?" }}</span>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if view.recent %}
+            <div class="mon-section-label">Zuletzt beendet</div>
+            {% for s in view.recent %}
+            <div class="mon-row is-recent">
+                <span class="mon-row-time">{{ s.startzeit }}</span>
+                <span class="mon-row-team">{{ s.team_a or "?" }}</span>
+                <span class="mon-row-score">{{ s.score_a }} : {{ s.score_b }}</span>
+                <span class="mon-row-team right">{{ s.team_b or "?" }}</span>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if not view.running and not view.upcoming and not view.recent %}
+            <p class="mon-empty">Keine Spiele auf diesem Feld.</p>
+            {% endif %}
+        </section>
+        {% endfor %}
+    {% else %}
+    <p class="mon-no-courts">Keine Felder mit Spielen für „{{ selected_location }}“ gefunden.</p>
+    {% endif %}
+</main>
+
+<script>
+function updateMonitorClock() {
+    var el = document.getElementById("mon-clock");
+    if (!el) return;
+    var now = new Date();
+    el.textContent = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+}
+updateMonitorClock();
+setInterval(updateMonitorClock, 1000);
+
+var fullscreenBtn = document.getElementById("mon-fullscreen-btn");
+if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", function () {
+        var el = document.documentElement;
+        if (el.requestFullscreen) {
+            el.requestFullscreen().catch(function () {});
+        }
+    });
+    document.addEventListener("fullscreenchange", function () {
+        fullscreenBtn.style.display = document.fullscreenElement ? "none" : "";
+    });
+}
+
+// Automatisches, langsames Auf-und-ab-Scrollen, damit auf einem unbeaufsichtigten
+// Monitor auch Inhalte unterhalb der ersten Bildschirmseite sichtbar werden.
+(function () {
+    var STEP_PX = 1;
+    var INTERVAL_MS = 40;
+    var PAUSE_MS = 4000;
+    var direction = 1;
+    var paused = false;
+
+    function pauseThenReverse() {
+        paused = true;
+        setTimeout(function () {
+            direction *= -1;
+            paused = false;
+        }, PAUSE_MS);
+    }
+
+    setInterval(function () {
+        if (paused) return;
+        var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        if (maxScroll <= 0) return;
+        var next = window.scrollY + direction * STEP_PX;
+        if (next >= maxScroll) {
+            window.scrollTo(0, maxScroll);
+            pauseThenReverse();
+        } else if (next <= 0) {
+            window.scrollTo(0, 0);
+            pauseThenReverse();
+        } else {
+            window.scrollTo(0, next);
+        }
+    }, INTERVAL_MS);
+})();
+</script>
+</body>
+</html>

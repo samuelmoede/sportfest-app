@@ -37,7 +37,11 @@
                 <button class="secondary" type="submit">Wiederherstellen</button>
             </form>
             {% else %}
-            {% if event.status != "aktiv" %}
+            {% if event.status == "aktiv" %}
+            <form method="post" action="/events/{{ event.id }}/deactivate">
+                <button class="secondary" type="submit">Deaktivieren</button>
+            </form>
+            {% else %}
             <form method="post" action="/events/{{ event.id }}/activate">
                 <button class="primary" type="submit">Aktiv setzen</button>
             </form>

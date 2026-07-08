@@ -183,6 +183,14 @@ def set_active_event(conn, event_id):
     return True
 
 
+def deactivate_event(conn, event_id):
+    cursor = conn.execute(
+        "UPDATE events SET status = ? WHERE id = ? AND status = ?",
+        (EVENT_STATUS_PLANNED, event_id, EVENT_STATUS_ACTIVE),
+    )
+    return cursor.rowcount > 0
+
+
 def archive_event(conn, event_id):
     cursor = conn.execute(
         "UPDATE events SET status = ? WHERE id = ?",

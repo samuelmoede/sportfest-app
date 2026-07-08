@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Öffentliche Ansicht</p>
+        <h1>Siegerehrung{% if event %} – {{ event.name }}{% endif %}</h1>
+        {% if is_public %}
+        <p>Gesamtwertung aller Wettbewerbe der Veranstaltung.</p>
+        {% endif %}
+    </div>
+</header>
+
+{% if is_public %}
+<section class="panel" id="gesamtwertung">
+    {% include "partials/gesamtwertung.html" %}
+</section>
+{% else %}
+<section class="panel">
+    <div class="empty-state compact">
+        <span aria-hidden="true">🔒</span>
+        <div>
+            <strong>Diese Siegerehrung ist derzeit nicht öffentlich</strong>
+            <p>Bitte bei der Turnierleitung nachfragen, ob und wann sie freigeschaltet wird.</p>
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

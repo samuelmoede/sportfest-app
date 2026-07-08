@@ -121,6 +121,19 @@ gefilterten Ansichten.
 [ ] Stationshelfer-Rolle
 [ ] Stationssperren
 
+## Phase 5.5 – Feld-/Stationsfindung für Schiedsrichter
+
+Idee (2026-07-07, Kollegen-Feedback nach dem ersten Live-Test): Schiedsrichtern fiel es schwer, schnell das
+richtige Feld/die richtige Station zu finden. Erste gesammelte Ideen, noch nicht bewertet/priorisiert:
+
+[ ] QR-Code je Feld/Station (ausgedruckt/laminiert vor Ort), der direkt zur passenden Ergebniseingabe-URL
+    verlinkt (z.B. `/ergebnisse?competition_id=X&discipline_id=Y` bzw. `?court_id=Z`)
+[ ] Kachel-Startseite "Wohin muss ich?" mit großen, leicht antippbaren Kacheln pro Feld/Station statt
+    Dropdown-Filtern
+[ ] Kurze, leicht merkbare Codes je Feld (z.B. "Feld 3 = Code 103") als Alternative zu QR-Codes
+[ ] Perspektivisch: direkte Weiterleitung zur zugewiesenen Station nach Login, falls es einmal eine
+    Zuteilungsliste (wer betreut welches Feld) im System gibt
+
 ## Phase 6 – Turnierleitungs-Dashboard
 
 [ ] Gesamtwertung prominent anzeigen
@@ -150,6 +163,21 @@ gefilterten Ansichten.
 [x] Ergebniseingabe filtern
 [ ] Tabellen filtern
 [x] Spielplan-Aushang zum Ausdrucken (2026-07-04): Neue Route `/spielplan/aushang?ort=Turnhalle|Fußballplatz` zeigt je Ort ein Zeit-x-Feld-Raster (alle Felder eines Ortes nebeneinander) statt der Karten-Listenansicht - auf A4 (Hochformat, kompakte Schrift/Zeilenabstand per Print-CSS) optimiert, damit Turnhalle und Fußballplatz je auf einer Seite Platz haben und getrennt ausgehängt werden können. Portrait statt des urspruenglich vermuteten Querformats gewaehlt, da bei typischerweise vielen Zeitzeilen (ein voller Turniertag ueber mehrere Wettbewerbe) und wenigen Feld-Spalten die groessere Hochformat-Hoehe (297mm) mehr Zeilen ohne Schriftverkleinerung erlaubt als die groessere Querformat-Breite genutzt haette. `build_location_print_grid()` in `schedule_grid_service.py` baut das Raster aus den bestehenden `court_groups`; robust gegen die bekannte Cross-Wettbewerb-Feldkollision (siehe Phase 4.7/Hoch) - kollidieren zwei Wettbewerbe auf demselben Feld zur selben Zeit, zeigt die Zelle beide Begegnungen gestapelt statt eine davon stillschweigend zu verlieren. Kein PDF-Export serverseitig (keine neue Abhaengigkeit) - "Drucken/Als PDF speichern" nutzt den Browser-Druckdialog. Live gegen echte Veranstaltungsdaten mit 22 Zeilen/Ort geprueft (Layout, keine Konsolenfehler); die tatsaechliche Ein-Seiten-Passform haengt vom Drucker/PDF-Renderer ab und sollte einmal probeweise ausgedruckt werden
+
+## Phase 8 – Alltagsmodus für Vereins-/Freizeitturniere (Badminton u.a.)
+
+Idee (2026-07-07, Kollegen-Wunsch nach dem ersten Live-Test): das Tool auch außerhalb des Sportfests für
+spontane Turniere (z.B. Feierabend-Badminton) nutzen, bei denen es keine festen Schulklassen als Teams gibt,
+sondern einzelne Personen, die sich erst am Tag selbst zu Teams (Doppel) zusammenfinden. Noch nicht
+konzipiert, nur erste Ideen:
+
+[ ] Teilnehmer als Einzelpersonen erfassen (statt nur Teams/Klassen mit `jahrgang`)
+[ ] Ad-hoc-Teambildung: einzelne Personen manuell oder per Zufallslosung zu Doppel-/Team-Paarungen
+    zusammenstellen, bevor der Spielplan generiert wird
+[ ] Bestehende Turnier-/Gruppenphasen-Logik (Rundenverfahren, KO-Baum) für solche Ad-hoc-Teams
+    wiederverwenden, statt eine komplett neue Planungslogik zu bauen
+[ ] Prüfen, ob `jahrgang` als Pflichtfeld für Teams das eigentliche Hindernis ist, oder ob ein eigener
+    "freier" Team-Modus (ohne Jahrgangsbindung) einfacher ist
 
 ## Langfristig
 

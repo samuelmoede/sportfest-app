@@ -61,7 +61,7 @@ def get_game_end_time(startzeit: str, game_duration_minutes: int):
 
 
 def build_end_time_forecast(slots, competition):
-    if competition is None or _get_value(competition, "competition_type") != "Turnier":
+    if competition is None or _get_value(competition, "competition_type") not in ("Turnier", "Schulpokal"):
         return None
 
     timing = get_competition_timing(competition)

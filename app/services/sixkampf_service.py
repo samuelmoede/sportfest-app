@@ -186,7 +186,18 @@ def calculate_sixkampf_station_rotation(teams, disciplines):
     2. an der 2. usw.; jede Runde rueckt jede Klasse eine Station weiter. Gibt
     es mehr Klassen als Stationen, fuellen zusaetzliche 'Pause'-Plaetze die
     Differenz auf, sodass in jeder Runde weiterhin genau eine Klasse je
-    Station steht und die ueberzaehligen Klassen reihum pausieren."""
+    Station steht und die ueberzaehligen Klassen reihum pausieren.
+
+    Die Pause-Plaetze muessen dabei als zusammenhaengender Block ans Ende der
+    Stationsliste angehaengt werden (nicht zwischen die Stationen gemischt) -
+    nur so gilt fuer alle Klassen bis einschliesslich Stationsanzahl weiterhin
+    exakt "Klasse N startet an Station N" in Runde 1. Ein frueherer Versuch,
+    die Pausen ueber den Zyklus zu verteilen, brach genau diese Regel (z.B.
+    startete die 3. Klasse bei 4 Stationen/3 Pausen dann faelschlich mit einer
+    Pause statt mit Station 3) und wurde deshalb wieder verworfen. Als Folge
+    pausieren Klassen mit mehreren Pausen-Runden diese aktuell direkt
+    hintereinander statt ueber den Tag verteilt (bekannte Einschraenkung, siehe
+    ROADMAP.md)."""
     station_count = len(disciplines)
     team_count = len(teams)
     if station_count == 0 or team_count == 0:
@@ -194,7 +205,10 @@ def calculate_sixkampf_station_rotation(teams, disciplines):
 
     pause_count = max(0, team_count - station_count)
     cycle_length = station_count + pause_count
-    slot_names = [_get(discipline, "name") for discipline in disciplines] + ["Pause"] * pause_count
+    slot_names = [
+        {"name": _get(discipline, "name"), "location": _get_optional(discipline, "location")}
+        for discipline in disciplines
+    ] + [{"name": "Pause", "location": None}] * pause_count
 
     rotation = []
     for index, team in enumerate(teams):

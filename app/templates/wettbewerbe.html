@@ -63,6 +63,14 @@
         <select name="competition_type" required>
             <option value="Turnier">Turnier</option>
             <option value="Sechskampf">Sechskampf</option>
+            <option value="Schulpokal">Schulpokal</option>
+        </select>
+
+        <label class="schulpokal-mode" hidden>Turniermodus</label>
+        <select class="schulpokal-mode" hidden name="tournament_mode">
+            {% for mode_key, mode in schulpokal_modes.items() %}
+            <option value="{{ mode_key }}" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            {% endfor %}
         </select>
 
         <label class="tournament-timing">Spielzeit (Min.)</label>
@@ -162,7 +170,7 @@
                     <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
                     <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
                 </div>
-                {% if c.competition_type == "Turnier" %}
+                {% if c.competition_type in ("Turnier", "Schulpokal") %}
                 <p class="competition-detail-note">{{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</p>
                 {% endif %}
                 <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">▾</span></span>
@@ -190,15 +198,23 @@
                 <select name="competition_type" required>
                     <option value="Turnier" {% if c.competition_type == "Turnier" %}selected{% endif %}>Turnier</option>
                     <option value="Sechskampf" {% if c.competition_type == "Sechskampf" %}selected{% endif %}>Sechskampf</option>
+                    <option value="Schulpokal" {% if c.competition_type == "Schulpokal" %}selected{% endif %}>Schulpokal</option>
                 </select>
 
-                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Spielzeit (Min.)</label>
-                <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
+                <label class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %}>Turniermodus</label>
+                <select class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %} name="tournament_mode">
+                    {% for mode_key, mode in schulpokal_modes.items() %}
+                    <option value="{{ mode_key }}" {% if (c.tournament_mode or default_schulpokal_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
+                    {% endfor %}
+                </select>
+
+                <label class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Spielzeit (Min.)</label>
+                <input class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}
                        type="number" name="game_duration_minutes"
                        value="{{ c.game_duration_minutes or default_game_duration_minutes }}" min="1" required>
 
-                <label class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}>Wechselzeit (Min.)</label>
-                <input class="tournament-timing" {% if c.competition_type != "Turnier" %}hidden{% endif %}
+                <label class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Wechselzeit (Min.)</label>
+                <input class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}
                        type="number" name="changeover_duration_minutes"
                        value="{{ c.changeover_duration_minutes if c.changeover_duration_minutes is not none else default_changeover_duration_minutes }}" min="0" required>
 
@@ -285,14 +301,20 @@
 
             {% if c.competition_type == "Sechskampf" %}
             {% set disciplines = disciplines_by_competition.get(c.id, []) %}
-            <div class="discipline-section">
+            <div class="discipline-section" id="discipline-section-{{ c.id }}" data-competition-id="{{ c.id }}">
                 <h3>Sechskampf-Disziplinen</h3>
+                {% if disciplines %}
+                <p class="muted discipline-drag-hint">Zum Ändern der Reihenfolge (z.B. für kürzere Laufwege) per Ziehpunkt ⠿ verschieben.</p>
+                {% endif %}
 
+                <div class="discipline-list" data-discipline-list data-reorder-url="/competition/{{ c.id }}/discipline/reorder">
                 {% for discipline in disciplines %}
-                <div class="discipline-row">
+                <div class="discipline-row" draggable="true" data-discipline-id="{{ discipline.id }}">
+                    <span class="discipline-drag-handle" title="Ziehen zum Umsortieren" aria-hidden="true">⠿</span>
                     <form method="post" action="/discipline/{{ discipline.id }}/update" class="discipline-form">
                         <input type="number" name="sort_order" value="{{ discipline.sort_order }}" min="1" aria-label="Reihenfolge" required>
                         <input type="text" name="name" value="{{ discipline.name }}" aria-label="Name der Disziplin" required>
+                        <input type="text" name="location" value="{{ discipline.location or '' }}" placeholder="Ort (optional, z.B. Foyer 3. Etage)" aria-label="Ort der Station">
                         <input type="text" name="unit" value="{{ discipline.unit or '' }}" placeholder="Einheit (optional)" aria-label="Einheit">
                         <input type="number" name="values_per_team" value="{{ discipline.values_per_team }}" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
 
@@ -304,7 +326,7 @@
                     </form>
 
                     <form method="post" action="/discipline/{{ discipline.id }}/delete"
-                        onsubmit="return confirm('Disziplin wirklich löschen?');"
+                        data-confirm="Disziplin wirklich löschen?"
                         class="discipline-delete-form">
                         <button class="danger" type="submit">Löschen</button>
                     </form>
@@ -312,10 +334,12 @@
                 {% else %}
                 <p class="muted">Noch keine Disziplinen definiert.</p>
                 {% endfor %}
+                </div>
 
                 <form method="post" action="/competition/{{ c.id }}/discipline/create" class="discipline-form discipline-create-form">
                     <input type="number" name="sort_order" value="{{ disciplines|length + 1 }}" min="1" aria-label="Reihenfolge" required>
                     <input type="text" name="name" placeholder="Neue Disziplin" aria-label="Name der Disziplin" required>
+                    <input type="text" name="location" placeholder="Ort (optional, z.B. Foyer 3. Etage)" aria-label="Ort der Station">
                     <input type="text" name="unit" placeholder="Einheit (optional)" aria-label="Einheit">
                     <input type="number" name="values_per_team" value="1" min="1" placeholder="Werte je Klasse" aria-label="Anzahl Werte pro Klasse" required>
                     <select name="scoring_direction" aria-label="Bewertung">
@@ -371,11 +395,15 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
 
     const toggleTypeFields = () => {
         const isSixkampf = typeSelect.value === "Sechskampf";
+        const isSchulpokal = typeSelect.value === "Schulpokal";
         form.querySelectorAll('.sixkampf-points').forEach(element => {
             element.hidden = !isSixkampf;
         });
         form.querySelectorAll('.tournament-timing').forEach(element => {
             element.hidden = isSixkampf;
+        });
+        form.querySelectorAll('.schulpokal-mode').forEach(element => {
+            element.hidden = !isSchulpokal;
         });
     };
     typeSelect.addEventListener("change", toggleTypeFields);
@@ -415,5 +443,145 @@ if (createForm) {
         });
     }
 }
+
+// Sechskampf-Disziplinen per Drag&Drop umsortieren (fuer optimierte Laufwege).
+function initDisciplineDragDrop(list) {
+    const reorderUrl = list.dataset.reorderUrl;
+    let draggedRow = null;
+
+    list.querySelectorAll('.discipline-row').forEach(function (row) {
+        row.addEventListener('dragstart', function () {
+            draggedRow = row;
+            row.classList.add('is-dragging');
+        });
+        row.addEventListener('dragend', function () {
+            row.classList.remove('is-dragging');
+            draggedRow = null;
+        });
+        row.addEventListener('dragover', function (event) {
+            event.preventDefault();
+            if (!draggedRow || draggedRow === row) return;
+            const rect = row.getBoundingClientRect();
+            const after = (event.clientY - rect.top) > rect.height / 2;
+            list.insertBefore(draggedRow, after ? row.nextSibling : row);
+        });
+        row.addEventListener('drop', function (event) {
+            event.preventDefault();
+            persistOrder();
+        });
+    });
+
+    function persistOrder() {
+        const ids = [...list.querySelectorAll('.discipline-row')].map(function (row) {
+            return row.dataset.disciplineId;
+        });
+        const body = new URLSearchParams();
+        ids.forEach(function (id) { body.append('discipline_ids', id); });
+        fetch(reorderUrl, {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin',
+        }).then(function (response) {
+            if (!response.ok) throw new Error('Reorder fehlgeschlagen');
+            list.querySelectorAll('.discipline-row').forEach(function (row, index) {
+                const sortInput = row.querySelector('input[name="sort_order"]');
+                if (sortInput) sortInput.value = index + 1;
+            });
+        }).catch(function (error) {
+            window.alert('Reihenfolge konnte nicht gespeichert werden. Bitte Seite neu laden und erneut versuchen.');
+            console.error(error);
+        });
+    }
+}
+
+// Disziplin anlegen/speichern/loeschen per AJAX, damit die Seite dabei nicht neu
+// laedt - sonst springt der Scroll nach oben, das aufgeklappte Wettbewerbsmenue
+// klappt zu und noch nicht gespeicherte Eingaben in anderen Feldern/Karten gehen
+// verloren (gemeldetes Nutzerfeedback).
+const DISCIPLINE_FIELD_NAMES = ['sort_order', 'name', 'location', 'unit', 'values_per_team', 'scoring_direction'];
+
+function snapshotDisciplineDrafts(section) {
+    const drafts = {};
+    section.querySelectorAll('.discipline-row').forEach(function (row) {
+        const form = row.querySelector('form.discipline-form');
+        if (!form || !row.dataset.disciplineId) return;
+        const values = {};
+        DISCIPLINE_FIELD_NAMES.forEach(function (field) {
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) values[field] = input.value;
+        });
+        drafts[row.dataset.disciplineId] = values;
+    });
+    const createForm = section.querySelector('.discipline-create-form');
+    if (createForm) {
+        const values = {};
+        DISCIPLINE_FIELD_NAMES.forEach(function (field) {
+            const input = createForm.querySelector('[name="' + field + '"]');
+            if (input) values[field] = input.value;
+        });
+        drafts.__create__ = values;
+    }
+    return drafts;
+}
+
+function restoreDisciplineDrafts(section, drafts, skipKey) {
+    Object.keys(drafts).forEach(function (key) {
+        if (key === skipKey) return;
+        const form = key === '__create__'
+            ? section.querySelector('.discipline-create-form')
+            : (function () {
+                const row = section.querySelector('.discipline-row[data-discipline-id="' + key + '"]');
+                return row ? row.querySelector('form.discipline-form') : null;
+            })();
+        if (!form) return;
+        Object.entries(drafts[key]).forEach(function ([field, value]) {
+            const input = form.querySelector('[name="' + field + '"]');
+            if (input) input.value = value;
+        });
+    });
+}
+
+function initDisciplineSection(section) {
+    const list = section.querySelector('[data-discipline-list]');
+    if (list) initDisciplineDragDrop(list);
+
+    section.querySelectorAll('form.discipline-form, form.discipline-delete-form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+                return;
+            }
+
+            const row = form.closest('.discipline-row');
+            const skipKey = row ? row.dataset.disciplineId : (form.classList.contains('discipline-create-form') ? '__create__' : undefined);
+            const drafts = snapshotDisciplineDrafts(section);
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+            }).then(function (response) {
+                if (!response.ok) throw new Error('Speichern fehlgeschlagen (' + response.status + ')');
+                return response.text();
+            }).then(function (html) {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const updated = doc.getElementById(section.id);
+                if (!updated) throw new Error('Aktualisierter Bereich nicht gefunden');
+                section.replaceWith(updated);
+                restoreDisciplineDrafts(updated, drafts, skipKey);
+                initDisciplineSection(updated);
+            }).catch(function (error) {
+                if (submitButton) submitButton.disabled = false;
+                window.alert('Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.');
+                console.error(error);
+            });
+        });
+    });
+}
+
+document.querySelectorAll('.discipline-section').forEach(initDisciplineSection);
 </script>
 {% endblock %}

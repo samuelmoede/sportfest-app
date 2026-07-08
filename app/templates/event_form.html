@@ -47,6 +47,11 @@
                 {% endfor %}
             </select>
         </div>
+
+        <div class="form-field">
+            <label for="event-details">Details <small>optional</small></label>
+            <textarea id="event-details" name="details" rows="4">{{ event.details or '' if event else '' }}</textarea>
+        </div>
     </fieldset>
 
     <div class="form-submit-row">

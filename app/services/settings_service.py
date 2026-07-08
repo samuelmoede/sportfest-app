@@ -14,9 +14,9 @@ from app.web import ROOT_DIR, get_app_version
 
 
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
-DEFAULT_DASHBOARD_INFO_TEXT = ""
+DEFAULT_DASHBOARD_INFO_TEXT = "Achtung - bei Regen wird Plan B durchgeführt."
 DEFAULT_SECURITY_ENABLED = False
-DASHBOARD_INFO_ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
+ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
 ROLES = {"viewer", "station_helper", "referee", "admin"}
 ROLE_LABELS = {
@@ -98,16 +98,20 @@ def set_dashboard_info_text(value: str):
     set_setting("dashboard_info_text", value or "")
 
 
-def render_dashboard_info_html(value: str):
+def render_rich_text_html(value: str):
+    """Escaped Text mit erlaubten <b>/<strong>-Tags und Zeilenumbrueche als
+    <br> - genutzt sowohl fuer den Dashboard-Banner als auch fuer die
+    Veranstaltungsdetails, damit beide dieselbe einfache Formatierung
+    unterstuetzen."""
     text = str(value or "")
     placeholders = []
 
     def keep_allowed_tag(match):
-        token = f"__SPORTFEST_DASHBOARD_INFO_TAG_{len(placeholders)}__"
+        token = f"__SPORTFEST_RICH_TEXT_TAG_{len(placeholders)}__"
         placeholders.append((token, match.group(0).lower()))
         return token
 
-    protected = DASHBOARD_INFO_ALLOWED_BOLD_TAG_RE.sub(keep_allowed_tag, text)
+    protected = ALLOWED_BOLD_TAG_RE.sub(keep_allowed_tag, text)
     rendered = html.escape(protected)
     for token, tag in placeholders:
         rendered = rendered.replace(token, tag)
@@ -123,7 +127,7 @@ def get_dashboard_info_html():
     text = get_dashboard_info_text()
     if not text.strip():
         return ""
-    return render_dashboard_info_html(text)
+    return render_rich_text_html(text)
 
 
 def get_security_environment_override():

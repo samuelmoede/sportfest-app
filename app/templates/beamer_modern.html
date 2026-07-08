@@ -122,6 +122,12 @@
                         <div class="modern-beamer-pause">{{ current.note or current.slot_typ }}</div>
                         {% endif %}
                     </article>
+                {% elif sixkampf_active %}
+                    <div class="modern-beamer-empty">
+                        <span aria-hidden="true">○</span>
+                        <strong>Sechskampf-Stationen laufen</strong>
+                        <p>Diese Ansicht zeigt nur Spielfeld-Wettbewerbe. Details gibt es im <a href="/spielplan">Spielplan</a>.</p>
+                    </div>
                 {% else %}
                     <div class="modern-beamer-empty">
                         <span aria-hidden="true">○</span>

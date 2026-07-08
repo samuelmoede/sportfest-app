@@ -6,8 +6,10 @@ from app.database import get_conn
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     DEFAULT_COMPETITION_LOCATION,
+    NO_SLOT_LOCATION,
     filter_courts_for_location,
     get_effective_competition_location,
+    natural_sort_key,
     normalize_competition_location,
 )
 from app.services.schedule_time_service import (
@@ -28,7 +30,7 @@ def build_editor_time_grid(groups, competition=None, timing=None):
 
     if (
         competition is not None
-        and competition["competition_type"] == "Turnier"
+        and competition["competition_type"] in ("Turnier", "Schulpokal")
         and timing is not None
     ):
         interval = timing["slot_interval_minutes"]
@@ -177,9 +179,10 @@ def get_slots_grouped_by_court(
     event_id: Optional[int] = None,
 ):
     with get_conn() as conn:
-        courts = conn.execute(
-            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
-        ).fetchall()
+        courts = sorted(
+            conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall(),
+            key=lambda court: natural_sort_key(court["name"]),
+        )
 
     slots = [
         dict(slot)
@@ -436,6 +439,58 @@ def build_location_print_grid(court_groups):
     return courts, rows
 
 
+def build_location_print_pages(court_groups):
+    """Wie build_location_print_grid, aber zusaetzlich nach Wettkampf (competition_id)
+    aufgeteilt: fuer den Aushang-Druck (siehe /spielplan/aushang) soll pro Feld/Ort
+    jeweils nur ein Wettkampf auf einer Seite stehen, damit die Schrift gross genug
+    fuer den Aushang bleibt. Reihenfolge der Seiten richtet sich nach der ersten
+    Startzeit des jeweiligen Wettkampfs."""
+    courts = [group["court"] for group in court_groups]
+
+    ordered_slots = sorted(
+        (
+            slot
+            for group in court_groups
+            for slot in group["slots"]
+            if not slot.get("is_gap")
+        ),
+        key=lambda slot: parse_slot_time(slot["startzeit"]),
+    )
+
+    competition_order = []
+    competition_info = {}
+    for slot in ordered_slots:
+        competition_id = slot["competition_id"]
+        if competition_id not in competition_info:
+            competition_info[competition_id] = {
+                "competition_name": slot["competition_name"],
+                "jahrgang": slot["jahrgang"],
+            }
+            competition_order.append(competition_id)
+
+    pages = []
+    for competition_id in competition_order:
+        filtered_groups = [
+            {
+                "court": group["court"],
+                "slots": [
+                    slot for slot in group["slots"]
+                    if not slot.get("is_gap") and slot["competition_id"] == competition_id
+                ],
+            }
+            for group in court_groups
+        ]
+        _, rows = build_location_print_grid(filtered_groups)
+        pages.append({
+            "competition_id": competition_id,
+            "competition_name": competition_info[competition_id]["competition_name"],
+            "jahrgang": competition_info[competition_id]["jahrgang"],
+            "rows": rows,
+        })
+
+    return courts, pages
+
+
 def get_location_schedule_sections(
     competition_id: Optional[int] = None,
     jahrgang: Optional[int] = None,
@@ -471,7 +526,7 @@ def get_location_schedule_sections(
         court_groups = []
         competitions = unslotted_by_location.get(location, [])
 
-        if location == "Außenbereich":
+        if location == NO_SLOT_LOCATION:
             timeline = get_competition_timeline_for_location(
                 location,
                 competition_id,

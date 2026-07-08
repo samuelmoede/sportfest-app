@@ -1,0 +1,52 @@
+{% if overall_ranking %}
+    {% for group in overall_ranking %}
+    <div class="year-group-block">
+        <h3>{{ group.year_group }}</h3>
+        <div class="table-scroll">
+            <table class="team-table overall-table">
+                <thead>
+                    <tr>
+                        <th>Platz</th>
+                        <th>Klasse</th>
+                        {% for competition in group.competitions %}
+                        {% set short_name = competition.name.split(' Jahrgang')[0].strip() %}
+                        <th>{{ short_name }}</th>
+                        {% endfor %}
+                        <th>Gesamtpunkte</th>
+                        <th title="Erreichte Platzierungen je Wettbewerb, aufsteigend sortiert. Bei Punktegleichstand entscheidet zuerst die Anzahl 1. Plätze, dann 2. Plätze usw.">
+                            Platzierungsbilanz
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in group.rows %}
+                    <tr>
+                        <td class="overall-place">{{ row.place }}</td>
+                        <td class="overall-team">{{ row.team }}</td>
+                        {% for competition in group.competitions %}
+                        {% set points = row.points_by_competition.get(competition.id) %}
+                        <td>
+                            {% if points is none %}
+                            <span class="points-missing">–</span>
+                            {% else %}
+                            <span class="points-value">{{ row.points_by_competition_display.get(competition.id) }}</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="overall-total{% if row.place == 1 %} is-top{% endif %}">
+                            <strong>{{ row.total_points_display }}</strong>
+                        </td>
+                        <td>{{ row.placement_bilanz_display }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state compact">
+        <span aria-hidden="true">🏅</span>
+        <div><strong>Noch keine Gesamtwertung</strong><p>Bewertete Wettbewerbe erscheinen hier automatisch.</p></div>
+    </div>
+{% endif %}

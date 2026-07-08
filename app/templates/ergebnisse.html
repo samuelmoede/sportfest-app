@@ -39,6 +39,17 @@
             {% endfor %}
         </select>
     </label>
+    <label>
+        <span>Ort</span>
+        <select name="ort">
+            <option value="" {% if selected_ort is none %}selected{% endif %}>Alle Orte</option>
+            {% for location in ort_options %}
+            <option value="{{ location }}" {% if selected_ort == location %}selected{% endif %}>
+                {{ location }}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
     {% if not is_sixkampf %}
     <label>
         <span>Feld</span>
@@ -121,11 +132,13 @@
 {% elif selected_discipline %}
 <section class="panel six-discipline-panel">
     <header class="six-discipline-header">
+        <p class="six-discipline-eyebrow">{{ selected_competition.name }}</p>
         <h2>
             {{ selected_discipline.name }}
             {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
         </h2>
         <p class="muted">
+            {% if selected_discipline.location %}📍 {{ selected_discipline.location }} · {% endif %}
             {{ selected_discipline.values_per_team }} Werte je Klasse ·
             {% if selected_discipline.scoring_direction == "lower" %}
             Niedriger ist besser
@@ -208,14 +221,24 @@
     z-index: 30;
     margin: -4px -4px 10px;
     padding: 10px 12px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--navy);
+    border-left: 6px solid var(--navy);
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.96);
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(4px);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+.six-discipline-eyebrow {
+    margin: 0 0 2px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--navy);
 }
 .six-discipline-header h2 {
     margin: 0;
-    font-size: clamp(1.05rem, 2.4vw, 1.45rem);
+    font-size: clamp(1.15rem, 2.8vw, 1.6rem);
 }
 .six-discipline-header p {
     margin: 4px 0 0;
@@ -340,9 +363,17 @@
         grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
     }
 }
+@media (max-width: 700px) {
+    /* Auf schmalen Bildschirmen ist die .mobile-topbar (position: sticky, top: 0,
+       min-height: 60px, z-index: 1200) staerker priorisiert als dieser Header und
+       wuerde ihn beim Scrollen verdecken - deshalb unterhalb der Topbar einrasten. */
+    .six-discipline-header {
+        top: 68px;
+    }
+}
+
 @media (max-width: 640px) {
     .six-discipline-header {
-        top: 6px;
         padding: 8px 10px;
     }
     .six-card-header {
@@ -454,138 +485,155 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </p>
 </section>
 {% endif %}
-<section class="panel">
+<section class="panel" id="active-results-section">
     <h2>Aktive Spiele</h2>
-    {% for s in slots %}
-    <section class="result-card">
-        <div class="result-meta">
-            <strong>{{ s.startzeit }}</strong>
-            <span class="pill">{{ s.court_name }}</span>
-            <span>{{ s.competition_name }}</span>
-            {% if s.competition_type != "Sechskampf" and s.phase %}
-            <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
-                {%- if s.phase == "Gruppenphase" -%}
-                    {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
-                {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
-                    Spiel um Platz 3
-                {%- else -%}
-                    {{ s.phase }}
-                {%- endif -%}
-            </span>
-            {% endif %}
-            {% if s.started_at and s.status == 'läuft' %}
-            <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
-            {% elif s.started_at %}
-            <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
-            {% endif %}
-            <span class="badge {{ s.status }}">{{ s.status }}</span>
-            <span class="change-counter" title="Protokollierte Ergebnisänderungen">
-                Änderungen: {{ s.change_count }}
-            </span>
-            {% if s.is_draw_unresolved %}
-            <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
-            {% endif %}
-            {% if s.group_patt_risk %}
-            <span class="pill draw-warning-pill">⚠ Patt möglich</span>
-            {% endif %}
-        </div>
-        {% if s.group_patt_risk %}
-        <p class="muted patt-warning-text">{{ s.group_patt_risk.message }}</p>
-        {% endif %}
-        <div class="result-form-row">
-        <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form">
-            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-            <strong>{{ s.team_a or "?" }}</strong>
-            <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
-            <span>:</span>
-            <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
-            <strong>{{ s.team_b or "?" }}</strong>
-        </form>
-        <div class="result-actions">
-            {% if s.status == "geplant" %}
-            <form method="post" action="/slot/{{ s.id }}/start"
-                  data-start-slot data-planned-duration="{{ s.planned_duration_seconds or '' }}">
-                <button class="outline" type="submit">Starten</button>
-            </form>
-            {% endif %}
-            {% if s.status == "läuft" %}
-            <form method="post" action="/slot/{{ s.id }}/unstart" data-unstart-slot>
-                <button class="outline" type="submit">Start rückgängig</button>
-            </form>
-            {% endif %}
-            <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Zwischenspeichern</button>
-            <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden & Speichern</button>
-        </div>
-        </div>
-    </section>
+    {% if active_columns %}
+    <div class="schedule-board results-board">
+        {% for column in active_columns %}
+        <section class="court-column">
+            <h3>{{ column.court_name }}</h3>
+            {% for s in column.slots %}
+            <section class="result-card">
+                <div class="result-meta">
+                    <strong>{{ s.startzeit }}</strong>
+                    <span class="pill">{{ s.court_name }}</span>
+                    <span>{{ s.competition_name }}</span>
+                    {% if s.competition_type != "Sechskampf" and s.phase %}
+                    <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
+                        {%- if s.phase == "Gruppenphase" -%}
+                            {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+                        {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+                            Spiel um Platz 3
+                        {%- else -%}
+                            {{ s.phase }}
+                        {%- endif -%}
+                    </span>
+                    {% endif %}
+                    {% if s.started_at and s.status == 'läuft' %}
+                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+                    {% elif s.started_at %}
+                    <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+                    {% endif %}
+                    <span class="badge {{ s.status }}">{{ s.status }}</span>
+                    <span class="change-counter" title="Protokollierte Ergebnisänderungen">
+                        Änderungen: {{ s.change_count }}
+                    </span>
+                    {% if s.is_draw_unresolved %}
+                    <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
+                    {% endif %}
+                    {% if s.group_patt_risk %}
+                    <span class="pill draw-warning-pill">⚠ Patt möglich</span>
+                    {% endif %}
+                </div>
+                {% if s.group_patt_risk %}
+                <p class="muted patt-warning-text">{{ s.group_patt_risk.message }}</p>
+                {% endif %}
+                <div class="result-form-row">
+                <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form">
+                    <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                    <strong>{{ s.team_a or "?" }}</strong>
+                    <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
+                    <span>:</span>
+                    <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
+                    <strong>{{ s.team_b or "?" }}</strong>
+                </form>
+                <div class="result-actions">
+                    {% if s.status == "geplant" %}
+                    <form method="post" action="/slot/{{ s.id }}/start"
+                          data-start-slot data-planned-duration="{{ s.planned_duration_seconds or '' }}">
+                        <button class="outline" type="submit">Starten</button>
+                    </form>
+                    {% endif %}
+                    {% if s.status == "läuft" %}
+                    <form method="post" action="/slot/{{ s.id }}/unstart" data-unstart-slot>
+                        <button class="outline" type="submit">Start rückgängig</button>
+                    </form>
+                    {% endif %}
+                    <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Zwischenspeichern</button>
+                    <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden & Speichern</button>
+                </div>
+                </div>
+            </section>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </div>
     {% else %}
-
     <p class="muted">Keine aktiven Spiele vorhanden.</p>
-    {% endfor %}
+    {% endif %}
 </section>
 
-<section class="panel archive-panel">
+<section class="panel archive-panel" id="archived-results-section">
     <h2>Archiv zuletzt gespeicherter Ergebnisse</h2>
     <p class="muted">Diese Spiele zählen aktuell zur Tabelle und können korrigiert werden.</p>
-    {% for s in archived_slots %}
-    <section class="result-card archived">
-        <div class="result-meta">
-            <strong>{{ s.startzeit }}</strong>
-            <span class="pill">{{ s.court_name }}</span>
-            <span>{{ s.competition_name }}</span>
-            {% if s.competition_type != "Sechskampf" and s.phase %}
-            <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
-                {%- if s.phase == "Gruppenphase" -%}
-                    {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
-                {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
-                    Spiel um Platz 3
-                {%- else -%}
-                    {{ s.phase }}
-                {%- endif -%}
-            </span>
-            {% endif %}
-            {% if s.started_at %}
-            <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
-            {% endif %}
-            <span class="badge {{ s.status }}">{{ s.status }}</span>
-            <span class="change-counter" title="Protokollierte Ergebnisänderungen">
-                Änderungen: {{ s.change_count }}
-            </span>
-            {% if s.is_draw_unresolved %}
-            <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
-            {% endif %}
-        </div>
-        {% if s.correction_locked %}
-        <p class="correction-locked-note">
-            <strong>{{ s.team_a or "?" }} {{ s.score_a }} : {{ s.score_b }} {{ s.team_b or "?" }}</strong>
-            &ndash; nicht mehr korrigierbar, da die nächste Phase bereits begonnen hat.
-        </p>
-        {% else %}
-        <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
-            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-            <strong>{{ s.team_a or "?" }}</strong>
-            <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
-            <span>:</span>
-            <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
-            <strong>{{ s.team_b or "?" }}</strong>
-            <button class="primary" name="finish" value="1">Korrigieren & beendet speichern</button>
-        </form>
-        <div class="archive-actions">
-            <form method="post" action="/slot/{{ s.id }}/reactivate">
-                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                <button class="secondary" type="submit">Reaktivieren</button>
-            </form>
-            <form method="post" action="/slot/{{ s.id }}/clear-result"
-                  onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
-                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                <button class="danger" type="submit">Ergebnis löschen</button>
-            </form>
-        </div>
-        {% endif %}
-    </section>
+    {% if archived_columns %}
+    <div class="schedule-board results-board">
+        {% for column in archived_columns %}
+        <section class="court-column">
+            <h3>{{ column.court_name }}</h3>
+            {% for s in column.slots %}
+            <section class="result-card archived">
+                <div class="result-meta">
+                    <strong>{{ s.startzeit }}</strong>
+                    <span class="pill">{{ s.court_name }}</span>
+                    <span>{{ s.competition_name }}</span>
+                    {% if s.competition_type != "Sechskampf" and s.phase %}
+                    <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
+                        {%- if s.phase == "Gruppenphase" -%}
+                            {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+                        {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+                            Spiel um Platz 3
+                        {%- else -%}
+                            {{ s.phase }}
+                        {%- endif -%}
+                    </span>
+                    {% endif %}
+                    {% if s.started_at %}
+                    <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
+                    {% endif %}
+                    <span class="badge {{ s.status }}">{{ s.status }}</span>
+                    <span class="change-counter" title="Protokollierte Ergebnisänderungen">
+                        Änderungen: {{ s.change_count }}
+                    </span>
+                    {% if s.is_draw_unresolved %}
+                    <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
+                    {% endif %}
+                </div>
+                {% if s.correction_locked %}
+                <p class="correction-locked-note">
+                    <strong>{{ s.team_a or "?" }} {{ s.score_a }} : {{ s.score_b }} {{ s.team_b or "?" }}</strong>
+                    &ndash; nicht mehr korrigierbar, da die nächste Phase bereits begonnen hat.
+                </p>
+                {% else %}
+                <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
+                    <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                    <strong>{{ s.team_a or "?" }}</strong>
+                    <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
+                    <span>:</span>
+                    <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
+                    <strong>{{ s.team_b or "?" }}</strong>
+                    <button class="primary" name="finish" value="1">Korrigieren & beendet speichern</button>
+                </form>
+                <div class="archive-actions">
+                    <form method="post" action="/slot/{{ s.id }}/reactivate">
+                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                        <button class="secondary" type="submit">Reaktivieren</button>
+                    </form>
+                    <form method="post" action="/slot/{{ s.id }}/clear-result"
+                          onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                        <button class="danger" type="submit">Ergebnis löschen</button>
+                    </form>
+                </div>
+                {% endif %}
+            </section>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </div>
     {% else %}
     <p class="muted">Noch keine gespeicherten Ergebnisse im Archiv.</p>
-    {% endfor %}
+    {% endif %}
 </section>
 {% endif %}
 
@@ -800,8 +848,103 @@ function attachUnstartHandler(form) {
     });
 }
 
-document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
-document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
+function getSlotIdFromSaveForm(form) {
+    const match = form.action.match(/\/slot\/(\d+)\/save\/?$/);
+    return match ? match[1] : null;
+}
+
+// Sammelt noch nicht gespeicherte Eingaben aller Ergebnis-Karten, damit sie nach
+// dem Speichern EINER Karte (z.B. Feld 1) nicht durch die aktualisierten Karten
+// anderer Felder (z.B. Feld 3) ueberschrieben werden.
+function snapshotResultDrafts() {
+    const drafts = {};
+    document.querySelectorAll('.result-form').forEach(form => {
+        const slotId = getSlotIdFromSaveForm(form);
+        if (!slotId) return;
+        const scoreA = form.querySelector('input[name="score_a"]');
+        const scoreB = form.querySelector('input[name="score_b"]');
+        drafts[slotId] = {
+            a: scoreA ? scoreA.value : '',
+            b: scoreB ? scoreB.value : '',
+        };
+    });
+    return drafts;
+}
+
+function restoreResultDrafts(drafts, savedSlotId) {
+    document.querySelectorAll('.result-form').forEach(form => {
+        const slotId = getSlotIdFromSaveForm(form);
+        if (!slotId || slotId === savedSlotId) return;
+        const draft = drafts[slotId];
+        if (!draft) return;
+        const scoreA = form.querySelector('input[name="score_a"]');
+        const scoreB = form.querySelector('input[name="score_b"]');
+        if (scoreA && scoreA.value === '' && draft.a !== '') scoreA.value = draft.a;
+        if (scoreB && scoreB.value === '' && draft.b !== '') scoreB.value = draft.b;
+    });
+}
+
+function attachResultSaveHandler(form) {
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        const submitter = event.submitter;
+        const savedSlotId = getSlotIdFromSaveForm(form);
+        const drafts = snapshotResultDrafts();
+
+        if (submitter) submitter.disabled = true;
+
+        try {
+            let formData;
+            try {
+                formData = new FormData(form, submitter || undefined);
+            } catch (err) {
+                formData = new FormData(form);
+                if (submitter && submitter.name) formData.append(submitter.name, submitter.value);
+            }
+
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Speichern fehlgeschlagen (${response.status})`);
+            }
+
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+
+            ['active-results-section', 'archived-results-section'].forEach(id => {
+                const current = document.getElementById(id);
+                const updated = doc.getElementById(id);
+                if (current && updated) {
+                    current.replaceWith(updated);
+                }
+            });
+
+            restoreResultDrafts(drafts, savedSlotId);
+            initResultBoardHandlers();
+            updateResultTimers();
+        } catch (error) {
+            if (submitter) submitter.disabled = false;
+            window.alert('Das Ergebnis konnte nicht gespeichert werden. Bitte erneut versuchen.');
+            console.error(error);
+        }
+    });
+}
+
+function initResultBoardHandlers() {
+    document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
+    document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
+    document.querySelectorAll('.result-form').forEach(form => {
+        if (form.dataset.resultHandlerAttached) return;
+        form.dataset.resultHandlerAttached = '1';
+        attachResultSaveHandler(form);
+    });
+}
+
+initResultBoardHandlers();
 </script>
 {% endblock %}
 

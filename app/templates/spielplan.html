@@ -65,16 +65,27 @@
 {% endif %}
 {% endmacro %}
 
+{% block extra_head %}
+{% if beamer_mode and beamer_refresh_seconds %}
+<meta http-equiv="refresh" content="{{ beamer_refresh_seconds }}">
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <header class="page-header schedule-page-head">
     <div>
-        <p class="eyebrow">Öffentliche Ansicht</p>
+        <p class="eyebrow">Öffentliche Ansicht{% if beamer_mode %} &middot; Beamer-Modus{% endif %}</p>
         <h1>Spielplan nach Ort</h1>
-        <p>Turnhalle, Fußballplatz und Außenbereich auf einen Blick.</p>
+        <p>Turnhalle, Fußballplatz, Mensa und Schulhaus auf einen Blick.
+        {% if beamer_mode %}Aktualisiert automatisch alle {{ beamer_refresh_seconds }} Sekunden.{% endif %}</p>
     </div>
 </header>
 
 <form method="get" action="/spielplan" class="filter-row">
+    <label class="beamer-mode-toggle">
+        <input type="checkbox" name="beamer" value="1" {% if beamer_mode %}checked{% endif %}>
+        Beamer-Modus (Ort wählen &amp; automatisch aktualisieren)
+    </label>
     <select name="event_id" aria-label="Veranstaltung">
         <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
         {% for event in event_options %}
@@ -108,6 +119,13 @@
     <button class="primary" type="submit">Filtern</button>
 </form>
 
+{% if selected_location %}
+<p class="monitor-hint">
+    Für einen unbeaufsichtigten Monitor/Beamer (Vollbild, automatisches Scrollen, zeigt laufende/letzte/nächste Spiele):
+    <a href="/spielplan/monitor?ort={{ selected_location }}" target="_blank">/spielplan/monitor?ort={{ selected_location }} ↗</a>
+</p>
+{% endif %}
+
 {% if sixkampf_rotation_competition %}
 <section class="panel sixkampf-rotation-panel">
     <div class="section-heading">
@@ -130,7 +148,10 @@
             <tr>
                 <td><strong>{{ entry.team.name }}</strong></td>
                 {% for station in entry.rounds %}
-                <td{% if station == "Pause" %} class="sixkampf-rotation-pause"{% endif %}>{{ station }}</td>
+                <td{% if station.name == "Pause" %} class="sixkampf-rotation-pause"{% endif %}>
+                    {{ station.name }}
+                    {% if station.location %}<br><span class="sixkampf-rotation-location">📍 {{ station.location }}</span>{% endif %}
+                </td>
                 {% endfor %}
             </tr>
             {% endfor %}
@@ -143,7 +164,7 @@
 {% endif %}
 
 {% for section in location_sections %}
-{% if not (sixkampf_rotation_competition and section.location == "Außenbereich") %}
+{% if not (sixkampf_rotation_competition and section.location == "Schulhaus") %}
 <section class="location-venue-section location-{{ section.location_key|lower }}">
     <header class="location-venue-head">
         <div>
@@ -152,15 +173,17 @@
             <p>Hallenspiele nach Spielfeld</p>
             {% elif section.location == "Fußballplatz" %}
             <p>Fußballspiele nach zugeordnetem Feld</p>
-            {% elif section.location == "Außenbereich" %}
-            <p>Chronologischer Ablauf der Außenwettbewerbe</p>
+            {% elif section.location == "Schulhaus" %}
+            <p>Chronologischer Ablauf der Schulhaus-Wettbewerbe</p>
+            {% elif section.location == "Mensa" %}
+            <p>Tischtennis nach zugeordneter Platte</p>
             {% else %}
             <p>Bestehende Wettbewerbe ohne Ortszuordnung</p>
             {% endif %}
         </div>
         <div class="location-venue-head-actions">
             <span class="location-pill">{{ section.location }}</span>
-            {% if section.location != "Außenbereich" %}
+            {% if section.location != "Schulhaus" %}
             <a class="button secondary" href="/spielplan/aushang?ort={{ section.location }}{% if selected_event_id %}&event_id={{ selected_event_id }}{% endif %}">Aushang drucken</a>
             {% endif %}
         </div>

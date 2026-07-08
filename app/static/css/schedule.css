@@ -3,6 +3,21 @@
  * Originalreihenfolge: Zeilen 1949-2291 aus style.css vor dem Refactoring.
  */
 
+.beamer-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.monitor-hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: -6px 0 20px;
+}
+
 .schedule-editor-page,
 .schedule-editor-page > *,
 .schedule-editor-page form,
@@ -197,9 +212,12 @@
 
 .schedule-board {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(320px, 1fr);
     gap: 22px;
     align-items: start;
+    overflow-x: auto;
+    padding-bottom: 8px;
 }
 
 .court-column {
@@ -208,6 +226,7 @@
     border-radius: 16px;
     padding: 16px;
     min-height: 220px;
+    min-width: 320px;
 }
 
 .court-column h2 {
@@ -360,8 +379,16 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 10px;
     color: var(--muted);
     font-size: 14px;
+}
+
+.slot-footer > span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .slot-duration,

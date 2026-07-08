@@ -161,7 +161,7 @@
     color: #166534;
 }
 
-.location-außenbereich .location-pill {
+.location-schulhaus .location-pill {
     background: #ffedd5;
     color: #9a3412;
 }
@@ -172,6 +172,44 @@
 
 .location-court-board .court-column h3 {
     margin-top: 0;
+}
+
+.dashboard-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+}
+
+.dashboard-banner-icon {
+    font-size: 1.3rem;
+    line-height: 1.5;
+}
+
+.dashboard-banner-text {
+    flex: 1 1 auto;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    padding-top: 2px;
+}
+
+.dashboard-banner-close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #92400e;
+    padding: 0 4px;
+}
+
+.dashboard-banner-close:hover {
+    color: #451a03;
 }
 
 .dashboard-info-text {
@@ -229,123 +267,157 @@
     background: transparent !important;
 }
 
-.day-schedule-cards {
-    display: grid;
-    gap: 8px;
+.day-timeline-wrapper {
+    overflow-x: auto;
+    padding-bottom: 8px;
 }
 
-.day-schedule-block {
-    display: grid;
-    grid-template-columns: minmax(125px, 155px) minmax(0, 1fr);
-    gap: 12px;
-    padding: 11px;
-    border: 1px solid var(--border);
-    border-left: 4px solid #60a5fa;
-    border-radius: 13px;
-    background: #f8fafc;
-}
-
-.day-schedule-block.status-running {
-    border-left-color: #16a34a;
-    background: #f0fdf4;
-}
-
-.day-schedule-block.status-next,
-.day-schedule-block.status-soon {
-    border-left-color: #f59e0b;
-    background: #fffbeb;
-}
-
-.day-schedule-block.status-done {
-    border-left-color: #94a3b8;
-    background: #f8fafc;
-}
-
-.day-schedule-block > header {
+.day-timeline {
+    --day-timeline-px-per-minute: 1.4px;
     display: flex;
-    align-content: flex-start;
-    align-items: flex-start;
     flex-direction: column;
-    gap: 7px;
-    padding: 4px;
-}
-
-.day-schedule-block > header time {
-    color: var(--navy2);
-    font-size: 1.08rem;
-    font-weight: 900;
-    font-variant-numeric: tabular-nums;
-}
-
-.day-schedule-card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
     gap: 8px;
-    min-width: 0;
+    width: max-content;
+    min-width: 100%;
 }
 
-.day-schedule-card {
-    display: grid;
-    gap: 7px;
-    min-width: 0;
-    padding: 10px 11px;
-    border: 1px solid #dfe6f0;
-    border-radius: 10px;
-    background: white;
-}
-
-a.day-schedule-card {
-    text-decoration: none;
-    color: inherit;
-    cursor: pointer;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-a.day-schedule-card:hover,
-a.day-schedule-card:focus-visible {
-    border-color: var(--navy2, #1d3a6e);
-    box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
-}
-
-.day-schedule-card-head {
+.day-timeline-header,
+.day-timeline-body {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 12px;
 }
 
-.day-schedule-card-head strong {
-    min-width: 0;
-    overflow-wrap: anywhere;
+.day-timeline-corner {
+    flex: 0 0 52px;
 }
 
-.day-schedule-card-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 10px;
+.day-timeline-column-label {
+    flex: 1 1 200px;
+    min-width: 200px;
+    margin: 0;
     color: var(--muted);
-    font-size: 0.77rem;
-}
-
-.day-schedule-card-meta span {
-    overflow-wrap: anywhere;
-}
-
-.day-schedule-card-meta .day-card-sport {
-    color: var(--navy2);
+    font-size: 0.72rem;
     font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
 }
 
-.day-schedule-card-meta .day-card-location::before {
-    margin-right: 4px;
-    content: "⌖";
+.day-timeline-axis {
+    position: relative;
+    flex: 0 0 52px;
+    height: calc(var(--day-timeline-total-minutes, 60) * var(--day-timeline-px-per-minute));
 }
 
-.day-schedule-card > time {
+.day-timeline-hour {
+    position: absolute;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
     color: var(--muted);
     font-size: 0.73rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+}
+
+.day-timeline-columns {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 12px;
+}
+
+.day-timeline-column-body {
+    position: relative;
+    flex: 1 1 200px;
+    min-width: 200px;
+    height: calc(var(--day-timeline-total-minutes, 60) * var(--day-timeline-px-per-minute));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.day-timeline-gridline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.day-timeline-now-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    height: 2px;
+    background: #dc2626;
+    pointer-events: none;
+}
+
+.day-timeline-now-line::before {
+    content: "";
+    position: absolute;
+    left: -4px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+}
+
+.day-timeline-block {
+    position: absolute;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 1px;
+    padding: 6px 8px;
+    overflow: hidden;
+    border: 1px solid #dfe6f0;
+    border-left: 3px solid #60a5fa;
+    border-radius: 8px;
+    background: white;
+    color: inherit;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    text-decoration: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.day-timeline-block:hover,
+.day-timeline-block:focus-visible {
+    border-color: var(--navy2, #1d3a6e);
+    box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
+}
+
+.day-timeline-block strong {
+    overflow-wrap: anywhere;
+}
+
+.day-timeline-block span {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.day-timeline-block time {
+    margin-top: auto;
+    color: var(--muted);
+    font-size: 0.71rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.day-timeline-block.status-running {
+    border-left-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.day-timeline-block.status-done {
+    border-left-color: #94a3b8;
+    background: #f1f5f9;
+    opacity: 0.75;
 }
 
 .day-status {

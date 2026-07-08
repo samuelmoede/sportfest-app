@@ -2,6 +2,14 @@
 {% import "partials/ui_macros.html" as ui %}
 {% block content %}
 <div class="dashboard-page">
+    {% if dashboard_info_html %}
+    <div class="dashboard-banner" role="status">
+        <span class="dashboard-banner-icon" aria-hidden="true">📣</span>
+        <div class="dashboard-banner-text">{{ dashboard_info_html|safe }}</div>
+        <button type="button" class="dashboard-banner-close" aria-label="Hinweis schließen" onclick="this.closest('.dashboard-banner').remove()">&times;</button>
+    </div>
+    {% endif %}
+
     <header class="page-hero dashboard-hero">
         <div class="page-hero-main">
             <p class="eyebrow">Aktive Veranstaltung</p>
@@ -17,7 +25,9 @@
             {% endif %}
             <div class="hero-actions">
                 <a class="button primary" href="/events/{{ next_event.id }}">Veranstaltung öffnen</a>
-                <a class="button secondary" href="/spielplan">Spielplan ansehen</a>
+                {% if next_event.siegerehrung_public %}
+                <a class="button secondary" href="/siegerehrung/{{ next_event.id }}" target="_blank">🏆 Siegerehrung ansehen ↗</a>
+                {% endif %}
             </div>
             {% else %}
             <p class="hero-description">Keine aktive oder kommende Veranstaltung vorhanden.</p>
@@ -29,23 +39,23 @@
         </div>
     </header>
 
-    <section class="metric-grid" aria-label="Kennzahlen">
-        <article class="metric-card">
-            <span class="metric-icon is-blue" aria-hidden="true">🏆</span>
-            <div><strong>{{ next_event.competition_count if next_event else 0 }}</strong><span>Wettbewerbe</span></div>
-        </article>
-        <article class="metric-card">
-            <span class="metric-icon is-green" aria-hidden="true">●</span>
-            <div><strong>{{ running|length }}</strong><span>Spiele laufen</span></div>
-        </article>
-        <article class="metric-card">
-            <span class="metric-icon is-neutral" aria-hidden="true">✓</span>
-            <div><strong>{{ ended_count }}</strong><span>Spiele erledigt</span></div>
-        </article>
-        <article class="metric-card">
-            <span class="metric-icon is-violet" aria-hidden="true">📍</span>
-            <div><strong>{{ courts|length }}</strong><span>Spielfelder aktiv</span></div>
-        </article>
+    <section class="panel dashboard-section dashboard-schedule">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Tagesplan</p>
+                <h2>{{ schedule_event.name if schedule_event else "Aktive bzw. nächste Veranstaltung" }}</h2>
+            </div>
+        </div>
+        {% if schedule_event %}
+            {% set day_schedule_compact = true %}
+            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
+            {% include "partials/day_schedule.html" %}
+        {% else %}
+        <div class="empty-state compact">
+            <span aria-hidden="true">🗓</span>
+            <div><strong>Kein Tagesplan verfügbar</strong><p>Es gibt keine aktive oder kommende Veranstaltung.</p></div>
+        </div>
+        {% endif %}
     </section>
 
     <div class="dashboard-section-grid">
@@ -137,25 +147,6 @@
         </section>
     </div>
 
-    <section class="panel dashboard-section dashboard-schedule">
-        <div class="section-heading">
-            <div>
-                <p class="eyebrow">Tagesplan</p>
-                <h2>{{ schedule_event.name if schedule_event else "Aktive bzw. nächste Veranstaltung" }}</h2>
-            </div>
-        </div>
-        {% if schedule_event %}
-            {% set day_schedule_compact = true %}
-            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
-            {% include "partials/day_schedule.html" %}
-        {% else %}
-        <div class="empty-state compact">
-            <span aria-hidden="true">🗓</span>
-            <div><strong>Kein Tagesplan verfügbar</strong><p>Es gibt keine aktive oder kommende Veranstaltung.</p></div>
-        </div>
-        {% endif %}
-    </section>
-
     <div class="dashboard-lower-grid">
         <section class="panel dashboard-section ranking-callout">
             <div class="section-heading">
@@ -199,16 +190,16 @@
         <section class="panel dashboard-section dashboard-info-panel">
             <div class="section-heading">
                 <div>
-                    <p class="eyebrow">Hinweise</p>
-                    <h2>Informationen</h2>
+                    <p class="eyebrow">Veranstaltung</p>
+                    <h2>Details</h2>
                 </div>
             </div>
-            {% if dashboard_info_html %}
-            <div class="dashboard-info-text">{{ dashboard_info_html|safe }}</div>
+            {% if next_event_details_html %}
+            <div class="dashboard-info-text">{{ next_event_details_html|safe }}</div>
             {% else %}
             <div class="empty-state compact">
                 <span aria-hidden="true">i</span>
-                <div><strong>Keine aktuellen Hinweise</strong><p>Informationen können in den Einstellungen hinterlegt werden.</p></div>
+                <div><strong>Keine Details hinterlegt</strong><p>Details können beim Bearbeiten der Veranstaltung ergänzt werden.</p></div>
             </div>
             {% endif %}
         </section>

@@ -4,7 +4,7 @@ from math import isfinite
 from typing import Callable, List
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.database import get_conn
 from app.routes.teams import normalize_jahrgang
@@ -12,7 +12,19 @@ from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     resolve_selected_event_id,
 )
+from app.services.schedule_generator_service import (
+    DEFAULT_SCHULPOKAL_MODE,
+    SCHULPOKAL_MODES,
+)
 from app.web import templates
+
+COMPETITION_TYPES = ("Turnier", "Sechskampf", "Schulpokal")
+
+
+def _normalize_tournament_mode(competition_type: str, tournament_mode: str):
+    if competition_type != "Schulpokal":
+        return None
+    return tournament_mode if tournament_mode in SCHULPOKAL_MODES else DEFAULT_SCHULPOKAL_MODE
 
 
 def get_all_competitions():
@@ -41,6 +53,23 @@ def create_router(
     default_changeover_duration_minutes: int,
 ) -> APIRouter:
     router = APIRouter()
+
+    def _discipline_saved_redirect(competition_id, event_id, saved_at):
+        # Den aktiven Veranstaltungsfilter der Wettbewerbe-Seite beibehalten,
+        # sonst faellt /wettbewerbe auf die Standard-(aktive)-Veranstaltung
+        # zurueck und der gerade bearbeitete Wettbewerb (aus einer anderen
+        # Veranstaltung) verschwindet aus der gefilterten Ansicht - der
+        # AJAX-Handler faende seinen Abschnitt dann nicht und meldete
+        # faelschlich einen Fehler, obwohl gespeichert wurde. Ein leerer
+        # event_id-Parameter erzwingt die ungefilterte Gesamtansicht (fuer
+        # Wettbewerbe ohne Veranstaltung).
+        event_param = event_id if event_id is not None else ""
+        return RedirectResponse(
+            f"/wettbewerbe?event_id={event_param}"
+            f"&saved_competition_id={competition_id}&saved_at={saved_at}"
+            f"#competition-{competition_id}",
+            status_code=303,
+        )
 
     @router.get("/wettbewerbe")
     def wettbewerbe(request: Request):
@@ -124,6 +153,8 @@ def create_router(
                 "competition_locations": competition_locations,
                 "default_game_duration_minutes": default_game_duration_minutes,
                 "default_changeover_duration_minutes": default_changeover_duration_minutes,
+                "schulpokal_modes": SCHULPOKAL_MODES,
+                "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
             }
         )
 
@@ -134,6 +165,7 @@ def create_router(
         start_time: str = Form(""), end_time: str = Form(""),
         location: str = Form(""),
         event_id: str = Form(""), competition_type: str = Form("Turnier"),
+        tournament_mode: str = Form(""),
         status: str = Form("geplant"),
         game_duration_minutes: int = Form(default_game_duration_minutes),
         changeover_duration_minutes: int = Form(default_changeover_duration_minutes),
@@ -144,6 +176,7 @@ def create_router(
         name_value = name.strip()
         sportart_value = sportart.strip()
         jahrgang_value = normalize_jahrgang(jahrgang)
+        tournament_mode_value = _normalize_tournament_mode(competition_type, tournament_mode)
 
         # Resolve explicit team IDs from checkboxes
         explicit_team_ids = []
@@ -156,7 +189,7 @@ def create_router(
         if (
             not name_value
             or not sportart_value
-            or competition_type not in {"Turnier", "Sechskampf"}
+            or competition_type not in COMPETITION_TYPES
             or status not in {"geplant", "läuft", "beendet", "archiviert"}
             or game_duration_minutes < 1
             or changeover_duration_minutes < 0
@@ -223,13 +256,13 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points, event_id, competition_type,
-                    game_duration_minutes, changeover_duration_minutes,
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes,
                     start_time, end_time, location
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 name_value, sportart_value, stored_jahrgang, status, points_win, points_draw, points_loss,
                 points_first_place_value, placement_points_value or None, event_id_value, competition_type,
-                game_duration_minutes, changeover_duration_minutes,
+                tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 start_time.strip() or None, end_time.strip() or None,
                 location_value or None,
             ))
@@ -258,15 +291,16 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points, event_id, competition_type,
-                    game_duration_minutes, changeover_duration_minutes,
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes,
                     start_time, end_time, location
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"], competition["points_win"],
                 competition["points_draw"], competition["points_loss"],
                 competition["points_first_place"], competition["placement_points"],
                 competition["event_id"], competition["competition_type"],
+                competition["tournament_mode"],
                 timing["game_duration_minutes"], timing["changeover_duration_minutes"],
                 competition["start_time"], competition["end_time"],
                 competition["location"],
@@ -294,6 +328,7 @@ def create_router(
         start_time: str = Form(""), end_time: str = Form(""),
         location: str = Form(""),
         event_id: str = Form(""), competition_type: str = Form("Turnier"),
+        tournament_mode: str = Form(""),
         game_duration_minutes: int = Form(default_game_duration_minutes),
         changeover_duration_minutes: int = Form(default_changeover_duration_minutes),
         points_first_place: str = Form("7"),
@@ -310,6 +345,7 @@ def create_router(
             return RedirectResponse("/wettbewerbe", status_code=303)
 
         jahrgang_value = normalize_jahrgang(jahrgang)
+        tournament_mode_value = _normalize_tournament_mode(competition_type, tournament_mode)
 
         # Resolve explicit team IDs from checkboxes
         explicit_team_ids = []
@@ -327,7 +363,7 @@ def create_router(
         if (
             not name_value or not sportart_value
             or status not in valid_statuses
-            or competition_type not in {"Turnier", "Sechskampf"}
+            or competition_type not in COMPETITION_TYPES
             or (location_raw and location_value is None)
             or game_duration_minutes < 1
             or changeover_duration_minutes < 0
@@ -369,14 +405,14 @@ def create_router(
                 SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                     points_win = ?, points_draw = ?, points_loss = ?,
                     points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
-                    game_duration_minutes = ?, changeover_duration_minutes = ?,
+                    tournament_mode = ?, game_duration_minutes = ?, changeover_duration_minutes = ?,
                     start_time = ?, end_time = ?, location = ?, location_subarea = NULL
                 WHERE id = ?
             """, (
                 name_value, sportart_value, stored_jahrgang, status,
                 points_win_value, points_draw_value, points_loss_value,
                 points_first_place_value, placement_points_value or None, event_id_value, competition_type,
-                game_duration_minutes, changeover_duration_minutes,
+                tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 start_time.strip() or None, end_time.strip() or None,
                 location_value or None,
                 competition_id,
@@ -400,7 +436,7 @@ def create_router(
     def create_competition_discipline(
         competition_id: int, name: str = Form(...), sort_order: str = Form(...),
         unit: str = Form(""), scoring_direction: str = Form("higher"),
-        values_per_team: str = Form("1"),
+        values_per_team: str = Form("1"), location: str = Form(""),
     ):
         try:
             sort_order_value = int(sort_order)
@@ -422,20 +458,21 @@ def create_router(
             conn.execute("""
                 INSERT INTO competition_disciplines (
                     competition_id, name, sort_order, unit,
-                    scoring_direction, values_per_team
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    scoring_direction, values_per_team, location
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 competition_id, name_value, sort_order_value, unit.strip() or None,
-                scoring_direction, values_per_team_value,
+                scoring_direction, values_per_team_value, location.strip() or None,
             ))
             conn.commit()
-        return RedirectResponse("/wettbewerbe", status_code=303)
+        saved_at = app_now_db_timestamp()
+        return _discipline_saved_redirect(competition_id, competition["event_id"], saved_at)
 
     @router.post("/discipline/{discipline_id}/update")
     def update_competition_discipline(
         discipline_id: int, name: str = Form(...), sort_order: str = Form(...),
         unit: str = Form(""), scoring_direction: str = Form("higher"),
-        values_per_team: str = Form("1"),
+        values_per_team: str = Form("1"), location: str = Form(""),
     ):
         try:
             sort_order_value = int(sort_order)
@@ -449,21 +486,69 @@ def create_router(
         ):
             return RedirectResponse("/wettbewerbe", status_code=303)
         with get_conn() as conn:
+            existing = conn.execute(
+                """
+                SELECT cd.competition_id, c.event_id
+                FROM competition_disciplines cd
+                JOIN competitions c ON c.id = cd.competition_id
+                WHERE cd.id = ?
+                """,
+                (discipline_id,)
+            ).fetchone()
+            if existing is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
             conn.execute("""
                 UPDATE competition_disciplines
                 SET name = ?, sort_order = ?, unit = ?,
-                    scoring_direction = ?, values_per_team = ?
+                    scoring_direction = ?, values_per_team = ?, location = ?
                 WHERE id = ?
             """, (
                 name_value, sort_order_value, unit.strip() or None,
-                scoring_direction, values_per_team_value, discipline_id,
+                scoring_direction, values_per_team_value, location.strip() or None,
+                discipline_id,
             ))
             conn.commit()
-        return RedirectResponse("/wettbewerbe", status_code=303)
+        saved_at = app_now_db_timestamp()
+        return _discipline_saved_redirect(
+            existing["competition_id"], existing["event_id"], saved_at
+        )
+
+    @router.post("/competition/{competition_id}/discipline/reorder")
+    def reorder_competition_disciplines(
+        competition_id: int, discipline_ids: List[int] = Form(...),
+    ):
+        with get_conn() as conn:
+            owned_ids = {
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM competition_disciplines WHERE competition_id = ?",
+                    (competition_id,),
+                ).fetchall()
+            }
+            if set(discipline_ids) != owned_ids:
+                return JSONResponse({"ok": False, "error": "mismatch"}, status_code=400)
+            conn.execute("BEGIN IMMEDIATE")
+            for index, discipline_id in enumerate(discipline_ids, start=1):
+                conn.execute(
+                    "UPDATE competition_disciplines SET sort_order = ? WHERE id = ?",
+                    (index, discipline_id),
+                )
+            conn.commit()
+        return JSONResponse({"ok": True})
 
     @router.post("/discipline/{discipline_id}/delete")
     def delete_competition_discipline(discipline_id: int):
         with get_conn() as conn:
+            existing = conn.execute(
+                """
+                SELECT cd.competition_id, c.event_id
+                FROM competition_disciplines cd
+                JOIN competitions c ON c.id = cd.competition_id
+                WHERE cd.id = ?
+                """,
+                (discipline_id,)
+            ).fetchone()
+            if existing is None:
+                return RedirectResponse("/wettbewerbe", status_code=303)
             conn.execute(
                 "DELETE FROM sixkampf_team_results WHERE discipline_id = ?",
                 (discipline_id,)
@@ -477,7 +562,10 @@ def create_router(
                 (discipline_id,)
             )
             conn.commit()
-        return RedirectResponse("/wettbewerbe", status_code=303)
+        saved_at = app_now_db_timestamp()
+        return _discipline_saved_redirect(
+            existing["competition_id"], existing["event_id"], saved_at
+        )
 
     @router.post("/competition/{competition_id}/archive")
     def archive_competition(competition_id: int):

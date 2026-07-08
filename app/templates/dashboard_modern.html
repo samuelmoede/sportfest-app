@@ -6,6 +6,14 @@
 
 {% block content %}
 <div class="modern-dashboard">
+    {% if dashboard_info_html %}
+    <div class="dashboard-banner" role="status">
+        <span class="dashboard-banner-icon" aria-hidden="true">📣</span>
+        <div class="dashboard-banner-text">{{ dashboard_info_html|safe }}</div>
+        <button type="button" class="dashboard-banner-close" aria-label="Hinweis schließen" onclick="this.closest('.dashboard-banner').remove()">&times;</button>
+    </div>
+    {% endif %}
+
     <header class="modern-dashboard-hero">
         <div class="modern-dashboard-title">
             <p class="modern-eyebrow">Turnierleitung · Live-Übersicht</p>
@@ -52,37 +60,79 @@
             <span aria-hidden="true">↗</span>
             <strong>Beamer</strong>
         </a>
+        {% if next_event and next_event.siegerehrung_public %}
+        <a href="/siegerehrung/{{ next_event.id }}" target="_blank">
+            <span aria-hidden="true">🏆</span>
+            <strong>Siegerehrung</strong>
+        </a>
+        {% endif %}
     </nav>
 
-    <section class="modern-status-grid" aria-label="Aktueller Status">
-        <article class="modern-stat is-running">
-            <span class="modern-stat-icon" aria-hidden="true">●</span>
+    <section class="modern-panel modern-schedule-panel">
+        <div class="modern-panel-head">
             <div>
-                <strong>{{ running|length }}</strong>
-                <span>Läuft gerade</span>
+                <p class="modern-eyebrow">Tagesplan</p>
+                <h2>
+                    {% if schedule_event %}
+                        {{ schedule_event.name }}
+                    {% else %}
+                        Aktive bzw. nächste Veranstaltung
+                    {% endif %}
+                </h2>
             </div>
-        </article>
-        <article class="modern-stat is-planned">
-            <span class="modern-stat-icon" aria-hidden="true">◆</span>
-            <div>
-                <strong>{{ upcoming|length }}</strong>
-                <span>Geplant</span>
-            </div>
-        </article>
-        <article class="modern-stat is-done">
-            <span class="modern-stat-icon" aria-hidden="true">✓</span>
-            <div>
-                <strong>{{ ended_count }}</strong>
-                <span>Erledigt</span>
-            </div>
-        </article>
-        <article class="modern-stat is-neutral">
-            <span class="modern-stat-icon" aria-hidden="true">◎</span>
-            <div>
-                <strong>{{ courts|length }}</strong>
-                <span>Spielfelder aktiv</span>
-            </div>
-        </article>
+            {% if schedule.completed %}
+            <span class="modern-status is-done"><i aria-hidden="true"></i>erledigt</span>
+            {% elif schedule.current_block %}
+            <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+            {% else %}
+            <span class="modern-status is-planned"><i aria-hidden="true"></i>geplant</span>
+            {% endif %}
+        </div>
+
+        {% if schedule.current_block or schedule.next_block %}
+        <div class="modern-schedule-focus">
+            {% if schedule.current_block %}
+            <article class="modern-focus-card is-running">
+                <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
+                <time>{{ schedule.current_block.display_time }}</time>
+                <div>
+                    {% for entry in schedule.current_block.entries %}
+                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
+                    {% endfor %}
+                </div>
+                {% if schedule.time_remaining %}
+                <p>Noch {{ schedule.time_remaining }}</p>
+                {% endif %}
+            </article>
+            {% endif %}
+
+            {% if schedule.next_block %}
+            <article class="modern-focus-card is-soon">
+                <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
+                <time>{{ schedule.next_block.display_time }}</time>
+                <div>
+                    {% for entry in schedule.next_block.entries %}
+                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
+                    {% endfor %}
+                </div>
+            </article>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if schedule.current_block %}
+        <div class="modern-progress" aria-label="Fortschritt des aktuellen Zeitblocks">
+            <span style="width: {{ schedule.progress_percent }}%"></span>
+        </div>
+        {% endif %}
+
+        {% if schedule_event %}
+            {% set day_schedule_compact = true %}
+            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
+            {% include "partials/day_schedule.html" %}
+        {% else %}
+        <p class="modern-empty-note">Keine aktive oder kommende Veranstaltung vorhanden.</p>
+        {% endif %}
     </section>
 
     <div class="modern-dashboard-grid">
@@ -164,73 +214,6 @@
         </section>
     </div>
 
-    <section class="modern-panel modern-schedule-panel">
-        <div class="modern-panel-head">
-            <div>
-                <p class="modern-eyebrow">Tagesplan</p>
-                <h2>
-                    {% if schedule_event %}
-                        {{ schedule_event.name }}
-                    {% else %}
-                        Aktive bzw. nächste Veranstaltung
-                    {% endif %}
-                </h2>
-            </div>
-            {% if schedule.completed %}
-            <span class="modern-status is-done"><i aria-hidden="true"></i>erledigt</span>
-            {% elif schedule.current_block %}
-            <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
-            {% else %}
-            <span class="modern-status is-planned"><i aria-hidden="true"></i>geplant</span>
-            {% endif %}
-        </div>
-
-        {% if schedule.current_block or schedule.next_block %}
-        <div class="modern-schedule-focus">
-            {% if schedule.current_block %}
-            <article class="modern-focus-card is-running">
-                <span class="modern-status is-running"><i aria-hidden="true"></i>läuft</span>
-                <time>{{ schedule.current_block.display_time }}</time>
-                <div>
-                    {% for entry in schedule.current_block.entries %}
-                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
-                    {% endfor %}
-                </div>
-                {% if schedule.time_remaining %}
-                <p>Noch {{ schedule.time_remaining }}</p>
-                {% endif %}
-            </article>
-            {% endif %}
-
-            {% if schedule.next_block %}
-            <article class="modern-focus-card is-soon">
-                <span class="modern-status is-soon"><i aria-hidden="true"></i>gleich</span>
-                <time>{{ schedule.next_block.display_time }}</time>
-                <div>
-                    {% for entry in schedule.next_block.entries %}
-                    <span><b>{{ entry.yeargang }}</b> {{ entry.label }}</span>
-                    {% endfor %}
-                </div>
-            </article>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {% if schedule.current_block %}
-        <div class="modern-progress" aria-label="Fortschritt des aktuellen Zeitblocks">
-            <span style="width: {{ schedule.progress_percent }}%"></span>
-        </div>
-        {% endif %}
-
-        {% if schedule_event %}
-            {% set day_schedule_compact = true %}
-            {% set day_schedule_empty_text = "Keine Zeitplan-Einträge verfügbar." %}
-            {% include "partials/day_schedule.html" %}
-        {% else %}
-        <p class="modern-empty-note">Keine aktive oder kommende Veranstaltung vorhanden.</p>
-        {% endif %}
-    </section>
-
     <div class="modern-dashboard-grid modern-lower-grid">
         <section class="modern-panel">
             <div class="modern-panel-head">
@@ -264,18 +247,18 @@
         <section class="modern-panel modern-info-panel">
             <div class="modern-panel-head">
                 <div>
-                    <p class="modern-eyebrow">Hinweise</p>
-                    <h2>Informationen</h2>
+                    <p class="modern-eyebrow">Veranstaltung</p>
+                    <h2>Details</h2>
                 </div>
             </div>
-            {% if dashboard_info_html %}
-            <div class="modern-info-text">{{ dashboard_info_html|safe }}</div>
+            {% if next_event_details_html %}
+            <div class="modern-info-text">{{ next_event_details_html|safe }}</div>
             {% else %}
             <div class="modern-empty-state compact">
                 <span aria-hidden="true">i</span>
                 <div>
-                    <strong>Keine aktuellen Hinweise</strong>
-                    <p>Informationen können in den Einstellungen hinterlegt werden.</p>
+                    <strong>Keine Details hinterlegt</strong>
+                    <p>Details können beim Bearbeiten der Veranstaltung ergänzt werden.</p>
                 </div>
             </div>
             {% endif %}

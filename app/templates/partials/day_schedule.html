@@ -10,59 +10,51 @@
 <p class="muted">{{ schedule.hint_text }}</p>
 
 {% if day_schedule_compact|default(false) %}
-<div class="day-schedule-cards">
-    {% for row in schedule.rows %}
-        {% if schedule.now_marker and schedule.now_marker.row_index == loop.index0 %}
-            {{ render_now_marker(schedule.now_marker) }}
-        {% endif %}
-
-        <section class="day-schedule-block status-{{ row.status_key|default('planned') }}{% if row.current %} current-row{% endif %}">
-            <header>
-                <time>{{ row.display_time }}</time>
-                <span class="day-status status-{{ row.status_key|default('planned') }}">
-                    {{ row.status_label|default("geplant") }}
-                </span>
-            </header>
-
-            <div class="day-schedule-card-grid">
-                {% for item in row["items"]|default([]) %}
-                <a class="day-schedule-card" href="/spielplan?competition_id={{ item.competition_id }}">
-                    <div class="day-schedule-card-head">
-                        <strong>{{ item.name }}</strong>
-                    </div>
-                    <div class="day-schedule-card-meta">
-                        {% if item.sportart %}
-                        <span class="day-card-sport">{{ item.sportart }}</span>
-                        {% endif %}
-                        {% if item.location %}
-                        <span class="day-card-location">{{ item.location }}</span>
-                        {% endif %}
-                    </div>
-                    <time>{{ item.display_time }}</time>
-                </a>
-                {% else %}
-                    {% for column in schedule.columns %}
-                        {% for item in row.cells[column] %}
-                        <article class="day-schedule-card">
-                            <div class="day-schedule-card-head">
-                                <strong>{{ item }}</strong>
-                            </div>
-                            <div class="day-schedule-card-meta">
-                                <span>{{ column }}</span>
-                            </div>
-                            <time>{{ row.display_time }}</time>
-                        </article>
-                        {% endfor %}
-                    {% endfor %}
+{% if schedule.timeline %}
+<div class="day-timeline-wrapper">
+    <div class="day-timeline">
+        <div class="day-timeline-header">
+            <div class="day-timeline-corner"></div>
+            {% for col in schedule.timeline.columns %}
+            <p class="day-timeline-column-label">{{ col.label.replace("Jahrgang ", "JG ") if col.label else "Sonstiges" }}</p>
+            {% endfor %}
+        </div>
+        <div class="day-timeline-body" style="--day-timeline-total-minutes: {{ schedule.timeline.total_minutes }};"
+             data-timeline-start-minutes="{{ schedule.timeline.timeline_start }}"
+             data-timeline-total-minutes="{{ schedule.timeline.total_minutes }}">
+            <div class="day-timeline-axis">
+                {% for mark in schedule.timeline.hour_marks %}
+                <div class="day-timeline-hour" style="top: {{ mark.top_percent }}%;">{{ mark.label }}</div>
                 {% endfor %}
             </div>
-        </section>
-    {% endfor %}
-
-    {% if schedule.now_marker and schedule.now_marker.row_index == schedule.rows|length %}
-        {{ render_now_marker(schedule.now_marker) }}
-    {% endif %}
+            <div class="day-timeline-columns">
+                {% if schedule.timeline.now_top_percent is not none %}
+                <div class="day-timeline-now-line" data-day-timeline-now-line style="top: {{ schedule.timeline.now_top_percent }}%;"></div>
+                {% endif %}
+                {% for col in schedule.timeline.columns %}
+                <div class="day-timeline-column-body">
+                    {% for mark in schedule.timeline.hour_marks %}
+                    <div class="day-timeline-gridline" style="top: {{ mark.top_percent }}%;"></div>
+                    {% endfor %}
+                    {% for item in col["items"] %}
+                    <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
+                       style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
+                       href="/spielplan?competition_id={{ item.competition_id }}">
+                        <strong>{{ item.name }}</strong>
+                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
+                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
+                        <time>{{ item.display_time }}</time>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </div>
+{% else %}
+<p class="muted">{{ day_schedule_empty_text|default("Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar.") }}</p>
+{% endif %}
 {% else %}
 <div class="table-scroll">
     <table class="schedule-table">
@@ -112,3 +104,42 @@
 {% else %}
 <p class="muted">{{ day_schedule_empty_text|default("Keine Zeitplan-Eintr&auml;ge verf&uuml;gbar.") }}</p>
 {% endif %}
+
+<script>
+(function () {
+    function updateNowLines() {
+        document.querySelectorAll(".day-timeline-body[data-timeline-total-minutes]").forEach(function (body) {
+            var timelineStart = Number(body.dataset.timelineStartMinutes);
+            var totalMinutes = Number(body.dataset.timelineTotalMinutes);
+            if (!Number.isFinite(timelineStart) || !totalMinutes) {
+                return;
+            }
+            var now = new Date();
+            var nowMinutes = now.getHours() * 60 + now.getMinutes();
+            var columns = body.querySelector(".day-timeline-columns");
+            var line = body.querySelector("[data-day-timeline-now-line]");
+
+            if (nowMinutes < timelineStart || nowMinutes > timelineStart + totalMinutes) {
+                if (line) {
+                    line.remove();
+                }
+                return;
+            }
+
+            var topPercent = ((nowMinutes - timelineStart) / totalMinutes) * 100;
+            if (!line && columns) {
+                line = document.createElement("div");
+                line.className = "day-timeline-now-line";
+                line.setAttribute("data-day-timeline-now-line", "");
+                columns.insertBefore(line, columns.firstChild);
+            }
+            if (line) {
+                line.style.top = topPercent + "%";
+            }
+        });
+    }
+
+    updateNowLines();
+    setInterval(updateNowLines, 30000);
+})();
+</script>

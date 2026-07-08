@@ -19,6 +19,17 @@
     color: var(--muted, #64748b);
 }
 
+.aushang-page-head .aushang-competition {
+    color: var(--text, #1e293b);
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 2px;
+}
+
+.aushang-page + .aushang-page {
+    margin-top: 24px;
+}
+
 .aushang-table {
     width: 100%;
     border-collapse: collapse;
@@ -73,7 +84,7 @@
 
 @media print {
     @page {
-        size: A4 portrait;
+        size: A4 landscape;
         margin: 10mm;
     }
 
@@ -103,24 +114,51 @@
         margin: 0;
     }
 
+    .aushang-page + .aushang-page {
+        margin-top: 0;
+    }
+
+    .aushang-page-break {
+        break-before: page;
+        page-break-before: always;
+    }
+
+    .aushang-page-head {
+        margin-bottom: 8px;
+    }
+
     .aushang-page-head h2 {
-        font-size: 20pt;
+        font-size: 22pt;
+    }
+
+    .aushang-page-head .aushang-competition {
+        font-size: 15pt;
     }
 
     .aushang-table {
-        font-size: 8.5pt;
+        font-size: 13pt;
     }
 
     .aushang-table th,
     .aushang-table td {
-        padding: 3px 5px;
+        padding: 5px 8px;
+    }
+
+    .aushang-time-col {
+        width: 90px;
     }
 
     .aushang-comp {
-        font-size: 7pt;
+        font-size: 10pt;
+    }
+
+    .aushang-entry + .aushang-entry {
+        margin-top: 4px;
+        padding-top: 4px;
     }
 
     .aushang-table tr {
+        break-inside: avoid;
         page-break-inside: avoid;
     }
 }

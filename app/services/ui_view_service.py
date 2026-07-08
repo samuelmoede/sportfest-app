@@ -28,6 +28,32 @@ def _year_group_label(value):
     return f"Jahrgang {value}"
 
 
+def classify_yeargang(value):
+    if value is None:
+        return None
+    try:
+        year = int(value)
+    except (TypeError, ValueError):
+        normalized = str(value).strip().lower()
+        if "oberstufe" in normalized or normalized in ("go", "gost", "sg"):
+            return "Oberstufe"
+        # Handle patterns like "10a", "11b", "12/1", "13" as Oberstufe
+        for grade in range(10, 14):
+            if normalized.startswith(str(grade)):
+                return "Oberstufe"
+        return None  # Lehrer, Mixed, Finalrunde, Eltern, etc. → no column
+
+    if year == 7:
+        return "Jahrgang 7"
+    if year == 8:
+        return "Jahrgang 8"
+    if year == 9:
+        return "Jahrgang 9"
+    if year >= 10:
+        return "Oberstufe"
+    return None
+
+
 def _group_label(groups):
     values = sorted({
         str(group).strip()
@@ -74,6 +100,144 @@ def _schedule_row_status(schedule, row, row_index, current_index, next_index):
     return "planned"
 
 
+def _timeline_status(start_minutes, end_minutes, now_minutes):
+    if now_minutes is None:
+        return "planned"
+    if start_minutes <= now_minutes < end_minutes:
+        return "running"
+    if end_minutes <= now_minutes:
+        return "done"
+    return "planned"
+
+
+def build_day_timeline(columns, competitions, now=None):
+    """Zeitproportionale Kalenderansicht fuer den Dashboard-Tagesplan:
+    pro Jahrgangs-Spalte eine Liste absolut positionierter Bloecke (top/
+    height in Prozent der gemeinsamen Zeitspanne), plus Halbstunden-Marken
+    fuer die linke Achse. Ueberlappende Wettbewerbe in derselben Spalte
+    (aktuell nicht der Fall, aber moeglich) werden nebeneinander in Spuren
+    aufgeteilt statt sich zu ueberdecken."""
+    entries = []
+    for competition in competitions:
+        start = parse_slot_time(competition.get("start_time"))
+        end = parse_slot_time(competition.get("end_time"))
+        if start is None or end is None or end <= start:
+            continue
+        column = classify_yeargang(competition.get("jahrgang"))
+        if column not in columns:
+            continue
+        entries.append({
+            "competition_id": competition.get("id"),
+            "name": (
+                competition.get("name")
+                or competition.get("sportart")
+                or "Ohne Bezeichnung"
+            ),
+            "sportart": competition.get("sportart") or "",
+            "location": _location_label(competition),
+            "column": column,
+            "start_minutes": start.hour * 60 + start.minute,
+            "end_minutes": end.hour * 60 + end.minute,
+            "display_time": _format_schedule_time_range(
+                competition.get("start_time"), competition.get("end_time")
+            ),
+        })
+
+    if not entries:
+        return None
+
+    timeline_start = (min(e["start_minutes"] for e in entries) // 30) * 30
+    raw_end = max(e["end_minutes"] for e in entries)
+    timeline_end = -(-raw_end // 30) * 30
+    total_minutes = max(timeline_end - timeline_start, 30)
+
+    now_minutes = None
+    if now is not None:
+        candidate = now.hour * 60 + now.minute
+        if timeline_start <= candidate <= timeline_end:
+            now_minutes = candidate
+
+    hour_marks = []
+    mark = timeline_start
+    while mark <= timeline_end:
+        hour_marks.append({
+            "label": f"{mark // 60:02d}:{mark % 60:02d}",
+            "top_percent": (mark - timeline_start) / total_minutes * 100,
+        })
+        mark += 30
+
+    columns_out = []
+    for column in columns:
+        column_entries = sorted(
+            (entry for entry in entries if entry["column"] == column),
+            key=lambda entry: (entry["start_minutes"], entry["end_minutes"]),
+        )
+
+        # Ueberlappende Eintraege in Cluster gruppieren, statt Spuren ueber die
+        # ganze Spalte zu zaehlen - sonst wuerde z.B. ein einzelner, spaeter
+        # stattfindender Wettbewerb unnoetig auf halbe Breite gequetscht, nur
+        # weil zwei ANDERE, zeitlich ueberschneidende Wettbewerbe zuvor
+        # zwei Spuren gebraucht haben.
+        clusters = []
+        current_cluster = []
+        cluster_end = None
+        for entry in column_entries:
+            if current_cluster and entry["start_minutes"] < cluster_end:
+                current_cluster.append(entry)
+                cluster_end = max(cluster_end, entry["end_minutes"])
+            else:
+                if current_cluster:
+                    clusters.append(current_cluster)
+                current_cluster = [entry]
+                cluster_end = entry["end_minutes"]
+        if current_cluster:
+            clusters.append(current_cluster)
+
+        for cluster in clusters:
+            lane_ends = []
+            for entry in cluster:
+                placed = False
+                for lane_index, lane_end in enumerate(lane_ends):
+                    if entry["start_minutes"] >= lane_end:
+                        lane_ends[lane_index] = entry["end_minutes"]
+                        entry["lane"] = lane_index
+                        placed = True
+                        break
+                if not placed:
+                    entry["lane"] = len(lane_ends)
+                    lane_ends.append(entry["end_minutes"])
+            lane_count = max(len(lane_ends), 1)
+            for entry in cluster:
+                entry["lane_width_percent"] = 100 / lane_count
+                entry["lane_left_percent"] = entry["lane"] * entry["lane_width_percent"]
+
+        for entry in column_entries:
+            entry["top_percent"] = (
+                (entry["start_minutes"] - timeline_start) / total_minutes * 100
+            )
+            entry["height_percent"] = (
+                (entry["end_minutes"] - entry["start_minutes"]) / total_minutes * 100
+            )
+            entry["status_key"] = _timeline_status(
+                entry["start_minutes"], entry["end_minutes"], now_minutes
+            )
+        columns_out.append({"label": column, "items": column_entries})
+
+    now_top_percent = (
+        (now_minutes - timeline_start) / total_minutes * 100
+        if now_minutes is not None
+        else None
+    )
+
+    return {
+        "hour_marks": hour_marks,
+        "columns": columns_out,
+        "now_top_percent": now_top_percent,
+        "timeline_start": timeline_start,
+        "total_minutes": total_minutes,
+    }
+
+
 def enrich_day_schedule_view(schedule, competitions, event_id, now=None):
     """Add presentation-only cards and marker data to an existing day schedule."""
     view_schedule = dict(schedule)
@@ -113,6 +277,7 @@ def enrich_day_schedule_view(schedule, competitions, event_id, now=None):
             ),
             "sportart": competition.get("sportart") or "",
             "year_group": _year_group_label(competition.get("jahrgang")),
+            "column": classify_yeargang(competition.get("jahrgang")),
             "group": _group_label(groups_by_competition[competition_id]),
             "location": _location_label(competition),
             "display_time": display_time,
@@ -188,6 +353,9 @@ def enrich_day_schedule_view(schedule, competitions, event_id, now=None):
             "label": f"JETZT · {current_time.strftime('%H:%M')} Uhr",
         }
     view_schedule["now_marker"] = marker
+    view_schedule["timeline"] = build_day_timeline(
+        schedule.get("columns", []), competitions, now=now
+    )
     return view_schedule
 
 

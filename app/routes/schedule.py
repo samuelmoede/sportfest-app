@@ -12,26 +12,32 @@ from app.services.event_status_service import (
     resolve_selected_event_id,
 )
 from app.services.schedule_generator_service import (
+    DEFAULT_SCHULPOKAL_MODE,
+    SCHULPOKAL_MODES,
     generate_group_plan,
+    generate_schulpokal_plan,
     get_already_played_ko_targets,
     get_winner_loser,
     group_phase_finished,
     semifinals_finished,
     validate_generated_plan,
+    validate_schulpokal_plan,
 )
 from app.services.schedule_grid_service import (
     build_editor_time_grid,
-    build_location_print_grid,
+    build_location_print_pages,
     get_location_schedule_sections,
     get_slots_grouped_by_court,
 )
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
+    NO_SLOT_LOCATION,
     NO_SLOT_LOCATION_HINT,
     filter_court_ids_for_competition,
     filter_courts_for_competition,
     filter_groups_for_competition,
     get_effective_competition_location,
+    natural_sort_key,
     normalize_competition_location,
     schedule_planning_available,
 )
@@ -42,6 +48,7 @@ from app.services.schedule_time_service import (
     recalculate_competition_court_times,
 )
 from app.services.results_filter_service import build_results_redirect_url
+from app.services.settings_service import get_beamer_refresh_seconds
 from app.web import templates
 
 
@@ -121,11 +128,13 @@ def create_router(
         plan_timing=None,
         plan_end_time_forecast=None,
         selected_court_ids=None,
+        selected_generator_competition_ids=None,
         overwrite_warning=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
         selected_court_ids = selected_court_ids or []
+        selected_generator_competition_ids = selected_generator_competition_ids or []
 
         if event_options is None:
             with get_conn() as conn:
@@ -146,9 +155,10 @@ def create_router(
                 WHERE status != 'archiviert'{event_clause}
                 ORDER BY jahrgang, name
             """, competition_params).fetchall()
-            all_courts = conn.execute(
-                "SELECT * FROM courts WHERE active = 1 ORDER BY name"
-            ).fetchall()
+            all_courts = sorted(
+                conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall(),
+                key=lambda court: natural_sort_key(court["name"]),
+            )
             teams = conn.execute(
                 "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
             ).fetchall()
@@ -188,7 +198,7 @@ def create_router(
         selected_timing = (
             get_competition_timing(selected_competition)
             if selected_competition is not None
-            and selected_competition["competition_type"] == "Turnier"
+            and selected_competition["competition_type"] in ("Turnier", "Schulpokal")
             and schedule_planning_enabled
             else None
         )
@@ -213,7 +223,18 @@ def create_router(
         ko_hint = None
         can_generate_semifinals = False
         can_generate_finals = False
-        if selected_competition_id and schedule_planning_enabled:
+        is_schulpokal = (
+            selected_competition is not None
+            and selected_competition["competition_type"] == "Schulpokal"
+        )
+        schulpokal_partner_competitions = [
+            competition for competition in competitions
+            if is_schulpokal
+            and competition["id"] != selected_competition_id
+            and competition["competition_type"] == "Schulpokal"
+            and get_effective_competition_location(competition) == selected_competition_location
+        ]
+        if selected_competition_id and schedule_planning_enabled and not is_schulpokal:
             can_generate_semifinals = group_phase_finished(selected_competition_id)
             can_generate_finals = semifinals_finished(selected_competition_id)
 
@@ -262,10 +283,15 @@ def create_router(
             "current_end_time_forecast": current_end_time_forecast,
             "plan_end_time_forecast": plan_end_time_forecast,
             "selected_generator_court_ids": set(selected_court_ids),
+            "selected_generator_competition_ids": set(selected_generator_competition_ids),
             "ko_hint": ko_hint,
             "can_generate_semifinals": can_generate_semifinals,
             "can_generate_finals": can_generate_finals,
             "overwrite_warning_prompt": overwrite_warning_prompt,
+            "is_schulpokal": is_schulpokal,
+            "schulpokal_partner_competitions": schulpokal_partner_competitions,
+            "schulpokal_modes": SCHULPOKAL_MODES,
+            "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
         }
 
     def render_editor(request, selected_competition_id, **context_overrides):
@@ -300,7 +326,9 @@ def create_router(
         competition_id: str = "",
         jahrgang: str = "",
         ort: str = "",
+        beamer: str = "",
     ):
+        beamer_mode = beamer == "1"
         selected_competition_id = parse_competition_id(competition_id)
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
         selected_location = normalize_competition_location(ort)
@@ -364,6 +392,8 @@ def create_router(
                 "available_jahrgaenge": available_jahrgaenge,
                 "sixkampf_rotation_competition": sixkampf_rotation_competition,
                 "sixkampf_rotation": sixkampf_rotation,
+                "beamer_mode": beamer_mode,
+                "beamer_refresh_seconds": get_beamer_refresh_seconds() if beamer_mode else None,
             }
         )
 
@@ -376,7 +406,7 @@ def create_router(
     ):
         printable_locations = [
             location for location in COMPETITION_LOCATIONS
-            if location != "Außenbereich"
+            if location != NO_SLOT_LOCATION
         ]
         selected_location = normalize_competition_location(ort) or printable_locations[0]
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
@@ -388,7 +418,7 @@ def create_router(
         section = next(
             (s for s in location_sections if s["location"] == selected_location), None
         )
-        courts, rows = build_location_print_grid(
+        courts, pages = build_location_print_pages(
             section["court_groups"] if section else []
         )
 
@@ -402,7 +432,59 @@ def create_router(
                 "event_options": event_options,
                 "selected_event_id": selected_event_id,
                 "courts": courts,
-                "rows": rows,
+                "pages": pages,
+            }
+        )
+
+    @router.get("/spielplan/monitor")
+    def spielplan_monitor(
+        request: Request,
+        ort: str = "",
+        event_id: str = "",
+        jahrgang: str = "",
+        recent: int = 2,
+        upcoming: int = 4,
+    ):
+        """Feste, unbeaufsichtigte Anzeige fuer einen an einen Beamer/Monitor
+        angeschlossenen Rechner: je Feld eines Ortes die letzten Ergebnisse,
+        das laufende und die naechsten Spiele, mit automatischer Aktualisierung
+        und automatischem Scrollen (siehe spielplan_monitor.html)."""
+        monitor_locations = [
+            location for location in COMPETITION_LOCATIONS
+            if location != NO_SLOT_LOCATION
+        ]
+        selected_location = normalize_competition_location(ort) or monitor_locations[0]
+        selected_jahrgang = parse_jahrgang_filter(jahrgang)
+        event_options, selected_event_id = resolve_event_context(request, event_id)
+
+        location_sections = get_location_schedule_sections(
+            None, selected_jahrgang, selected_location, event_id=selected_event_id,
+        )
+        section = next(
+            (s for s in location_sections if s["location"] == selected_location), None
+        )
+
+        court_views = []
+        for group in (section["court_groups"] if section else []):
+            slots = [s for s in group["slots"] if s.get("slot_typ") == "Spiel"]
+            finished = [s for s in slots if s["status"] == "beendet"]
+            court_views.append({
+                "court": group["court"],
+                "recent": finished[-max(recent, 0):] if recent > 0 else [],
+                "running": [s for s in slots if s["status"] == "läuft"],
+                "upcoming": [s for s in slots if s["status"] == "geplant"][:max(upcoming, 0)],
+            })
+
+        return templates.TemplateResponse(
+            request=request,
+            name="spielplan_monitor.html",
+            context={
+                "monitor_locations": monitor_locations,
+                "selected_location": selected_location,
+                "event_options": event_options,
+                "selected_event_id": selected_event_id,
+                "court_views": court_views,
+                "refresh_seconds": max(get_beamer_refresh_seconds(), 45),
             }
         )
 
@@ -514,6 +596,121 @@ def create_router(
             plan_timing=plan_timing,
             plan_end_time_forecast=plan_end_time_forecast,
             selected_court_ids=selected_court_ids,
+        )
+
+    @router.post("/plan-generator/preview-schulpokal")
+    def plan_generator_preview_schulpokal(
+        request: Request,
+        competition_id: int = Form(...),
+        partner_competition_ids: List[int] = Form(default=[]),
+        court_ids: List[int] = Form(default=[]),
+        startzeit: str = Form(...),
+    ):
+        # Reihenfolge bewusst: zuerst das im Editor ausgewaehlte Turnier, dann
+        # die zusaetzlich angehakten Partner-Wettbewerbe - generate_schulpokal_plan
+        # laesst sie in genau dieser Reihenfolge abwechselnd an die Reihe kommen.
+        competition_ids = [competition_id]
+        for partner_id in partner_competition_ids:
+            if partner_id not in competition_ids:
+                competition_ids.append(partner_id)
+
+        with get_conn() as conn:
+            all_courts = conn.execute(
+                "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+            ).fetchall()
+            selected_competitions = [
+                conn.execute(
+                    "SELECT * FROM competitions WHERE id = ?", (cid,)
+                ).fetchone()
+                for cid in competition_ids
+            ]
+
+        proposed_slots = []
+        plan_warnings = []
+        plan_timing = None
+        plan_end_time_forecast = None
+        primary_competition = selected_competitions[0] if selected_competitions else None
+
+        if primary_competition is None or any(c is None for c in selected_competitions):
+            plan_warnings.append({
+                "level": "error",
+                "message": "Mindestens einer der ausgewählten Wettbewerbe wurde nicht gefunden.",
+            })
+        elif any(c["competition_type"] != "Schulpokal" for c in selected_competitions):
+            plan_warnings.append({
+                "level": "error",
+                "message": "Der abwechselnde Spielplan steht nur für Wettbewerbe vom Typ Schulpokal zur Verfügung.",
+            })
+        elif len({get_effective_competition_location(c) for c in selected_competitions}) > 1:
+            plan_warnings.append({
+                "level": "error",
+                "message": "Alle ausgewählten Wettbewerbe müssen denselben Ort/dieselben Felder nutzen, um abwechselnd verplant zu werden.",
+            })
+        else:
+            selected_court_ids = filter_court_ids_for_competition(
+                court_ids, all_courts, primary_competition
+            )
+            if not selected_court_ids:
+                plan_warnings.append({
+                    "level": "error",
+                    "message": "Wähle mindestens ein Feld oder einen Bereich für den Vorschlag aus.",
+                })
+            else:
+                tournament_mode = primary_competition["tournament_mode"] or DEFAULT_SCHULPOKAL_MODE
+                proposed_slots = generate_schulpokal_plan(
+                    competition_ids=competition_ids,
+                    court_ids=selected_court_ids,
+                    startzeit=startzeit,
+                    tournament_mode=tournament_mode,
+                )
+
+                expected_teams_by_competition = {}
+                with get_conn() as conn:
+                    for c in selected_competitions:
+                        explicit_teams = conn.execute("""
+                            SELECT t.* FROM teams t
+                            JOIN competition_teams ct ON ct.team_id = t.id
+                            WHERE ct.competition_id = ?
+                        """, (c["id"],)).fetchall()
+                        if explicit_teams:
+                            expected_teams_by_competition[c["id"]] = list(explicit_teams)
+                        else:
+                            expected_teams_by_competition[c["id"]] = conn.execute("""
+                                SELECT * FROM teams
+                                WHERE active = 1 AND jahrgang = ?
+                            """, (c["jahrgang"],)).fetchall()
+
+                plan_warnings.extend(
+                    validate_schulpokal_plan(proposed_slots, expected_teams_by_competition)
+                )
+                plan_timing = get_competition_timing(primary_competition)
+                plan_end_time_forecast = build_end_time_forecast(
+                    proposed_slots,
+                    primary_competition,
+                )
+                if plan_end_time_forecast:
+                    for court in plan_end_time_forecast["courts"]:
+                        if court["exceeds_planned_end"]:
+                            plan_warnings.append({
+                                "level": "warning",
+                                "message": (
+                                    f"{court['court_name']} endet voraussichtlich um "
+                                    f"{court['projected_end']}, geplant war "
+                                    f"{plan_end_time_forecast['planned_end']}."
+                                ),
+                            })
+
+        has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
+        return render_editor(
+            request,
+            competition_id,
+            proposed_slots=proposed_slots,
+            plan_warnings=plan_warnings,
+            has_plan_errors=has_plan_errors,
+            plan_timing=plan_timing,
+            plan_end_time_forecast=plan_end_time_forecast,
+            selected_court_ids=court_ids,
+            selected_generator_competition_ids=competition_ids,
         )
 
     @router.post("/plan-generator/apply")

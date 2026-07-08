@@ -436,24 +436,10 @@ body {
         align-self: flex-start;
     }
 
-    .day-schedule-block {
-        grid-template-columns: 1fr;
-        gap: 8px;
-        padding: 9px;
-    }
-
-    .day-schedule-block > header {
-        align-items: center;
-        justify-content: space-between;
-        flex-direction: row;
-    }
-
-    .day-schedule-card-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .day-schedule-card-head {
-        flex-wrap: wrap;
+    .day-timeline-column-label,
+    .day-timeline-column-body {
+        flex-basis: 160px;
+        min-width: 160px;
     }
 
     .day-now-marker {

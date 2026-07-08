@@ -9,19 +9,23 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from app.services.sixkampf_service import calculate_sixkampf_team_ranking
+from app.services.sixkampf_service import (
+    calculate_sixkampf_station_rotation,
+    calculate_sixkampf_team_ranking,
+)
 
 
 def team(team_id, name, jahrgang=7):
     return {"id": team_id, "name": name, "jahrgang": jahrgang}
 
 
-def discipline(discipline_id, name, scoring_direction="higher", unit=""):
+def discipline(discipline_id, name, scoring_direction="higher", unit="", location=None):
     return {
         "id": discipline_id,
         "name": name,
         "scoring_direction": scoring_direction,
         "unit": unit,
+        "location": location,
     }
 
 
@@ -234,6 +238,10 @@ class EventOverallAndTournamentTests(unittest.TestCase):
                 jahrgang INTEGER,
                 active INTEGER
             );
+            CREATE TABLE competition_teams (
+                competition_id INTEGER,
+                team_id INTEGER
+            );
             CREATE TABLE competition_disciplines (
                 id INTEGER PRIMARY KEY,
                 competition_id INTEGER,
@@ -274,10 +282,12 @@ class EventOverallAndTournamentTests(unittest.TestCase):
             groups = main.calculate_event_overall_ranking(100)
 
         rows = rows_by_team_name(groups[0]["rows"])
-        self.assertEqual(rows["7a"]["points_by_competition"][1], 7)
-        self.assertEqual(rows["7a"]["total_points"], 7)
-        self.assertEqual(rows["7b"]["points_by_competition"][1], 6)
-        self.assertEqual(rows["7c"]["points_by_competition"][1], 5)
+        # 1. Platz erhaelt so viele Punkte wie tatsaechlich teilnehmende Teams (3),
+        # nicht die bei Anlage der Veranstaltung konfigurierte points_first_place (7).
+        self.assertEqual(rows["7a"]["points_by_competition"][1], 3)
+        self.assertEqual(rows["7a"]["total_points"], 3)
+        self.assertEqual(rows["7b"]["points_by_competition"][1], 2)
+        self.assertEqual(rows["7c"]["points_by_competition"][1], 1)
 
     def test_tournament_points_still_use_placement_points(self):
         main = import_main_for_tests()
@@ -319,7 +329,9 @@ class EventOverallAndTournamentTests(unittest.TestCase):
             with patch.object(main, "calculate_table", return_value=table_rows):
                 rows = main.calculate_tournament_points(competition)
 
-        self.assertEqual([row["competition_points"] for row in rows], [7, 6, 5])
+        # 1. Platz erhaelt so viele Punkte wie tatsaechlich teilnehmende Teams (3),
+        # nicht die bei Anlage der Veranstaltung konfigurierte points_first_place (7).
+        self.assertEqual([row["competition_points"] for row in rows], [3, 2, 1])
 
     def test_ko_bracket_placement_overrides_flat_table_order(self):
         main = import_main_for_tests()
@@ -399,6 +411,68 @@ class EventOverallAndTournamentTests(unittest.TestCase):
         self.assertEqual(placements_by_team[1], 2)  # Finalverlierer
         self.assertEqual(placements_by_team[3], 3)  # Halbfinal-Verlierer, geteilt
         self.assertEqual(placements_by_team[4], 3)  # Halbfinal-Verlierer, geteilt
+
+
+class StationRotationTests(unittest.TestCase):
+    def test_team_count_equals_station_count_no_pause(self):
+        teams = [team(1, "7a"), team(2, "7b"), team(3, "7c"), team(4, "7d")]
+        disciplines = [
+            discipline(10, "Station1"), discipline(20, "Station2"),
+            discipline(30, "Station3"), discipline(40, "Station4"),
+        ]
+        rotation = calculate_sixkampf_station_rotation(teams, disciplines)
+        starts = [entry["rounds"][0]["name"] for entry in rotation]
+        self.assertEqual(starts, ["Station1", "Station2", "Station3", "Station4"])
+        for entry in rotation:
+            self.assertNotIn("Pause", [station["name"] for station in entry["rounds"]])
+
+    def test_more_teams_than_stations_inserts_pause(self):
+        teams = [team(i, name) for i, name in enumerate(
+            ["7a", "7b", "7c", "7d", "7e", "7f", "7g"], start=1
+        )]
+        disciplines = [
+            discipline(10, "Station1"), discipline(20, "Station2"),
+            discipline(30, "Station3"), discipline(40, "Station4"),
+        ]
+        rotation = calculate_sixkampf_station_rotation(teams, disciplines)
+
+        # Jede Klasse bis zur Stationsanzahl startet in Runde 1 an ihrer
+        # eigenen Station (7a->Station1, 7b->Station2 usw.); ueberzaehlige
+        # Klassen (7e, 7f, 7g) starten mit Pause.
+        starts = [entry["rounds"][0]["name"] for entry in rotation]
+        self.assertEqual(
+            starts,
+            ["Station1", "Station2", "Station3", "Station4", "Pause", "Pause", "Pause"],
+        )
+
+        # Jede Klasse bekommt ueber den vollen Zyklus (7 Runden) gleich oft
+        # (3x) Pause - reihum, nicht dauerhaft nur die Ueberzaehligen.
+        for entry in rotation:
+            names = [station["name"] for station in entry["rounds"]]
+            self.assertEqual(names.count("Pause"), 3)
+            self.assertEqual(len(entry["rounds"]), 7)
+
+        # In jeder Runde steht weiterhin genau eine Klasse je Station.
+        for round_index in range(7):
+            stations_this_round = [
+                entry["rounds"][round_index]["name"] for entry in rotation
+                if entry["rounds"][round_index]["name"] != "Pause"
+            ]
+            self.assertEqual(sorted(stations_this_round), ["Station1", "Station2", "Station3", "Station4"])
+
+    def test_no_disciplines_or_no_teams_returns_empty(self):
+        self.assertEqual(calculate_sixkampf_station_rotation([], [discipline(10, "S1")]), [])
+        self.assertEqual(calculate_sixkampf_station_rotation([team(1, "7a")], []), [])
+
+    def test_station_location_is_carried_through(self):
+        teams = [team(1, "7a"), team(2, "7b")]
+        disciplines = [
+            discipline(10, "Station1", location="Foyer 3. Etage"),
+            discipline(20, "Station2", location=None),
+        ]
+        rotation = calculate_sixkampf_station_rotation(teams, disciplines)
+        self.assertEqual(rotation[0]["rounds"][0], {"name": "Station1", "location": "Foyer 3. Etage"})
+        self.assertEqual(rotation[0]["rounds"][1], {"name": "Station2", "location": None})
 
 
 if __name__ == "__main__":
