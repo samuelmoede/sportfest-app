@@ -15,6 +15,7 @@ jobs:
       - name: Staging-Ordner auf develop aktualisieren (klont beim ersten Mal selbst)
         run: |
           mkdir -p "${{ env.DEPLOY_DIR }}"
+          git config --global --add safe.directory "${{ env.DEPLOY_DIR }}"
           cd "${{ env.DEPLOY_DIR }}"
           if [ ! -d .git ]; then
             git clone --branch develop https://github.com/samuelmoede/sportfest-app.git .
