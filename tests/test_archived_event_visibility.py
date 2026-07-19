@@ -136,6 +136,10 @@ class ArchivedEventVisibilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Aktiver Wettbewerb", response.text)
         self.assertNotIn("Archivierter Wettbewerb", response.text)
+        # Das Event-Filter-Dropdown wird aus einer eigenen Quelle
+        # (events_by_id) gespeist, nicht aus event_options - eigener Check,
+        # damit diese Quelle nicht separat aus dem Ruder laeuft.
+        self.assertNotIn("Altes Fest", response.text)
 
 
 if __name__ == "__main__":

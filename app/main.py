@@ -362,9 +362,13 @@ def collect_tabellen_view_data(
     year_options = sorted({c["jahrgang"] for c in competitions if c["jahrgang"] is not None})
 
     with get_conn() as conn:
+        # events_by_id speist u.a. das Veranstaltungs-Filter-Dropdown im
+        # Template (events_by_id.items()) - archivierte Veranstaltungen
+        # duerfen hier wie in event_options nicht auftauchen.
         event_rows = conn.execute("""
             SELECT id, name
             FROM events
+            WHERE status != 'archiviert'
             ORDER BY event_date, name
         """).fetchall()
         events_by_id = {event_row["id"]: event_row["name"] for event_row in event_rows}
