@@ -33,6 +33,7 @@ from app.services.schedule_location_service import (
 from app.services.event_status_service import (
     EVENT_STATUS_ACTIVE,
     fetch_events_with_competition_counts,
+    get_archived_event_ids,
     get_dashboard_event,
     get_upcoming_events,
     normalize_event_statuses,
@@ -325,10 +326,16 @@ def collect_tabellen_view_data(
 ):
     selected_jahrgang = parse_jahrgang_filter(jahrgang)
     selected_competition_id = parse_competition_id(competition_id)
-    competitions = get_active_competitions()
 
     with get_conn() as conn:
-        event_options = fetch_events_with_competition_counts(conn, include_archived=True)
+        event_options = fetch_events_with_competition_counts(conn, include_archived=False)
+        archived_event_ids = get_archived_event_ids(conn)
+    # /tabellen ist rein oeffentlich (keine Admin-Variante) - Wettbewerbe
+    # archivierter Veranstaltungen duerfen hier nie auftauchen, siehe /spielplan.
+    competitions = [
+        competition for competition in get_active_competitions()
+        if competition["event_id"] not in archived_event_ids
+    ]
 
     fallback_event_id = next(
         (c["event_id"] for c in competitions if c["id"] == selected_competition_id),

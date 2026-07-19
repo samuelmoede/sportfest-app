@@ -125,6 +125,18 @@ class ArchivedEventVisibilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("Archivierter Wettbewerb", response.text)
 
+    def test_tabellen_route_hides_archived_event_competition(self):
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/tabellen")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Aktiver Wettbewerb", response.text)
+        self.assertNotIn("Archivierter Wettbewerb", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()
