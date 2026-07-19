@@ -31,6 +31,7 @@ from app.services.schedule_location_service import (
     normalize_competition_location,
 )
 from app.services.event_status_service import (
+    EVENT_STATUS_ACTIVE,
     fetch_events_with_competition_counts,
     get_dashboard_event,
     get_upcoming_events,
@@ -218,6 +219,17 @@ def slot_starts_soon(startzeit, now, threshold_minutes=7):
     slot_minutes = hour * 60 + minute
     now_minutes = now.hour * 60 + now.minute
     return 0 <= (slot_minutes - now_minutes) <= threshold_minutes
+
+
+def slot_minutes_until(startzeit, now, default=0):
+    """Minutes between now and startzeit (HH:MM), or default if startzeit is unparsable."""
+    try:
+        hour, minute = (int(part) for part in startzeit.split(":")[:2])
+    except (AttributeError, ValueError):
+        return default
+    slot_minutes = hour * 60 + minute
+    now_minutes = now.hour * 60 + now.minute
+    return slot_minutes - now_minutes
 
 
 
@@ -798,22 +810,28 @@ def fetch_dashboard_data():
             ORDER BY slots.startzeit, slots.court_id
         """, (event_id, event_id)).fetchall()
 
-        upcoming = [dict(row) for row in conn.execute("""
-            SELECT slots.*, c.name AS competition_name, co.name AS court_name,
-                   ta.name AS team_a, tb.name AS team_b
-            FROM slots
-            JOIN competitions c ON c.id = slots.competition_id
-            LEFT JOIN courts co ON co.id = slots.court_id
-            LEFT JOIN teams ta ON ta.id = slots.team_a_id
-            LEFT JOIN teams tb ON tb.id = slots.team_b_id
-            WHERE slots.status = 'geplant'
-              AND c.status != 'archiviert'
-              AND (? IS NULL OR c.event_id = ?)
-            ORDER BY slots.startzeit, slots.court_id
-            LIMIT 8
-        """, (event_id, event_id)).fetchall()]
-        for slot in upcoming:
-            slot["is_soon"] = slot_starts_soon(slot.get("startzeit"), now)
+        event_is_active = bool(next_event) and next_event["status"] == EVENT_STATUS_ACTIVE
+
+        upcoming = []
+        if event_is_active:
+            upcoming = [dict(row) for row in conn.execute("""
+                SELECT slots.*, c.name AS competition_name, co.name AS court_name,
+                       ta.name AS team_a, tb.name AS team_b
+                FROM slots
+                JOIN competitions c ON c.id = slots.competition_id
+                LEFT JOIN courts co ON co.id = slots.court_id
+                LEFT JOIN teams ta ON ta.id = slots.team_a_id
+                LEFT JOIN teams tb ON tb.id = slots.team_b_id
+                WHERE slots.status = 'geplant'
+                  AND c.status != 'archiviert'
+                  AND (? IS NULL OR c.event_id = ?)
+                ORDER BY slots.startzeit, slots.court_id
+                LIMIT 8
+            """, (event_id, event_id)).fetchall()]
+            for slot in upcoming:
+                slot["is_soon"] = slot_starts_soon(slot.get("startzeit"), now)
+            if upcoming and slot_minutes_until(upcoming[0].get("startzeit"), now, default=999) > 120:
+                upcoming = []
 
         ended_count = conn.execute("""
             SELECT COUNT(*) AS n
