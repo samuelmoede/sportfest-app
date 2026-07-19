@@ -5,9 +5,8 @@ on:
     branches: [main]
 
 env:
-  # TODO(einmalig): an den tatsaechlichen Pfad auf dem NAS anpassen, unter
-  # dem dieses Repo als Produktivordner liegt (dort, wo docker-compose.yml
-  # liegt). Entspricht dem Ordner, den Windows als Z:\sportfest-app sieht.
+  # Produktivordner auf dem NAS (docker-compose.yml liegt hier), entspricht
+  # dem Ordner, den Windows als Z:\sportfest-app sieht.
   DEPLOY_DIR: /volume1/docker/sportfest-app
 
 jobs:

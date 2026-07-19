@@ -5,8 +5,7 @@ on:
     branches: [develop]
 
 env:
-  # TODO(einmalig): an den tatsaechlichen Pfad auf dem NAS anpassen, unter
-  # dem der Staging-Klon liegt (entspricht Z:\sportfest-app-dev).
+  # Staging-Klon auf dem NAS, entspricht Z:\sportfest-app-dev.
   DEPLOY_DIR: /volume1/docker/sportfest-app-dev
 
 jobs:
