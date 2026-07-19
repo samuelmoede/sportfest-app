@@ -67,6 +67,7 @@ def init_db(db_path=None):
             location_subarea TEXT,
             regeln TEXT,
             siegerehrung_published_at TEXT,
+            archived_via_event INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -350,6 +351,24 @@ def init_db(db_path=None):
 
         if "siegerehrung_published_at" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN siegerehrung_published_at TEXT")
+
+        if "archived_via_event" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN archived_via_event INTEGER NOT NULL DEFAULT 0"
+            )
+
+        # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
+        # Altdaten von vor Einfuehrung der automatischen Kaskade in
+        # archive_event()). archived_via_event=1 markiert nur Wettbewerbe, die
+        # durch diesen Abgleich bzw. durch archive_event() archiviert wurden,
+        # damit restore_event() gezielt nur diese wiederherstellt und keine
+        # unabhaengig archivierten Wettbewerbe anfasst.
+        conn.execute("""
+            UPDATE competitions
+            SET status = 'archiviert', archived_via_event = 1
+            WHERE status != 'archiviert'
+              AND event_id IN (SELECT id FROM events WHERE status = 'archiviert')
+        """)
 
         conn.execute("""
             UPDATE competitions

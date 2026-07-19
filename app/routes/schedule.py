@@ -143,7 +143,7 @@ def create_router(
             with get_conn() as conn:
                 event_options = fetch_events_with_competition_counts(
                     conn,
-                    include_archived=True,
+                    include_archived=False,
                 )
 
         with get_conn() as conn:
@@ -516,10 +516,13 @@ def create_router(
         overwrite_warning: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
+        # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
+        # nicht mehr auswaehlbar, nur noch ueber /events/{id} erreichbar.
         event_options, selected_event_id = resolve_event_context(
             request,
             event_id,
             selected_competition_id,
+            include_archived=False,
         )
         return render_editor(
             request,
