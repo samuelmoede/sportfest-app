@@ -145,7 +145,7 @@ Weiterführende Inhalte:
 - Branch-Workflow: `main` ist die live-deploybare Version (nur per Pull Request aus
   `develop`, muss den `ci`-Check bestehen). Entwickelt wird auf `develop`, das über einen
   selbstgehosteten Runner automatisch in eine separate Staging-Umgebung deployed wird
-  (`docker-compose.dev.yml`, Port 8501). Details siehe `CLAUDE.md`, Abschnitt
+  (`docker-compose.dev.yml`, Port 8502). Details siehe `CLAUDE.md`, Abschnitt
   "Branch-, CI- und Deploy-Workflow".
 
 ## Bekannte offene Punkte

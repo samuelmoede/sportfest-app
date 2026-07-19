@@ -4,7 +4,7 @@ services:
     container_name: sportfest-app-dev
     restart: unless-stopped
     ports:
-      - "8501:8500"
+      - "8502:8500"
     environment:
       SPORTFEST_SECURITY_ENABLED: ${SPORTFEST_SECURITY_ENABLED:-}
       SPORTFEST_REFEREE_PASSWORD: ${SPORTFEST_REFEREE_PASSWORD:-}

@@ -107,9 +107,10 @@ Match these strings exactly when writing queries.
   entwickeln.
 - Für Entwicklung/Vorschau gibt es einen zweiten Checkout auf `develop`
   (`Z:\sportfest-app-dev`, ein `git worktree` desselben Repos) mit eigenem
-  Docker-Compose-Stack (`docker-compose.dev.yml`, Port 8501, eigene
-  `data/sportfest.db`), erreichbar im Heimnetz/per WireGuard-VPN unter
-  `192.168.178.20:8501`. Entwicklung kann genauso von jedem anderen Klon aus
+  Docker-Compose-Stack (`docker-compose.dev.yml`, Port 8502 — 8501 ist auf dem
+  NAS bereits durch `sportnotenhelfer` belegt, eigene `data/sportfest.db`),
+  erreichbar im Heimnetz/per WireGuard-VPN unter `192.168.178.20:8502`.
+  Entwicklung kann genauso von jedem anderen Klon aus
   passieren (Laptop, anderes Gerät) — entscheidend ist nur, dass auf
   `develop`/Feature-Branches gearbeitet und dorthin gepusht wird.
 - Ein selbstgehosteter GitHub-Actions-Runner läuft als Docker-Container auf
