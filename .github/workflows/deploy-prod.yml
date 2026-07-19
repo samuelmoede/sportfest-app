@@ -1,0 +1,25 @@
+name: deploy-prod
+
+on:
+  push:
+    branches: [main]
+
+env:
+  # TODO(einmalig): an den tatsaechlichen Pfad auf dem NAS anpassen, unter
+  # dem dieses Repo als Produktivordner liegt (dort, wo docker-compose.yml
+  # liegt). Entspricht dem Ordner, den Windows als Z:\sportfest-app sieht.
+  DEPLOY_DIR: /volume1/docker/sportfest-app
+
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+    steps:
+      - name: Produktivordner auf main aktualisieren
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Container neu bauen und starten
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: docker compose up -d --build

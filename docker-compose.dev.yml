@@ -1,0 +1,25 @@
+services:
+  sportfest-app-dev:
+    build: .
+    container_name: sportfest-app-dev
+    restart: unless-stopped
+    ports:
+      - "8501:8500"
+    environment:
+      SPORTFEST_SECURITY_ENABLED: ${SPORTFEST_SECURITY_ENABLED:-}
+      SPORTFEST_REFEREE_PASSWORD: ${SPORTFEST_REFEREE_PASSWORD:-}
+      SPORTFEST_ADMIN_PASSWORD: ${SPORTFEST_ADMIN_PASSWORD:-}
+      SPORTFEST_SESSION_SECRET_KEY: ${SPORTFEST_SESSION_SECRET_KEY:-}
+      SPORTFEST_SESSION_HTTPS_ONLY: ${SPORTFEST_SESSION_HTTPS_ONLY:-false}
+    volumes:
+      - ./app:/app/app
+      - ./data:/app/data
+      - ./VERSION:/app/VERSION
+      - ./CHANGELOG.md:/app/CHANGELOG.md
+      - ./ROADMAP.md:/app/ROADMAP.md
+      - ./DOKUMENTATION.md:/app/DOKUMENTATION.md
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8500
+      --reload

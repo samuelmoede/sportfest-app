@@ -1,0 +1,24 @@
+name: deploy-staging
+
+on:
+  push:
+    branches: [develop]
+
+env:
+  # TODO(einmalig): an den tatsaechlichen Pfad auf dem NAS anpassen, unter
+  # dem der Staging-Klon liegt (entspricht Z:\sportfest-app-dev).
+  DEPLOY_DIR: /volume1/docker/sportfest-app-dev
+
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+    steps:
+      - name: Staging-Ordner auf develop aktualisieren
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          git fetch origin develop
+          git reset --hard origin/develop
+
+      - name: Staging-Container neu bauen und starten
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: docker compose -f docker-compose.dev.yml up -d --build
