@@ -16,6 +16,7 @@ jobs:
       - name: Produktivordner auf main aktualisieren
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
+          git config --global --add safe.directory "${{ env.DEPLOY_DIR }}"
           git fetch origin main
           git reset --hard origin/main
 

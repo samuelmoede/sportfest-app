@@ -23,3 +23,14 @@ services:
       --host 0.0.0.0
       --port 8500
       --reload
+
+networks:
+  default:
+    # Festes, kleines Subnetz statt automatischer Docker-Zuweisung: die
+    # Standard-Adresspools (172.16.0.0/12, 192.168.0.0/16) sind auf dem NAS
+    # durch ~30 andere Compose-Stacks erschoepft. 192.168.176.0/20 waere zwar
+    # frei in Docker, ueberschneidet sich aber mit dem echten LAN
+    # (192.168.178.0/24) und darf nicht verwendet werden.
+    ipam:
+      config:
+        - subnet: 10.89.0.0/29
