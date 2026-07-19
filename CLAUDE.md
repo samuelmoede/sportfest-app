@@ -106,13 +106,18 @@ Match these strings exactly when writing queries.
   dort werden potenziell sofort live wirksam. Deshalb: hier nicht mehr direkt
   entwickeln.
 - Für Entwicklung/Vorschau gibt es einen zweiten Checkout auf `develop`
-  (`Z:\sportfest-app-dev`, ein `git worktree` desselben Repos) mit eigenem
-  Docker-Compose-Stack (`docker-compose.dev.yml`, Port 8502 — 8501 ist auf dem
-  NAS bereits durch `sportnotenhelfer` belegt, eigene `data/sportfest.db`),
-  erreichbar im Heimnetz/per WireGuard-VPN unter `192.168.178.20:8502`.
-  Entwicklung kann genauso von jedem anderen Klon aus
-  passieren (Laptop, anderes Gerät) — entscheidend ist nur, dass auf
-  `develop`/Feature-Branches gearbeitet und dorthin gepusht wird.
+  unter `/volume1/docker/sportfest-app-dev` auf dem NAS (**eigenständiger
+  `git clone`, kein `git worktree`** — ein Worktree scheiterte, weil sein
+  `.git`-Querverweis auf einen Windows-SMB-Pfad zeigt, den der Linux-Runner
+  nicht auflösen kann; der Ordner wird vom `deploy-staging`-Workflow beim
+  ersten Lauf selbst geklont) mit eigenem Docker-Compose-Stack
+  (`docker-compose.dev.yml`, Port 8502 — 8501 ist auf dem NAS bereits durch
+  `sportnotenhelfer` belegt, eigene `data/sportfest.db`), erreichbar im
+  Heimnetz/per WireGuard-VPN unter `192.168.178.20:8502`. Es gibt bewusst
+  **keinen** `Z:\sportfest-app-dev`-Ordner auf der Windows-Freigabe. Entwickelt
+  wird lokal in einem beliebigen eigenen Klon (Laptop, anderes Gerät) auf
+  `develop`/Feature-Branches, gepusht wird nach `develop` — den Rest erledigt
+  der Runner.
 - Ein selbstgehosteter GitHub-Actions-Runner läuft als Docker-Container auf
   dem NAS (192.168.178.20) und deployt automatisch: Push auf `develop` →
   `.github/workflows/deploy-staging.yml` aktualisiert den `sportfest-app-dev`-

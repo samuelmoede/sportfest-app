@@ -12,11 +12,16 @@ jobs:
   deploy:
     runs-on: [self-hosted]
     steps:
-      - name: Staging-Ordner auf develop aktualisieren
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Staging-Ordner auf develop aktualisieren (klont beim ersten Mal selbst)
         run: |
-          git fetch origin develop
-          git reset --hard origin/develop
+          mkdir -p "${{ env.DEPLOY_DIR }}"
+          cd "${{ env.DEPLOY_DIR }}"
+          if [ ! -d .git ]; then
+            git clone --branch develop https://github.com/samuelmoede/sportfest-app.git .
+          else
+            git fetch origin develop
+            git reset --hard origin/develop
+          fi
 
       - name: Staging-Container neu bauen und starten
         working-directory: ${{ env.DEPLOY_DIR }}
