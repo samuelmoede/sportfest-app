@@ -137,8 +137,18 @@ Weiterführende Inhalte:
 - Bei aktiver Sicherheit schützt eine zentrale Middleware die Admin-Bereiche `/einstellungen`, `/teams`, `/spielfelder` und `/wettbewerbe` einschließlich ihrer Verwaltungsaktionen. Öffentliche Ansichten, Ergebniseingabe und Spielplanaktionen bleiben offen.
 - Ohne gesetzten Environment-Override kann die Sicherheit auf `/einstellungen` nach erneuter Eingabe des Admin-Kennworts aktiviert oder deaktiviert werden. `SPORTFEST_SECURITY_ENABLED` hat weiterhin Vorrang und sperrt den Schalter.
 
+## Tests und CI/CD
+
+- Tests ausführen: `pip install -r requirements-dev.txt` dann `python -m pytest tests -v`.
+- Bei jedem Push/Pull Request auf `main` oder `develop` läuft die Testsuite automatisch
+  über GitHub Actions (`.github/workflows/ci.yml`).
+- Branch-Workflow: `main` ist die live-deploybare Version (nur per Pull Request aus
+  `develop`, muss den `ci`-Check bestehen). Entwickelt wird auf `develop`, das über einen
+  selbstgehosteten Runner automatisch in eine separate Staging-Umgebung deployed wird
+  (`docker-compose.dev.yml`, Port 8501). Details siehe `CLAUDE.md`, Abschnitt
+  "Branch-, CI- und Deploy-Workflow".
+
 ## Bekannte offene Punkte
 
 - `PROJECT_CONTEXT.md` ist aktuell noch nicht vorhanden.
 - Es gibt noch kein dokumentiertes Backup-Konzept für die SQLite-Datenbank.
-- Tests und CI sind noch nicht implementiert.

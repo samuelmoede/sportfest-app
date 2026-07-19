@@ -31,19 +31,28 @@ docker compose up --build
 - Seed/reset the DB with sample teams, courts, competitions, and slots: `python -m app.seed`
   (**destructive** — it deletes all slots, competitions, courts, and teams first)
 - Back up the SQLite DB: `python backup_database.py` (copies `data/sportfest.db` → `data/backups/sportfest-<timestamp>.db`)
-- There is **no test suite, linter, or CI** and **no `requirements.txt`** — dependencies
-  live inline in the `Dockerfile` and README only.
+- Run the test suite: `pip install -r requirements-dev.txt` then `python -m pytest tests -v`.
+  Runtime dependencies also live in `requirements.txt` now (mirrors the `Dockerfile`'s inline
+  `pip install`, which is left as-is so the production build stays unaffected). There is still
+  **no linter**. CI (GitHub Actions, `.github/workflows/ci.yml`) runs this suite on every push/PR
+  to `main`/`develop`.
 
 ## Architecture
 
-Three Python files do everything:
-
-- `app/main.py` — the entire FastAPI app: ~50 routes plus all business logic
-  (scheduling, table calculation, ranking) as module-level functions. This is one large
-  file (~2300 lines); use Grep to locate routes/functions rather than reading it whole.
+- `app/main.py` — the FastAPI app: ~50 routes, still large (~2300 lines); use Grep to
+  locate routes rather than reading it whole. Business logic that used to live entirely in
+  this file has been split out into `app/services/*.py` modules (scheduling, table/ranking
+  calculation, Sechskampf scoring, settings, backups, etc.) — check there first for
+  scheduling/scoring logic, and prefer testing new logic at the service-function level
+  (see `tests/`).
 - `app/database.py` — `get_conn()` (returns a `sqlite3.Connection` with `Row` factory)
-  and `init_db()`. The DB lives at `data/sportfest.db`.
+  and `init_db()`. The DB lives at `data/sportfest.db`, resolved relative to the repo root.
 - `app/seed.py` — runs its logic at import time (no functions), so it executes on `python -m app.seed`.
+- `tests/` — `unittest`-style tests (run via `pytest`), one file per service module plus
+  `test_smoke.py` (boots the app via `TestClient` and hits core public routes). Tests that
+  touch the database always override `app.database.DB_PATH` to a temp file first — **never**
+  let a test use the real `DB_PATH`, since (see Workflow section) the repo root can be a
+  live-mounted production folder.
 
 Templates in `app/templates/` (Jinja2, all extend `base.html`), single stylesheet `app/static/style.css`.
 `app_version` (read from the `VERSION` file) is injected as a Jinja global.
@@ -83,6 +92,31 @@ Match these strings exactly when writing queries.
 - `generate_semifinals` / `generate_finals` — fill KO-round slots from group results / semifinal winners.
 - `calculate_sixkampf_team_ranking()` — Sechskampf placement and points.
 - `fetch_beamer_data()` — backs `/beamer`, a projector/scoreboard view of the live competition.
+
+## Branch-, CI- und Deploy-Workflow
+
+- `main` = die live-deploybare Version. Es wird nicht mehr direkt auf `main`
+  entwickelt; Änderungen kommen per Pull Request aus `develop` (oder
+  Feature-Branches davon), gated durch den `ci`-Workflow (pytest muss grün
+  sein).
+- **Wichtig:** Der Ordner, in dem dieses Repo auf `main` ausgecheckt ist
+  (`Z:\sportfest-app`, Netzwerkfreigabe `\\Server\docker\sportfest-app`), ist
+  **derselbe Ordner, aus dem der Produktiv-Container per Docker Compose mit
+  `--reload` läuft** (`https://sportfest.moede-digital.org/`). Dateiänderungen
+  dort werden potenziell sofort live wirksam. Deshalb: hier nicht mehr direkt
+  entwickeln.
+- Für Entwicklung/Vorschau gibt es einen zweiten Checkout auf `develop`
+  (`Z:\sportfest-app-dev`, ein `git worktree` desselben Repos) mit eigenem
+  Docker-Compose-Stack (`docker-compose.dev.yml`, Port 8501, eigene
+  `data/sportfest.db`), erreichbar im Heimnetz/per WireGuard-VPN unter
+  `192.168.178.20:8501`. Entwicklung kann genauso von jedem anderen Klon aus
+  passieren (Laptop, anderes Gerät) — entscheidend ist nur, dass auf
+  `develop`/Feature-Branches gearbeitet und dorthin gepusht wird.
+- Ein selbstgehosteter GitHub-Actions-Runner läuft als Docker-Container auf
+  dem NAS (192.168.178.20) und deployt automatisch: Push auf `develop` →
+  `.github/workflows/deploy-staging.yml` aktualisiert den `sportfest-app-dev`-
+  Ordner/Container; Push auf `main` (= gemergter PR) →
+  `.github/workflows/deploy-prod.yml` aktualisiert den Produktivordner.
 
 ## Caveats
 
