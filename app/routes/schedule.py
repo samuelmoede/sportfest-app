@@ -9,6 +9,7 @@ from app.database import get_conn
 from app.services.change_log_service import insert_change_log_entry
 from app.services.event_status_service import (
     fetch_events_with_competition_counts,
+    get_archived_event_ids,
     resolve_selected_event_id,
 )
 from app.services.schedule_generator_service import (
@@ -102,11 +103,13 @@ def create_router(
             ).fetchone()
         return competition["event_id"] if competition is not None else None
 
-    def resolve_event_context(request, event_id_value, selected_competition_id=None):
+    def resolve_event_context(
+        request, event_id_value, selected_competition_id=None, *, include_archived=True
+    ):
         with get_conn() as conn:
             event_options = fetch_events_with_competition_counts(
                 conn,
-                include_archived=True,
+                include_archived=include_archived,
             )
         selected_event_id = resolve_selected_event_id(
             event_options,
@@ -140,7 +143,7 @@ def create_router(
             with get_conn() as conn:
                 event_options = fetch_events_with_competition_counts(
                     conn,
-                    include_archived=True,
+                    include_archived=False,
                 )
 
         with get_conn() as conn:
@@ -332,17 +335,27 @@ def create_router(
         selected_competition_id = parse_competition_id(competition_id)
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
         selected_location = normalize_competition_location(ort)
+        # Archivierte Veranstaltungen sind hier oeffentlich nicht sichtbar,
+        # weder im Filter noch ueber einen direkten event_id-Link. Admins
+        # sehen den Spielplan archivierter Veranstaltungen weiterhin ueber
+        # die Veranstaltungsseite (/events/{id}).
         event_options, selected_event_id = resolve_event_context(
             request,
             event_id,
             selected_competition_id,
+            include_archived=False,
         )
 
+        with get_conn() as conn:
+            archived_event_ids = get_archived_event_ids(conn)
         competitions = [
             competition
             for competition in get_active_competitions()
-            if selected_event_id is None
-            or competition["event_id"] == selected_event_id
+            if competition["event_id"] not in archived_event_ids
+            and (
+                selected_event_id is None
+                or competition["event_id"] == selected_event_id
+            )
         ]
         visible_competition_ids = {competition["id"] for competition in competitions}
         if selected_competition_id not in visible_competition_ids:
@@ -353,6 +366,7 @@ def create_router(
             selected_jahrgang,
             selected_location,
             event_id=selected_event_id,
+            exclude_archived_events=True,
         )
         available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
 
@@ -410,10 +424,13 @@ def create_router(
         ]
         selected_location = normalize_competition_location(ort) or printable_locations[0]
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
-        event_options, selected_event_id = resolve_event_context(request, event_id)
+        event_options, selected_event_id = resolve_event_context(
+            request, event_id, include_archived=False,
+        )
 
         location_sections = get_location_schedule_sections(
             None, selected_jahrgang, selected_location, event_id=selected_event_id,
+            exclude_archived_events=True,
         )
         section = next(
             (s for s in location_sections if s["location"] == selected_location), None
@@ -455,10 +472,13 @@ def create_router(
         ]
         selected_location = normalize_competition_location(ort) or monitor_locations[0]
         selected_jahrgang = parse_jahrgang_filter(jahrgang)
-        event_options, selected_event_id = resolve_event_context(request, event_id)
+        event_options, selected_event_id = resolve_event_context(
+            request, event_id, include_archived=False,
+        )
 
         location_sections = get_location_schedule_sections(
             None, selected_jahrgang, selected_location, event_id=selected_event_id,
+            exclude_archived_events=True,
         )
         section = next(
             (s for s in location_sections if s["location"] == selected_location), None
@@ -496,10 +516,13 @@ def create_router(
         overwrite_warning: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
+        # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
+        # nicht mehr auswaehlbar, nur noch ueber /events/{id} erreichbar.
         event_options, selected_event_id = resolve_event_context(
             request,
             event_id,
             selected_competition_id,
+            include_archived=False,
         )
         return render_editor(
             request,

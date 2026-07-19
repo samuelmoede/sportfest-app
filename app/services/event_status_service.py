@@ -122,6 +122,14 @@ def fetch_events_with_competition_counts(conn, *, include_archived=True):
     ).fetchall()
 
 
+def get_archived_event_ids(conn):
+    rows = conn.execute(
+        "SELECT id FROM events WHERE status = ?",
+        (EVENT_STATUS_ARCHIVED,),
+    ).fetchall()
+    return {row["id"] for row in rows}
+
+
 def get_dashboard_event(conn, today):
     events = fetch_events_with_competition_counts(conn, include_archived=False)
     return select_default_event(events, today)
@@ -192,18 +200,45 @@ def deactivate_event(conn, event_id):
 
 
 def archive_event(conn, event_id):
+    """Archiviert die Veranstaltung und kaskadiert auf ihre Wettbewerbe, damit
+    archivierte Veranstaltungen ueberall dort verschwinden, wo bereits nach
+    Wettbewerbs-Status 'archiviert' gefiltert wird. Nur Wettbewerbe, die noch
+    nicht archiviert waren, werden markiert (archived_via_event=1), damit
+    restore_event() spaeter gezielt nur diese wieder zuruecknehmen kann und
+    unabhaengig archivierte Wettbewerbe unangetastet laesst."""
     cursor = conn.execute(
         "UPDATE events SET status = ? WHERE id = ?",
         (EVENT_STATUS_ARCHIVED, event_id),
     )
+    if cursor.rowcount > 0:
+        conn.execute(
+            """
+            UPDATE competitions
+            SET status = ?, archived_via_event = 1
+            WHERE event_id = ? AND status != ?
+            """,
+            (EVENT_STATUS_ARCHIVED, event_id, EVENT_STATUS_ARCHIVED),
+        )
     return cursor.rowcount > 0
 
 
 def restore_event(conn, event_id):
+    """Stellt die Veranstaltung wieder her und nimmt die Kaskade aus
+    archive_event() zurueck - nur fuer Wettbewerbe mit archived_via_event=1,
+    nicht fuer solche, die unabhaengig davon bereits archiviert waren."""
     cursor = conn.execute(
         "UPDATE events SET status = ? WHERE id = ?",
         (EVENT_STATUS_PLANNED, event_id),
     )
+    if cursor.rowcount > 0:
+        conn.execute(
+            """
+            UPDATE competitions
+            SET status = ?, archived_via_event = 0
+            WHERE event_id = ? AND archived_via_event = 1
+            """,
+            (EVENT_STATUS_PLANNED, event_id),
+        )
     return cursor.rowcount > 0
 
 
