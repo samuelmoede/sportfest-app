@@ -122,6 +122,14 @@ def fetch_events_with_competition_counts(conn, *, include_archived=True):
     ).fetchall()
 
 
+def get_archived_event_ids(conn):
+    rows = conn.execute(
+        "SELECT id FROM events WHERE status = ?",
+        (EVENT_STATUS_ARCHIVED,),
+    ).fetchall()
+    return {row["id"] for row in rows}
+
+
 def get_dashboard_event(conn, today):
     events = fetch_events_with_competition_counts(conn, include_archived=False)
     return select_default_event(events, today)
