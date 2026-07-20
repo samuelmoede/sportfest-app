@@ -85,13 +85,19 @@ Alle Workflows liegen unter `.github/workflows/`.
 ### `claude.yml`
 
 - **Trigger:** `@claude` in einem Issue-Kommentar, einem neu erstellten Issue,
-  oder einem PR-Review-Kommentar.
+  einem PR-Review-Kommentar oder einer abgegebenen PR-Review.
 - **Läuft auf:** GitHub-Runner, **nicht** auf dem self-hosted NAS-Runner —
   der bleibt ausschließlich fürs Deployment reserviert.
-- Nutzt `secrets.CLAUDE_CODE_OAUTH_TOKEN` und die `anthropics/claude-code-action`
+- Nutzt `secrets.CLAUDE_CODE_OAUTH_TOKEN` und `anthropics/claude-code-action@v1`
   — damit läuft die Automatisierung über das Kontingent eines bestehenden
   Claude Pro/Max-Abos, nicht über separates, zusätzlich abgerechnetes
   API-Billing (siehe Abschnitt 8 für die Alternative mit `ANTHROPIC_API_KEY`).
+  Der Workflow selbst hat nur Lese-Rechte (`contents/pull-requests/issues:
+  read`) plus `id-token: write` — die eigentlichen Schreibaktionen (Branch,
+  Commit, PR, Kommentare) laufen über einen Token-Austausch mit der
+  installierten Claude GitHub App (OIDC), nicht über einen breit berechtigten
+  `GITHUB_TOKEN` im Workflow selbst. Struktur entspricht der Vorlage, die die
+  App bei ihrer Installation selbst vorgeschlagen hat.
 - Claude erstellt einen `claude/<...>`-Branch gegen `develop`, implementiert
   die im Issue beschriebene Änderung, ergänzt Tests unter `tests/` und öffnet
   einen Pull Request. Claude merged nie selbst.
