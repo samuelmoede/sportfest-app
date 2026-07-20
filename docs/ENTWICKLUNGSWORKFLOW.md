@@ -88,15 +88,25 @@ Alle Workflows liegen unter `.github/workflows/`.
   oder einem PR-Review-Kommentar.
 - **Läuft auf:** GitHub-Runner, **nicht** auf dem self-hosted NAS-Runner —
   der bleibt ausschließlich fürs Deployment reserviert.
-- Nutzt `secrets.ANTHROPIC_API_KEY` und die `anthropics/claude-code-action`.
+- Nutzt `secrets.CLAUDE_CODE_OAUTH_TOKEN` und die `anthropics/claude-code-action`
+  — damit läuft die Automatisierung über das Kontingent eines bestehenden
+  Claude Pro/Max-Abos, nicht über separates, zusätzlich abgerechnetes
+  API-Billing (siehe Abschnitt 8 für die Alternative mit `ANTHROPIC_API_KEY`).
 - Claude erstellt einen `claude/<...>`-Branch gegen `develop`, implementiert
   die im Issue beschriebene Änderung, ergänzt Tests unter `tests/` und öffnet
   einen Pull Request. Claude merged nie selbst.
 - **Einrichtung (einmalig, nur der Repo-Owner kann das tun, da es ein
-  GitHub-App-Consent-Vorgang ist):** entweder lokal in einer interaktiven
-  Claude-Code-Session `/install-github-app` ausführen, oder die "Claude"
-  GitHub App manuell installieren und `ANTHROPIC_API_KEY` als Repo-Secret
-  hinterlegen (siehe Abschnitt 8).
+  GitHub-App-/OAuth-Consent-Vorgang ist):**
+  1. Die "Claude" GitHub App installieren (GitHub → Settings →
+     Applications → GitHub Apps, oder Marketplace-Suche "Claude"; nur
+     `sportfest-app` als erlaubtes Repo auswählen).
+  2. In einer interaktiven Claude-Code-Session (nicht mobil möglich, z. B.
+     am PC/Laptop) einmalig `claude setup-token` ausführen — öffnet einen
+     Browser-Login zum eigenen Abo und gibt einen langlebigen Token aus.
+  3. Diesen Token als Repo-Secret `CLAUDE_CODE_OAUTH_TOKEN` hinterlegen
+     (Settings → Secrets and variables → Actions). Der Token wird dabei nie
+     durch Claude selbst eingegeben — das erledigt der Repo-Owner direkt in
+     GitHub.
 
 ## 4. Self-hosted Runner
 
@@ -166,7 +176,8 @@ Alle Workflows liegen unter `.github/workflows/`.
 
 | Secret | Zweck | Wo gesetzt |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | `claude.yml` — Claude Code GitHub Action | Repo → Settings → Secrets and variables → Actions |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `claude.yml` — Claude Code GitHub Action, nutzt das Kontingent eines bestehenden Claude Pro/Max-Abos statt separatem API-Billing. Erzeugt per `claude setup-token` in einer interaktiven Session (Abschnitt 3). | Repo → Settings → Secrets and variables → Actions |
+| `ANTHROPIC_API_KEY` (Alternative) | Nur falls stattdessen bewusst separates, nutzungsbasiertes API-Billing gewünscht ist — dann in `claude.yml` `claude_code_oauth_token` durch `anthropic_api_key` ersetzen. Nicht nötig, wenn `CLAUDE_CODE_OAUTH_TOKEN` verwendet wird. | Repo → Settings → Secrets and variables → Actions |
 
 Es werden **keine** Produktiv-Zugangsdaten oder Server-Credentials als
 GitHub Secret hinterlegt — die Deploy-Workflows laufen auf dem self-hosted

@@ -6,12 +6,16 @@ name: claude
 #
 # Voraussetzung (einmalig, nur vom Repo-Owner ausfuehrbar - GitHub-App-
 # Installation/OAuth ist ein Consent-Vorgang):
-#   a) lokal in einer interaktiven Claude-Code-Session `/install-github-app`
-#      ausfuehren (installiert App + ANTHROPIC_API_KEY-Secret automatisch,
-#      kann diese Datei dabei durch die aktuelle Referenzversion ersetzen),
-#   ODER
-#   b) die "Claude" GitHub App manuell installieren und ANTHROPIC_API_KEY
-#      unter Settings -> Secrets and variables -> Actions hinterlegen.
+#   1) die "Claude" GitHub App installieren (GitHub -> Settings ->
+#      Applications -> GitHub Apps, oder Marketplace-Suche "Claude").
+#   2) In einer interaktiven Claude-Code-Session (Pro/Max-Abo) einmalig
+#      `claude setup-token` ausfuehren - das nutzt das Kontingent des
+#      bestehenden Abos, statt zusaetzliches API-Billing zu benoetigen.
+#      Den ausgegebenen Token als Repo-Secret CLAUDE_CODE_OAUTH_TOKEN
+#      hinterlegen (Settings -> Secrets and variables -> Actions).
+#   Alternative statt Schritt 2, falls stattdessen separates API-Billing
+#   gewuenscht ist: ANTHROPIC_API_KEY-Secret setzen und unten
+#   "claude_code_oauth_token" durch "anthropic_api_key" ersetzen.
 #
 # Laeuft bewusst auf einem GitHub-Runner (nicht dem self-hosted NAS-Runner,
 # der ausschliesslich fuer Deployment reserviert bleibt).
@@ -42,6 +46,6 @@ jobs:
 
       - uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           base_branch: develop
           trigger_phrase: "@claude"
