@@ -18,3 +18,25 @@ jobs:
       - run: pip install -r requirements-dev.txt
 
       - run: python -m pytest tests -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image bauen (validiert Dockerfile)
+        run: docker build -t sportfest-app:ci .
+
+      - name: Container starten und Healthcheck gegen die oeffentliche Startseite
+        run: |
+          docker run -d --name sportfest-ci -p 8500:8500 sportfest-app:ci
+          for i in $(seq 1 15); do
+            if curl --fail --silent http://localhost:8500/ > /dev/null; then
+              echo "Healthcheck OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Healthcheck fehlgeschlagen"
+          docker logs sportfest-ci
+          exit 1

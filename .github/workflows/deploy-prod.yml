@@ -12,6 +12,11 @@ env:
 jobs:
   deploy:
     runs-on: [self-hosted]
+    # Pausiert hier, bis im GitHub-Environment "production" ein Required
+    # Reviewer den Deploy manuell freigibt (Settings -> Environments).
+    # Produktion wird dadurch nie automatisch veraendert, auch wenn der
+    # Workflow durch jeden Push auf main ausgeloest wird.
+    environment: production
     steps:
       - name: Produktivordner auf main aktualisieren
         working-directory: ${{ env.DEPLOY_DIR }}

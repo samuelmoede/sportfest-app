@@ -122,7 +122,39 @@ Match these strings exactly when writing queries.
   dem NAS (192.168.178.20) und deployt automatisch: Push auf `develop` →
   `.github/workflows/deploy-staging.yml` aktualisiert den `sportfest-app-dev`-
   Ordner/Container; Push auf `main` (= gemergter PR) →
-  `.github/workflows/deploy-prod.yml` aktualisiert den Produktivordner.
+  `.github/workflows/deploy-prod.yml` aktualisiert den Produktivordner. Der
+  Prod-Deploy-Job hängt am GitHub-Environment `production` (Required
+  Reviewer) — er startet erst, wenn der Merge manuell freigegeben wird, nie
+  automatisch.
+- `.github/workflows/claude.yml` reagiert auf `@claude`-Erwähnungen in Issues/
+  Kommentaren: Branch `claude/<...>` gegen `develop`, Implementierung, Tests,
+  Pull Request. Läuft auf einem GitHub-Runner, nicht auf dem self-hosted
+  NAS-Runner (der bleibt ausschließlich fürs Deployment reserviert).
+- `main` und `develop` sind branch-protected: Pull Requests brauchen einen
+  grünen `ci`-Status (`test`- und `docker`-Job), direkte Pushes sind auch für
+  den Repo-Owner blockiert.
+
+## Regeln für automatisierte Änderungen (Claude)
+
+- Zuerst analysieren, dann ändern: vor jedem Eingriff die betroffene Stelle
+  in `Architecture` (oben) bzw. den zuständigen Service in `app/services/`
+  lesen, nicht blind patchen.
+- So wenige Dateien wie möglich ändern; keine Refactorings oder Aufräumarbeiten
+  "nebenbei", die nicht Teil des Auftrags sind.
+- Niemals in diesem Ordner (`Z:\sportfest-app`, Live-Produktivmount, siehe
+  oben) auf `main` entwickeln — Änderungen entstehen auf `develop`- oder
+  `claude/*`-Branches, idealerweise in einem separaten Klon.
+- Niemals die Produktivdatenbank (`data/sportfest.db`) lesen, schreiben oder
+  überschreiben; Tests überschreiben immer `app.database.DB_PATH` (siehe
+  `Architecture`).
+- Neue oder geänderte Logik bekommt Tests in `tests/` (Service-Ebene
+  bevorzugt, siehe bestehende Testdateien als Vorlage).
+- Bestehende Funktionen nicht ohne expliziten Auftrag löschen oder Verhalten
+  stillschweigend ändern.
+- Claude erstellt Pull Requests, merged aber nie selbst (kein `gh pr merge`,
+  kein Force-Push auf geschützte Branches).
+- Kein automatisches Prod-Deployment auslösen oder die Environment-Freigabe
+  von `deploy-prod.yml` umgehen.
 
 ## Caveats
 
