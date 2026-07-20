@@ -125,6 +125,27 @@ class ArchivedEventVisibilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("Archivierter Wettbewerb", response.text)
 
+    def test_wettbewerbe_route_hides_archived_by_default_but_can_show_them(self):
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            # event_id= (leer, aber Query-Key vorhanden) verhindert, dass
+            # /wettbewerbe mangels explizitem Filter automatisch auf die
+            # aktive Veranstaltung ("Aktives Fest") einschraenkt - hier soll
+            # ausschliesslich show_archived getestet werden.
+            default_response = client.get("/wettbewerbe?event_id=")
+            shown_response = client.get("/wettbewerbe?event_id=&show_archived=1")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertIn("Aktiver Wettbewerb", default_response.text)
+        self.assertNotIn("Archivierter Wettbewerb", default_response.text)
+
+        self.assertEqual(shown_response.status_code, 200)
+        self.assertIn("Aktiver Wettbewerb", shown_response.text)
+        self.assertIn("Archivierter Wettbewerb", shown_response.text)
+
     def test_tabellen_route_hides_archived_event_competition(self):
         from fastapi.testclient import TestClient
 

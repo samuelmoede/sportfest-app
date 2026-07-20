@@ -77,9 +77,12 @@ def create_router(
         selected_event_id = request.query_params.get("event_id", "").strip()
         saved_competition_id = request.query_params.get("saved_competition_id", "").strip()
         saved_at = request.query_params.get("saved_at", "").strip()
+        show_archived = request.query_params.get("show_archived", "") == "1"
         saved_competition_id_value = None
         if saved_competition_id.isdigit():
             saved_competition_id_value = int(saved_competition_id)
+        if not show_archived:
+            competitions = [c for c in competitions if c["status"] != "archiviert"]
         with get_conn() as conn:
             disciplines = conn.execute("""
                 SELECT * FROM competition_disciplines
@@ -87,7 +90,7 @@ def create_router(
             """).fetchall()
             events = fetch_events_with_competition_counts(
                 conn,
-                include_archived=True,
+                include_archived=show_archived,
             )
             team_counts = conn.execute("""
                 SELECT jahrgang, COUNT(*) AS count
@@ -140,6 +143,7 @@ def create_router(
                 "events": events,
                 "events_by_id": {event["id"]: event for event in events},
                 "selected_event_id": selected_event_id_value,
+                "show_archived": show_archived,
                 "saved_competition_id": saved_competition_id_value,
                 "saved_at": saved_at,
                 "team_counts_by_year": {

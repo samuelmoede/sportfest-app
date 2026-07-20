@@ -1956,6 +1956,20 @@ section.cards.competition-list {
     align-self: flex-end;
 }
 
+.filter-row .filter-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-end;
+    min-height: 38px;
+}
+
+.filter-row .filter-checkbox input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+}
+
 /* --- Kompakt-Panel für Formulare (Team hinzufügen etc.) --- */
 .compact-form-panel .admin-form {
     gap: 11px 16px;

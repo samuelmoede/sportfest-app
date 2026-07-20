@@ -21,6 +21,10 @@
             {% endfor %}
         </select>
     </label>
+    <label class="filter-checkbox">
+        <input type="checkbox" name="show_archived" value="1" {% if show_archived %}checked{% endif %} onchange="this.form.requestSubmit()">
+        <span>Archivierte anzeigen</span>
+    </label>
     <button type="submit">Filtern</button>
 </form>
 
