@@ -16,6 +16,11 @@ from app.web import ROOT_DIR, get_app_version
 DEFAULT_BEAMER_REFRESH_SECONDS = 30
 DEFAULT_DASHBOARD_INFO_TEXT = "Achtung - bei Regen wird Plan B durchgeführt."
 DEFAULT_SECURITY_ENABLED = False
+SITE_THEMES = {
+    "standard": "Standard",
+    "dunkel": "Dunkel",
+}
+DEFAULT_SITE_THEME = "standard"
 ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
 ROLES = {"viewer", "station_helper", "referee", "admin"}
@@ -96,6 +101,18 @@ def get_dashboard_info_text():
 
 def set_dashboard_info_text(value: str):
     set_setting("dashboard_info_text", value or "")
+
+
+def get_site_theme():
+    value = get_setting("site_theme", DEFAULT_SITE_THEME)
+    return value if value in SITE_THEMES else DEFAULT_SITE_THEME
+
+
+def set_site_theme(value: str):
+    if value not in SITE_THEMES:
+        return False
+    set_setting("site_theme", value)
+    return True
 
 
 def render_rich_text_html(value: str):

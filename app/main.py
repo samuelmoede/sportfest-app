@@ -82,6 +82,7 @@ from app.services.settings_service import (
     get_current_role_label,
     get_dashboard_info_html,
     get_referee_password,
+    get_site_theme,
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
@@ -240,6 +241,7 @@ templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
+templates.env.globals["get_site_theme"] = get_site_theme
 
 app.include_router(settings_router)
 app.include_router(create_teams_router(app_now_db_timestamp))

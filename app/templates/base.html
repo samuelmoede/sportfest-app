@@ -1,9 +1,10 @@
+{% set site_theme = get_site_theme() %}
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="{{ site_theme }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#17233c">
+    <meta name="theme-color" content="{{ '#0f172a' if site_theme == 'dunkel' else '#17233c' }}">
     <title>Sportfest Manager</title>
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
     {% block extra_head %}{% endblock %}

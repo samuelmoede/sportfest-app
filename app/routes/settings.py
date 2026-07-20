@@ -23,6 +23,7 @@ from app.services.settings_service import (
     get_recent_change_log,
     get_security_enabled_setting,
     get_security_environment_override,
+    get_site_theme,
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
@@ -31,6 +32,8 @@ from app.services.settings_service import (
     set_beamer_refresh_seconds,
     set_dashboard_info_text,
     set_setting,
+    set_site_theme,
+    SITE_THEMES,
 )
 from app.database import get_conn
 from app.web import templates
@@ -49,6 +52,7 @@ def einstellungen(
     reset_status: str = "",
     restore_status: str = "",
     delete_status: str = "",
+    theme_status: str = "",
     saved_at: str = "",
 ):
     try:
@@ -66,7 +70,10 @@ def einstellungen(
         "reset_status": reset_status,
         "restore_status": restore_status,
         "delete_status": delete_status,
+        "theme_status": theme_status,
         "saved_at": saved_at_value,
+        "site_theme": get_site_theme(),
+        "site_themes": SITE_THEMES,
         "security_enabled": is_security_enabled(),
         "security_requested": get_security_enabled_setting(),
         "security_environment_override": get_security_environment_override(),
@@ -233,6 +240,23 @@ def update_dashboard_info(
     saved_at = app_now_db_timestamp()
     return RedirectResponse(
         f"/einstellungen?settings_status=dashboard_info_saved&saved_at={saved_at}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/theme")
+def update_site_theme(
+    site_theme: str = Form(...),
+):
+    if not set_site_theme(site_theme):
+        return RedirectResponse(
+            "/einstellungen?theme_status=invalid",
+            status_code=303,
+        )
+
+    saved_at = app_now_db_timestamp()
+    return RedirectResponse(
+        f"/einstellungen?theme_status=saved&saved_at={saved_at}",
         status_code=303,
     )
 
