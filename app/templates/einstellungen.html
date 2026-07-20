@@ -195,6 +195,28 @@
 </section>
 
 <section class="panel">
+    <h2>Design</h2>
+    <form method="post" action="/einstellungen/theme" class="inline-form">
+        <label for="site_theme">Farbschema für alle Besucher</label>
+        <select id="site_theme" name="site_theme">
+            {% for theme_key, theme_label in site_themes.items() %}
+            <option value="{{ theme_key }}" {% if theme_key == site_theme %}selected{% endif %}>{{ theme_label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Design speichern</button>
+        {% if theme_status == "saved" and saved_at %}
+        <span class="save-feedback-inline">Gespeichert um {{ saved_at }}</span>
+        {% endif %}
+    </form>
+    <p class="muted">
+        Gilt sofort site-weit für alle Besucher (kein Login erforderlich).
+    </p>
+    {% if theme_status == "invalid" %}
+        <p class="error-text">Unbekanntes Design.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
     <h2>Globale Anzeigeeinstellung</h2>
     <form method="post" action="/einstellungen/beamer-intervall" class="inline-form">
         <label for="beamer_refresh_seconds">Beamer-/Live-Aktualisierungsintervall (Sekunden)</label>

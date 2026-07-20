@@ -2062,3 +2062,34 @@ section.cards.competition-list {
 .team-row-inactive td {
     opacity: 0.55;
 }
+
+/* ==========================================================================
+   Theme "Dunkel" – zweites, waehlbares Farbschema (site-weite Einstellung,
+   siehe /einstellungen). Gleiches Layout wie "Standard", nur die zentralen
+   Farbvariablen werden ueberschrieben.
+   ========================================================================== */
+
+[data-theme="dunkel"] {
+    --navy: #7fa8f0;
+    --navy2: #a9c4f4;
+    --orange: #f2994a;
+    --bg: #0f172a;
+    --surface: #1a2540;
+    --surface-soft: #16203a;
+    --border: #2d3c58;
+    --border-strong: #3c4f70;
+    --text: #e7ecf6;
+    --muted: #9aa9c2;
+    --green: #34d399;
+    --green-soft: #113228;
+    --blue: #7db6ff;
+    --blue-soft: #182a4d;
+    --violet: #b79bfb;
+    --violet-soft: #241f45;
+    --amber: #fbbf24;
+    --amber-soft: #3a2c10;
+    --red: #f87171;
+    --red-soft: #3a1f1f;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 5px 16px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.5);
+}
