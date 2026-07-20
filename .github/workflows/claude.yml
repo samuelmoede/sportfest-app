@@ -1,8 +1,14 @@
 name: claude
 
-# Reagiert auf "@claude"-Erwaehnungen in Issues/Kommentaren: Claude erstellt
-# einen claude/<...>-Branch gegen "develop", implementiert die Aenderung,
-# ergaenzt Tests und oeffnet einen Pull Request. Claude merged nie selbst.
+# Reagiert auf "@claude"-Erwaehnungen in Issues/Kommentaren/PR-Reviews: Claude
+# erstellt einen claude/<...>-Branch gegen "develop", implementiert die
+# Aenderung, ergaenzt Tests und oeffnet einen Pull Request. Claude merged nie
+# selbst.
+#
+# Struktur uebernommen aus der offiziellen Vorlage, die die "Claude" GitHub
+# App bei ihrer Installation selbst vorgeschlagen hat (@v1, minimal-invasive
+# read-Berechtigungen + id-token fuer den OIDC-Tokenaustausch ueber die App,
+# statt breiter Schreibrechte direkt im Workflow).
 #
 # Voraussetzung (einmalig, nur vom Repo-Owner ausfuehrbar - GitHub-App-
 # Installation/OAuth ist ein Consent-Vorgang):
@@ -19,6 +25,15 @@ name: claude
 #
 # Laeuft bewusst auf einem GitHub-Runner (nicht dem self-hosted NAS-Runner,
 # der ausschliesslich fuer Deployment reserviert bleibt).
+#
+# ACHTUNG / noch zu verifizieren: "base_branch" unten stammt aus der
+# vorherigen @beta-Konfiguration und ist bei @v1 nicht Teil der offiziellen
+# Vorlage - unklar, ob der Input noch unterstuetzt wird. Nach dem naechsten
+# echten @claude-Test in einem Issue pruefen, gegen welchen Branch der PR
+# tatsaechlich geoeffnet wird; falls es main statt develop ist, Input
+# entfernen und stattdessen in der Aufgabenbeschreibung explizit "PR gegen
+# develop" verlangen, oder auf eine ggf. aktuellere Eingabebezeichnung
+# umstellen (Dokumentation der Action pruefen).
 
 on:
   issue_comment:
@@ -27,25 +42,31 @@ on:
     types: [opened, assigned]
   pull_request_review_comment:
     types: [created]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@beta
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           base_branch: develop
-          trigger_phrase: "@claude"
