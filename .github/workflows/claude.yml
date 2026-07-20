@@ -1,0 +1,51 @@
+name: claude
+
+# Reagiert auf "@claude"-Erwaehnungen in Issues/Kommentaren: Claude erstellt
+# einen claude/<...>-Branch gegen "develop", implementiert die Aenderung,
+# ergaenzt Tests und oeffnet einen Pull Request. Claude merged nie selbst.
+#
+# Voraussetzung (einmalig, nur vom Repo-Owner ausfuehrbar - GitHub-App-
+# Installation/OAuth ist ein Consent-Vorgang):
+#   1) die "Claude" GitHub App installieren (GitHub -> Settings ->
+#      Applications -> GitHub Apps, oder Marketplace-Suche "Claude").
+#   2) In einer interaktiven Claude-Code-Session (Pro/Max-Abo) einmalig
+#      `claude setup-token` ausfuehren - das nutzt das Kontingent des
+#      bestehenden Abos, statt zusaetzliches API-Billing zu benoetigen.
+#      Den ausgegebenen Token als Repo-Secret CLAUDE_CODE_OAUTH_TOKEN
+#      hinterlegen (Settings -> Secrets and variables -> Actions).
+#   Alternative statt Schritt 2, falls stattdessen separates API-Billing
+#   gewuenscht ist: ANTHROPIC_API_KEY-Secret setzen und unten
+#   "claude_code_oauth_token" durch "anthropic_api_key" ersetzen.
+#
+# Laeuft bewusst auf einem GitHub-Runner (nicht dem self-hosted NAS-Runner,
+# der ausschliesslich fuer Deployment reserviert bleibt).
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          base_branch: develop
+          trigger_phrase: "@claude"
