@@ -159,7 +159,7 @@
     margin: 0 -10px;
     padding: 16px;
     border-radius: 14px 14px 0 0;
-    background: #e2e8f0;
+    background: var(--surface-soft);
 }
 
 
@@ -175,8 +175,8 @@
 }
 
 .editor-time-cell.is-empty {
-    border-color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.48);
+    border-color: var(--border-strong);
+    background: var(--surface-soft);
 }
 
 .editor-time-cell.is-empty::after {
@@ -189,7 +189,7 @@
 
 .editor-time-cell.drag-over {
     border-color: var(--orange);
-    background: #fff7ed;
+    background: var(--amber-soft);
 }
 
 .editor-time-cell .slot-card {
@@ -221,7 +221,7 @@
 }
 
 .court-column {
-    background: #eef2f7;
+    background: var(--surface-soft);
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 16px;
@@ -279,7 +279,7 @@
 
 .dropzone.drag-over {
     outline: 3px dashed var(--orange);
-    background: #fff7ed;
+    background: var(--amber-soft);
 }
 
 .slot-time {
@@ -314,23 +314,23 @@
 }
 
 .phase-pill.phase-gruppe {
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--blue-soft);
+    color: var(--blue);
 }
 
 .phase-pill.phase-halbfinale {
-    background: #ffedd5;
-    color: #ea580c;
+    background: var(--violet-soft);
+    color: var(--violet);
 }
 
 .phase-pill.phase-finale {
-    background: #fef08a;
-    color: #92400e;
+    background: var(--amber-soft);
+    color: var(--amber);
 }
 
 .phase-pill.phase-platz3 {
-    background: #e2e8f0;
-    color: #475569;
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .slot-teams {
@@ -362,7 +362,7 @@
     min-width: 42px;
     padding: 3px 7px;
     border-radius: 7px;
-    background: #eef2f7;
+    background: var(--surface-soft);
     color: var(--muted);
     font-size: 0.9em;
     font-weight: 800;
@@ -397,28 +397,28 @@
     align-items: center;
     padding: 0.18rem 0.6rem;
     border-radius: 999px;
-    background: #eef6ff;
-    color: #0f2f66;
-    border: 1px solid #c7ddff;
+    background: var(--blue-soft);
+    color: var(--blue);
+    border: 1px solid var(--blue);
     white-space: nowrap;
     font-size: 0.85rem;
 }
 
 .slot-duration.on-time {
-    background: #eef6ff;
-    color: #0f2f66;
-    border-color: #c7ddff;
+    background: var(--blue-soft);
+    color: var(--blue);
+    border-color: var(--blue);
 }
 
 .slot-duration.near-end {
-    background: #fffbeb;
-    color: #92400e;
-    border-color: #fde68a;
+    background: var(--amber-soft);
+    color: var(--amber);
+    border-color: var(--amber);
 }
 
 .slot-duration.overrun {
-    background: #fef2f2;
-    color: #991b1b;
-    border-color: #fecaca;
+    background: var(--red-soft);
+    color: var(--red);
+    border-color: var(--red);
 }
 

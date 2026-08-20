@@ -4,8 +4,8 @@
  */
 
 .next-event-panel {
-    border-color: #c7ddff;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border-color: var(--blue);
+    background: var(--surface);
 }
 
 .next-event-name {
@@ -56,7 +56,7 @@
 }
 
 .pill {
-    background: #eef2f7;
+    background: var(--surface-soft);
     padding: 6px 12px;
     border-radius: 999px;
 }
@@ -64,7 +64,7 @@
 table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--surface);
 }
 
 th,
@@ -75,7 +75,7 @@ td {
 }
 
 .score-small {
-    background: #eef2f7;
+    background: var(--surface-soft);
     padding: 4px 8px;
     border-radius: 6px;
     margin: 0 8px;
@@ -92,8 +92,8 @@ td {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-    background: #f0fdf4;
-    border-color: #86efac;
+    background: var(--green-soft);
+    border-color: var(--green);
 }
 
 .phase-ready-content strong {
@@ -107,8 +107,8 @@ td {
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--red-soft);
+    border-color: var(--red);
 }
 
 .overwrite-warning-banner p {
@@ -116,8 +116,8 @@ td {
 }
 
 .correction-blocked-banner {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--red-soft);
+    border-color: var(--red);
 }
 
 .correction-blocked-banner p {
@@ -125,13 +125,13 @@ td {
 }
 
 .draw-warning-pill {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--amber-soft);
+    color: var(--amber);
     font-weight: 700;
 }
 
 .patt-warning-text {
-    color: #92400e;
+    color: var(--amber);
     margin: 6px 0 0;
 }
 
@@ -160,10 +160,10 @@ td {
     align-items: center;
     min-height: 26px;
     padding: 4px 8px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     border-radius: 999px;
-    background: #f8fafc;
-    color: #475569;
+    background: var(--surface-soft);
+    color: var(--muted);
     font-size: 0.78rem;
     font-weight: 800;
     white-space: nowrap;
