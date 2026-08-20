@@ -1332,11 +1332,11 @@ section.cards.competition-list {
 .role-overview-card {
     padding: 16px;
     border-radius: 13px;
-    background: #f7f9fc;
+    background: var(--surface-soft);
 }
 
 .settings-item strong {
-    color: #334155;
+    color: var(--text);
 }
 
 .documentation-panel {
