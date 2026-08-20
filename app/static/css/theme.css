@@ -51,12 +51,13 @@ body {
 }
 
 a {
-    color: #1d4ed8;
+    color: var(--blue);
     text-underline-offset: 0.18em;
 }
 
 a:hover {
-    color: #1e40af;
+    color: var(--blue);
+    opacity: 0.85;
 }
 
 :focus-visible {
@@ -107,7 +108,7 @@ p {
 
 .eyebrow {
     margin: 0 0 7px;
-    color: #52627a;
+    color: var(--muted);
     font-size: 0.72rem;
     font-weight: 850;
     letter-spacing: 0.13em;
@@ -143,11 +144,11 @@ p {
     margin-bottom: 26px;
     padding: clamp(24px, 4vw, 42px);
     overflow: hidden;
-    border: 1px solid #cad8ee;
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background:
         radial-gradient(circle at 88% 16%, rgba(96, 165, 250, 0.2), transparent 17rem),
-        linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
+        var(--surface);
     box-shadow: var(--shadow-md);
 }
 
@@ -183,7 +184,7 @@ p {
     align-items: center;
     gap: 8px 14px;
     margin-top: 15px;
-    color: #52627a;
+    color: var(--muted);
     font-size: 0.88rem;
     font-weight: 650;
 }
@@ -262,7 +263,7 @@ button,
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface);
-    color: #304158;
+    color: var(--text);
     font: inherit;
     font-size: 0.9rem;
     font-weight: 750;
@@ -276,7 +277,7 @@ button,
 button:hover,
 .button:hover {
     border-color: #9fb0c6;
-    background: #f8fafc;
+    background: var(--surface-soft);
     color: var(--text);
     box-shadow: 0 5px 14px rgba(23, 32, 51, 0.08);
     transform: translateY(-1px);
@@ -304,7 +305,7 @@ button.secondary,
 .button.secondary {
     border-color: var(--border-strong);
     background: var(--surface);
-    color: #304158;
+    color: var(--text);
 }
 
 button.danger,
@@ -313,7 +314,7 @@ button.red,
 .button.red {
     border-color: #e6aaaa;
     background: var(--red-soft);
-    color: #aa2828;
+    color: var(--red);
 }
 
 button.danger:hover,
@@ -321,14 +322,14 @@ button.red:hover,
 .button.danger:hover,
 .button.red:hover {
     border-color: #d77474;
-    background: #ffe2e2;
-    color: #8d2020;
+    background: var(--red-soft);
+    color: var(--red);
 }
 
 button.outline {
     margin-top: 0;
     border-color: #bdc9d8;
-    color: #334155;
+    color: var(--text);
 }
 
 button:disabled,
@@ -348,7 +349,7 @@ textarea {
     padding: 9px 12px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    background: #fff;
+    background: var(--surface);
     color: var(--text);
     font: inherit;
     font-size: 16px;
@@ -375,7 +376,7 @@ textarea:focus {
 }
 
 label {
-    color: #405168;
+    color: var(--text);
     font-weight: 700;
 }
 
@@ -408,7 +409,7 @@ label > span:first-child {
 }
 
 .admin-form label {
-    color: #405168;
+    color: var(--text);
 }
 
 .form-panel {
@@ -484,9 +485,9 @@ label > span:first-child {
 }
 
 .court-status.is-inactive {
-    border-color: #d3dbe6;
-    background: #f1f4f8;
-    color: #5c6b7f;
+    border-color: var(--border-strong);
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .status-dot {
@@ -498,39 +499,39 @@ label > span:first-child {
 
 .badge.läuft,
 .day-status.status-running {
-    border-color: #a8dfc0;
+    border-color: var(--green);
     background: var(--green-soft);
-    color: #12713f;
+    color: var(--green);
 }
 
 .badge.gleich,
 .badge.soon,
 .day-status.status-next,
 .day-status.status-soon {
-    border-color: #f0ce83;
+    border-color: var(--amber);
     background: var(--amber-soft);
-    color: #9a5606;
+    color: var(--amber);
 }
 
 .badge.geplant,
 .day-status.status-planned {
-    border-color: #d3dbe6;
-    background: #f1f4f8;
-    color: #5c6b7f;
+    border-color: var(--border-strong);
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .badge.aktiv,
 .badge.beendet,
 .day-status.status-done {
-    border-color: #b6dfc7;
-    background: #eaf7ef;
-    color: #176b40;
+    border-color: var(--green);
+    background: var(--green-soft);
+    color: var(--green);
 }
 
 .badge.archiviert {
-    border-color: #d5dbe4;
-    background: #eef1f5;
-    color: #647084;
+    border-color: var(--border-strong);
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .badge.läuft .status-dot {
@@ -539,15 +540,15 @@ label > span:first-child {
 
 .competition-kind,
 .type-turnier .competition-kind {
-    border-color: #bfd2f6;
+    border-color: var(--blue);
     background: var(--blue-soft);
-    color: #225bb7;
+    color: var(--blue);
 }
 
 .type-sechskampf .competition-kind {
-    border-color: #d8c3fa;
+    border-color: var(--violet);
     background: var(--violet-soft);
-    color: #6d35b6;
+    color: var(--violet);
 }
 
 .table-scroll,
@@ -568,13 +569,13 @@ th,
 td {
     padding: 14px 16px;
     border-right: 0;
-    border-bottom: 1px solid #e5ebf2;
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
 }
 
 th {
-    background: #f4f7fb;
-    color: #4d5c70;
+    background: var(--surface-soft);
+    color: var(--muted);
     font-size: 0.72rem;
     font-weight: 850;
     letter-spacing: 0.055em;
@@ -586,7 +587,7 @@ tbody tr {
 }
 
 tbody tr:hover td {
-    background: #f8fbff;
+    background: var(--surface-soft);
 }
 
 tbody tr:last-child td {
@@ -605,7 +606,7 @@ tbody tr:last-child td {
 
 .overall-table .overall-place,
 .standings-table td:first-child {
-    color: #496079;
+    color: var(--text);
     font-weight: 800;
 }
 
@@ -614,7 +615,7 @@ tbody tr:last-child td {
     padding: 5px 10px;
     border-radius: 999px;
     background: var(--amber-soft);
-    color: #8c520b;
+    color: var(--amber);
 }
 
 .year-group-block {
@@ -629,7 +630,7 @@ tbody tr:last-child td {
 
 .year-group-block h3 {
     margin: 0 0 12px;
-    color: #33445c;
+    color: var(--text);
     font-size: 1rem;
 }
 
@@ -640,9 +641,9 @@ tbody tr:last-child td {
     gap: 14px;
     justify-content: center;
     padding: 22px;
-    border: 1px dashed #cbd6e4;
+    border: 1px dashed var(--border-strong);
     border-radius: 14px;
-    background: #f8fafc;
+    background: var(--surface-soft);
     color: var(--muted);
     text-align: left;
 }
@@ -654,14 +655,14 @@ tbody tr:last-child td {
     height: 38px;
     place-items: center;
     border-radius: 50%;
-    background: #e8eef6;
-    color: #53667e;
+    background: var(--border);
+    color: var(--muted);
     font-weight: 900;
 }
 
 .empty-state strong {
     display: block;
-    color: #334155;
+    color: var(--text);
 }
 
 .empty-state p {
@@ -849,7 +850,7 @@ nav .nav-group {
 
 .dashboard-clock-card strong {
     margin: 3px 0;
-    color: #1f3150;
+    color: var(--text);
     font-size: clamp(2.5rem, 5vw, 4rem);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.06em;
@@ -871,7 +872,7 @@ nav .nav-group {
     padding: 19px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: #fff;
+    background: var(--surface);
     box-shadow: var(--shadow-sm);
     animation: soft-in 0.35s both;
 }
@@ -896,7 +897,7 @@ nav .nav-group {
     place-items: center;
     border-radius: 13px;
     background: var(--blue-soft);
-    color: #2563eb;
+    color: var(--blue);
 }
 
 .metric-icon.is-green {
@@ -905,8 +906,8 @@ nav .nav-group {
 }
 
 .metric-icon.is-neutral {
-    background: #eef2f6;
-    color: #5f6f84;
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .metric-icon.is-violet {
@@ -958,7 +959,7 @@ nav .nav-group {
     border: 1px solid var(--border);
     border-left: 4px solid var(--blue);
     border-radius: 13px;
-    background: #fbfdff;
+    background: var(--surface);
 }
 
 .competition-card-icon,
@@ -993,7 +994,7 @@ nav .nav-group {
 .competition-sport,
 .competition-event-name {
     margin: 0 0 3px;
-    color: #52647b;
+    color: var(--muted);
     font-size: 0.73rem;
     font-weight: 800;
     letter-spacing: 0.055em;
@@ -1020,7 +1021,7 @@ nav .nav-group {
     min-width: 64px;
     padding: 6px 10px;
     border-radius: 9px;
-    background: #e8eef6;
+    background: var(--surface-soft);
     font-size: 1.05rem;
     font-weight: 900;
     text-align: center;
@@ -1037,7 +1038,7 @@ nav .nav-group {
     align-items: center;
     gap: 13px;
     padding: 13px 0;
-    border-bottom: 1px solid #e7ecf2;
+    border-bottom: 1px solid var(--border);
 }
 
 .upcoming-card:last-child {
@@ -1045,7 +1046,7 @@ nav .nav-group {
 }
 
 .upcoming-card > time {
-    color: #233c62;
+    color: var(--text);
     font-size: 1.05rem;
     font-weight: 900;
     font-variant-numeric: tabular-nums;
@@ -1071,7 +1072,7 @@ nav .nav-group {
 }
 
 .upcoming-card strong span {
-    color: #8996a8;
+    color: var(--muted);
     font-weight: 600;
 }
 
@@ -1088,7 +1089,7 @@ nav .nav-group {
 .ranking-callout {
     background:
         radial-gradient(circle at 100% 0%, rgba(217, 119, 6, 0.11), transparent 12rem),
-        #fff;
+        var(--surface);
 }
 
 .ranking-callout .ranking-icon {
@@ -1105,7 +1106,7 @@ nav .nav-group {
     align-items: center;
     gap: 12px;
     padding: 12px 0;
-    border-bottom: 1px solid #e8edf3;
+    border-bottom: 1px solid var(--border);
     color: var(--text);
     text-decoration: none;
 }
@@ -1115,7 +1116,7 @@ nav .nav-group {
 }
 
 .event-compact-list time {
-    color: #47617f;
+    color: var(--muted);
     font-size: 0.78rem;
     font-weight: 750;
 }
@@ -1154,7 +1155,7 @@ nav .nav-group {
 }
 
 .event-type {
-    color: #52627a;
+    color: var(--muted);
     font-size: 0.75rem;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -1285,9 +1286,9 @@ section.cards.competition-list {
 .competition-meta-item {
     min-height: 28px;
     padding: 5px 9px;
-    border-color: #dce4ee;
-    background: #f7f9fc;
-    color: #52627a;
+    border-color: var(--border);
+    background: var(--surface-soft);
+    color: var(--muted);
     font-size: 0.76rem;
 }
 
@@ -1299,7 +1300,7 @@ section.cards.competition-list {
 
 .competition-summary-action {
     margin-top: 13px;
-    color: #315f9e;
+    color: var(--blue);
     font-size: 0.8rem;
 }
 
@@ -1309,7 +1310,7 @@ section.cards.competition-list {
 
 .competition-details-body {
     padding: clamp(20px, 3vw, 30px);
-    background: #fbfcfe;
+    background: var(--surface-soft);
 }
 
 .competition-card-details[open] .competition-details-body {
@@ -1325,18 +1326,18 @@ section.cards.competition-list {
     padding: 20px;
     border: 1px solid var(--border);
     border-radius: 13px;
-    background: #fff;
+    background: var(--surface);
 }
 
 .settings-item,
 .role-overview-card {
     padding: 16px;
     border-radius: 13px;
-    background: #f7f9fc;
+    background: var(--surface-soft);
 }
 
 .settings-item strong {
-    color: #334155;
+    color: var(--text);
 }
 
 .documentation-panel {
@@ -1350,7 +1351,7 @@ section.cards.competition-list {
     white-space: pre-wrap;
     word-break: break-word;
     background: transparent;
-    color: #334155;
+    color: var(--text);
     font: 14px/1.7 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
@@ -1431,12 +1432,12 @@ section.cards.competition-list {
 .location-competition-card:hover,
 .slot-card:hover,
 .result-card:hover {
-    border-color: #c0cede;
+    border-color: var(--border-strong);
     box-shadow: 0 10px 24px rgba(23, 32, 51, 0.07);
 }
 
 .result-card {
-    border-color: #d9e2ed;
+    border-color: var(--border);
 }
 
 .result-card:not(.archived) {
@@ -1897,8 +1898,8 @@ section.cards.competition-list {
 }
 
 .team-selector-item:hover {
-    background: #f0f4ff;
-    border-color: #9ec0ef;
+    background: var(--blue-soft);
+    border-color: var(--blue);
 }
 
 .team-selector-item:has(input:checked) {
@@ -1979,13 +1980,13 @@ section.cards.competition-list {
 .standings-table td:first-child,
 .overall-table td:first-child {
     font-weight: 800;
-    color: var(--navy2);
+    color: var(--text);
 }
 
 /* --- Sechskampf-Stationsrotation --- */
 .sixkampf-rotation-table td:first-child {
     font-weight: 800;
-    color: var(--navy2);
+    color: var(--text);
 }
 
 .sixkampf-rotation-table .sixkampf-rotation-pause {
@@ -2070,8 +2071,6 @@ section.cards.competition-list {
    ========================================================================== */
 
 [data-theme="dunkel"] {
-    --navy: #7fa8f0;
-    --navy2: #a9c4f4;
     --orange: #f2994a;
     --bg: #0f172a;
     --surface: #1a2540;
