@@ -13,7 +13,7 @@
 .dashboard-clock {
     font-size: 1.4rem;
     font-weight: 700;
-    color: var(--navy2);
+    color: var(--text);
     white-space: nowrap;
 }
 
@@ -28,7 +28,7 @@
 .panel,
 .card,
 .result-card {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 24px;
@@ -63,12 +63,12 @@
 }
 
 .schedule-table th {
-    background: #f8fafc;
+    background: var(--surface-soft);
     font-weight: 700;
 }
 
 .schedule-table tr.current-row {
-    background: #f0f9ff;
+    background: var(--blue-soft);
 }
 
 .location-schedule {
@@ -101,15 +101,15 @@
     padding: 8px 14px;
     border: 1px solid var(--border);
     border-radius: 999px;
-    background: white;
-    color: var(--navy2);
+    background: var(--surface);
+    color: var(--text);
     font-weight: 800;
     text-decoration: none;
 }
 
 .schedule-view-link.is-active {
-    border-color: var(--navy2);
-    background: var(--navy2);
+    border-color: var(--blue);
+    background: var(--blue);
     color: white;
 }
 
@@ -119,7 +119,7 @@
     padding: 20px;
     border: 1px solid var(--border);
     border-radius: 16px;
-    background: white;
+    background: var(--surface);
 }
 
 .location-venue-head {
@@ -150,20 +150,20 @@
     flex: 0 0 auto;
     padding: 6px 10px;
     border-radius: 999px;
-    background: #e0f2fe;
-    color: #075985;
+    background: var(--blue-soft);
+    color: var(--blue);
     font-size: 0.82rem;
     font-weight: 800;
 }
 
 .location-fußballplatz .location-pill {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--green-soft);
+    color: var(--green);
 }
 
 .location-schulhaus .location-pill {
-    background: #ffedd5;
-    color: #9a3412;
+    background: var(--amber-soft);
+    color: var(--amber);
 }
 
 .location-court-board {
@@ -178,8 +178,8 @@
     display: flex;
     align-items: flex-start;
     gap: 14px;
-    background: #fffbeb;
-    border: 1px solid #fbbf24;
+    background: var(--amber-soft);
+    border: 1px solid var(--amber);
     border-radius: 14px;
     padding: 16px 18px;
     margin-bottom: 20px;
@@ -204,12 +204,12 @@
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    color: #92400e;
+    color: var(--amber);
     padding: 0 4px;
 }
 
 .dashboard-banner-close:hover {
-    color: #451a03;
+    color: var(--text);
 }
 
 .dashboard-info-text {
@@ -241,20 +241,20 @@
     gap: 10px;
     width: 100%;
     margin: 9px 0;
-    color: #dc2626;
+    color: var(--red);
 }
 
 .day-now-marker > span {
     height: 2px;
     border-radius: 999px;
-    background: #dc2626;
+    background: var(--red);
 }
 
 .day-now-marker > strong {
     padding: 3px 8px;
-    border: 1px solid #fecaca;
+    border: 1px solid var(--red);
     border-radius: 999px;
-    background: #fff7f7;
+    background: var(--red-soft);
     font-size: 0.72rem;
     line-height: 1.2;
     letter-spacing: 0.045em;
@@ -335,14 +335,14 @@
     height: calc(var(--day-timeline-total-minutes, 60) * var(--day-timeline-px-per-minute));
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--surface-soft);
 }
 
 .day-timeline-gridline {
     position: absolute;
     left: 0;
     right: 0;
-    border-top: 1px dashed #e2e8f0;
+    border-top: 1px dashed var(--border);
 }
 
 .day-timeline-now-line {
@@ -351,7 +351,7 @@
     right: 0;
     z-index: 2;
     height: 2px;
-    background: #dc2626;
+    background: var(--red);
     pointer-events: none;
 }
 
@@ -363,7 +363,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #dc2626;
+    background: var(--red);
 }
 
 .day-timeline-block {
@@ -375,10 +375,10 @@
     margin: 1px;
     padding: 6px 8px;
     overflow: hidden;
-    border: 1px solid #dfe6f0;
+    border: 1px solid var(--border);
     border-left: 3px solid #60a5fa;
     border-radius: 8px;
-    background: white;
+    background: var(--surface);
     color: inherit;
     font-size: 0.76rem;
     line-height: 1.3;
@@ -388,7 +388,7 @@
 
 .day-timeline-block:hover,
 .day-timeline-block:focus-visible {
-    border-color: var(--navy2, #1d3a6e);
+    border-color: var(--blue);
     box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
 }
 
@@ -410,13 +410,13 @@
 }
 
 .day-timeline-block.status-running {
-    border-left-color: #16a34a;
-    background: #f0fdf4;
+    border-left-color: var(--green);
+    background: var(--green-soft);
 }
 
 .day-timeline-block.status-done {
-    border-left-color: #94a3b8;
-    background: #f1f5f9;
+    border-left-color: var(--muted);
+    background: var(--surface-soft);
     opacity: 0.75;
 }
 
@@ -426,8 +426,8 @@
     min-height: 23px;
     padding: 4px 8px;
     border-radius: 999px;
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--blue-soft);
+    color: var(--blue);
     font-size: 0.67rem;
     font-weight: 900;
     line-height: 1;
@@ -436,37 +436,37 @@
 }
 
 .day-status.status-running {
-    background: #dcfce7;
-    color: #15803d;
+    background: var(--green-soft);
+    color: var(--green);
 }
 
 .day-status.status-next {
-    background: #ede9fe;
-    color: #6d28d9;
+    background: var(--violet-soft);
+    color: var(--violet);
 }
 
 .day-status.status-soon {
-    background: #fef3c7;
-    color: #a16207;
+    background: var(--amber-soft);
+    color: var(--amber);
 }
 
 .day-status.status-done {
-    background: #e2e8f0;
-    color: #475569;
+    background: var(--surface-soft);
+    color: var(--muted);
 }
 
 .schedule-table tr.status-running td {
-    background: #f0fdf4;
+    background: var(--green-soft);
 }
 
 .schedule-table tr.status-next td,
 .schedule-table tr.status-soon td {
-    background: #fffbeb;
+    background: var(--amber-soft);
 }
 
 .schedule-table tr.status-done td {
-    color: #64748b;
-    background: #f8fafc;
+    color: var(--muted);
+    background: var(--surface-soft);
 }
 
 .timing-forecast {
@@ -474,9 +474,9 @@
     gap: 8px;
     margin-top: 18px;
     padding: 14px 16px;
-    border: 1px solid #bae6fd;
+    border: 1px solid var(--blue);
     border-radius: 12px;
-    background: #f0f9ff;
+    background: var(--blue-soft);
 }
 
 .timing-forecast > div:not(.timing-forecast-courts) {
@@ -494,15 +494,15 @@
 .timing-forecast-courts span {
     padding: 5px 9px;
     border-radius: 999px;
-    background: white;
-    color: var(--navy2);
+    background: var(--surface);
+    color: var(--text);
     font-size: 0.85rem;
     font-weight: 700;
 }
 
 .timing-forecast-courts .is-overrun {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--red-soft);
+    color: var(--red);
 }
 
 .preview-forecast {
@@ -520,12 +520,12 @@
     padding: 18px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: white;
+    background: var(--surface);
 }
 
 .location-schedule-group h3 {
     margin: 0 0 12px;
-    color: var(--navy2);
+    color: var(--text);
 }
 
 .location-subgroup-title {
@@ -548,11 +548,11 @@
     border: 1px solid var(--border);
     border-left: 4px solid var(--orange);
     border-radius: 10px;
-    background: #f8fafc;
+    background: var(--surface-soft);
 }
 
 .location-competition-time {
-    color: var(--navy2);
+    color: var(--text);
     font-weight: 900;
     white-space: nowrap;
 }
@@ -581,7 +581,7 @@
     padding: 20px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: white;
+    background: var(--surface);
 }
 
 .sportplatz-timeline h2 {
@@ -602,13 +602,13 @@
     border: 1px solid var(--border);
     border-left: 4px solid var(--green);
     border-radius: 10px;
-    background: #f8fafc;
+    background: var(--surface-soft);
 }
 
 .sportplatz-timeline-time {
     display: flex;
     gap: 5px;
-    color: var(--navy2);
+    color: var(--text);
     font-weight: 900;
     white-space: nowrap;
 }
@@ -647,7 +647,7 @@
 .progress-bar {
     position: relative;
     height: 10px;
-    background: #e2e8f0;
+    background: var(--border-strong);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -662,8 +662,8 @@
     display: flex;
     gap: 16px;
     align-items: center;
-    border: 1px solid #ffd7ad;
-    background: #fff7ed;
+    border: 1px solid var(--amber);
+    background: var(--amber-soft);
     padding: 18px;
     border-radius: 12px;
     margin-bottom: 12px;
@@ -671,7 +671,7 @@
 
 .match strong {
     font-size: 24px;
-    background: white;
+    background: var(--surface);
     padding: 8px 14px;
     border-radius: 8px;
 }
@@ -680,4 +680,3 @@
     margin-left: auto;
     color: var(--muted);
 }
-
