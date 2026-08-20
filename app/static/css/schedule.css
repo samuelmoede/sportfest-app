@@ -234,7 +234,7 @@
 }
 
 .slot-card {
-    background: white;
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 16px;
@@ -284,7 +284,7 @@
 
 .slot-time {
     font-weight: 800;
-    color: var(--navy2);
+    color: var(--text);
     margin-bottom: 8px;
     font-size: 0.95rem;
 }

@@ -262,7 +262,7 @@ button,
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface);
-    color: #304158;
+    color: var(--text);
     font: inherit;
     font-size: 0.9rem;
     font-weight: 750;
@@ -276,7 +276,7 @@ button,
 button:hover,
 .button:hover {
     border-color: #9fb0c6;
-    background: #f8fafc;
+    background: var(--surface-soft);
     color: var(--text);
     box-shadow: 0 5px 14px rgba(23, 32, 51, 0.08);
     transform: translateY(-1px);
@@ -304,7 +304,7 @@ button.secondary,
 .button.secondary {
     border-color: var(--border-strong);
     background: var(--surface);
-    color: #304158;
+    color: var(--text);
 }
 
 button.danger,
@@ -313,7 +313,7 @@ button.red,
 .button.red {
     border-color: #e6aaaa;
     background: var(--red-soft);
-    color: #aa2828;
+    color: var(--red);
 }
 
 button.danger:hover,
@@ -321,14 +321,14 @@ button.red:hover,
 .button.danger:hover,
 .button.red:hover {
     border-color: #d77474;
-    background: #ffe2e2;
-    color: #8d2020;
+    background: var(--red-soft);
+    color: var(--red);
 }
 
 button.outline {
     margin-top: 0;
     border-color: #bdc9d8;
-    color: #334155;
+    color: var(--text);
 }
 
 button:disabled,
@@ -348,7 +348,7 @@ textarea {
     padding: 9px 12px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    background: #fff;
+    background: var(--surface);
     color: var(--text);
     font: inherit;
     font-size: 16px;
@@ -1979,13 +1979,13 @@ section.cards.competition-list {
 .standings-table td:first-child,
 .overall-table td:first-child {
     font-weight: 800;
-    color: var(--navy2);
+    color: var(--text);
 }
 
 /* --- Sechskampf-Stationsrotation --- */
 .sixkampf-rotation-table td:first-child {
     font-weight: 800;
-    color: var(--navy2);
+    color: var(--text);
 }
 
 .sixkampf-rotation-table .sixkampf-rotation-pause {
@@ -2070,8 +2070,6 @@ section.cards.competition-list {
    ========================================================================== */
 
 [data-theme="dunkel"] {
-    --navy: #7fa8f0;
-    --navy2: #a9c4f4;
     --orange: #f2994a;
     --bg: #0f172a;
     --surface: #1a2540;
