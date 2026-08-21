@@ -424,7 +424,7 @@
         safeSessionRemove();
 
         if (typeof state.scrollY === "number") {
-            window.scrollTo({ top: state.scrollY, left: 0, behavior: "auto" });
+            window.scrollTo({ top: state.scrollY, left: 0, behavior: "instant" });
         }
 
         const highlightedSubmitter = findSubmitter(document.activeElement?.form, state.submitter)
