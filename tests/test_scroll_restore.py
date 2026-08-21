@@ -1,3 +1,4 @@
+import re
 import sys
 import tempfile
 import unittest
@@ -66,6 +67,41 @@ class ScrollRestoreTests(unittest.TestCase):
         css_path = ROOT_DIR / "app" / "static" / "css" / "results.css"
         css_text = css_path.read_text(encoding="utf-8")
         self.assertIn(".submit-restore-highlight", css_text)
+
+    def test_scroll_restore_uses_instant_behavior(self):
+        # theme.css setzt site-weit `html { scroll-behavior: smooth }`.
+        # window.scrollTo({..., behavior: "auto"}) folgt laut Spec dieser
+        # CSS-Eigenschaft (also "smooth"), wodurch die Wiederherstellung nach
+        # einem Formular-Reload sichtbar animiert nach unten scrollt statt
+        # sofort an der richtigen Position zu sein. Nur "instant" ignoriert
+        # `scroll-behavior: smooth` und springt direkt dorthin.
+        theme_css_path = ROOT_DIR / "app" / "static" / "css" / "theme.css"
+        theme_css_text = theme_css_path.read_text(encoding="utf-8")
+        self.assertRegex(
+            theme_css_text,
+            r"html\s*\{[^}]*scroll-behavior:\s*smooth",
+            "theme.css sollte weiterhin site-weit scroll-behavior: smooth setzen "
+            "(sonst ist dieser Test hinfaellig)",
+        )
+
+        base_html_path = ROOT_DIR / "app" / "templates" / "base.html"
+        base_html_text = base_html_path.read_text(encoding="utf-8")
+        scroll_to_calls = re.findall(r"window\.scrollTo\(\{[^}]*\}\)", base_html_text)
+        self.assertTrue(scroll_to_calls, "kein window.scrollTo(...) Aufruf in base.html gefunden")
+
+        restore_call = next(
+            (call for call in scroll_to_calls if "state.scrollY" in call), None
+        )
+        self.assertIsNotNone(
+            restore_call, "kein window.scrollTo(...) Aufruf fuer state.scrollY gefunden"
+        )
+        self.assertIn(
+            'behavior: "instant"',
+            restore_call,
+            "die Restore-Scrollbewegung muss behavior: \"instant\" verwenden, "
+            "da \"auto\" von scroll-behavior: smooth beeinflusst wird und "
+            "dadurch sichtbar animiert statt sofort an die alte Position springt",
+        )
 
 
 if __name__ == "__main__":
