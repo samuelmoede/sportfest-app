@@ -640,7 +640,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
    Drag&Drop-Bedienung sinnvoll, hier sollen moeglichst viele Feld-Spalten
    gleichzeitig sichtbar sein (Feedback aus PR #54). */
 .results-time-grid {
-    grid-template-columns: 54px repeat(var(--editor-court-count), minmax(230px, 1fr));
+    grid-template-columns: 54px repeat(var(--editor-court-count), minmax(230px, min(1fr, 320px)));
     grid-auto-rows: minmax(0, auto);
     gap: 8px;
 }
@@ -720,7 +720,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 }
 @media (max-width: 640px) {
     .results-time-grid {
-        grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, 1fr));
+        grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, min(1fr, 260px)));
     }
     .results-court-column {
         min-width: 180px;
