@@ -304,6 +304,12 @@ nav a:hover,
     color: #dbeafe;
 }
 
+.role-tournament_lead {
+    border-color: #a855f7;
+    background: #3b2354;
+    color: #f3e8ff;
+}
+
 .role-admin {
     border-color: #f97316;
     background: #4a2a24;

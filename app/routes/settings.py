@@ -23,6 +23,7 @@ from app.services.settings_service import (
     get_current_role_label,
     get_password_environment_override,
     get_referee_password,
+    get_tournament_lead_password,
     get_recent_change_log,
     get_security_enabled_setting,
     get_security_environment_override,
@@ -87,6 +88,7 @@ def einstellungen(
         "security_environment_override": get_security_environment_override(),
         "login_prepared": is_login_prepared(),
         "helper_login_prepared": bool(get_referee_password()),
+        "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
         "logged_in": is_logged_in(request),
         "current_role": get_current_role(request),
         "current_role_label": get_current_role_label(request),
@@ -98,7 +100,7 @@ def einstellungen(
                 "description": ROLE_DESCRIPTIONS[role],
                 "prepared_only": role == "station_helper",
             }
-            for role in ("viewer", "station_helper", "referee", "admin")
+            for role in ("viewer", "station_helper", "referee", "tournament_lead", "admin")
         ],
         "recent_changes": recent_changes,
         "change_log_count": get_change_log_count(),

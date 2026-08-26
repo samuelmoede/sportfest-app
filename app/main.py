@@ -83,6 +83,7 @@ from app.services.settings_service import (
     get_dashboard_info_html,
     get_referee_password,
     get_site_theme,
+    get_tournament_lead_password,
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
@@ -127,7 +128,13 @@ AREA_ACCESS_RULES = (
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
 # Bereichspfads. Die Zuordnung hier hält auch direkte POST-Aufrufe im selben
 # zentralen Bereichsschutz.
+#
+# Wird vor AREA_ACCESS_RULES geprüft (siehe get_required_role): so können
+# einzelne Pfade unterhalb eines sonst admin-only Bereichspräfixes (z.B.
+# /events) gezielt für eine schwächere Rolle geöffnet werden, ohne den
+# gesamten Bereich freizugeben.
 ACTION_ACCESS_RULES = (
+    (re.compile(r"^/events/\d+$"), "tournament_lead"),
     (
         re.compile(
             r"^/competition/[^/]+/discipline/[^/]+/team/[^/]+/results$"
@@ -291,12 +298,12 @@ def safe_next_url(value: str, default: str = "/"):
     return default
 
 def get_required_role(path: str):
-    for prefix, required_role in AREA_ACCESS_RULES:
-        if path == prefix or path.startswith(f"{prefix}/"):
-            return required_role
-
     for pattern, required_role in ACTION_ACCESS_RULES:
         if pattern.fullmatch(path):
+            return required_role
+
+    for prefix, required_role in AREA_ACCESS_RULES:
+        if path == prefix or path.startswith(f"{prefix}/"):
             return required_role
     return None
 
@@ -1851,6 +1858,7 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
             "helper_login_prepared": bool(get_referee_password()),
+            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),
@@ -1923,6 +1931,7 @@ def login(
                 "next_url": safe_next_url(next),
                 "admin_login_prepared": is_login_prepared(),
                 "helper_login_prepared": bool(get_referee_password()),
+                "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
                 "security_enabled": is_security_enabled(),
                 "logged_in": is_logged_in(request),
                 "current_role": get_current_role(request),
@@ -1938,6 +1947,7 @@ def login(
 
     role_passwords = {
         "referee": get_referee_password(),
+        "tournament_lead": get_tournament_lead_password(),
         "admin": get_admin_password(),
     }
     configured_password = role_passwords.get(target_role, "")
@@ -1959,6 +1969,7 @@ def login(
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
             "helper_login_prepared": bool(get_referee_password()),
+            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),

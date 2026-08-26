@@ -24,23 +24,26 @@ SITE_THEMES = {
 DEFAULT_SITE_THEME = "standard"
 ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
-ROLES = {"viewer", "station_helper", "referee", "admin"}
+ROLES = {"viewer", "station_helper", "referee", "tournament_lead", "admin"}
 ROLE_LABELS = {
     "viewer": "Viewer",
     "station_helper": "Stationshelfer",
     "referee": "Schiedsrichter",
+    "tournament_lead": "Turnierleitung",
     "admin": "Admin",
 }
 ROLE_DESCRIPTIONS = {
     "viewer": "\u00d6ffentliche Ansichten ohne Bearbeitungsrechte",
     "station_helper": "Stationsrolle vorbereitet, derzeit noch ohne Anmeldung und Stationsrechte",
     "referee": "Ergebnisse erfassen und Spieltimer bedienen",
+    "tournament_lead": "Wie Schiedsrichter, zus\u00e4tzlich Gewinnlisten und Siegerehrung einsehen",
     "admin": "Vollzugriff auf Verwaltung und Planung",
 }
 ROLE_ACCESS_LEVELS = {
     "viewer": 0,
     "station_helper": 0,
     "referee": 1,
+    "tournament_lead": 1,
     "admin": 2,
 }
 
@@ -187,6 +190,13 @@ def get_referee_password():
     return get_setting("referee_password", "") or ""
 
 
+def get_tournament_lead_password():
+    environment_password = os.getenv("SPORTFEST_TOURNAMENT_LEAD_PASSWORD")
+    if environment_password:
+        return environment_password
+    return get_setting("tournament_lead_password", "") or ""
+
+
 PASSWORD_ROLES = {
     "admin": {
         "setting_key": "admin_password",
@@ -197,6 +207,11 @@ PASSWORD_ROLES = {
         "setting_key": "referee_password",
         "environment_variables": ("SPORTFEST_REFEREE_PASSWORD",),
         "get_password": get_referee_password,
+    },
+    "tournament_lead": {
+        "setting_key": "tournament_lead_password",
+        "environment_variables": ("SPORTFEST_TOURNAMENT_LEAD_PASSWORD",),
+        "get_password": get_tournament_lead_password,
     },
 }
 
@@ -272,13 +287,23 @@ def can_access_role(request: Request, required_role: str):
         return current_role in {"station_helper", "admin"}
     if current_role == "station_helper":
         return required_role == "viewer"
+    # Turnierleitung liegt auf demselben Zugriffslevel wie Schiedsrichter
+    # (siehe ROLE_ACCESS_LEVELS), bekommt aber ueber diese explizite Pruefung
+    # zusaetzlich Zugriff auf einzelne, sonst admin-only Ansichten (z.B.
+    # Gesamtwertung/Siegerehrung), ohne durch einen reinen Level-Vergleich
+    # gleich auch admin-only Verwaltungsbereiche (Spielfelder, Events,
+    # Wettbewerbe anlegen) freizuschalten.
+    if required_role == "tournament_lead":
+        return current_role in {"tournament_lead", "admin"}
     current_level = ROLE_ACCESS_LEVELS[current_role]
     required_level = ROLE_ACCESS_LEVELS[required_role]
     return current_level >= required_level
 
 
 def is_logged_in(request: Request):
-    return get_current_role(request) in {"station_helper", "referee", "admin"}
+    return get_current_role(request) in {
+        "station_helper", "referee", "tournament_lead", "admin",
+    }
 
 
 def get_recent_change_log(limit: int = 50):
