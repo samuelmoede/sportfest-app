@@ -632,18 +632,86 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 {% endif %}
 
 <style>
+/* Kompakteres Grid als der Spielplan-Editor: dort sind breite Spalten fuer
+   Drag&Drop-Bedienung sinnvoll, hier sollen moeglichst viele Feld-Spalten
+   gleichzeitig sichtbar sein (Feedback aus PR #54). */
 .results-time-grid {
-    grid-template-columns: 76px repeat(var(--editor-court-count), minmax(340px, 1fr));
+    grid-template-columns: 54px repeat(var(--editor-court-count), minmax(230px, 1fr));
+    grid-auto-rows: minmax(0, auto);
+    gap: 8px;
+}
+.results-time-grid .editor-time-corner,
+.results-time-grid .editor-time-label {
+    padding: 8px 4px;
+    font-size: 0.78rem;
+}
+.results-court-column {
+    min-width: 230px;
+    padding: 0 6px 6px;
+}
+.results-court-column .editor-court-heading {
+    padding: 10px;
+    margin: 0 -6px;
+    font-size: 0.95rem;
+}
+.results-time-cell {
+    min-height: 0;
+    padding: 4px;
+    gap: 6px;
 }
 .results-time-cell.is-empty::after {
     content: "– kein Spiel –";
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 60px;
+    min-height: 44px;
     color: var(--muted);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-style: italic;
+}
+.results-court-column .result-card {
+    padding: 10px;
+    margin-bottom: 0;
+    border-radius: 10px;
+}
+.results-court-column .result-meta {
+    gap: 6px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    font-size: 0.82rem;
+}
+.results-court-column .result-meta .pill,
+.results-court-column .result-meta .badge,
+.results-court-column .result-meta .change-counter,
+.results-court-column .result-meta .phase-pill {
+    padding: 3px 8px;
+    font-size: 0.72rem;
+}
+.results-court-column .result-form-row,
+.results-court-column .result-form,
+.results-court-column .result-actions,
+.results-court-column .correction-unlocked-actions {
+    gap: 6px;
+}
+.results-court-column .result-form input {
+    font-size: 16px;
+    width: 52px;
+    padding: 6px;
+}
+.results-court-column .result-actions button,
+.results-court-column .correction-unlocked-actions button,
+.results-court-column .correction-edit-btn,
+.results-court-column .undo-btn {
+    padding: 7px 10px;
+    font-size: 0.82rem;
+}
+@media (max-width: 640px) {
+    .results-time-grid {
+        grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, 1fr));
+    }
+    .results-court-column {
+        min-width: 180px;
+    }
 }
 </style>
 
