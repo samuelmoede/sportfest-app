@@ -94,6 +94,7 @@ from app.utils.formatting import (
     format_points_value,
     format_score,
     format_sixkampf_values,
+    parse_score,
     slugify_filename_part,
 )
 
@@ -143,7 +144,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result)$"
+            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result|undo-correction)$"
         ),
         "referee",
     ),
@@ -2048,7 +2049,9 @@ def ergebnisse(
     phase_ready_competition_id: str = "",
     overwrite_warning: str = "",
     correction_blocked: str = "",
+    nur_aktive: str = "",
 ):
+    nur_aktive_enabled = nur_aktive == "1"
     filter_state = build_results_filter_state(
         get_active_competitions(),
         event_id_value=event_id,
@@ -2234,10 +2237,8 @@ def ergebnisse(
                 "change_counts": change_counts,
                 "saved_team_id": saved_team_id_value,
                 "saved_at": saved_at_value,
-                "slots": [],
-                "archived_slots": [],
-                "active_columns": [],
-                "archived_columns": [],
+                "result_columns": [],
+                "nur_aktive": nur_aktive_enabled,
                 "phase_ready_prompt": None,
                 "phase_ready_dismiss_url": None,
                 "overwrite_warning_prompt": None,
@@ -2254,69 +2255,88 @@ def ergebnisse(
         ]
     if selected_court_id is not None:
         slots = [slot for slot in slots if slot["court_id"] == selected_court_id]
-    active_slots = sorted(
-        (
-            slot for slot in slots
-            if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
-        ),
+
+    # Beendete Spiele bleiben (Issue #50) an ihrer Position im Spielplan stehen,
+    # statt in eine separate, nach Speicherzeit sortierte Archiv-Liste zu wandern -
+    # daher hier eine einzige, nach Anstoßzeit sortierte Liste statt zwei Listen.
+    result_slots = sorted(
+        (slot for slot in slots if slot["slot_typ"] == "Spiel"),
         key=lambda slot: (slot["startzeit"], slot["id"]),
-    )
-    archived_slots = sorted(
-        (
-            slot for slot in slots
-            if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
-        ),
-        key=lambda slot: (slot["finished_at"] or "", slot["startzeit"], slot["id"]),
-        reverse=True,
     )
 
     group_pending_counts = {}
-    for slot in slots:
-        if slot["slot_typ"] == "Spiel" and slot["phase"] == "Gruppenphase" and slot["gruppe"]:
-            if slot["status"] != "beendet":
-                key = (slot["competition_id"], slot["gruppe"])
-                group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
+    for slot in result_slots:
+        if slot["phase"] == "Gruppenphase" and slot["gruppe"] and slot["status"] != "beendet":
+            key = (slot["competition_id"], slot["gruppe"])
+            group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
 
-    for slot in active_slots:
+    beendet_slot_ids = [slot["id"] for slot in result_slots if slot["status"] == "beendet"]
+    last_result_changes = {}
+    if beendet_slot_ids:
+        placeholders = ", ".join("?" for _ in beendet_slot_ids)
+        with get_conn() as conn:
+            for row in conn.execute(
+                f"""
+                SELECT entity_id, action, old_value, new_value
+                FROM change_log
+                WHERE entity_type = 'slot_result' AND entity_id IN ({placeholders})
+                ORDER BY id
+                """,
+                beendet_slot_ids,
+            ).fetchall():
+                # ueberschreibt bei mehreren Eintraegen je Slot bewusst mit dem
+                # zuletzt protokollierten - nur der neueste Stand entscheidet,
+                # ob "Rueckgaengig" gerade eine echte Korrektur zuruecknehmen wuerde.
+                last_result_changes[row["entity_id"]] = row
+
+    for slot in result_slots:
         slot["group_patt_risk"] = None
         if (
-            slot["slot_typ"] == "Spiel"
-            and slot["phase"] == "Gruppenphase"
+            slot["phase"] == "Gruppenphase"
             and slot["gruppe"]
             and slot["team_a"]
             and slot["team_b"]
+            and slot["status"] != "beendet"
             and group_pending_counts.get((slot["competition_id"], slot["gruppe"])) == 1
         ):
             slot["group_patt_risk"] = find_group_patt_risk(
                 slot["competition_id"], slot["gruppe"], slot["team_a"], slot["team_b"]
             )
-
-    for slot in active_slots + archived_slots:
         slot["is_draw_unresolved"] = (
             slot["phase"] in KO_DECISIVE_PHASES
             and slot["score_a"] is not None
             and slot["score_a"] == slot["score_b"]
         )
-    for slot in archived_slots:
-        slot["correction_locked"] = is_next_phase_started(
-            slot["competition_id"], slot["phase"]
-        )
+        slot["correction_locked"] = False
+        slot["undo_available"] = False
+        slot["undo_old_label"] = None
+        if slot["status"] == "beendet":
+            slot["correction_locked"] = is_next_phase_started(
+                slot["competition_id"], slot["phase"]
+            )
+            last_change = last_result_changes.get(slot["id"])
+            if (
+                not slot["correction_locked"]
+                and last_change is not None
+                and last_change["action"] == "Ergebnis nachträglich korrigiert"
+                and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
+            ):
+                old_a, old_b = parse_score(last_change["old_value"])
+                if old_a is not None and old_b is not None:
+                    slot["undo_available"] = True
+                    slot["undo_old_label"] = last_change["old_value"]
 
-    active_columns = _group_slots_by_court(active_slots, courts)
-    archived_columns = _group_slots_by_court(archived_slots, courts)
-    # Pro Feld begrenzen statt global - sonst verdraengen Felder mit vielen
-    # Ergebnissen andere Felder komplett aus dem sichtbaren Archiv.
-    for column in archived_columns:
-        column["slots"] = column["slots"][:20]
+    if nur_aktive_enabled:
+        result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
+
+    result_columns = _group_slots_by_court(result_slots, courts)
 
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
-            "slots": active_slots,
-            "archived_slots": archived_slots,
-            "active_columns": active_columns,
-            "archived_columns": archived_columns,
+            "result_columns": result_columns,
+            "nur_aktive": nur_aktive_enabled,
             "competitions": competitions,
             "event_options": event_options,
             "selected_event_id": selected_event_id,
@@ -2546,11 +2566,16 @@ def save_slot(
             if slot is not None and (
                 slot["score_a"] != score_a or slot["score_b"] != score_b
             ):
-                action = (
-                    "Ergebnis erfasst"
-                    if slot["score_a"] is None and slot["score_b"] is None
-                    else "Ergebnis geändert"
-                )
+                if slot["score_a"] is None and slot["score_b"] is None:
+                    action = "Ergebnis erfasst"
+                elif is_correction:
+                    # Eigene Bezeichnung fuer eine Korrektur eines bereits beendeten
+                    # Spiels (im Unterschied zu einer Aenderung waehrend das Spiel
+                    # noch laeuft) - /ergebnisse erkennt daran, ob "Rueckgaengig"
+                    # angeboten werden kann (siehe last_result_changes oben).
+                    action = "Ergebnis nachträglich korrigiert"
+                else:
+                    action = "Ergebnis geändert"
                 record_change(
                     conn,
                     request=request,
@@ -2700,6 +2725,71 @@ def clear_slot_result(
                     new_value="–",
                 )
             conn.commit()
+
+    redirect_updates = {}
+    if not results_return_to and slot is not None:
+        redirect_updates["competition_id"] = slot["competition_id"]
+    if correction_blocked:
+        redirect_updates["correction_blocked"] = "1"
+    return RedirectResponse(
+        build_results_redirect_url(results_return_to, **redirect_updates),
+        status_code=303,
+    )
+
+
+@app.post("/slot/{slot_id}/undo-correction")
+def undo_slot_correction(
+    slot_id: int, request: Request, results_return_to: str = Form("")
+):
+    """Macht die letzte protokollierte Korrektur eines bereits beendeten Spiels
+    rueckgaengig (Issue #50) - basiert auf dem im Aenderungsprotokoll ohnehin
+    gespeicherten Vorher-Wert, statt eigene Undo-Historie zu fuehren."""
+    correction_blocked = False
+    with get_conn() as conn:
+        slot = conn.execute(
+            "SELECT competition_id, status, score_a, score_b, phase FROM slots WHERE id = ?",
+            (slot_id,),
+        ).fetchone()
+        last_change = conn.execute(
+            """
+            SELECT action, old_value, new_value FROM change_log
+            WHERE entity_type = 'slot_result' AND entity_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (slot_id,),
+        ).fetchone()
+
+        # Nur rueckgaengig machen, wenn der zuletzt protokollierte Eintrag
+        # tatsaechlich genau diese Korrektur war und der Spielstand seitdem
+        # unveraendert ist - sonst (z.B. Doppelklick, zwischenzeitliche weitere
+        # Aenderung) lieber nichts tun statt einen falschen Stand wiederherzustellen.
+        is_matching_correction = (
+            slot is not None
+            and slot["status"] == "beendet"
+            and last_change is not None
+            and last_change["action"] == "Ergebnis nachträglich korrigiert"
+            and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
+        )
+        if is_matching_correction:
+            if is_next_phase_started(slot["competition_id"], slot["phase"]):
+                correction_blocked = True
+            else:
+                old_a, old_b = parse_score(last_change["old_value"])
+                conn.execute(
+                    "UPDATE slots SET score_a = ?, score_b = ? WHERE id = ?",
+                    (old_a, old_b, slot_id),
+                )
+                record_change(
+                    conn,
+                    request=request,
+                    action="Korrektur rückgängig gemacht",
+                    entity_type="slot_result",
+                    entity_id=slot_id,
+                    competition_id=slot["competition_id"],
+                    old_value=format_score(slot["score_a"], slot["score_b"]),
+                    new_value=format_score(old_a, old_b),
+                )
+                conn.commit()
 
     redirect_updates = {}
     if not results_return_to and slot is not None:

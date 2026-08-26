@@ -19,6 +19,27 @@ def format_score(score_a, score_b):
     return f"{score_a if score_a is not None else '–'}:{score_b if score_b is not None else '–'}"
 
 
+def parse_score(value):
+    """Kehrt format_score() um, z.B. fuer die Rueckgaengig-Funktion auf /ergebnisse,
+    die einen im Aenderungsprotokoll gespeicherten alten Wert wiederherstellt."""
+    if not value or value == "–":
+        return None, None
+    parts = str(value).split(":", 1)
+    if len(parts) != 2:
+        return None, None
+
+    def parse_part(part):
+        part = part.strip()
+        if part == "" or part == "–":
+            return None
+        try:
+            return int(part)
+        except ValueError:
+            return None
+
+    return parse_part(parts[0]), parse_part(parts[1])
+
+
 def format_sixkampf_values(values):
     if not values:
         return "–"

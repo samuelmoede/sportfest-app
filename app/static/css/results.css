@@ -235,3 +235,41 @@ button.outline {
     transition: outline-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.result-card.archived {
+    background: var(--surface-soft);
+}
+
+.result-card.archived input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.correction-unlocked-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.undo-correction-form {
+    margin-left: auto;
+}
+
+.undo-btn {
+    color: var(--blue);
+}
+
+.nur-aktive-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.nur-aktive-toggle input {
+    width: auto;
+    accent-color: var(--navy);
+}
+
