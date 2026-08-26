@@ -880,17 +880,22 @@ function attachResultSaveHandler(form) {
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
 
+        // FormData MUSS vor dem Disablen des Buttons gebaut werden: ein deaktivierter
+        // Submit-Button wird beim Aufbau der Entry-List uebersprungen (HTML-Spec),
+        // auch wenn er explizit als submitter uebergeben wird - sonst fehlt z.B. das
+        // name="finish" value="1"-Feld von "Beenden & Speichern" im Request und der
+        // Server behandelt es wie ein Zwischenspeichern (Timer startet faelschlich neu).
+        let formData;
+        try {
+            formData = new FormData(form, submitter || undefined);
+        } catch (err) {
+            formData = new FormData(form);
+            if (submitter && submitter.name) formData.append(submitter.name, submitter.value);
+        }
+
         if (submitter) submitter.disabled = true;
 
         try {
-            let formData;
-            try {
-                formData = new FormData(form, submitter || undefined);
-            } catch (err) {
-                formData = new FormData(form);
-                if (submitter && submitter.name) formData.append(submitter.name, submitter.value);
-            }
-
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: formData,

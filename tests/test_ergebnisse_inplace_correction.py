@@ -257,6 +257,37 @@ class ErgebnisseInPlaceCorrectionTests(unittest.TestCase):
         self.assertEqual(slot["score_b"], 1)
 
 
+class ResultSaveButtonFormDataOrderingTests(unittest.TestCase):
+    """Regression: 'Beenden & Speichern' loeste faelschlich den Start-Timer aus
+    (Verhalten wie 'Starten'), weil der geklickte Submit-Button in
+    attachResultSaveHandler() vor dem Aufbau der FormData deaktiviert wurde.
+    Ein disabled Submit-Button wird beim Aufbau der Entry-List uebersprungen -
+    auch wenn er explizit als `submitter` an FormData(form, submitter)
+    uebergeben wird (HTML-Spec) - wodurch das name="finish" value="1"-Feld im
+    Request fehlte und der Server (save_slot in app/main.py) mangels "finish"
+    auf seinen Default "0" zurueckfiel (status wird 'laeuft' statt 'beendet')."""
+
+    def test_formdata_is_built_before_submitter_is_disabled(self):
+        html = (ROOT_DIR / "app" / "templates" / "ergebnisse.html").read_text(
+            encoding="utf-8"
+        )
+
+        handler_start = html.index("function attachResultSaveHandler")
+        handler_end = html.index("function attachCorrectionAreaHandler")
+        handler_body = html[handler_start:handler_end]
+
+        formdata_index = handler_body.index("new FormData(form, submitter")
+        disable_index = handler_body.index("submitter.disabled = true")
+
+        self.assertLess(
+            formdata_index,
+            disable_index,
+            "submitter darf erst NACH dem FormData(form, submitter)-Aufruf "
+            "disabled werden, sonst wird sein name/value-Paar (z.B. finish=1) "
+            "beim Aufbau der Entry-List uebersprungen.",
+        )
+
+
 class UndoCorrectionRoleAccessTests(unittest.TestCase):
     """Die neue Undo-Route soll denselben Rollenschutz wie die uebrigen
     Ergebnis-Aktionen bekommen (siehe ACTION_ACCESS_RULES in app/main.py)."""
