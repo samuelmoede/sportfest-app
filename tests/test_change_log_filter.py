@@ -1,3 +1,4 @@
+import re
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,17 @@ def _insert_competition(conn, name, jahrgang=5):
         (name, "Fußball", jahrgang),
     )
     return cursor.lastrowid
+
+
+def _extract_change_log_table(html):
+    """Nur der Tabelleninhalt (<table class="change-log-table">...</table>);
+    das Wettbewerbs-<select> listet bewusst alle Wettbewerbe unabhaengig
+    von der aktuellen Filterauswahl und soll hier nicht mitgeprueft werden."""
+    match = re.search(
+        r'<table class="change-log-table">.*?</table>', html, re.DOTALL
+    )
+    assert match, "change-log-table nicht im Response-HTML gefunden"
+    return match.group(0)
 
 
 def _insert_change_log_entry(
@@ -254,8 +266,9 @@ class ChangeLogAjaxFragmentTests(unittest.TestCase):
             self.assertIn(
                 '<option value="referee" selected>', response.text
             )
-            self.assertIn("Fußballturnier A", response.text)
-            self.assertNotIn("Fußballturnier B", response.text)
+            table_html = _extract_change_log_table(response.text)
+            self.assertIn("Fußballturnier A", table_html)
+            self.assertNotIn("Fußballturnier B", table_html)
 
     def test_fragment_route_applies_combined_filter(self):
         from app.main import app as fastapi_app
