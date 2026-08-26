@@ -22,7 +22,7 @@ from app.routes.events import create_router as create_events_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.venues import create_router as create_venues_router
-from app.services.schedule_grid_service import get_all_slots
+from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     filter_courts_for_location,
@@ -2330,12 +2330,17 @@ def ergebnisse(
         result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
 
     result_columns = _group_slots_by_court(result_slots, courts)
+    # Issue #53: zeitgleiche bzw. zeitlich nahe Spiele sollen ueber die Spalten
+    # hinweg auf gleicher Hoehe stehen statt lose je Feld gestapelt zu werden -
+    # nutzt dasselbe Zeit-Raster wie der Spielplan-Editor (siehe schedule_grid_service).
+    result_time_marks = build_editor_time_grid(result_columns)
 
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
             "result_columns": result_columns,
+            "result_time_marks": result_time_marks,
             "nur_aktive": nur_aktive_enabled,
             "competitions": competitions,
             "event_options": event_options,
