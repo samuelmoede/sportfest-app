@@ -498,11 +498,20 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 <section class="panel" id="results-section">
     <h2>Spiele</h2>
     {% if result_columns %}
-    <div class="schedule-board results-board">
+    <div class="editor-time-grid-scroll">
+    <section class="editor-time-grid results-time-grid" style="--editor-court-count: {{ result_columns|length }};">
+        <div class="editor-time-corner">Zeit</div>
+        {% for startzeit in result_time_marks %}
+        <div class="editor-time-label" style="grid-row: {{ loop.index + 1 }};">{{ startzeit }}</div>
+        {% endfor %}
         {% for column in result_columns %}
-        <section class="court-column">
-            <h3>{{ column.court_name }}</h3>
-            {% for s in column.slots %}
+        <section class="court-column editor-court-column results-court-column"
+                 style="grid-column: {{ loop.index + 1 }}; grid-row: 1 / span {{ result_time_marks|length + 2 }};">
+            <h3 class="editor-court-heading">{{ column.court_name }}</h3>
+            {% for cell in column.time_cells %}
+            <div class="editor-time-cell results-time-cell{% if not cell.slots %} is-empty{% endif %}"
+                 style="grid-row: {{ cell.editor_grid_row }};">
+            {% for s in cell.slots %}
             <section class="result-card{% if s.status == 'beendet' %} archived{% endif %}">
                 <div class="result-meta">
                     <strong>{{ s.startzeit }}</strong>
@@ -608,8 +617,11 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                 {% endif %}
             </section>
             {% endfor %}
+            </div>
+            {% endfor %}
         </section>
         {% endfor %}
+    </section>
     </div>
     {% else %}
     <p class="muted">
@@ -618,6 +630,22 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     {% endif %}
 </section>
 {% endif %}
+
+<style>
+.results-time-grid {
+    grid-template-columns: 76px repeat(var(--editor-court-count), minmax(340px, 1fr));
+}
+.results-time-cell.is-empty::after {
+    content: "– kein Spiel –";
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+</style>
 
 <script>
 function parseTimestamp(timestamp) {
