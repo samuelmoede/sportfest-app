@@ -514,9 +514,12 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
             {% for s in cell.slots %}
             <section class="result-card{% if s.status == 'beendet' %} archived{% endif %}">
                 <div class="result-meta">
-                    <strong>{{ s.startzeit }}</strong>
-                    <span class="pill">{{ s.court_name }}</span>
-                    <span>{{ s.competition_name }}</span>
+                    <div class="result-meta-info">
+                        <strong>{{ s.startzeit }}</strong>
+                        <span class="pill">{{ s.court_name }}</span>
+                        <span>{{ s.competition_name }}</span>
+                    </div>
+                    <div class="result-meta-badges">
                     {% if s.competition_type != "Sechskampf" and s.phase %}
                     <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
                         {%- if s.phase == "Gruppenphase" -%}
@@ -552,6 +555,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                         </button>
                     </form>
                     {% endif %}
+                    </div>
                 </div>
                 {% if s.group_patt_risk %}
                 <p class="muted patt-warning-text">{{ s.group_patt_risk.message }}</p>
@@ -643,7 +647,6 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-time-grid .editor-time-corner,
 .results-time-grid .editor-time-label {
     padding: 8px 4px;
-    font-size: 0.78rem;
 }
 .results-court-column {
     min-width: 230px;
@@ -652,7 +655,6 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .editor-court-heading {
     padding: 10px;
     margin: 0 -6px;
-    font-size: 0.95rem;
 }
 .results-time-cell {
     min-height: 0;
@@ -678,14 +680,23 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     gap: 6px;
     margin-bottom: 8px;
     padding-bottom: 8px;
-    font-size: 0.82rem;
+}
+.result-meta-info,
+.result-meta-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.result-meta-badges {
+    flex-basis: 100%;
+    width: 100%;
 }
 .results-court-column .result-meta .pill,
 .results-court-column .result-meta .badge,
 .results-court-column .result-meta .change-counter,
 .results-court-column .result-meta .phase-pill {
     padding: 3px 8px;
-    font-size: 0.72rem;
 }
 .results-court-column .result-form-row,
 .results-court-column .result-form,
@@ -693,8 +704,11 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .correction-unlocked-actions {
     gap: 6px;
 }
+.results-court-column .result-actions {
+    flex-basis: 100%;
+    width: 100%;
+}
 .results-court-column .result-form input {
-    font-size: 16px;
     width: 52px;
     padding: 6px;
 }
@@ -703,7 +717,6 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .correction-edit-btn,
 .results-court-column .undo-btn {
     padding: 7px 10px;
-    font-size: 0.82rem;
 }
 @media (max-width: 640px) {
     .results-time-grid {
