@@ -258,8 +258,8 @@ class ErgebnisseInPlaceCorrectionTests(unittest.TestCase):
 
 
 class ResultSaveButtonFormDataOrderingTests(unittest.TestCase):
-    """Regression: 'Beenden & Speichern' loeste faelschlich den Start-Timer aus
-    (Verhalten wie 'Starten'), weil der geklickte Submit-Button in
+    """Regression: 'Beenden' loeste faelschlich den Start-Timer aus
+    (Verhalten wie 'Start'), weil der geklickte Submit-Button in
     attachResultSaveHandler() vor dem Aufbau der FormData deaktiviert wurde.
     Ein disabled Submit-Button wird beim Aufbau der Entry-List uebersprungen -
     auch wenn er explizit als `submitter` an FormData(form, submitter)

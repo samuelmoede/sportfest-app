@@ -606,7 +606,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     {% if s.status == "geplant" %}
                     <form method="post" action="/slot/{{ s.id }}/start"
                           data-start-slot data-planned-duration="{{ s.planned_duration_seconds or '' }}">
-                        <button class="outline" type="submit">Starten</button>
+                        <button class="outline" type="submit">Start</button>
                     </form>
                     {% endif %}
                     {% if s.status == "läuft" %}
@@ -614,8 +614,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                         <button class="outline" type="submit">Start rückgängig</button>
                     </form>
                     {% endif %}
-                    <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Zwischenspeichern</button>
-                    <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden & Speichern</button>
+                    <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Speichern</button>
+                    <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden</button>
                 </div>
                 </div>
                 {% endif %}
@@ -870,7 +870,7 @@ function attachStartHandler(form) {
             requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
         } catch (error) {
             button.disabled = false;
-            button.textContent = 'Starten';
+            button.textContent = 'Start';
             window.alert('Das Spiel konnte nicht gestartet werden. Bitte erneut versuchen.');
             console.error(error);
         }
@@ -925,7 +925,7 @@ function attachUnstartHandler(form) {
             const startButton = document.createElement('button');
             startButton.className = 'outline';
             startButton.type = 'submit';
-            startButton.textContent = 'Starten';
+            startButton.textContent = 'Start';
             startForm.appendChild(startButton);
             attachStartHandler(startForm);
             form.replaceWith(startForm);
@@ -992,8 +992,8 @@ function attachResultSaveHandler(form) {
         // FormData MUSS vor dem Disablen des Buttons gebaut werden: ein deaktivierter
         // Submit-Button wird beim Aufbau der Entry-List uebersprungen (HTML-Spec),
         // auch wenn er explizit als submitter uebergeben wird - sonst fehlt z.B. das
-        // name="finish" value="1"-Feld von "Beenden & Speichern" im Request und der
-        // Server behandelt es wie ein Zwischenspeichern (Timer startet faelschlich neu).
+        // name="finish" value="1"-Feld von "Beenden" im Request und der
+        // Server behandelt es wie ein Speichern (Timer startet faelschlich neu).
         let formData;
         try {
             formData = new FormData(form, submitter || undefined);
