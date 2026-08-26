@@ -8,10 +8,17 @@
             {% if is_sixkampf %}
             Klassenwerte für {{ selected_competition.name }} erfassen.
             {% else %}
-            Aktive Spiele erfassen; beendete Spiele bleiben für Korrekturen im Archiv.
+            Alle Spiele in Planreihenfolge; beendete Spiele bleiben stehen, sind gesperrt
+            und lassen sich über „Bearbeiten“ korrigieren.
             {% endif %}
         </p>
     </div>
+    {% if not is_sixkampf %}
+    <label class="nur-aktive-toggle">
+        <input type="checkbox" id="nur-aktive-checkbox" {% if nur_aktive %}checked{% endif %}>
+        <span>Nur aktive anzeigen</span>
+    </label>
+    {% endif %}
 </header>
 
 {% set results_return_to = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
@@ -62,6 +69,9 @@
             {% endfor %}
         </select>
     </label>
+    {% endif %}
+    {% if not is_sixkampf %}
+    <input type="hidden" name="nur_aktive" value="{{ '1' if nur_aktive else '0' }}">
     {% endif %}
     <button class="primary" type="submit">Anzeigen</button>
 </form>
@@ -485,15 +495,15 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </p>
 </section>
 {% endif %}
-<section class="panel" id="active-results-section">
-    <h2>Aktive Spiele</h2>
-    {% if active_columns %}
+<section class="panel" id="results-section">
+    <h2>Spiele</h2>
+    {% if result_columns %}
     <div class="schedule-board results-board">
-        {% for column in active_columns %}
+        {% for column in result_columns %}
         <section class="court-column">
             <h3>{{ column.court_name }}</h3>
             {% for s in column.slots %}
-            <section class="result-card">
+            <section class="result-card{% if s.status == 'beendet' %} archived{% endif %}">
                 <div class="result-meta">
                     <strong>{{ s.startzeit }}</strong>
                     <span class="pill">{{ s.court_name }}</span>
@@ -524,10 +534,52 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     {% if s.group_patt_risk %}
                     <span class="pill draw-warning-pill">⚠ Patt möglich</span>
                     {% endif %}
+                    {% if s.undo_available %}
+                    <form method="post" action="/slot/{{ s.id }}/undo-correction" class="undo-correction-form"
+                          onsubmit="return confirm('Korrektur rückgängig machen und {{ s.undo_old_label }} wiederherstellen?');">
+                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                        <button class="outline undo-btn" type="submit" title="Letzte Korrektur zurücknehmen">
+                            ↺ Rückgängig ({{ s.undo_old_label }})
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
                 {% if s.group_patt_risk %}
                 <p class="muted patt-warning-text">{{ s.group_patt_risk.message }}</p>
                 {% endif %}
+                {% if s.status == "beendet" and s.correction_locked %}
+                <p class="correction-locked-note">
+                    <strong>{{ s.team_a or "?" }} {{ s.score_a }} : {{ s.score_b }} {{ s.team_b or "?" }}</strong>
+                    &ndash; nicht mehr korrigierbar, da die nächste Phase bereits begonnen hat.
+                </p>
+                {% elif s.status == "beendet" %}
+                <div class="result-form-row correction-area" data-correction-area>
+                    <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form" data-was-beendet="1">
+                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                        <strong>{{ s.team_a or "?" }}</strong>
+                        <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required disabled>
+                        <span>:</span>
+                        <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required disabled>
+                        <strong>{{ s.team_b or "?" }}</strong>
+                    </form>
+                    <div class="result-actions">
+                        <button type="button" class="outline correction-edit-btn">Bearbeiten</button>
+                        <div class="correction-unlocked-actions" hidden>
+                            <button class="primary correction-save" type="submit" form="result-form-{{ s.id }}" name="finish" value="1" disabled>Korrigieren &amp; speichern</button>
+                            <button type="button" class="outline correction-cancel">Abbrechen</button>
+                            <form method="post" action="/slot/{{ s.id }}/reactivate">
+                                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                                <button class="secondary" type="submit">Reaktivieren</button>
+                            </form>
+                            <form method="post" action="/slot/{{ s.id }}/clear-result"
+                                  onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+                                <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                                <button class="danger" type="submit">Ergebnis löschen</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
                 <div class="result-form-row">
                 <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form">
                     <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
@@ -553,78 +605,6 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden & Speichern</button>
                 </div>
                 </div>
-            </section>
-            {% endfor %}
-        </section>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="muted">Keine aktiven Spiele vorhanden.</p>
-    {% endif %}
-</section>
-
-<section class="panel archive-panel" id="archived-results-section">
-    <h2>Archiv zuletzt gespeicherter Ergebnisse</h2>
-    <p class="muted">Diese Spiele zählen aktuell zur Tabelle und können korrigiert werden.</p>
-    {% if archived_columns %}
-    <div class="schedule-board results-board">
-        {% for column in archived_columns %}
-        <section class="court-column">
-            <h3>{{ column.court_name }}</h3>
-            {% for s in column.slots %}
-            <section class="result-card archived">
-                <div class="result-meta">
-                    <strong>{{ s.startzeit }}</strong>
-                    <span class="pill">{{ s.court_name }}</span>
-                    <span>{{ s.competition_name }}</span>
-                    {% if s.competition_type != "Sechskampf" and s.phase %}
-                    <span class="pill phase-pill {% if s.phase == 'Halbfinale' %}phase-halbfinale{% elif s.phase == 'Finale' %}phase-finale{% elif s.phase in ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung') %}phase-platz3{% else %}phase-gruppe{% endif %}">
-                        {%- if s.phase == "Gruppenphase" -%}
-                            {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
-                        {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
-                            Spiel um Platz 3
-                        {%- else -%}
-                            {{ s.phase }}
-                        {%- endif -%}
-                    </span>
-                    {% endif %}
-                    {% if s.started_at %}
-                    <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
-                    {% endif %}
-                    <span class="badge {{ s.status }}">{{ s.status }}</span>
-                    <span class="change-counter" title="Protokollierte Ergebnisänderungen">
-                        Änderungen: {{ s.change_count }}
-                    </span>
-                    {% if s.is_draw_unresolved %}
-                    <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
-                    {% endif %}
-                </div>
-                {% if s.correction_locked %}
-                <p class="correction-locked-note">
-                    <strong>{{ s.team_a or "?" }} {{ s.score_a }} : {{ s.score_b }} {{ s.team_b or "?" }}</strong>
-                    &ndash; nicht mehr korrigierbar, da die nächste Phase bereits begonnen hat.
-                </p>
-                {% else %}
-                <form method="post" action="/slot/{{ s.id }}/save" class="result-form">
-                    <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                    <strong>{{ s.team_a or "?" }}</strong>
-                    <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
-                    <span>:</span>
-                    <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
-                    <strong>{{ s.team_b or "?" }}</strong>
-                    <button class="primary" name="finish" value="1">Korrigieren & beendet speichern</button>
-                </form>
-                <div class="archive-actions">
-                    <form method="post" action="/slot/{{ s.id }}/reactivate">
-                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                        <button class="secondary" type="submit">Reaktivieren</button>
-                    </form>
-                    <form method="post" action="/slot/{{ s.id }}/clear-result"
-                          onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
-                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
-                        <button class="danger" type="submit">Ergebnis löschen</button>
-                    </form>
-                </div>
                 {% endif %}
             </section>
             {% endfor %}
@@ -632,7 +612,9 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         {% endfor %}
     </div>
     {% else %}
-    <p class="muted">Noch keine gespeicherten Ergebnisse im Archiv.</p>
+    <p class="muted">
+        {% if nur_aktive %}Keine aktiven Spiele vorhanden.{% else %}Keine Spiele vorhanden.{% endif %}
+    </p>
     {% endif %}
 </section>
 {% endif %}
@@ -888,6 +870,10 @@ function attachResultSaveHandler(form) {
     form.addEventListener('submit', async event => {
         event.preventDefault();
 
+        if (form.dataset.wasBeendet === '1' && !window.confirm('Ergebnis wirklich ändern?')) {
+            return;
+        }
+
         const submitter = event.submitter;
         const savedSlotId = getSlotIdFromSaveForm(form);
         const drafts = snapshotResultDrafts();
@@ -917,19 +903,17 @@ function attachResultSaveHandler(form) {
             const html = await response.text();
             const doc = new DOMParser().parseFromString(html, 'text/html');
 
-            ['active-results-section', 'archived-results-section'].forEach(id => {
-                const current = document.getElementById(id);
-                const updated = doc.getElementById(id);
-                if (current && updated) {
-                    current.replaceWith(updated);
-                }
-            });
+            const current = document.getElementById('results-section');
+            const updated = doc.getElementById('results-section');
+            if (current && updated) {
+                current.replaceWith(updated);
+            }
 
             restoreResultDrafts(drafts, savedSlotId);
             initResultBoardHandlers();
             updateResultTimers();
-            // Das Ersetzen von active-/archived-results-section aendert die Hoehe
-            // der Spalten (z.B. wenn ein Spiel ins Archiv wandert) - ohne explizites
+            // Das Ersetzen von results-section aendert die Hoehe der Spalten
+            // (z.B. wenn ein Spiel als "beendet" markiert wird) - ohne explizites
             // Wiederherstellen springt der Browser sonst und andere, eigentlich
             // unveraenderte Spiele verschwinden aus dem sichtbaren Bereich.
             requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
@@ -941,9 +925,49 @@ function attachResultSaveHandler(form) {
     });
 }
 
+// Ein beendetes Spiel ist zunaechst gesperrt (Felder disabled) - "Bearbeiten"
+// entsperrt die Felder nur clientseitig zum Eintippen; das eigentliche Speichern
+// (mit Bestaetigungsabfrage, siehe attachResultSaveHandler) passiert weiterhin
+// serverseitig ueber das ganz normale result-form.
+function attachCorrectionAreaHandler(area) {
+    if (area.dataset.correctionHandlerAttached) return;
+    area.dataset.correctionHandlerAttached = '1';
+
+    const form = area.querySelector('.result-form');
+    const editBtn = area.querySelector('.correction-edit-btn');
+    const unlockedActions = area.querySelector('.correction-unlocked-actions');
+    const saveBtn = area.querySelector('.correction-save');
+    const cancelBtn = area.querySelector('.correction-cancel');
+    if (!form || !editBtn) return;
+
+    const inputs = [...form.querySelectorAll('input[name="score_a"], input[name="score_b"]')];
+    const originalValues = inputs.map(input => input.value);
+
+    editBtn.addEventListener('click', () => {
+        inputs.forEach(input => { input.disabled = false; });
+        if (saveBtn) saveBtn.disabled = false;
+        if (unlockedActions) unlockedActions.hidden = false;
+        editBtn.hidden = true;
+        if (inputs[0]) inputs[0].focus();
+    });
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            inputs.forEach((input, index) => {
+                input.value = originalValues[index];
+                input.disabled = true;
+            });
+            if (saveBtn) saveBtn.disabled = true;
+            if (unlockedActions) unlockedActions.hidden = true;
+            editBtn.hidden = false;
+        });
+    }
+}
+
 function initResultBoardHandlers() {
     document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
     document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
+    document.querySelectorAll('[data-correction-area]').forEach(attachCorrectionAreaHandler);
     document.querySelectorAll('.result-form').forEach(form => {
         if (form.dataset.resultHandlerAttached) return;
         form.dataset.resultHandlerAttached = '1';
@@ -951,7 +975,52 @@ function initResultBoardHandlers() {
     });
 }
 
+// Checkbox "Nur aktive anzeigen" - selbes AJAX-Muster wie der Aenderungsprotokoll-
+// Filter in einstellungen.html: per fetch() nachladen, nur den betroffenen
+// Seitenausschnitt ersetzen und die URL per history.replaceState() aktualisieren,
+// statt die ganze Seite neu zu laden.
+function initNurAktiveToggle() {
+    const checkbox = document.getElementById('nur-aktive-checkbox');
+    if (!checkbox) return;
+
+    checkbox.addEventListener('change', async () => {
+        const params = new URLSearchParams(window.location.search);
+        if (checkbox.checked) {
+            params.set('nur_aktive', '1');
+        } else {
+            params.delete('nur_aktive');
+        }
+        const query = params.toString();
+        const url = `/ergebnisse${query ? `?${query}` : ''}`;
+
+        checkbox.disabled = true;
+        try {
+            const response = await fetch(url, { credentials: 'same-origin' });
+            if (!response.ok) {
+                throw new Error(`Laden fehlgeschlagen (${response.status})`);
+            }
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const current = document.getElementById('results-section');
+            const updated = doc.getElementById('results-section');
+            if (current && updated) {
+                current.replaceWith(updated);
+                initResultBoardHandlers();
+                updateResultTimers();
+            }
+            window.history.replaceState(null, '', url);
+        } catch (error) {
+            checkbox.checked = !checkbox.checked;
+            window.alert('Die Anzeige konnte nicht aktualisiert werden. Bitte erneut versuchen.');
+            console.error(error);
+        } finally {
+            checkbox.disabled = false;
+        }
+    });
+}
+
 initResultBoardHandlers();
+initNurAktiveToggle();
 </script>
 {% endblock %}
 
