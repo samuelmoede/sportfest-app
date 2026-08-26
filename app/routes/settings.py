@@ -138,6 +138,38 @@ def einstellungen(
     )
 
 
+@router.get("/einstellungen/aenderungsprotokoll")
+def einstellungen_aenderungsprotokoll(
+    request: Request,
+    change_log_role: str = "",
+    change_log_competition_id: str = "",
+):
+    try:
+        change_log_competition_id_value = (
+            int(change_log_competition_id) if change_log_competition_id else None
+        )
+    except ValueError:
+        change_log_competition_id_value = None
+
+    recent_changes = get_recent_change_log(
+        role=change_log_role or None,
+        competition_id=change_log_competition_id_value,
+    )
+    change_log_filter_options = get_change_log_filter_options()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/change_log.html",
+        context={
+            "recent_changes": recent_changes,
+            "change_log_count": get_change_log_count(),
+            "change_log_roles": change_log_filter_options["roles"],
+            "change_log_competitions": change_log_filter_options["competitions"],
+            "change_log_role": change_log_role,
+            "change_log_competition_id": change_log_competition_id_value,
+        },
+    )
+
+
 @router.get("/dokumentation")
 def dokumentation(request: Request):
     return templates.TemplateResponse(
