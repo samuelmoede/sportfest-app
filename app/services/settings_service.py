@@ -306,13 +306,26 @@ def is_logged_in(request: Request):
     }
 
 
-def get_recent_change_log(limit: int = 50):
+def get_recent_change_log(
+    limit: int = 50,
+    role: Optional[str] = None,
+    competition_id: Optional[int] = None,
+):
     safe_limit = max(1, min(int(limit), 200))
+    conditions = []
+    params = []
+    if role:
+        conditions.append("log.actor_role = ?")
+        params.append(role)
+    if competition_id is not None:
+        conditions.append("log.competition_id = ?")
+        params.append(competition_id)
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with get_conn() as conn:
         rows = [
             dict(row)
             for row in conn.execute(
-                """
+                f"""
                 SELECT log.*,
                        competition.name AS competition_name,
                        discipline.name AS discipline_name,
@@ -333,10 +346,11 @@ def get_recent_change_log(limit: int = 50):
                     ON team_a.id = slot.team_a_id
                 LEFT JOIN teams AS team_b
                     ON team_b.id = slot.team_b_id
+                {where_clause}
                 ORDER BY log.id DESC
                 LIMIT ?
                 """,
-                (safe_limit,),
+                (*params, safe_limit),
             ).fetchall()
         ]
 
@@ -373,6 +387,35 @@ def get_change_log_count():
         return conn.execute(
             "SELECT COUNT(*) AS n FROM change_log"
         ).fetchone()["n"]
+
+
+def get_change_log_filter_options():
+    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe als
+    Filterauswahl anbieten (keine statische Liste)."""
+    with get_conn() as conn:
+        role_rows = conn.execute(
+            "SELECT DISTINCT actor_role FROM change_log ORDER BY actor_role"
+        ).fetchall()
+        competition_rows = conn.execute(
+            """
+            SELECT DISTINCT competition.id AS id, competition.name AS name
+            FROM change_log AS log
+            JOIN competitions AS competition ON competition.id = log.competition_id
+            ORDER BY competition.name
+            """
+        ).fetchall()
+    return {
+        "roles": [
+            {
+                "key": row["actor_role"],
+                "label": ROLE_LABELS.get(row["actor_role"], row["actor_role"]),
+            }
+            for row in role_rows
+        ],
+        "competitions": [
+            {"id": row["id"], "name": row["name"]} for row in competition_rows
+        ],
+    }
 
 
 def collect_system_info():
