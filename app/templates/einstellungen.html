@@ -121,6 +121,50 @@
 </section>
 
 <section class="panel">
+    <h2>Passwörter ändern</h2>
+    {% if password_status == "ok" %}
+        <p class="success-text">Das Passwort für {{ password_role_label }} wurde geändert.</p>
+    {% elif password_status == "invalid_current_password" %}
+        <p class="error-text">Das aktuelle Passwort für {{ password_role_label }} ist nicht korrekt.</p>
+    {% elif password_status == "invalid_new_password" %}
+        <p class="error-text">Das neue Passwort darf nicht leer sein.</p>
+    {% elif password_status == "environment_override" %}
+        <p class="error-text">Das Passwort für {{ password_role_label }} wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
+    {% elif password_status == "invalid_role" %}
+        <p class="error-text">Unbekannte Rolle.</p>
+    {% endif %}
+    {% for role in password_role_overview %}
+    <div class="settings-item">
+        <strong>{{ role.label }}</strong>
+        {% if role.environment_locked %}
+            <p class="muted">Wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
+        {% else %}
+            <form method="post" action="/einstellungen/passwort" class="inline-form">
+                <input type="hidden" name="role" value="{{ role.key }}">
+                <label for="current_password_{{ role.key }}">Aktuelles Passwort ({{ role.label }})</label>
+                <input
+                    id="current_password_{{ role.key }}"
+                    name="current_password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                >
+                <label for="new_password_{{ role.key }}">Neues Passwort</label>
+                <input
+                    id="new_password_{{ role.key }}"
+                    name="new_password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+                <button type="submit">Passwort ändern</button>
+            </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+
+<section class="panel">
     <h2>Änderungsprotokoll</h2>
     <p class="muted">
         {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.

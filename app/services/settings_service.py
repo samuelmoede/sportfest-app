@@ -2,6 +2,7 @@ from datetime import datetime
 import html
 import os
 import re
+import secrets
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -184,6 +185,57 @@ def get_referee_password():
     if environment_password:
         return environment_password
     return get_setting("referee_password", "") or ""
+
+
+PASSWORD_ROLES = {
+    "admin": {
+        "setting_key": "admin_password",
+        "environment_variables": ("SPORTFEST_ADMIN_PASSWORD", "ADMIN_PASSWORD"),
+        "get_password": get_admin_password,
+    },
+    "referee": {
+        "setting_key": "referee_password",
+        "environment_variables": ("SPORTFEST_REFEREE_PASSWORD",),
+        "get_password": get_referee_password,
+    },
+}
+
+
+def get_password_environment_override(role: str):
+    config = PASSWORD_ROLES.get(role)
+    if not config:
+        return None
+    for variable in config["environment_variables"]:
+        value = os.getenv(variable)
+        if value:
+            return value
+    return None
+
+
+def change_role_password(role: str, current_password: str, new_password: str):
+    """Aendert das gespeicherte Passwort einer Rolle, sofern das aktuelle
+    Passwort korrekt bestaetigt wird. Ein per Umgebungsvariable gesetztes
+    Passwort ueberschreibt die Datenbank immer (siehe get_admin_password /
+    get_referee_password) - eine Aenderung waere daher wirkungslos und wird
+    hier abgelehnt, statt still zu scheitern."""
+    config = PASSWORD_ROLES.get(role)
+    if not config:
+        return "invalid_role"
+
+    if get_password_environment_override(role) is not None:
+        return "environment_override"
+
+    configured_password = config["get_password"]()
+    if not configured_password or not secrets.compare_digest(
+        current_password or "", configured_password
+    ):
+        return "invalid_current_password"
+
+    if not new_password:
+        return "invalid_new_password"
+
+    set_setting(config["setting_key"], new_password)
+    return "ok"
 
 
 def is_login_prepared():
