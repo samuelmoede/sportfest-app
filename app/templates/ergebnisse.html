@@ -891,6 +891,8 @@ function attachResultSaveHandler(form) {
         const submitter = event.submitter;
         const savedSlotId = getSlotIdFromSaveForm(form);
         const drafts = snapshotResultDrafts();
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
 
         if (submitter) submitter.disabled = true;
 
@@ -926,6 +928,11 @@ function attachResultSaveHandler(form) {
             restoreResultDrafts(drafts, savedSlotId);
             initResultBoardHandlers();
             updateResultTimers();
+            // Das Ersetzen von active-/archived-results-section aendert die Hoehe
+            // der Spalten (z.B. wenn ein Spiel ins Archiv wandert) - ohne explizites
+            // Wiederherstellen springt der Browser sonst und andere, eigentlich
+            // unveraenderte Spiele verschwinden aus dem sichtbaren Bereich.
+            requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
         } catch (error) {
             if (submitter) submitter.disabled = false;
             window.alert('Das Ergebnis konnte nicht gespeichert werden. Bitte erneut versuchen.');
