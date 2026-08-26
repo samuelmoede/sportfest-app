@@ -18,6 +18,7 @@ from app.services.settings_service import (
     collect_system_info,
     get_admin_password,
     get_change_log_count,
+    get_change_log_filter_options,
     get_current_role,
     get_current_role_description,
     get_current_role_label,
@@ -60,14 +61,27 @@ def einstellungen(
     password_status: str = "",
     password_role: str = "",
     saved_at: str = "",
+    change_log_role: str = "",
+    change_log_competition_id: str = "",
 ):
     try:
         saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
     except ValueError:
         saved_at_value = ""
 
+    try:
+        change_log_competition_id_value = (
+            int(change_log_competition_id) if change_log_competition_id else None
+        )
+    except ValueError:
+        change_log_competition_id_value = None
+
     context = collect_system_info()
-    recent_changes = get_recent_change_log()
+    recent_changes = get_recent_change_log(
+        role=change_log_role or None,
+        competition_id=change_log_competition_id_value,
+    )
+    change_log_filter_options = get_change_log_filter_options()
     context.update({
         "backup_status": backup_status,
         "backup_file": backup_file,
@@ -104,6 +118,10 @@ def einstellungen(
         ],
         "recent_changes": recent_changes,
         "change_log_count": get_change_log_count(),
+        "change_log_roles": change_log_filter_options["roles"],
+        "change_log_competitions": change_log_filter_options["competitions"],
+        "change_log_role": change_log_role,
+        "change_log_competition_id": change_log_competition_id_value,
         "password_role_overview": [
             {
                 "key": role,

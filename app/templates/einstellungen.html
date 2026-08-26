@@ -164,7 +164,7 @@
     {% endfor %}
 </section>
 
-<section class="panel">
+<section class="panel" id="aenderungsprotokoll">
     <h2>Änderungsprotokoll</h2>
     <p class="muted">
         {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.
@@ -177,6 +177,28 @@
           onsubmit="return confirm('Alle {{ change_log_count }} protokollierten Einträge unwiderruflich löschen? Die Änderungszähler bei der Ergebniseingabe werden damit auf 0 zurückgesetzt.');"
           style="margin-bottom: 16px;">
         <button class="danger" type="submit">Änderungszähler zurücksetzen</button>
+    </form>
+    {% endif %}
+    {% if change_log_roles or change_log_competitions %}
+    <form method="get" action="/einstellungen" class="change-log-filter-form" style="margin-bottom: 16px;">
+        <label for="change_log_role">Rolle</label>
+        <select id="change_log_role" name="change_log_role" onchange="this.form.submit()">
+            <option value="">Alle Rollen</option>
+            {% for role in change_log_roles %}
+            <option value="{{ role.key }}" {% if role.key == change_log_role %}selected{% endif %}>{{ role.label }}</option>
+            {% endfor %}
+        </select>
+        <label for="change_log_competition_id">Wettbewerb</label>
+        <select id="change_log_competition_id" name="change_log_competition_id" onchange="this.form.submit()">
+            <option value="">Alle Wettbewerbe</option>
+            {% for competition in change_log_competitions %}
+            <option value="{{ competition.id }}" {% if competition.id == change_log_competition_id %}selected{% endif %}>{{ competition.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filtern</button>
+        {% if change_log_role or change_log_competition_id %}
+        <a href="/einstellungen#aenderungsprotokoll">Filter zurücksetzen</a>
+        {% endif %}
     </form>
     {% endif %}
     {% if recent_changes %}
@@ -209,6 +231,8 @@
             </tbody>
         </table>
     </div>
+    {% elif change_log_role or change_log_competition_id %}
+    <p class="muted">Keine Einträge für die gewählte Filterauswahl.</p>
     {% else %}
     <p class="muted">Noch keine Ergebnisänderungen protokolliert.</p>
     {% endif %}
