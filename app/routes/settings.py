@@ -10,15 +10,18 @@ from app.services.backup_service import (
     restore_database_backup,
 )
 from app.services.settings_service import (
+    PASSWORD_ROLES,
     ROLE_DESCRIPTIONS,
     ROLE_LABELS,
     app_now_db_timestamp,
+    change_role_password,
     collect_system_info,
     get_admin_password,
     get_change_log_count,
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_password_environment_override,
     get_referee_password,
     get_tournament_lead_password,
     get_recent_change_log,
@@ -54,6 +57,8 @@ def einstellungen(
     restore_status: str = "",
     delete_status: str = "",
     theme_status: str = "",
+    password_status: str = "",
+    password_role: str = "",
     saved_at: str = "",
 ):
     try:
@@ -72,6 +77,9 @@ def einstellungen(
         "restore_status": restore_status,
         "delete_status": delete_status,
         "theme_status": theme_status,
+        "password_status": password_status,
+        "password_role": password_role,
+        "password_role_label": ROLE_LABELS.get(password_role, password_role),
         "saved_at": saved_at_value,
         "site_theme": get_site_theme(),
         "site_themes": SITE_THEMES,
@@ -96,6 +104,14 @@ def einstellungen(
         ],
         "recent_changes": recent_changes,
         "change_log_count": get_change_log_count(),
+        "password_role_overview": [
+            {
+                "key": role,
+                "label": ROLE_LABELS[role],
+                "environment_locked": get_password_environment_override(role) is not None,
+            }
+            for role in PASSWORD_ROLES
+        ],
     })
     return templates.TemplateResponse(
         request=request,
@@ -165,6 +181,19 @@ def update_security_setting(
     request.session["role"] = "admin"
     return RedirectResponse(
         f"/einstellungen?security_status={'enabled' if target_value == 'true' else 'disabled'}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/passwort")
+def update_role_password(
+    role: str = Form(...),
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+):
+    status = change_role_password(role, current_password, new_password)
+    return RedirectResponse(
+        f"/einstellungen?password_status={status}&password_role={role}",
         status_code=303,
     )
 
