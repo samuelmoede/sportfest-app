@@ -185,7 +185,7 @@ td {
 
 .result-form-row .result-actions button {
     margin-top: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     white-space: nowrap;
 }
 
