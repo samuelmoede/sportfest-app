@@ -11,6 +11,7 @@ if str(ROOT_DIR) not in sys.path:
 from fastapi.testclient import TestClient
 
 import app.database as database
+from app.database import init_db
 
 
 class ChangeLogScrollWrapperTests(unittest.TestCase):
@@ -24,6 +25,7 @@ class ChangeLogScrollWrapperTests(unittest.TestCase):
         tmp_db_path = Path(self._tmpdir.name) / "change-log-scroll-test.db"
         self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
         self._db_path_patcher.start()
+        init_db()
 
     def tearDown(self):
         self._db_path_patcher.stop()
