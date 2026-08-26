@@ -1,3 +1,4 @@
+import re
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,17 @@ def _insert_competition(conn, name, jahrgang=5):
         (name, "Fußball", jahrgang),
     )
     return cursor.lastrowid
+
+
+def _extract_change_log_table(html):
+    """Nur der Tabelleninhalt (<table class="change-log-table">...</table>);
+    das Wettbewerbs-<select> listet bewusst alle Wettbewerbe unabhaengig
+    von der aktuellen Filterauswahl und soll hier nicht mitgeprueft werden."""
+    match = re.search(
+        r'<table class="change-log-table">.*?</table>', html, re.DOTALL
+    )
+    assert match, "change-log-table nicht im Response-HTML gefunden"
+    return match.group(0)
 
 
 def _insert_change_log_entry(
@@ -200,6 +212,86 @@ class ChangeLogFilterRouteTests(unittest.TestCase):
             self.assertNotIn("change_log_competition_id=", str(response.url))
             self.assertNotIn('<option value="referee" selected>', response.text)
             self.assertNotIn('<option value="admin" selected>', response.text)
+
+
+class ChangeLogAjaxFragmentTests(unittest.TestCase):
+    """Issue #45 (Folgeauftrag): das Filterformular darf keinen vollen
+    Seiten-Reload mehr ausloesen - /einstellungen/aenderungsprotokoll liefert
+    dazu nur das Änderungsprotokoll-Fragment, das per fetch() nachgeladen
+    wird (siehe Skript in einstellungen.html)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "change-log-ajax-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+        init_db()
+
+        with get_conn() as conn:
+            self.comp_a = _insert_competition(conn, "Fußballturnier A")
+            self.comp_b = _insert_competition(conn, "Fußballturnier B")
+            _insert_change_log_entry(
+                conn, actor_role="referee", competition_id=self.comp_a
+            )
+            _insert_change_log_entry(
+                conn, actor_role="admin", competition_id=self.comp_b
+            )
+            conn.commit()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_fragment_route_returns_only_change_log_content(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/einstellungen/aenderungsprotokoll")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('id="change-log-content"', response.text)
+            self.assertNotIn("<html", response.text.lower())
+            self.assertNotIn("Systeminformationen", response.text)
+            self.assertIn("Fußballturnier A", response.text)
+            self.assertIn("Fußballturnier B", response.text)
+
+    def test_fragment_route_applies_role_filter(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get(
+                "/einstellungen/aenderungsprotokoll",
+                params={"change_log_role": "referee"},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(
+                '<option value="referee" selected>', response.text
+            )
+            table_html = _extract_change_log_table(response.text)
+            self.assertIn("Fußballturnier A", table_html)
+            self.assertNotIn("Fußballturnier B", table_html)
+
+    def test_fragment_route_applies_combined_filter(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get(
+                "/einstellungen/aenderungsprotokoll",
+                params={
+                    "change_log_role": "admin",
+                    "change_log_competition_id": str(self.comp_a),
+                },
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Keine Einträge für die gewählte Filterauswahl.", response.text)
+
+    def test_main_page_includes_ajax_script_for_change_log(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/einstellungen")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("/einstellungen/aenderungsprotokoll", response.text)
+            self.assertIn("change-log-filter-form", response.text)
 
 
 if __name__ == "__main__":
