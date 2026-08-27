@@ -749,7 +749,14 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .result-actions {
     flex-wrap: nowrap;
 }
-.results-court-column .result-actions > * {
+/* Muss ueber ".result-form-row .result-actions button" (results.css, ohne
+   Media Query, Spezifitaet 0,2,1) gewinnen - ein Selektor mit ">*" (0,2,0)
+   unterliegt dort trotz spaeterer Reihenfolge, wodurch Speichern/Beenden
+   nicht mitwuchsen und der Start-Button auf schmalen Breiten fast auf 0
+   zusammengeschrumpft wurde (Regression-Report zu PR #63). Direkte
+   Typselektoren fuer Button/Form gleichen die Spezifitaet an. */
+.results-court-column .result-actions > button,
+.results-court-column .result-actions > form {
     flex: 1 1 0;
     min-width: 0;
 }
@@ -767,8 +774,18 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
    ihre gesetzte Breite - dadurch wirkten die Eingabefelder je nach Karte
    unterschiedlich gross (Feedback PR #61). Stattdessen sollen die Namen
    selbst schrumpfen/abschneiden, die Eingabefelder bleiben konstant breit. */
+/* Vorher liess "flex: 1 1 auto" beide Namen wachsen - da Text in seiner Box
+   aber links ausgerichtet bleibt, verschob das nur die nachfolgenden Felder
+   nach rechts, statt die Zeile sichtbar zu spreizen: "8a"/"8b" blieben links
+   gebuendelt mit Leerraum rechts (Regression-Report zu PR #63). Stattdessen
+   die Namen in ihrer natuerlichen (schrumpfbaren) Breite lassen und die
+   Restbreite ueber justify-content als Abstand verteilen, damit der erste
+   Name links und der zweite rechts an der Kartenkante sitzt. */
+.results-court-column .result-form {
+    justify-content: space-between;
+}
 .results-court-column .result-form strong {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
