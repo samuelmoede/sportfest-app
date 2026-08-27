@@ -640,9 +640,15 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
    Drag&Drop-Bedienung sinnvoll, hier sollen moeglichst viele Feld-Spalten
    gleichzeitig sichtbar sein (Feedback aus PR #54). */
 .results-time-grid {
-    grid-template-columns: 54px repeat(var(--editor-court-count), minmax(230px, min(1fr, 320px)));
+    /* Kein 1fr mehr: "min(1fr, 320px)" mischte einen <flex>-Wert mit einer
+       Laenge in min() - laut Spec ungueltig, wodurch Browser die gesamte
+       grid-template-columns-Deklaration verwarfen und auf das ungecappte
+       minmax(300px, 1fr) aus .editor-time-grid zurueckfielen. */
+    grid-template-columns: 54px repeat(var(--editor-court-count), minmax(230px, 260px));
     grid-auto-rows: minmax(0, auto);
     gap: 8px;
+    width: max-content;
+    min-width: 0;
 }
 .results-time-grid .editor-time-corner,
 .results-time-grid .editor-time-label {
@@ -720,7 +726,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 }
 @media (max-width: 640px) {
     .results-time-grid {
-        grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, min(1fr, 260px)));
+        grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, 220px));
     }
     .results-court-column {
         min-width: 180px;
