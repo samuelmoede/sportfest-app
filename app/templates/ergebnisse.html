@@ -698,15 +698,35 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     flex-basis: 100%;
     width: 100%;
 }
+/* .result-meta-info wird sonst nur so breit wie ihr Inhalt (Uhrzeit + Feld-Pill
+   + Wettbewerbsname) - passt das in eine Zeile (kurzer Feldname), bleibt der
+   Name in Zeile 1, sonst rutscht er in Zeile 2. Das machte die Kartenstruktur
+   je nach Feld-/Wettbewerbsnamenslaenge uneinheitlich (Feedback PR #61).
+   Container immer auf volle Breite zwingen und den Wettbewerbsnamen als
+   eigenes flex-basis:100%-Element IMMER in eine eigene Zeile setzen, egal wie
+   kurz Zeile 1 waere. */
+.results-court-column .result-meta-info {
+    flex-basis: 100%;
+    width: 100%;
+    row-gap: 2px;
+}
+.results-court-column .result-meta-info span:not(.pill) {
+    flex-basis: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .results-court-column .result-meta-badges {
-    gap: 4px;
+    gap: 3px;
 }
 .results-court-column .result-meta .pill,
 .results-court-column .result-meta .badge,
 .results-court-column .result-meta .change-counter,
 .results-court-column .result-meta .phase-pill {
-    padding: 2px 6px;
-    font-size: 0.68rem;
+    padding: 2px 5px;
+    font-size: 0.64rem;
+    min-height: 0;
 }
 .results-court-column .result-form-row,
 .results-court-column .result-form,
@@ -721,6 +741,19 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .result-form input {
     width: 52px;
     padding: 6px;
+    flex-shrink: 0;
+}
+/* Team-Namen (strong) hatten keine Breitenbegrenzung: bei langen Namen
+   druckten sie die Ergebnis-Eingabefelder ueber flex-shrink schmaler als
+   ihre gesetzte Breite - dadurch wirkten die Eingabefelder je nach Karte
+   unterschiedlich gross (Feedback PR #61). Stattdessen sollen die Namen
+   selbst schrumpfen/abschneiden, die Eingabefelder bleiben konstant breit. */
+.results-court-column .result-form strong {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .results-court-column .result-actions button,
 .results-court-column .correction-unlocked-actions button,
