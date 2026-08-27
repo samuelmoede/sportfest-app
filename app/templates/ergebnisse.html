@@ -734,8 +734,27 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .correction-unlocked-actions {
     gap: 4px;
 }
+.results-court-column .result-form,
 .results-court-column .result-actions {
     flex-basis: 100%;
+    width: 100%;
+}
+/* Start/Speichern/Beenden hingen bisher links gebuendelt mit Leerraum rechts,
+   weil die Buttons (bzw. ihre Start/Unstart-<form>-Wrapper) nur ihre
+   Eigenbreite belegten. Als Segmented-Button-Gruppe gleichmaessig ueber die
+   volle Kartenbreite verteilen (Feedback PR #62). Nur direkte Kinder von
+   .result-actions treffen - die verschachtelten Buttons in
+   .correction-unlocked-actions (Korrigieren/Abbrechen/Reaktivieren/Loeschen)
+   sollen ihr bisheriges, nicht gestrecktes Layout behalten. */
+.results-court-column .result-actions {
+    flex-wrap: nowrap;
+}
+.results-court-column .result-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.results-court-column .result-actions > button,
+.results-court-column .result-actions > form > button {
     width: 100%;
 }
 .results-court-column .result-form input {
