@@ -1829,6 +1829,41 @@ section.cards.competition-list {
 }
 
 /* --- Team-Selektor Panel (Wettbewerbe) --- */
+.team-selector-details {
+    align-self: start;
+}
+
+.team-selector-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-soft);
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.team-selector-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.team-selector-toggle:hover {
+    background: var(--blue-soft);
+    border-color: var(--blue);
+}
+
+.team-selector-details[open] .team-selector-toggle {
+    background: var(--blue-soft);
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
 .team-selector-panel {
     display: flex;
     flex-direction: column;
@@ -1836,6 +1871,7 @@ section.cards.competition-list {
     max-height: 340px;
     overflow-y: auto;
     padding: 14px 16px;
+    margin-top: 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--surface-soft);
