@@ -120,26 +120,29 @@
 
         {% if all_teams %}
         <label style="align-self: start; padding-top: 6px;">Teams (optional)</label>
-        <div class="team-selector-panel">
-            <p class="team-selector-hint">Teams explizit auswählen — überschreibt die Gruppenfilterung. Leer lassen für automatische Auswahl per Gruppe.</p>
-            {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
-            <div class="team-selector-gruppe">
-                <label class="team-selector-gruppe-label">
-                    <input type="checkbox" class="gruppe-all-create" data-gruppe="{{ gruppe_key }}">
-                    <strong>Gruppe {{ gruppe_key }}</strong>
-                    <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
-                </label>
-                <div class="team-selector-items">
-                    {% for team in gruppe_teams %}
-                    <label class="team-selector-item">
-                        <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-create" data-gruppe="{{ gruppe_key }}">
-                        {{ team.name }}
+        <details class="team-selector-details">
+            <summary class="team-selector-toggle">Teams einzeln auswählen (optional)</summary>
+            <div class="team-selector-panel">
+                <p class="team-selector-hint">Teams explizit auswählen — überschreibt die Gruppenfilterung. Leer lassen für automatische Auswahl per Gruppe.</p>
+                {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+                <div class="team-selector-gruppe">
+                    <label class="team-selector-gruppe-label">
+                        <input type="checkbox" class="gruppe-all-create" data-gruppe="{{ gruppe_key }}">
+                        <strong>Gruppe {{ gruppe_key }}</strong>
+                        <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
                     </label>
-                    {% endfor %}
+                    <div class="team-selector-items">
+                        {% for team in gruppe_teams %}
+                        <label class="team-selector-item">
+                            <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-create" data-gruppe="{{ gruppe_key }}">
+                            {{ team.name }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
+        </details>
         {% endif %}
 
         <button class="primary" type="submit" style="grid-column: 2;">Wettbewerb anlegen</button>
@@ -272,29 +275,34 @@
                 {% if all_teams %}
                 <label style="align-self: start; padding-top: 6px;">Teams</label>
                 {% set explicit_ids = competition_explicit_team_ids.get(c.id) or [] %}
-                <div class="team-selector-panel team-selector-compact">
-                    <p class="team-selector-hint">Explizit auswählen oder leer für Gruppenfilter.</p>
-                    {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
-                    <div class="team-selector-gruppe">
-                        <label class="team-selector-gruppe-label">
-                            <input type="checkbox" class="gruppe-all-edit" data-form="competition-{{ c.id }}-edit" data-gruppe="{{ gruppe_key }}"
-                                   {% if gruppe_teams | selectattr('id', 'in', explicit_ids) | list | length == gruppe_teams | length and gruppe_teams | length > 0 %}checked{% endif %}>
-                            <strong>{{ gruppe_key }}</strong>
-                            <span class="muted" style="font-size:0.8rem;">({{ gruppe_teams | length }})</span>
-                        </label>
-                        <div class="team-selector-items">
-                            {% for team in gruppe_teams %}
-                            <label class="team-selector-item">
-                                <input type="checkbox" name="team_ids" value="{{ team.id }}"
-                                       class="team-check-edit" data-gruppe="{{ gruppe_key }}"
-                                       {% if team.id in explicit_ids %}checked{% endif %}>
-                                {{ team.name }}
+                <details class="team-selector-details">
+                    <summary class="team-selector-toggle">
+                        {% if explicit_ids %}Teams auswählen ({{ explicit_ids|length }} explizit){% else %}Teams einzeln auswählen (optional){% endif %}
+                    </summary>
+                    <div class="team-selector-panel team-selector-compact">
+                        <p class="team-selector-hint">Explizit auswählen oder leer für Gruppenfilter.</p>
+                        {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+                        <div class="team-selector-gruppe">
+                            <label class="team-selector-gruppe-label">
+                                <input type="checkbox" class="gruppe-all-edit" data-form="competition-{{ c.id }}-edit" data-gruppe="{{ gruppe_key }}"
+                                       {% if gruppe_teams | selectattr('id', 'in', explicit_ids) | list | length == gruppe_teams | length and gruppe_teams | length > 0 %}checked{% endif %}>
+                                <strong>{{ gruppe_key }}</strong>
+                                <span class="muted" style="font-size:0.8rem;">({{ gruppe_teams | length }})</span>
                             </label>
-                            {% endfor %}
+                            <div class="team-selector-items">
+                                {% for team in gruppe_teams %}
+                                <label class="team-selector-item">
+                                    <input type="checkbox" name="team_ids" value="{{ team.id }}"
+                                           class="team-check-edit" data-gruppe="{{ gruppe_key }}"
+                                           {% if team.id in explicit_ids %}checked{% endif %}>
+                                    {{ team.name }}
+                                </label>
+                                {% endfor %}
+                            </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
+                </details>
                 {% endif %}
 
                 <button class="primary" type="submit" style="grid-column: 2;">Speichern</button>
