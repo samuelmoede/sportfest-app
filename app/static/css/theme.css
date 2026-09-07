@@ -1946,13 +1946,12 @@ section.cards.competition-list {
 }
 
 .team-selector-item input[type="checkbox"] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
 }
 
 .team-selector-gruppe-label {
@@ -1981,6 +1980,19 @@ section.cards.competition-list {
     margin: -8px 0 0;
     font-size: 0.78rem;
     font-weight: 500;
+}
+
+/* --- Jahrgang-Feld + Teams-Auswahl: ein gemeinsames Bedienelement (eine
+   Grid-Zelle statt zwei separate Label/Feld-Zeilen), damit die Grid-
+   Auto-Platzierung von .admin-form nicht durcheinandergerät. --- */
+.jahrgang-selector-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.jahrgang-selector-field .field-hint {
+    margin: 0;
 }
 
 /* --- Filter-Row --- */
