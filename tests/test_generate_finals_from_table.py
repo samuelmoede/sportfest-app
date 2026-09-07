@@ -18,7 +18,12 @@ def _make_competition_with_finished_round_robin(conn):
     """5 Teams, jeder gegen jeden bereits gespielt (kein Halbfinale), Finale/
     Spiel um Platz 3 als Platzhalter angelegt - wie generate_group_plan es
     fuer eine einzelne Runde ohne Gruppen-Split erzeugt (siehe Issue #75)."""
-    conn.execute("INSERT INTO courts (id, name) VALUES (1, 'Feld 1'), (2, 'Feld 2')")
+    # init_db() seedet bereits Standard-Spielfelder - hier eigene, eindeutig
+    # benannte Felder anlegen statt fixer IDs, die mit den Seed-Feldern
+    # kollidieren koennten.
+    conn.execute("INSERT INTO courts (name) VALUES ('Feld 1'), ('Feld 2')")
+    court_1 = conn.execute("SELECT id FROM courts WHERE name = 'Feld 1'").fetchone()["id"]
+    court_2 = conn.execute("SELECT id FROM courts WHERE name = 'Feld 2'").fetchone()["id"]
     conn.execute("""INSERT INTO competitions
         (id, name, sportart, jahrgang, competition_type, status)
         VALUES (1, 'Schnellturnier', 'Zweifelderball', 8, 'Turnier', 'geplant')""")
@@ -42,19 +47,19 @@ def _make_competition_with_finished_round_robin(conn):
             INSERT INTO slots (
                 competition_id, court_id, startzeit, slot_typ, phase, gruppe,
                 team_a_id, team_b_id, score_a, score_b, status
-            ) VALUES (1, 1, '10:00', 'Spiel', 'Gruppenphase', '', ?, ?, ?, ?, 'beendet')
-        """, (teams[team_a], teams[team_b], score_a, score_b))
+            ) VALUES (1, ?, '10:00', 'Spiel', 'Gruppenphase', '', ?, ?, ?, ?, 'beendet')
+        """, (court_1, teams[team_a], teams[team_b], score_a, score_b))
 
     conn.execute("""
         INSERT INTO slots (
             competition_id, court_id, startzeit, slot_typ, phase, gruppe, status, note
-        ) VALUES (1, 1, '11:00', 'Spiel', 'Finale', '', 'geplant', '')
-    """)
+        ) VALUES (1, ?, '11:00', 'Spiel', 'Finale', '', 'geplant', '')
+    """, (court_1,))
     conn.execute("""
         INSERT INTO slots (
             competition_id, court_id, startzeit, slot_typ, phase, gruppe, status, note
-        ) VALUES (1, 2, '11:00', 'Spiel', 'Spiel um Platz 3', '', 'geplant', '')
-    """)
+        ) VALUES (1, ?, '11:00', 'Spiel', 'Spiel um Platz 3', '', 'geplant', '')
+    """, (court_2,))
     conn.commit()
     return teams
 
