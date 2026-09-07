@@ -20,6 +20,7 @@ from app.services.schedule_generator_service import (
     get_already_played_ko_targets,
     get_winner_loser,
     group_phase_finished,
+    has_semifinal_slots,
     semifinals_finished,
     validate_generated_plan,
     validate_schulpokal_plan,
@@ -83,6 +84,7 @@ def create_router(
     parse_jahrgang_filter: Callable,
     get_active_competitions: Callable,
     calculate_group_table: Callable,
+    calculate_table: Callable,
     get_teams_for_competition: Callable,
     calculate_sixkampf_station_rotation: Callable,
 ) -> APIRouter:
@@ -226,6 +228,7 @@ def create_router(
         ko_hint = None
         can_generate_semifinals = False
         can_generate_finals = False
+        can_generate_finals_from_table = False
         is_schulpokal = (
             selected_competition is not None
             and selected_competition["competition_type"] == "Schulpokal"
@@ -238,13 +241,22 @@ def create_router(
             and get_effective_competition_location(competition) == selected_competition_location
         ]
         if selected_competition_id and schedule_planning_enabled and not is_schulpokal:
-            can_generate_semifinals = group_phase_finished(selected_competition_id)
-            can_generate_finals = semifinals_finished(selected_competition_id)
+            # Halbfinale-Platzhalter existieren nur beim Zwei-Gruppen-Schema
+            # (siehe generate_group_plan); eine einzelne "jeder gegen jeden"-
+            # Runde ohne Gruppen-Split besetzt Finale/Platz 3 stattdessen
+            # direkt aus der Gesamttabelle (generate_finals_from_table).
+            if has_semifinal_slots(selected_competition_id):
+                can_generate_semifinals = group_phase_finished(selected_competition_id)
+                can_generate_finals = semifinals_finished(selected_competition_id)
 
-            if can_generate_semifinals:
-                ko_hint = "Die Gruppenphase ist beendet. Die Halbfinals können automatisch besetzt werden."
-            elif can_generate_finals:
-                ko_hint = "Die Halbfinals sind beendet. Finale und Spiel um Platz 3 können automatisch besetzt werden."
+                if can_generate_semifinals:
+                    ko_hint = "Die Gruppenphase ist beendet. Die Halbfinals können automatisch besetzt werden."
+                elif can_generate_finals:
+                    ko_hint = "Die Halbfinals sind beendet. Finale und Spiel um Platz 3 können automatisch besetzt werden."
+            else:
+                can_generate_finals_from_table = group_phase_finished(selected_competition_id)
+                if can_generate_finals_from_table:
+                    ko_hint = "Die Vorrunde ist beendet. Finale und Spiel um Platz 3 können automatisch aus der Tabelle besetzt werden."
 
         overwrite_warning_prompt = None
         if (
@@ -255,14 +267,16 @@ def create_router(
                 selected_competition_id, overwrite_warning
             )
             if already_played:
+                if overwrite_warning == "Halbfinale":
+                    action = f"/competition/{selected_competition_id}/generate-semifinals"
+                elif has_semifinal_slots(selected_competition_id):
+                    action = f"/competition/{selected_competition_id}/generate-finals"
+                else:
+                    action = f"/competition/{selected_competition_id}/generate-finals-from-table"
                 overwrite_warning_prompt = {
                     "phase": overwrite_warning,
                     "results": [_format_slot_result(slot) for slot in already_played],
-                    "action": (
-                        f"/competition/{selected_competition_id}/generate-semifinals"
-                        if overwrite_warning == "Halbfinale"
-                        else f"/competition/{selected_competition_id}/generate-finals"
-                    ),
+                    "action": action,
                 }
 
         return {
@@ -290,6 +304,7 @@ def create_router(
             "ko_hint": ko_hint,
             "can_generate_semifinals": can_generate_semifinals,
             "can_generate_finals": can_generate_finals,
+            "can_generate_finals_from_table": can_generate_finals_from_table,
             "overwrite_warning_prompt": overwrite_warning_prompt,
             "is_schulpokal": is_schulpokal,
             "schulpokal_partner_competitions": schulpokal_partner_competitions,
@@ -1012,6 +1027,96 @@ def create_router(
                     loser_1,
                     loser_2,
                 ))
+
+            conn.commit()
+
+        return RedirectResponse(redirect_target, status_code=303)
+
+    @router.post("/competition/{competition_id}/generate-finals-from-table")
+    def generate_finals_from_table(
+        competition_id: int,
+        request: Request,
+        results_return_to: str = Form(""),
+        confirm_overwrite: str = Form("0"),
+    ):
+        """Besetzt Finale/Spiel um Platz 3 direkt aus der Tabelle der
+        Gruppenphase - fuer eine einzelne "jeder gegen jeden"-Runde ohne
+        Gruppen-Split, bei der (im Gegensatz zu generate_finals) kein
+        Halbfinale existiert, aus dem sich Sieger/Verlierer ableiten liessen.
+        calculate_table wird explizit auf phase='Gruppenphase' eingeschraenkt,
+        damit ein bereits gespieltes und hier ueberschriebenes Finale/Spiel um
+        Platz 3 nicht in die fuer die Neubesetzung herangezogene Rangfolge
+        zurueckfliesst."""
+        redirect_target = _phase_generation_redirect_target(competition_id, results_return_to)
+
+        already_played = get_already_played_ko_targets(competition_id, "Finale")
+        if already_played and confirm_overwrite != "1":
+            return RedirectResponse(
+                _phase_generation_redirect_target(
+                    competition_id, results_return_to, overwrite_warning="Finale"
+                ),
+                status_code=303,
+            )
+
+        ranking = calculate_table(competition_id, phase="Gruppenphase")
+        if len(ranking) < 2:
+            return RedirectResponse(redirect_target, status_code=303)
+
+        with get_conn() as conn:
+            for slot in already_played:
+                record_change(
+                    conn, request,
+                    action=f"{slot['phase']} neu besetzt (vorheriges Ergebnis überschrieben)",
+                    entity_type="slot_result",
+                    entity_id=slot["id"],
+                    competition_id=competition_id,
+                    old_value=_format_slot_result(slot),
+                    new_value=None,
+                )
+
+            final_slot = conn.execute("""
+                SELECT *
+                FROM slots
+                WHERE competition_id = ?
+                  AND slot_typ = 'Spiel'
+                  AND phase = 'Finale'
+                ORDER BY startzeit, court_id, id
+                LIMIT 1
+            """, (competition_id,)).fetchone()
+
+            small_final_slot = conn.execute("""
+                SELECT *
+                FROM slots
+                WHERE competition_id = ?
+                  AND slot_typ = 'Spiel'
+                  AND phase IN ('Spiel um Platz 3', 'Kleines Finale', 'Platzierung')
+                ORDER BY startzeit, court_id, id
+                LIMIT 1
+            """, (competition_id,)).fetchone()
+
+            if final_slot:
+                conn.execute("""
+                    UPDATE slots
+                    SET team_a_id = ?,
+                        team_b_id = ?,
+                        score_a = NULL,
+                        score_b = NULL,
+                        status = 'geplant',
+                        note = 'Finale: Platz 1 gegen Platz 2 der Tabelle'
+                    WHERE id = ?
+                """, (ranking[0]["team_id"], ranking[1]["team_id"], final_slot["id"]))
+
+            if small_final_slot and len(ranking) >= 4:
+                conn.execute("""
+                    UPDATE slots
+                    SET team_a_id = ?,
+                        team_b_id = ?,
+                        score_a = NULL,
+                        score_b = NULL,
+                        status = 'geplant',
+                        note = 'Spiel um Platz 3: Platz 3 gegen Platz 4 der Tabelle'
+                    WHERE id = ?
+                """, (ranking[2]["team_id"], ranking[3]["team_id"], small_final_slot["id"]))
 
             conn.commit()
 

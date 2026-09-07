@@ -262,74 +262,122 @@ def generate_group_plan(
         current_time += timedelta(minutes=slot_interval_minutes)
 
     if include_ko:
-        hf_time = current_time.strftime("%H:%M")
+        # Die hartkodierten 6er-/7er-Sonderfaelle in _build_pairings sind die
+        # einzige Quelle einer echten Zwei-Gruppen-Aufteilung (gruppe "A"/"B");
+        # jedes andere faire Rundenverfahren (_generate_balanced_pairings)
+        # liefert durchgehend leere gruppe-Werte. Nur im echten Zwei-Gruppen-
+        # Fall ergibt ein zwischengeschaltetes Halbfinale ueberhaupt Sinn -
+        # sonst wuerden Platzhalter mit einer Notiz wie "Gruppe A gegen
+        # Gruppe B" erzeugt, obwohl es diese Gruppen gar nicht gibt (siehe
+        # Issue: ein einzelnes "jeder gegen jeden"-Rundenfeld, z.B. 5 Teams,
+        # hat keine Gruppen und soll Finale/Spiel um Platz 3 direkt aus der
+        # Tabelle besetzen koennen).
+        has_group_split = any(gruppe for _team_a, _team_b, gruppe in pairings)
 
-        proposed_slots.append({
-            "competition_id": competition_id,
-            "competition_name": competition["name"],
-            "startzeit": hf_time,
-            "slot_typ": "Spiel",
-            "court_id": court_ids[0],
-            "court_name": court_map.get(court_ids[0], ""),
-            "phase": "Halbfinale",
-            "gruppe": "",
-            "team_a_id": "",
-            "team_b_id": "",
-            "team_a": "?",
-            "team_b": "?",
-            "note": "HF1: 1. Gruppe A gegen 2. Gruppe B",
-        })
-        if len(court_ids) > 1:
+        if has_group_split:
+            hf_time = current_time.strftime("%H:%M")
+
             proposed_slots.append({
                 "competition_id": competition_id,
                 "competition_name": competition["name"],
                 "startzeit": hf_time,
                 "slot_typ": "Spiel",
-                "court_id": court_ids[1],
-                "court_name": court_map.get(court_ids[1], ""),
+                "court_id": court_ids[0],
+                "court_name": court_map.get(court_ids[0], ""),
                 "phase": "Halbfinale",
                 "gruppe": "",
                 "team_a_id": "",
                 "team_b_id": "",
                 "team_a": "?",
                 "team_b": "?",
-                "note": "HF2: 1. Gruppe B gegen 2. Gruppe A",
+                "note": "HF1: 1. Gruppe A gegen 2. Gruppe B",
             })
-        current_time += timedelta(minutes=slot_interval_minutes)
+            if len(court_ids) > 1:
+                proposed_slots.append({
+                    "competition_id": competition_id,
+                    "competition_name": competition["name"],
+                    "startzeit": hf_time,
+                    "slot_typ": "Spiel",
+                    "court_id": court_ids[1],
+                    "court_name": court_map.get(court_ids[1], ""),
+                    "phase": "Halbfinale",
+                    "gruppe": "",
+                    "team_a_id": "",
+                    "team_b_id": "",
+                    "team_a": "?",
+                    "team_b": "?",
+                    "note": "HF2: 1. Gruppe B gegen 2. Gruppe A",
+                })
+            current_time += timedelta(minutes=slot_interval_minutes)
 
-        final_time = current_time.strftime("%H:%M")
+            final_time = current_time.strftime("%H:%M")
 
-        proposed_slots.append({
-            "competition_id": competition_id,
-            "competition_name": competition["name"],
-            "startzeit": final_time,
-            "slot_typ": "Spiel",
-            "court_id": court_ids[0],
-            "court_name": court_map.get(court_ids[0], ""),
-            "phase": "Finale",
-            "gruppe": "",
-            "team_a_id": "",
-            "team_b_id": "",
-            "team_a": "?",
-            "team_b": "?",
-            "note": "Finale: Sieger HF1 gegen Sieger HF2",
-        })
-        if len(court_ids) > 1:
             proposed_slots.append({
                 "competition_id": competition_id,
                 "competition_name": competition["name"],
                 "startzeit": final_time,
                 "slot_typ": "Spiel",
-                "court_id": court_ids[1],
-                "court_name": court_map.get(court_ids[1], ""),
-                "phase": "Spiel um Platz 3",
+                "court_id": court_ids[0],
+                "court_name": court_map.get(court_ids[0], ""),
+                "phase": "Finale",
                 "gruppe": "",
                 "team_a_id": "",
                 "team_b_id": "",
                 "team_a": "?",
                 "team_b": "?",
-                "note": "Spiel um Platz 3: Verlierer HF1 gegen Verlierer HF2",
+                "note": "Finale: Sieger HF1 gegen Sieger HF2",
             })
+            if len(court_ids) > 1:
+                proposed_slots.append({
+                    "competition_id": competition_id,
+                    "competition_name": competition["name"],
+                    "startzeit": final_time,
+                    "slot_typ": "Spiel",
+                    "court_id": court_ids[1],
+                    "court_name": court_map.get(court_ids[1], ""),
+                    "phase": "Spiel um Platz 3",
+                    "gruppe": "",
+                    "team_a_id": "",
+                    "team_b_id": "",
+                    "team_a": "?",
+                    "team_b": "?",
+                    "note": "Spiel um Platz 3: Verlierer HF1 gegen Verlierer HF2",
+                })
+        else:
+            final_time = current_time.strftime("%H:%M")
+
+            proposed_slots.append({
+                "competition_id": competition_id,
+                "competition_name": competition["name"],
+                "startzeit": final_time,
+                "slot_typ": "Spiel",
+                "court_id": court_ids[0],
+                "court_name": court_map.get(court_ids[0], ""),
+                "phase": "Finale",
+                "gruppe": "",
+                "team_a_id": "",
+                "team_b_id": "",
+                "team_a": "?",
+                "team_b": "?",
+                "note": "Finale: Platz 1 gegen Platz 2 der Tabelle",
+            })
+            if len(court_ids) > 1:
+                proposed_slots.append({
+                    "competition_id": competition_id,
+                    "competition_name": competition["name"],
+                    "startzeit": final_time,
+                    "slot_typ": "Spiel",
+                    "court_id": court_ids[1],
+                    "court_name": court_map.get(court_ids[1], ""),
+                    "phase": "Spiel um Platz 3",
+                    "gruppe": "",
+                    "team_a_id": "",
+                    "team_b_id": "",
+                    "team_a": "?",
+                    "team_b": "?",
+                    "note": "Spiel um Platz 3: Platz 3 gegen Platz 4 der Tabelle",
+                })
+            current_time += timedelta(minutes=slot_interval_minutes)
     for slot in proposed_slots:
         slot["game_end_time"] = get_game_end_time(
             slot["startzeit"], timing["game_duration_minutes"]
@@ -613,6 +661,25 @@ def group_phase_finished(competition_id: int):
         """, (competition_id,)).fetchone()["n"]
 
     return total > 0 and unfinished == 0
+
+
+def has_semifinal_slots(competition_id: int) -> bool:
+    """True, wenn fuer diesen Wettbewerb Halbfinale-Platzhalter existieren -
+    Signal dafuer, dass der Spielplan auf dem Zwei-Gruppen-Schema
+    (generate_semifinals/generate_finals) aufgebaut ist. Fehlt das
+    Halbfinale (z.B. bei einer einzelnen "jeder gegen jeden"-Runde ohne
+    Gruppen-Split, siehe generate_group_plan), wird stattdessen
+    generate_finals_from_table verwendet."""
+    with get_conn() as conn:
+        row = conn.execute("""
+            SELECT COUNT(*) AS n
+            FROM slots
+            WHERE competition_id = ?
+              AND slot_typ = 'Spiel'
+              AND phase = 'Halbfinale'
+        """, (competition_id,)).fetchone()
+
+    return row["n"] > 0
 
 
 def semifinals_finished(competition_id: int):

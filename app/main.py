@@ -19,6 +19,7 @@ from app.database import init_db, get_conn, DB_PATH
 from app.routes.settings import router as settings_router
 from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
+from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.venues import create_router as create_venues_router
@@ -53,6 +54,7 @@ from app.services.schedule_generator_service import (
     get_next_phase_names,
     get_winner_loser,
     group_phase_finished,
+    has_semifinal_slots,
     is_next_phase_started,
     semifinals_finished,
 )
@@ -116,6 +118,7 @@ SESSION_HTTPS_ONLY = os.getenv(
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
+    ("/turnier-schnellstart", "admin"),
     ("/einstellungen", "admin"),
     ("/dokumentation", "admin"),
     ("/roadmap", "admin"),
@@ -149,7 +152,9 @@ ACTION_ACCESS_RULES = (
         "referee",
     ),
     (
-        re.compile(r"^/competition/[^/]+/(?:generate-semifinals|generate-finals)$"),
+        re.compile(
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table)$"
+        ),
         "referee",
     ),
     (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
@@ -1118,7 +1123,12 @@ def include_teams_with_existing_sixkampf_results(conn, competition_id: int, team
     return list(teams) + list(extra_teams)
 
 
-def calculate_table(competition_id: int):
+def calculate_table(competition_id: int, phase: Optional[str] = None):
+    """phase=None wertet alle beendeten Spiele des Wettbewerbs; ein
+    konkreter Wert (z.B. "Gruppenphase") beschraenkt die Tabelle auf diese
+    Phase - genutzt von generate_finals_from_table, damit ein bereits
+    gespieltes und dort ueberschriebenes Finale/Spiel um Platz 3 nicht in die
+    fuer die Neubesetzung herangezogene Rangfolge zurueckfliesst."""
     with get_conn() as conn:
         competition = conn.execute(
             "SELECT * FROM competitions WHERE id = ?",
@@ -1130,7 +1140,9 @@ def calculate_table(competition_id: int):
 
         teams = get_teams_for_competition(conn, competition_id, competition["jahrgang"])
 
-        slots = conn.execute("""
+        phase_clause = " AND phase = ?" if phase is not None else ""
+        params = (competition_id, phase) if phase is not None else (competition_id,)
+        slots = conn.execute(f"""
             SELECT slots.*, ta.name AS team_a, tb.name AS team_b
             FROM slots
             LEFT JOIN teams ta ON ta.id = slots.team_a_id
@@ -1140,7 +1152,8 @@ def calculate_table(competition_id: int):
               AND status = 'beendet'
               AND team_a_id IS NOT NULL
               AND team_b_id IS NOT NULL
-        """, (competition_id,)).fetchall()
+              {phase_clause}
+        """, params).fetchall()
 
     table = {}
 
@@ -2092,17 +2105,20 @@ def ergebnisse(
     phase_ready_dismiss_url = None
     parsed_phase_ready_competition_id = parse_filter_id(phase_ready_competition_id)
     if (
-        phase_ready in ("Halbfinale", "Finale")
+        phase_ready in ("Halbfinale", "Finale", "FinaleAusTabelle")
         and parsed_phase_ready_competition_id is not None
         and parsed_phase_ready_competition_id == selected_competition_id
     ):
+        if phase_ready == "Halbfinale":
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-semifinals"
+        elif phase_ready == "FinaleAusTabelle":
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-finals-from-table"
+        else:
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-finals"
         phase_ready_prompt = {
-            "phase": phase_ready,
-            "action": (
-                f"/competition/{parsed_phase_ready_competition_id}/generate-semifinals"
-                if phase_ready == "Halbfinale"
-                else f"/competition/{parsed_phase_ready_competition_id}/generate-finals"
-            ),
+            "phase": "Finale" if phase_ready == "FinaleAusTabelle" else phase_ready,
+            "from_table": phase_ready == "FinaleAusTabelle",
+            "action": phase_ready_action,
         }
         current_url = request.url.path
         if request.url.query:
@@ -2114,17 +2130,19 @@ def ergebnisse(
     if overwrite_warning in ("Halbfinale", "Finale") and selected_competition_id is not None:
         already_played = get_already_played_ko_targets(selected_competition_id, overwrite_warning)
         if already_played:
+            if overwrite_warning == "Halbfinale":
+                overwrite_action = f"/competition/{selected_competition_id}/generate-semifinals"
+            elif has_semifinal_slots(selected_competition_id):
+                overwrite_action = f"/competition/{selected_competition_id}/generate-finals"
+            else:
+                overwrite_action = f"/competition/{selected_competition_id}/generate-finals-from-table"
             overwrite_warning_prompt = {
                 "phase": overwrite_warning,
                 "results": [
                     f"{slot['phase']}: {slot['team_a'] or '?'} {slot['score_a']}:{slot['score_b']} {slot['team_b'] or '?'}"
                     for slot in already_played
                 ],
-                "action": (
-                    f"/competition/{selected_competition_id}/generate-semifinals"
-                    if overwrite_warning == "Halbfinale"
-                    else f"/competition/{selected_competition_id}/generate-finals"
-                ),
+                "action": overwrite_action,
             }
             current_url = request.url.path
             if request.url.query:
@@ -2647,7 +2665,10 @@ def save_slot(
     )
     if just_completed:
         if slot["phase"] == "Gruppenphase" and group_phase_finished(slot["competition_id"]):
-            phase_ready = "Halbfinale"
+            phase_ready = (
+                "Halbfinale" if has_semifinal_slots(slot["competition_id"])
+                else "FinaleAusTabelle"
+            )
         elif slot["phase"] == "Halbfinale" and semifinals_finished(slot["competition_id"]):
             phase_ready = "Finale"
 
@@ -2867,8 +2888,12 @@ app.include_router(create_schedule_router(
     parse_jahrgang_filter=parse_jahrgang_filter,
     get_active_competitions=get_active_competitions,
     calculate_group_table=calculate_group_table,
+    calculate_table=calculate_table,
     get_teams_for_competition=get_teams_for_competition,
     calculate_sixkampf_station_rotation=calculate_sixkampf_station_rotation,
+))
+app.include_router(create_quickstart_router(
+    app_now_display_time=app_now_display_time,
 ))
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
