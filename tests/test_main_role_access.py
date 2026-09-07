@@ -59,5 +59,35 @@ class EventDetailRoleExceptionTests(unittest.TestCase):
         self.assertIsNone(get_required_role("/"))
 
 
+class QuickstartRoleAccessTests(unittest.TestCase):
+    """Issue #75: der Turnier-Schnellstart-Assistent legt Wettbewerbe/Spielplaene
+    an und muss daher wie /wettbewerbe und /spielplan-bearbeiten admin-only
+    sein; die neue generate-finals-from-table-Aktion soll wie die bestehenden
+    generate-semifinals/generate-finals-Aktionen der schwaecheren
+    referee-Rolle offenstehen (Schiedsrichter loesen sie ueber /ergebnisse aus)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "quickstart-role-access-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_turnier_schnellstart_requires_admin(self):
+        from app.main import get_required_role
+
+        self.assertEqual(get_required_role("/turnier-schnellstart"), "admin")
+
+    def test_generate_finals_from_table_requires_referee(self):
+        from app.main import get_required_role
+
+        self.assertEqual(
+            get_required_role("/competition/42/generate-finals-from-table"), "referee"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

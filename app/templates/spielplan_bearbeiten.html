@@ -303,6 +303,14 @@
                 Finale automatisch besetzen
             </button>
         </form>
+
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/generate-finals-from-table"
+              onsubmit="return confirm('Finale und Spiel um Platz 3 automatisch anhand der Tabelle besetzen?');">
+            <button class="green" type="submit" {% if not can_generate_finals_from_table %}disabled{% endif %}>
+                Endplatzierung aus Tabelle besetzen
+            </button>
+        </form>
     </div>
 </section>
 {% endif %}

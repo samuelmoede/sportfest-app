@@ -58,6 +58,10 @@
             <span class="nav-icon" aria-hidden="true">✏️</span>
             <span class="nav-text">Spielplan bearbeiten</span>
         </a>
+        <a class="nav-link{% if current_path == '/turnier-schnellstart' %} is-active{% endif %}" href="/turnier-schnellstart" {% if current_path == '/turnier-schnellstart' %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true">⚡</span>
+            <span class="nav-text">Turnier-Schnellstart</span>
+        </a>
         {% endif %}
         {% if can_view_results %}
         <a class="nav-link{% if current_path == '/ergebnisse' %} is-active{% endif %}" href="/ergebnisse" {% if current_path == '/ergebnisse' %}aria-current="page"{% endif %}>
@@ -147,6 +151,10 @@
             <a class="nav-link{% if current_path == '/spielplan-bearbeiten' %} is-active{% endif %}" href="/spielplan-bearbeiten" {% if current_path == '/spielplan-bearbeiten' %}aria-current="page"{% endif %}>
                 <span class="nav-icon" aria-hidden="true">✏️</span>
                 <span class="nav-text">Spielplan bearbeiten</span>
+            </a>
+            <a class="nav-link{% if current_path == '/turnier-schnellstart' %} is-active{% endif %}" href="/turnier-schnellstart" {% if current_path == '/turnier-schnellstart' %}aria-current="page"{% endif %}>
+                <span class="nav-icon" aria-hidden="true">⚡</span>
+                <span class="nav-text">Turnier-Schnellstart</span>
             </a>
             {% endif %}
             {% if can_view_results %}

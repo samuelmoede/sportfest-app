@@ -12,6 +12,7 @@ from app.services.schedule_generator_service import (
     _assign_courts_for_round,
     generate_group_plan,
     get_already_played_ko_targets,
+    has_semifinal_slots,
     is_next_phase_started,
 )
 
@@ -83,6 +84,96 @@ class GenerateGroupPlanCourtContinuityTests(unittest.TestCase):
             team: courts for team, courts in courts_used_by_team.items() if len(courts) > 1
         }
         self.assertEqual(switching_teams, {}, "no team should need to switch courts mid group phase")
+
+
+class GenerateGroupPlanDirectFinalsTests(unittest.TestCase):
+    """Issue #75: eine einzelne 'jeder gegen jeden'-Runde (z.B. 5 Teams auf 2
+    Feldern) hat keinen echten Zwei-Gruppen-Split (siehe _build_pairings) -
+    generate_group_plan soll dafuer Finale/Spiel um Platz 3 direkt anlegen,
+    statt sinnlose Halbfinale-Platzhalter mit einer 'Gruppe A gegen Gruppe B'-
+    Notiz zu erzeugen, obwohl es diese Gruppen gar nicht gibt."""
+
+    def _make_competition(self, conn, team_count):
+        conn.execute("""INSERT INTO courts (id, name) VALUES (1, 'Feld 1'), (2, 'Feld 2')""")
+        for i in range(team_count):
+            conn.execute(
+                "INSERT INTO teams (id, name, jahrgang) VALUES (?, ?, 8)",
+                (i + 1, f"Team {i + 1}"),
+            )
+        conn.execute("""INSERT INTO competitions
+            (id, name, sportart, jahrgang, competition_type, game_duration_minutes,
+             changeover_duration_minutes)
+            VALUES (1, 'Schnellturnier', 'Zweifelderball', 8, 'Turnier', 7, 3)""")
+        conn.commit()
+
+    def test_five_teams_get_direct_finals_without_halbfinale(self):
+        conn = make_in_memory_db()
+        self._make_competition(conn, 5)
+
+        import app.services.schedule_generator_service as svc
+        with patch.object(svc, "get_conn", return_value=conn):
+            slots = generate_group_plan(
+                competition_id=1,
+                court_ids=[1, 2],
+                startzeit="10:00",
+                games_per_team=5,
+                include_ko=True,
+            )
+
+        phases = [slot["phase"] for slot in slots]
+        self.assertNotIn("Halbfinale", phases)
+        self.assertIn("Finale", phases)
+        self.assertIn("Spiel um Platz 3", phases)
+
+        final_slot = next(slot for slot in slots if slot["phase"] == "Finale")
+        platz3_slot = next(slot for slot in slots if slot["phase"] == "Spiel um Platz 3")
+        self.assertEqual(final_slot["note"], "Finale: Platz 1 gegen Platz 2 der Tabelle")
+        self.assertEqual(platz3_slot["note"], "Spiel um Platz 3: Platz 3 gegen Platz 4 der Tabelle")
+        self.assertEqual(final_slot["startzeit"], platz3_slot["startzeit"])
+
+    def test_seven_teams_with_hardcoded_group_split_still_use_halbfinale(self):
+        conn = make_in_memory_db()
+        self._make_competition(conn, 7)
+
+        import app.services.schedule_generator_service as svc
+        with patch.object(svc, "get_conn", return_value=conn):
+            slots = generate_group_plan(
+                competition_id=1,
+                court_ids=[1, 2],
+                startzeit="10:00",
+                games_per_team=2,
+                include_ko=True,
+            )
+
+        phases = {slot["phase"] for slot in slots}
+        self.assertIn("Halbfinale", phases)
+        self.assertIn("Finale", phases)
+
+
+class HasSemifinalSlotsTests(unittest.TestCase):
+    def test_false_when_no_slots_exist(self):
+        conn = make_in_memory_db()
+        conn.execute("""INSERT INTO competitions (id, name, sportart, jahrgang, competition_type)
+            VALUES (1, 'Test', 'Test', 8, 'Turnier')""")
+        conn.commit()
+
+        import app.services.schedule_generator_service as svc
+        with patch.object(svc, "get_conn", return_value=conn):
+            self.assertFalse(has_semifinal_slots(1))
+
+    def test_true_when_halbfinale_slot_exists(self):
+        conn = make_in_memory_db()
+        conn.execute("INSERT INTO courts (id, name) VALUES (1, 'Feld 1')")
+        conn.execute("""INSERT INTO competitions (id, name, sportart, jahrgang, competition_type)
+            VALUES (1, 'Test', 'Test', 8, 'Turnier')""")
+        conn.execute("""INSERT INTO slots
+            (competition_id, court_id, startzeit, slot_typ, phase, status)
+            VALUES (1, 1, '11:00', 'Spiel', 'Halbfinale', 'geplant')""")
+        conn.commit()
+
+        import app.services.schedule_generator_service as svc
+        with patch.object(svc, "get_conn", return_value=conn):
+            self.assertTrue(has_semifinal_slots(1))
 
 
 class GetAlreadyPlayedKoTargetsTests(unittest.TestCase):

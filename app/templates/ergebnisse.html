@@ -432,6 +432,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         <strong>
             {% if phase_ready_prompt.phase == "Halbfinale" %}
             Die Gruppenphase ist vollständig gespeichert.
+            {% elif phase_ready_prompt.from_table %}
+            Die Vorrunde ist vollständig gespeichert.
             {% else %}
             Die Halbfinals sind vollständig gespeichert.
             {% endif %}
@@ -439,6 +441,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         <p class="muted">
             {% if phase_ready_prompt.phase == "Halbfinale" %}
             Sollen die Halbfinal-Paarungen jetzt anhand der Gruppentabellen besetzt werden?
+            {% elif phase_ready_prompt.from_table %}
+            Sollen Finale und Spiel um Platz 3 jetzt anhand der Tabelle besetzt werden?
             {% else %}
             Sollen Finale und Spiel um Platz 3 jetzt anhand der Halbfinal-Ergebnisse besetzt werden?
             {% endif %}
