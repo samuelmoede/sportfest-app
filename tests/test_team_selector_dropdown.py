@@ -135,7 +135,7 @@ class TeamSelectorDropdownTests(unittest.TestCase):
         self.assertIn("min-height: 0", rule_body)
 
     def test_jahrgang_field_has_explanatory_hint(self):
-        """Das freie 'Jahrgang'-Feld (jahrgang) muss sich klar von der
+        """Das 'Jahrgang'-Auswahlfeld (jahrgang) muss sich klar von der
         darunterliegenden Klassen-Auswahl abgrenzen - beide Formulare
         (Anlegen und Bearbeiten) bekommen einen kurzen Hinweistext."""
         from fastapi.testclient import TestClient
@@ -256,6 +256,80 @@ class TeamSelectorDropdownTests(unittest.TestCase):
 
         self.assertNotIn("position: absolute", rule_body)
         self.assertNotIn("clip:", rule_body)
+
+    def test_jahrgang_field_is_select_without_free_text_fallback(self):
+        """Issue #71: das Jahrgang-Bedienelement darf kein Freitextfeld mehr
+        sein (mit Datalist-Vorschlaegen), sondern nur noch eine Auswahl aus
+        den tatsaechlich vorhandenen Jahrgaengen/Gruppen - Tippfehler duerfen
+        keinen nicht existierenden Jahrgang mehr setzen koennen."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        self.assertNotIn('<input type="text" name="jahrgang"', html)
+        self.assertNotIn("gruppe-suggestions-create", html)
+        self.assertNotIn("gruppe-suggestions-edit", html)
+        self.assertNotIn("<datalist", html)
+
+        create_select_start = html.index('<select name="jahrgang" id="create-jahrgang-input">')
+        create_select_end = html.index("</select>", create_select_start)
+        create_select_html = html[create_select_start:create_select_end]
+        self.assertIn('<option value="7">7</option>', create_select_html)
+        self.assertIn('<option value="8">8</option>', create_select_html)
+
+    def test_edit_form_jahrgang_select_preselects_current_value(self):
+        """Das Bearbeiten-Formular muss den bereits gespeicherten Jahrgang
+        des Wettbewerbs (hier 7) als vorausgewaehlte Option im Dropdown
+        zeigen, statt stillschweigend auf eine andere Option umzuspringen."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        edit_select_start = html.index('<select name="jahrgang">')
+        edit_select_end = html.index("</select>", edit_select_start)
+        edit_select_html = html[edit_select_start:edit_select_end]
+        self.assertIn('<option value="7" selected>7</option>', edit_select_html)
+
+    def test_edit_form_preserves_jahrgang_value_without_matching_teams(self):
+        """Randfall: ein Wettbewerb kann einen Jahrgang tragen, fuer den
+        aktuell keine aktiven Teams (mehr) existieren (z.B. nachtraeglich
+        deaktiviert). Die Auswahl muss diesen Wert trotzdem als eigene,
+        vorausgewaehlte Option anbieten - sonst wuerde ein Speichern ohne
+        bewusste Aenderung den Jahrgang stillschweigend auf die erste
+        Options-Liste verspringen lassen."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE competitions SET jahrgang = ? WHERE id = ?",
+                ("9", self.competition_id),
+            )
+            conn.commit()
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        edit_select_start = html.index('<select name="jahrgang">')
+        edit_select_end = html.index("</select>", edit_select_start)
+        edit_select_html = html[edit_select_start:edit_select_end]
+        self.assertIn('<option value="9" selected>9</option>', edit_select_html)
 
 
 if __name__ == "__main__":
