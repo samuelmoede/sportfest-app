@@ -547,6 +547,28 @@ def create_router(
             overwrite_warning=overwrite_warning,
         )
 
+    @router.post("/competition/{competition_id}/update-timing")
+    def update_competition_timing(
+        competition_id: int,
+        game_duration_minutes: int = Form(...),
+        changeover_duration_minutes: int = Form(...),
+    ):
+        # Gleiche Validierung wie /competition/{id}/update in
+        # app/routes/competitions.py, nur eben ohne den Umweg ueber
+        # /wettbewerbe - siehe Issue #76.
+        if game_duration_minutes >= 1 and changeover_duration_minutes >= 0:
+            with get_conn() as conn:
+                conn.execute("""
+                    UPDATE competitions
+                    SET game_duration_minutes = ?, changeover_duration_minutes = ?
+                    WHERE id = ?
+                """, (game_duration_minutes, changeover_duration_minutes, competition_id))
+                conn.commit()
+        return RedirectResponse(
+            f"/spielplan-bearbeiten?competition_id={competition_id}",
+            status_code=303,
+        )
+
     @router.post("/plan-generator/preview")
     def plan_generator_preview(
         request: Request,
