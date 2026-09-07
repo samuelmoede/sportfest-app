@@ -134,9 +134,9 @@ class TeamSelectorDropdownTests(unittest.TestCase):
         self.assertIn("height: 16px", rule_body)
         self.assertIn("min-height: 0", rule_body)
 
-    def test_gruppe_field_has_explanatory_hint(self):
-        """Issue #67: das freie 'Gruppe'-Feld (jahrgang) muss sich klar vom
-        darunterliegenden Teams-Dropdown abgrenzen - beide Formulare
+    def test_jahrgang_field_has_explanatory_hint(self):
+        """Das freie 'Jahrgang'-Feld (jahrgang) muss sich klar von der
+        darunterliegenden Klassen-Auswahl abgrenzen - beide Formulare
         (Anlegen und Bearbeiten) bekommen einen kurzen Hinweistext."""
         from fastapi.testclient import TestClient
 
@@ -155,10 +155,13 @@ class TeamSelectorDropdownTests(unittest.TestCase):
         )
         self.assertIn("automatisch verwendet", html)
 
-    def test_team_selector_labels_reference_gruppe_feld(self):
-        """Issue #67: Dropdown-Titel/Hinweis sollen explizit auf das
-        Ueberschreiben des 'Gruppe'-Felds hinweisen, damit der Unterschied
-        zwischen beiden Wegen (Jahrgang vs. explizite Teamauswahl) klar ist."""
+    def test_team_selector_hint_references_jahrgang_field(self):
+        """Issue #69: Dropdown-Titel/Hinweis sollen explizit auf das
+        Ueberschreiben des 'Jahrgang'-Felds hinweisen, damit der Unterschied
+        zwischen beiden Wegen (Jahrgang vs. explizite Klassenauswahl) klar
+        bleibt - und die frueher uneinheitliche 'Gruppe'-Formulierung ist
+        vollstaendig durch 'Jahrgang' ersetzt (sichtbare Texte, siehe
+        Issue #69 Punkt 3)."""
         from fastapi.testclient import TestClient
 
         from app.main import app as fastapi_app
@@ -170,7 +173,89 @@ class TeamSelectorDropdownTests(unittest.TestCase):
         html = response.text
 
         self.assertGreaterEqual(html.count("überschreibt"), 2)
-        self.assertGreaterEqual(html.count("Gruppe-Feld"), 2)
+        self.assertGreaterEqual(html.count("eingetragenen Jahrgang"), 2)
+        self.assertNotIn("Gruppe-Feld", html)
+        self.assertNotIn(">Gruppe<", html)
+
+    def test_jahrgang_field_and_team_selector_share_one_control(self):
+        """Issue #69 Punkt 2: das freie 'Jahrgang'-Textfeld und die
+        Klassen-Auswahl sind kein eigenstaendiges, gleichrangiges Feldpaar
+        mehr, sondern zusammen EIN Bedienelement (gemeinsamer Wrapper unter
+        einem einzigen 'Jahrgang'-Label) statt zwei separater Grid-Zeilen."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        self.assertGreaterEqual(html.count(">Jahrgang<"), 2)
+
+        wrapper_start = html.index('<div class="jahrgang-selector-field">')
+        jahrgang_input_pos = html.index('name="jahrgang"', wrapper_start)
+        details_pos = html.index('<details class="team-selector-details">', wrapper_start)
+
+        self.assertLess(
+            wrapper_start,
+            jahrgang_input_pos,
+            "das Jahrgang-Textfeld muss innerhalb des gemeinsamen Wrappers liegen",
+        )
+        self.assertLess(
+            jahrgang_input_pos,
+            details_pos,
+            "die Klassen-Auswahl muss im selben Bedienelement wie das Jahrgang-Feld stecken",
+        )
+        self.assertLess(
+            details_pos - jahrgang_input_pos,
+            2000,
+            "Jahrgang-Feld und Klassen-Auswahl sollten eng im selben Wrapper beieinanderliegen",
+        )
+
+    def test_team_checkbox_chip_renders_for_concrete_team(self):
+        """Issue #69 Punkt 1: im aufgeklappten Dropdown muss fuer ein
+        konkretes Team (z.B. Klasse '7a') tatsaechlich ein Checkbox-Chip
+        innerhalb von .team-selector-items im gerenderten HTML vorkommen -
+        nicht nur die Jahrgangs-Zeile mit Anzahl."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        items_start = html.index('<div class="team-selector-items">')
+        items_end = html.index("</div>", items_start)
+        items_snippet = html[items_start:items_end]
+
+        self.assertIn('class="team-selector-item"', items_snippet)
+        self.assertIn('type="checkbox" name="team_ids"', items_snippet)
+        self.assertIn("7a", items_snippet)
+
+    def test_team_selector_item_checkbox_not_hidden_via_clip(self):
+        """Regression-Schutz: die Checkbox je Klassen-Chip darf nicht mehr
+        per position:absolute + clip visuell versteckt werden (fragiles
+        Muster, moegliche Ursache fuer Issue #69 Punkt 1) - stattdessen eine
+        kleine, aber sichtbare Checkbox wie beim bereits erprobten
+        Jahrgangs-Checkbox-Fix aus Issue #67."""
+        css_path = ROOT_DIR / "app" / "static" / "css" / "theme.css"
+        css_text = css_path.read_text(encoding="utf-8")
+
+        selector = '.team-selector-item input[type="checkbox"]'
+        self.assertIn(selector, css_text)
+
+        rule_start = css_text.index(selector)
+        rule_body_start = css_text.index("{", rule_start)
+        rule_body_end = css_text.index("}", rule_body_start)
+        rule_body = css_text[rule_body_start:rule_body_end]
+
+        self.assertNotIn("position: absolute", rule_body)
+        self.assertNotIn("clip:", rule_body)
 
 
 if __name__ == "__main__":

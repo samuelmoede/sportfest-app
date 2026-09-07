@@ -54,15 +54,43 @@
             {% endfor %}
         </select>
 
-        <label>Gruppe</label>
-        <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST, Lehrer, Mixed"
-               list="gruppe-suggestions-create" id="create-jahrgang-input">
-        <datalist id="gruppe-suggestions-create">
-            {% for gruppe in all_groups %}
-            <option value="{{ gruppe }}">
-            {% endfor %}
-        </datalist>
-        <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Teams einzeln ausgewählt sind.</p>
+        <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
+        <div class="jahrgang-selector-field">
+            <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST, Lehrer, Mixed"
+                   list="gruppe-suggestions-create" id="create-jahrgang-input">
+            <datalist id="gruppe-suggestions-create">
+                {% for gruppe in all_groups %}
+                <option value="{{ gruppe }}">
+                {% endfor %}
+            </datalist>
+            <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Klassen einzeln ausgewählt sind.</p>
+
+            {% if all_teams %}
+            <details class="team-selector-details">
+                <summary class="team-selector-toggle">Einzelne Klassen auswählen (optional)</summary>
+                <div class="team-selector-panel">
+                    <p class="team-selector-hint">Einzelne Klassen wählen — überschreibt den oben eingetragenen Jahrgang. Leer lassen, damit automatisch alle Klassen des Jahrgangs verwendet werden.</p>
+                    {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+                    <div class="team-selector-gruppe">
+                        <label class="team-selector-gruppe-label">
+                            <input type="checkbox" class="gruppe-all-create" data-gruppe="{{ gruppe_key }}">
+                            <strong>Jahrgang {{ gruppe_key }}</strong>
+                            <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
+                        </label>
+                        <div class="team-selector-items">
+                            {% for team in gruppe_teams %}
+                            <label class="team-selector-item">
+                                <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-create" data-gruppe="{{ gruppe_key }}">
+                                {{ team.name }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </div>
 
         <label>Typ</label>
         <select name="competition_type" required>
@@ -119,33 +147,6 @@
         <label>Punkte Niederlage</label>
         <input type="number" step="0.5" name="points_loss" value="0" required>
 
-        {% if all_teams %}
-        <label style="align-self: start; padding-top: 6px;">Teams (optional)</label>
-        <details class="team-selector-details">
-            <summary class="team-selector-toggle">Teams manuell auswählen (überschreibt Gruppe-Feld, optional)</summary>
-            <div class="team-selector-panel">
-                <p class="team-selector-hint">Einzelne Teams wählen — überschreibt das Gruppe-Feld oben. Leer lassen, damit automatisch alle Teams der dort eingetragenen Gruppe verwendet werden.</p>
-                {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
-                <div class="team-selector-gruppe">
-                    <label class="team-selector-gruppe-label">
-                        <input type="checkbox" class="gruppe-all-create" data-gruppe="{{ gruppe_key }}">
-                        <strong>Gruppe {{ gruppe_key }}</strong>
-                        <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
-                    </label>
-                    <div class="team-selector-items">
-                        {% for team in gruppe_teams %}
-                        <label class="team-selector-item">
-                            <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-create" data-gruppe="{{ gruppe_key }}">
-                            {{ team.name }}
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </details>
-        {% endif %}
-
         <button class="primary" type="submit" style="grid-column: 2;">Wettbewerb anlegen</button>
     </form>
     </div>
@@ -170,7 +171,7 @@
                     {{ ui.status_badge(c.status) }}
                 </div>
                 <div class="competition-summary-meta">
-                    <span class="competition-meta-item">👥 Gruppe {{ c.jahrgang }}</span>
+                    <span class="competition-meta-item">👥 Jahrgang {{ c.jahrgang }}</span>
                     {% if competition_explicit_team_ids.get(c.id) %}
                     <span class="competition-meta-item explicit-teams-badge">{{ competition_explicit_team_ids[c.id]|length }} Teams explizit</span>
                     {% endif %}
@@ -193,15 +194,49 @@
                 <label>Sportart</label>
                 <input type="text" name="sportart" value="{{ c.sportart }}" required>
 
-                <label>Gruppe</label>
-                <input type="text" name="jahrgang" value="{{ c.jahrgang }}"
-                       list="gruppe-suggestions-edit" placeholder="z. B. 7, 8, GOST, Mixed">
-                <datalist id="gruppe-suggestions-edit">
-                    {% for gruppe in all_groups %}
-                    <option value="{{ gruppe }}">
-                    {% endfor %}
-                </datalist>
-                <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Teams einzeln ausgewählt sind.</p>
+                <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
+                <div class="jahrgang-selector-field">
+                    <input type="text" name="jahrgang" value="{{ c.jahrgang }}"
+                           list="gruppe-suggestions-edit" placeholder="z. B. 7, 8, GOST, Mixed">
+                    <datalist id="gruppe-suggestions-edit">
+                        {% for gruppe in all_groups %}
+                        <option value="{{ gruppe }}">
+                        {% endfor %}
+                    </datalist>
+                    <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Klassen einzeln ausgewählt sind.</p>
+
+                    {% if all_teams %}
+                    {% set explicit_ids = competition_explicit_team_ids.get(c.id) or [] %}
+                    <details class="team-selector-details">
+                        <summary class="team-selector-toggle">
+                            {% if explicit_ids %}Einzelne Klassen ausgewählt ({{ explicit_ids|length }}, überschreibt Jahrgang oben){% else %}Einzelne Klassen auswählen (optional){% endif %}
+                        </summary>
+                        <div class="team-selector-panel team-selector-compact">
+                            <p class="team-selector-hint">Einzelne Klassen wählen — überschreibt den oben eingetragenen Jahrgang. Leer lassen, damit automatisch alle Klassen des Jahrgangs verwendet werden.</p>
+                            {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
+                            <div class="team-selector-gruppe">
+                                <label class="team-selector-gruppe-label">
+                                    <input type="checkbox" class="gruppe-all-edit" data-form="competition-{{ c.id }}-edit" data-gruppe="{{ gruppe_key }}"
+                                           {% if gruppe_teams | selectattr('id', 'in', explicit_ids) | list | length == gruppe_teams | length and gruppe_teams | length > 0 %}checked{% endif %}>
+                                    <strong>Jahrgang {{ gruppe_key }}</strong>
+                                    <span class="muted" style="font-size:0.8rem;">({{ gruppe_teams | length }})</span>
+                                </label>
+                                <div class="team-selector-items">
+                                    {% for team in gruppe_teams %}
+                                    <label class="team-selector-item">
+                                        <input type="checkbox" name="team_ids" value="{{ team.id }}"
+                                               class="team-check-edit" data-gruppe="{{ gruppe_key }}"
+                                               {% if team.id in explicit_ids %}checked{% endif %}>
+                                        {{ team.name }}
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endif %}
+                </div>
 
                 <label>Typ</label>
                 <select name="competition_type" required>
@@ -273,39 +308,6 @@
 
                 <label>Niederlage</label>
                 <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
-
-                {% if all_teams %}
-                <label style="align-self: start; padding-top: 6px;">Teams</label>
-                {% set explicit_ids = competition_explicit_team_ids.get(c.id) or [] %}
-                <details class="team-selector-details">
-                    <summary class="team-selector-toggle">
-                        {% if explicit_ids %}Teams manuell ausgewählt ({{ explicit_ids|length }}, überschreibt Gruppe-Feld){% else %}Teams manuell auswählen (überschreibt Gruppe-Feld, optional){% endif %}
-                    </summary>
-                    <div class="team-selector-panel team-selector-compact">
-                        <p class="team-selector-hint">Einzelne Teams wählen — überschreibt das Gruppe-Feld oben. Leer lassen, damit automatisch alle Teams der dort eingetragenen Gruppe verwendet werden.</p>
-                        {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
-                        <div class="team-selector-gruppe">
-                            <label class="team-selector-gruppe-label">
-                                <input type="checkbox" class="gruppe-all-edit" data-form="competition-{{ c.id }}-edit" data-gruppe="{{ gruppe_key }}"
-                                       {% if gruppe_teams | selectattr('id', 'in', explicit_ids) | list | length == gruppe_teams | length and gruppe_teams | length > 0 %}checked{% endif %}>
-                                <strong>{{ gruppe_key }}</strong>
-                                <span class="muted" style="font-size:0.8rem;">({{ gruppe_teams | length }})</span>
-                            </label>
-                            <div class="team-selector-items">
-                                {% for team in gruppe_teams %}
-                                <label class="team-selector-item">
-                                    <input type="checkbox" name="team_ids" value="{{ team.id }}"
-                                           class="team-check-edit" data-gruppe="{{ gruppe_key }}"
-                                           {% if team.id in explicit_ids %}checked{% endif %}>
-                                    {{ team.name }}
-                                </label>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </details>
-                {% endif %}
 
                 <button class="primary" type="submit" style="grid-column: 2;">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
@@ -440,6 +442,22 @@ document.querySelectorAll('.gruppe-all-edit').forEach(function(groupCb) {
         const gruppe = this.dataset.gruppe;
         this.closest('.team-selector-gruppe').querySelectorAll('.team-check-edit[data-gruppe="' + gruppe + '"]').forEach(function(cb) {
             cb.checked = groupCb.checked;
+        });
+    });
+});
+
+// Jahrgang-Feld (im gemeinsamen Bedienelement mit der Klassen-Auswahl): bei
+// Eingabe/Auswahl eines bekannten Jahrgangs automatisch dessen Klassen
+// anhaken - einzelne Klassen bleiben danach frei ab-/dazuwaehlbar. Sonderwerte
+// (GOST, Lehrer, Mixed, ...) haben keine passende Klassenliste und bleiben
+// unangetastet (Freitext-Fallback).
+document.querySelectorAll('form[action^="/competition/"] .jahrgang-selector-field [name="jahrgang"]').forEach(function (jahrgangInput) {
+    jahrgangInput.addEventListener('change', function () {
+        const val = jahrgangInput.value.trim();
+        if (!Object.prototype.hasOwnProperty.call(teamCountsByYear, val)) return;
+        const form = jahrgangInput.closest('form');
+        form.querySelectorAll('[data-gruppe]').forEach(function (cb) {
+            cb.checked = cb.dataset.gruppe === val;
         });
     });
 });
