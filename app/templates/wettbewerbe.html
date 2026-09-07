@@ -62,6 +62,7 @@
             <option value="{{ gruppe }}">
             {% endfor %}
         </datalist>
+        <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Teams einzeln ausgewählt sind.</p>
 
         <label>Typ</label>
         <select name="competition_type" required>
@@ -121,9 +122,9 @@
         {% if all_teams %}
         <label style="align-self: start; padding-top: 6px;">Teams (optional)</label>
         <details class="team-selector-details">
-            <summary class="team-selector-toggle">Teams einzeln auswählen (optional)</summary>
+            <summary class="team-selector-toggle">Teams manuell auswählen (überschreibt Gruppe-Feld, optional)</summary>
             <div class="team-selector-panel">
-                <p class="team-selector-hint">Teams explizit auswählen — überschreibt die Gruppenfilterung. Leer lassen für automatische Auswahl per Gruppe.</p>
+                <p class="team-selector-hint">Einzelne Teams wählen — überschreibt das Gruppe-Feld oben. Leer lassen, damit automatisch alle Teams der dort eingetragenen Gruppe verwendet werden.</p>
                 {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
                 <div class="team-selector-gruppe">
                     <label class="team-selector-gruppe-label">
@@ -200,6 +201,7 @@
                     <option value="{{ gruppe }}">
                     {% endfor %}
                 </datalist>
+                <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Teams einzeln ausgewählt sind.</p>
 
                 <label>Typ</label>
                 <select name="competition_type" required>
@@ -277,10 +279,10 @@
                 {% set explicit_ids = competition_explicit_team_ids.get(c.id) or [] %}
                 <details class="team-selector-details">
                     <summary class="team-selector-toggle">
-                        {% if explicit_ids %}Teams auswählen ({{ explicit_ids|length }} explizit){% else %}Teams einzeln auswählen (optional){% endif %}
+                        {% if explicit_ids %}Teams manuell ausgewählt ({{ explicit_ids|length }}, überschreibt Gruppe-Feld){% else %}Teams manuell auswählen (überschreibt Gruppe-Feld, optional){% endif %}
                     </summary>
                     <div class="team-selector-panel team-selector-compact">
-                        <p class="team-selector-hint">Explizit auswählen oder leer für Gruppenfilter.</p>
+                        <p class="team-selector-hint">Einzelne Teams wählen — überschreibt das Gruppe-Feld oben. Leer lassen, damit automatisch alle Teams der dort eingetragenen Gruppe verwendet werden.</p>
                         {% for gruppe_key, gruppe_teams in all_teams_by_gruppe.items() %}
                         <div class="team-selector-gruppe">
                             <label class="team-selector-gruppe-label">

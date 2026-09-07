@@ -115,6 +115,63 @@ class TeamSelectorDropdownTests(unittest.TestCase):
         self.assertIn(".team-selector-details", css_text)
         self.assertIn(".team-selector-toggle", css_text)
 
+    def test_gruppe_checkbox_has_fixed_small_size_css(self):
+        """Issue #67: die Gruppen-Checkbox darf nicht die globale
+        input/select/textarea-Groesse (min-height: 43px) erben, sonst bricht
+        das Zeilenlayout ("Gruppe 7" umbricht mitten im Text)."""
+        css_path = ROOT_DIR / "app" / "static" / "css" / "theme.css"
+        css_text = css_path.read_text(encoding="utf-8")
+
+        selector = '.team-selector-gruppe-label input[type="checkbox"]'
+        self.assertIn(selector, css_text)
+
+        rule_start = css_text.index(selector)
+        rule_body_start = css_text.index("{", rule_start)
+        rule_body_end = css_text.index("}", rule_body_start)
+        rule_body = css_text[rule_body_start:rule_body_end]
+
+        self.assertIn("width: 16px", rule_body)
+        self.assertIn("height: 16px", rule_body)
+        self.assertIn("min-height: 0", rule_body)
+
+    def test_gruppe_field_has_explanatory_hint(self):
+        """Issue #67: das freie 'Gruppe'-Feld (jahrgang) muss sich klar vom
+        darunterliegenden Teams-Dropdown abgrenzen - beide Formulare
+        (Anlegen und Bearbeiten) bekommen einen kurzen Hinweistext."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        self.assertGreaterEqual(
+            html.count('class="muted field-hint"'),
+            2,
+            "sowohl Anlegen- als auch Bearbeiten-Formular brauchen den Hinweistext",
+        )
+        self.assertIn("automatisch verwendet", html)
+
+    def test_team_selector_labels_reference_gruppe_feld(self):
+        """Issue #67: Dropdown-Titel/Hinweis sollen explizit auf das
+        Ueberschreiben des 'Gruppe'-Felds hinweisen, damit der Unterschied
+        zwischen beiden Wegen (Jahrgang vs. explizite Teamauswahl) klar ist."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/wettbewerbe")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.text
+
+        self.assertGreaterEqual(html.count("überschreibt"), 2)
+        self.assertGreaterEqual(html.count("Gruppe-Feld"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
