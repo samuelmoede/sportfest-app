@@ -1955,9 +1955,32 @@ section.cards.competition-list {
     white-space: nowrap;
 }
 
+.team-selector-gruppe-label {
+    flex-wrap: nowrap;
+}
+
+.team-selector-gruppe-label input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    padding: 0;
+}
+
+.team-selector-gruppe-label strong {
+    white-space: nowrap;
+}
+
 /* --- Admin-Form: breitere Label-Spalte für bessere Proportionen --- */
 .admin-form {
     grid-template-columns: 160px 1fr;
+}
+
+.field-hint {
+    grid-column: 2;
+    margin: -8px 0 0;
+    font-size: 0.78rem;
+    font-weight: 500;
 }
 
 /* --- Filter-Row --- */
