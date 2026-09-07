@@ -56,13 +56,12 @@
 
         <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
         <div class="jahrgang-selector-field">
-            <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST, Lehrer, Mixed"
-                   list="gruppe-suggestions-create" id="create-jahrgang-input">
-            <datalist id="gruppe-suggestions-create">
+            <select name="jahrgang" id="create-jahrgang-input">
+                <option value="">Kein Standard-Jahrgang</option>
                 {% for gruppe in all_groups %}
-                <option value="{{ gruppe }}">
+                <option value="{{ gruppe }}">{{ gruppe }}</option>
                 {% endfor %}
-            </datalist>
+            </select>
             <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Klassen einzeln ausgewählt sind.</p>
 
             {% if all_teams %}
@@ -196,13 +195,16 @@
 
                 <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
                 <div class="jahrgang-selector-field">
-                    <input type="text" name="jahrgang" value="{{ c.jahrgang }}"
-                           list="gruppe-suggestions-edit" placeholder="z. B. 7, 8, GOST, Mixed">
-                    <datalist id="gruppe-suggestions-edit">
+                    {% set current_jahrgang = c.jahrgang | string %}
+                    <select name="jahrgang">
+                        {% if current_jahrgang not in all_groups %}
+                        <option value="{{ c.jahrgang }}" selected>{{ c.jahrgang }}</option>
+                        {% endif %}
+                        <option value="" {% if not current_jahrgang %}selected{% endif %}>Kein Standard-Jahrgang</option>
                         {% for gruppe in all_groups %}
-                        <option value="{{ gruppe }}">
+                        <option value="{{ gruppe }}" {% if current_jahrgang == gruppe %}selected{% endif %}>{{ gruppe }}</option>
                         {% endfor %}
-                    </datalist>
+                    </select>
                     <p class="muted field-hint">Standard-Jahrgang — wird automatisch verwendet, wenn unten keine Klassen einzeln ausgewählt sind.</p>
 
                     {% if all_teams %}
