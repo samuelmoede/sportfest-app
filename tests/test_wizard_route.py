@@ -207,14 +207,20 @@ class WizardQuickstartIntegrationTests(unittest.TestCase):
         with get_conn() as conn:
             conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7a', 7, 1)")
             conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7b', 7, 1)")
+            # Der Schnellstart filtert Felder auf DEFAULT_COMPETITION_LOCATION
+            # ("Turnhalle"); die von init_db() geseedeten Standardfelder
+            # (Rasenplatz, Kaefig) liegen am Ort "Fussballplatz" und zaehlen
+            # hier nicht - ohne ein aktives Turnhalle-Feld bliebe courts leer.
+            conn.execute(
+                "INSERT INTO courts (name, location, active) VALUES ('Feld 1', 'Turnhalle', 1)"
+            )
             conn.commit()
         with TestClient(fastapi_app) as client:
             response = client.get("/assistent")
         self.assertEqual(response.status_code, 200)
         self.assertIn('action="/turnier-schnellstart"', response.text)
         self.assertIn("7a", response.text)
-        # init_db() seedet standardmaessig aktive Spielfelder (Rasenplatz, Kaefig).
-        self.assertIn("Rasenplatz", response.text)
+        self.assertIn("Feld 1", response.text)
 
     def test_start_page_shows_hint_when_no_teams(self):
         from app.main import app as fastapi_app
