@@ -81,6 +81,12 @@ class WizardRouteTests(unittest.TestCase):
 
     def test_event_step_flags_missing_teams_and_courts(self):
         from app.main import app as fastapi_app
+        with get_conn() as conn:
+            # init_db() seedet standardmaessig aktive Spielfelder (Rasenplatz,
+            # Kaefig); fuer den "nichts angelegt"-Fall muessen diese deaktiviert
+            # werden, sonst waere has_courts immer True.
+            conn.execute("UPDATE courts SET active = 0")
+            conn.commit()
         with TestClient(fastapi_app) as client:
             event_id = self._create_event(client)
             response = client.get(f"/assistent/{event_id}")
