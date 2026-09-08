@@ -1,9 +1,12 @@
+from typing import Callable
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
 from app.routes.competitions import COMPETITION_TYPES
 from app.routes.events import EVENT_TYPES
+from app.routes.quickstart import build_quickstart_context
 from app.routes.teams import normalize_jahrgang
 from app.services.event_status_service import fetch_events_with_competition_counts
 from app.services.schedule_generator_service import (
@@ -35,7 +38,10 @@ def _jahrgang_sort_key(value):
     return (0, value) if isinstance(value, int) else (1, str(value))
 
 
-def create_router() -> APIRouter:
+def create_router(
+    *,
+    app_now_display_time: Callable[[], str],
+) -> APIRouter:
     router = APIRouter()
 
     @router.get("/assistent")
@@ -43,15 +49,17 @@ def create_router() -> APIRouter:
         error = request.query_params.get("error", "").strip()
         with get_conn() as conn:
             events = fetch_events_with_competition_counts(conn, include_archived=False)
+        context = {
+            "events": events,
+            "event_types": EVENT_TYPES,
+            "default_event_type": DEFAULT_WIZARD_EVENT_TYPE,
+            "error": error,
+        }
+        context.update(build_quickstart_context(app_now_display_time))
         return templates.TemplateResponse(
             request=request,
             name="assistent_start.html",
-            context={
-                "events": events,
-                "event_types": EVENT_TYPES,
-                "default_event_type": DEFAULT_WIZARD_EVENT_TYPE,
-                "error": error,
-            },
+            context=context,
         )
 
     @router.post("/assistent/veranstaltung/anlegen")
