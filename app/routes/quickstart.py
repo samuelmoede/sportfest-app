@@ -29,6 +29,33 @@ def _unique_competition_name(conn, base_name: str) -> str:
     return candidate
 
 
+def build_quickstart_context(app_now_display_time: Callable[[], str]) -> dict:
+    """Formulardaten fuer den Turnier-Schnellstart - wird sowohl von der
+    eigenstaendigen /turnier-schnellstart-Route als auch eingebettet auf der
+    /assistent-Startseite verwendet (siehe app/routes/wizard.py)."""
+    with get_conn() as conn:
+        teams = conn.execute(
+            "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
+        ).fetchall()
+        all_courts = conn.execute(
+            "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+        ).fetchall()
+
+    courts = filter_courts_for_location(all_courts, DEFAULT_COMPETITION_LOCATION)
+
+    teams_by_jahrgang = {}
+    for team in teams:
+        teams_by_jahrgang.setdefault(team["jahrgang"], []).append(dict(team))
+
+    return {
+        "teams_by_jahrgang": teams_by_jahrgang,
+        "courts": courts,
+        "location": DEFAULT_COMPETITION_LOCATION,
+        "default_start_time": app_now_display_time(),
+        "default_sportart": DEFAULT_QUICKSTART_SPORTART,
+    }
+
+
 def create_router(
     *,
     app_now_display_time: Callable[[], str],
@@ -37,30 +64,10 @@ def create_router(
 
     @router.get("/turnier-schnellstart")
     def turnier_schnellstart(request: Request):
-        with get_conn() as conn:
-            teams = conn.execute(
-                "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
-            ).fetchall()
-            all_courts = conn.execute(
-                "SELECT * FROM courts WHERE active = 1 ORDER BY name"
-            ).fetchall()
-
-        courts = filter_courts_for_location(all_courts, DEFAULT_COMPETITION_LOCATION)
-
-        teams_by_jahrgang = {}
-        for team in teams:
-            teams_by_jahrgang.setdefault(team["jahrgang"], []).append(dict(team))
-
         return templates.TemplateResponse(
             request=request,
             name="turnier_schnellstart.html",
-            context={
-                "teams_by_jahrgang": teams_by_jahrgang,
-                "courts": courts,
-                "location": DEFAULT_COMPETITION_LOCATION,
-                "default_start_time": app_now_display_time(),
-                "default_sportart": DEFAULT_QUICKSTART_SPORTART,
-            },
+            context=build_quickstart_context(app_now_display_time),
         )
 
     @router.post("/turnier-schnellstart")

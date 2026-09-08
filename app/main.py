@@ -2897,7 +2897,9 @@ app.include_router(create_schedule_router(
 app.include_router(create_quickstart_router(
     app_now_display_time=app_now_display_time,
 ))
-app.include_router(create_wizard_router())
+app.include_router(create_wizard_router(
+    app_now_display_time=app_now_display_time,
+))
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
     app_today=lambda: app_now().date(),

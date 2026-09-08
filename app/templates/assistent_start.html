@@ -1,5 +1,22 @@
 {% extends "base.html" %}
 {% import "partials/ui_macros.html" as ui %}
+{% block extra_head %}
+<style>
+    .court-checkboxes {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .court-checkboxes label {
+        background: var(--surface-soft);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 14px;
+        color: var(--text);
+    }
+</style>
+{% endblock %}
 {% block content %}
 <header class="page-header">
     <div>
@@ -81,9 +98,74 @@
         <span class="section-icon" aria-hidden="true">⚡</span>
     </div>
     <p>
-        Für ein kurzfristiges Turnier ohne eigene Veranstaltung (z. B. im Sportunterricht) eignet sich der
-        <a href="/turnier-schnellstart">Turnier-Schnellstart</a> besser: dort werden Teams und Felder ausgewählt und sofort
-        ein kompletter "Jeder gegen jeden"-Rundenplan inklusive Finale erzeugt.
+        Für ein kurzfristiges Turnier ohne eigene Veranstaltung (z. B. im Sportunterricht): Teams und Felder
+        auswählen, Startzeit setzen - der komplette "Jeder gegen jeden"-Rundenplan inklusive Finale und
+        Spiel um Platz 3 wird sofort erzeugt und gespeichert.
     </p>
+
+    {% if not teams_by_jahrgang %}
+    <p class="muted">Es sind keine aktiven Teams angelegt. Lege zuerst unter <a href="/teams">Teams</a> welche an.</p>
+    {% elif not courts %}
+    <p class="muted">
+        Für den Ort "{{ location }}" sind keine aktiven Felder/Bereiche angelegt.
+        Lege zuerst unter <a href="/spielfelder">Spielfelder</a> welche an.
+    </p>
+    {% else %}
+    <form method="post" action="/turnier-schnellstart" class="admin-form">
+        <label>Name (optional)</label>
+        <input type="text" name="name" placeholder="Schnellturnier {{ default_start_time }}">
+
+        <label>Sportart</label>
+        <input type="text" name="sportart" value="{{ default_sportart }}" required>
+
+        <label style="align-self: start; padding-top: 6px;">Teilnehmende Teams</label>
+        <div class="team-selector-panel">
+            <p class="team-selector-hint">Mindestens zwei Teams auswählen.</p>
+            {% for gruppe_key, gruppe_teams in teams_by_jahrgang.items() %}
+            <div class="team-selector-gruppe">
+                <label class="team-selector-gruppe-label">
+                    <input type="checkbox" class="gruppe-all-quickstart" data-gruppe="{{ gruppe_key }}">
+                    <strong>Jahrgang {{ gruppe_key }}</strong>
+                    <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
+                </label>
+                <div class="team-selector-items">
+                    {% for team in gruppe_teams %}
+                    <label class="team-selector-item">
+                        <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-quickstart" data-gruppe="{{ gruppe_key }}">
+                        {{ team.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <label>Felder/Bereiche ({{ location }})</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" checked>
+                {{ court.name }}
+            </label>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="{{ default_start_time }}" required>
+
+        <button class="green" type="submit">Turnier erstellen und Spielplan erzeugen</button>
+    </form>
+    {% endif %}
 </section>
+
+<script>
+document.querySelectorAll('.gruppe-all-quickstart').forEach(function (groupCb) {
+    groupCb.addEventListener('change', function () {
+        const gruppe = this.dataset.gruppe;
+        this.closest('.team-selector-gruppe').querySelectorAll('.team-check-quickstart[data-gruppe="' + gruppe + '"]').forEach(function (cb) {
+            cb.checked = groupCb.checked;
+        });
+    });
+});
+</script>
 {% endblock %}

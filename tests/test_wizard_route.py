@@ -185,5 +185,45 @@ class WizardRouteTests(unittest.TestCase):
         self.assertEqual(response.headers["location"], "/assistent")
 
 
+class WizardQuickstartIntegrationTests(unittest.TestCase):
+    """Issue #83: der Turnier-Schnellstart (/turnier-schnellstart) ist kein
+    eigener Nav-Eintrag mehr, sondern wird direkt eingebettet auf der
+    /assistent-Startseite angeboten (Formular postet weiterhin an die
+    unveraenderte /turnier-schnellstart-Route, siehe test_quickstart_route.py)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "wizard-quickstart-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+        init_db()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_start_page_embeds_quickstart_form_with_teams_and_courts(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7a', 7, 1)")
+            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7b', 7, 1)")
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            response = client.get("/assistent")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('action="/turnier-schnellstart"', response.text)
+        self.assertIn("7a", response.text)
+        # init_db() seedet standardmaessig aktive Spielfelder (Rasenplatz, Kaefig).
+        self.assertIn("Rasenplatz", response.text)
+
+    def test_start_page_shows_hint_when_no_teams(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.get("/assistent")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Es sind keine aktiven Teams angelegt", response.text)
+        self.assertNotIn('action="/turnier-schnellstart"', response.text)
+
+
 if __name__ == "__main__":
     unittest.main()
