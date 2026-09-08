@@ -33,6 +33,7 @@
     </div>
     <div class="hero-actions">
         {% if can_manage_event %}
+        <a class="button secondary" href="/assistent/{{ event.id }}">Assistent öffnen</a>
         <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
         {% endif %}
         <a class="button primary" href="/spielplan">Spielplan öffnen</a>

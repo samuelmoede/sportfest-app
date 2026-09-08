@@ -76,6 +76,10 @@
 
         {% if can_view_admin %}
         <div class="nav-group">Verwaltung</div>
+        <a class="nav-link{% if current_path.startswith('/assistent') %} is-active{% endif %}" href="/assistent" {% if current_path.startswith('/assistent') %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true">🧭</span>
+            <span class="nav-text">Assistent</span>
+        </a>
         <a class="nav-link{% if current_path.startswith('/events') %} is-active{% endif %}" href="/events" {% if current_path.startswith('/events') %}aria-current="page"{% endif %}>
             <span class="nav-icon" aria-hidden="true">📅</span>
             <span class="nav-text">Veranstaltungen</span>
