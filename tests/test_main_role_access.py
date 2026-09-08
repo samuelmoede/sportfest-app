@@ -89,5 +89,29 @@ class QuickstartRoleAccessTests(unittest.TestCase):
         )
 
 
+class GrobplanScheduleBlockRoleAccessTests(unittest.TestCase):
+    """Der Grobplan-Schreib-Endpunkt (Issue #80) verschiebt/skaliert
+    Wettbewerbs-Zeitbloecke direkt auf der competitions-Tabelle und muss
+    daher wie die uebrigen /competition/{id}/...-Schreibaktionen admin-only
+    sein."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "grobplan-role-access-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_update_schedule_block_requires_admin(self):
+        from app.main import get_required_role
+
+        self.assertEqual(
+            get_required_role("/competition/42/update-schedule-block"), "admin"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

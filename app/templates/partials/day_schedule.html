@@ -11,6 +11,13 @@
 
 {% if day_schedule_compact|default(false) %}
 {% if schedule.timeline %}
+{% if day_schedule_editable|default(false) %}
+<p class="muted">Zeitblöcke lassen sich hier verschieben (in der Mitte ziehen) oder am oberen/unteren Rand verlängern bzw. verkürzen.</p>
+<div id="grobplan-warnings" class="validation-box" role="status" hidden>
+    <strong>Grobplan prüfen</strong>
+    <ul></ul>
+</div>
+{% endif %}
 <div class="day-timeline-wrapper">
     <div class="day-timeline">
         <div class="day-timeline-header">
@@ -37,6 +44,22 @@
                     <div class="day-timeline-gridline" style="top: {{ mark.top_percent }}%;"></div>
                     {% endfor %}
                     {% for item in col["items"] %}
+                    {% if day_schedule_editable|default(false) and item.competition_id %}
+                    <div class="day-timeline-block status-{{ item.status_key|default('planned') }} is-editable"
+                         style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
+                         data-grobplan-block
+                         data-competition-id="{{ item.competition_id }}"
+                         data-start-minutes="{{ item.start_minutes }}"
+                         data-end-minutes="{{ item.end_minutes }}">
+                        <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
+                        <a class="day-timeline-block-link" href="/spielplan?competition_id={{ item.competition_id }}" title="Spielplan öffnen" aria-label="Spielplan für {{ item.name }} öffnen">↗</a>
+                        <strong>{{ item.name }}</strong>
+                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
+                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
+                        <time data-grobplan-time>{{ item.display_time }}</time>
+                        <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
+                    </div>
+                    {% else %}
                     <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
@@ -45,6 +68,7 @@
                         {% if item.location %}<span>{{ item.location }}</span>{% endif %}
                         <time>{{ item.display_time }}</time>
                     </a>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% endfor %}
@@ -141,5 +165,165 @@
 
     updateNowLines();
     setInterval(updateNowLines, 30000);
+})();
+</script>
+
+<script>
+(function () {
+    var SNAP_MINUTES = 5;
+    var MIN_DURATION_MINUTES = 5;
+
+    function minutesToTime(minutes) {
+        var clamped = Math.max(0, Math.round(minutes));
+        var hours = Math.floor(clamped / 60) % 24;
+        var mins = clamped % 60;
+        return String(hours).padStart(2, "0") + ":" + String(mins).padStart(2, "0");
+    }
+
+    function formatRange(startMinutes, endMinutes) {
+        return minutesToTime(startMinutes) + "–" + minutesToTime(endMinutes);
+    }
+
+    function showGrobplanWarnings(messages) {
+        if (!messages.length) {
+            sessionStorage.removeItem("grobplanMoveWarnings");
+            return;
+        }
+        sessionStorage.setItem("grobplanMoveWarnings", JSON.stringify(messages));
+    }
+
+    async function persistGrobplanBlock(block, startMinutes, endMinutes) {
+        var formData = new FormData();
+        formData.append("start_time", minutesToTime(startMinutes));
+        formData.append("end_time", minutesToTime(endMinutes));
+        var response = await fetch("/competition/" + block.dataset.competitionId + "/update-schedule-block", {
+            method: "POST",
+            body: formData
+        });
+        if (!response.ok) {
+            throw new Error("Zeitblock konnte nicht gespeichert werden.");
+        }
+        var result = await response.json();
+        showGrobplanWarnings((result.warnings || []).map(function (warning) { return warning.message; }));
+        window.location.reload();
+    }
+
+    document.querySelectorAll(".day-timeline-block.is-editable[data-grobplan-block]").forEach(function (block) {
+        var body = block.closest(".day-timeline-body");
+        if (!body) {
+            return;
+        }
+        var totalMinutes = Number(body.dataset.timelineTotalMinutes);
+        var timelineStart = Number(body.dataset.timelineStartMinutes);
+        if (!Number.isFinite(totalMinutes) || !totalMinutes || !Number.isFinite(timelineStart)) {
+            return;
+        }
+
+        var dragMode = null;
+        var pointerId = null;
+        var startY = 0;
+        var originStart = Number(block.dataset.startMinutes);
+        var originEnd = Number(block.dataset.endMinutes);
+
+        function applyPreview(newStart, newEnd) {
+            block.style.top = ((newStart - timelineStart) / totalMinutes * 100) + "%";
+            block.style.height = ((newEnd - newStart) / totalMinutes * 100) + "%";
+            var timeEl = block.querySelector("[data-grobplan-time]");
+            if (timeEl) {
+                timeEl.textContent = formatRange(newStart, newEnd);
+            }
+        }
+
+        function onPointerMove(event) {
+            if (!dragMode) {
+                return;
+            }
+            var pxPerMinute = block.parentElement.clientHeight / totalMinutes;
+            if (!pxPerMinute) {
+                return;
+            }
+            var deltaMinutes = Math.round((event.clientY - startY) / pxPerMinute / SNAP_MINUTES) * SNAP_MINUTES;
+            var newStart = originStart;
+            var newEnd = originEnd;
+
+            if (dragMode === "move") {
+                newStart = originStart + deltaMinutes;
+                newEnd = originEnd + deltaMinutes;
+                if (newStart < timelineStart) {
+                    newEnd += timelineStart - newStart;
+                    newStart = timelineStart;
+                }
+                if (newEnd > timelineStart + totalMinutes) {
+                    newStart -= newEnd - (timelineStart + totalMinutes);
+                    newEnd = timelineStart + totalMinutes;
+                }
+            } else if (dragMode === "start") {
+                newStart = Math.max(timelineStart, Math.min(originStart + deltaMinutes, originEnd - MIN_DURATION_MINUTES));
+            } else if (dragMode === "end") {
+                newEnd = Math.min(timelineStart + totalMinutes, Math.max(originEnd + deltaMinutes, originStart + MIN_DURATION_MINUTES));
+            }
+
+            block.dataset.previewStart = newStart;
+            block.dataset.previewEnd = newEnd;
+            applyPreview(newStart, newEnd);
+        }
+
+        function onPointerUp() {
+            if (!dragMode) {
+                return;
+            }
+            block.releasePointerCapture(pointerId);
+            block.removeEventListener("pointermove", onPointerMove);
+            block.removeEventListener("pointerup", onPointerUp);
+            block.classList.remove("is-dragging");
+            dragMode = null;
+
+            var newStart = Number(block.dataset.previewStart != null ? block.dataset.previewStart : originStart);
+            var newEnd = Number(block.dataset.previewEnd != null ? block.dataset.previewEnd : originEnd);
+            if (newStart === originStart && newEnd === originEnd) {
+                return;
+            }
+            persistGrobplanBlock(block, newStart, newEnd).catch(function (error) {
+                alert(error.message);
+                window.location.reload();
+            });
+        }
+
+        block.addEventListener("pointerdown", function (event) {
+            if (event.target.closest("a")) {
+                return;
+            }
+            var handle = event.target.closest("[data-grobplan-handle]");
+            dragMode = handle ? handle.dataset.grobplanHandle : "move";
+            pointerId = event.pointerId;
+            startY = event.clientY;
+            originStart = Number(block.dataset.startMinutes);
+            originEnd = Number(block.dataset.endMinutes);
+            block.setPointerCapture(pointerId);
+            block.classList.add("is-dragging");
+            block.addEventListener("pointermove", onPointerMove);
+            block.addEventListener("pointerup", onPointerUp);
+            event.preventDefault();
+        });
+    });
+
+    var storedGrobplanWarnings = sessionStorage.getItem("grobplanMoveWarnings");
+    if (storedGrobplanWarnings) {
+        sessionStorage.removeItem("grobplanMoveWarnings");
+        var warningBox = document.getElementById("grobplan-warnings");
+        var warningList = warningBox ? warningBox.querySelector("ul") : null;
+        if (warningBox && warningList) {
+            try {
+                JSON.parse(storedGrobplanWarnings).forEach(function (message) {
+                    var item = document.createElement("li");
+                    item.textContent = message;
+                    warningList.appendChild(item);
+                });
+                warningBox.hidden = false;
+            } catch (error) {
+                sessionStorage.removeItem("grobplanMoveWarnings");
+            }
+        }
+    }
 })();
 </script>

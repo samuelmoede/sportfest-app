@@ -76,6 +76,7 @@
         <span class="section-icon" aria-hidden="true">🕒</span>
     </div>
     {% set day_schedule_compact = true %}
+    {% set day_schedule_editable = can_manage_event %}
     {% set day_schedule_empty_text = "Für diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
     {% include "partials/day_schedule.html" %}
 </section>

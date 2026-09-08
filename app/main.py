@@ -162,7 +162,7 @@ ACTION_ACCESS_RULES = (
     (re.compile(r"^/competition/create$"), "admin"),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
+            r"^/competition/[^/]+/(?:duplicate|update|update-schedule-block|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
         ),
         "admin",
     ),
