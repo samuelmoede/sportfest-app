@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
@@ -137,6 +137,32 @@ def create_router(
             },
         )
 
+    @router.post("/assistent/{event_id}/team/anlegen")
+    def assistent_create_team(
+        event_id: int,
+        name: str = Form(...),
+        jahrgang: str = Form(...),
+    ):
+        """Spontanes Anlegen einer einzelnen Klasse/Teams direkt im Assistenten
+        (Issue #85), ohne die Seite zu verlassen - nutzt dieselbe Insert-Logik
+        wie /team/create (siehe app/routes/teams.py)."""
+        name_value = name.strip()
+        jahrgang_value = normalize_jahrgang(jahrgang)
+        if not name_value or jahrgang_value is None:
+            return RedirectResponse(f"/assistent/{event_id}?error=team_invalid", status_code=303)
+
+        with get_conn() as conn:
+            event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
+            if event is None:
+                return RedirectResponse("/assistent", status_code=303)
+            conn.execute(
+                "INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)",
+                (name_value, jahrgang_value),
+            )
+            conn.commit()
+
+        return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+
     @router.post("/assistent/{event_id}/wettbewerb/anlegen")
     def assistent_create_competition(
         event_id: int,
@@ -145,6 +171,8 @@ def create_router(
         jahrgang: str = Form(...),
         competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
+        team_ids: List[str] = Form([]),
+        team_selection_active: str = Form(""),
     ):
         sportart_value = sportart.strip()
         jahrgang_value = normalize_jahrgang(jahrgang)
@@ -156,16 +184,42 @@ def create_router(
         ):
             return RedirectResponse(f"/assistent/{event_id}?error=invalid", status_code=303)
 
+        explicit_team_ids = []
+        for team_id in team_ids:
+            try:
+                explicit_team_ids.append(int(team_id))
+            except (TypeError, ValueError):
+                pass
+
         with get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
             if event is None:
                 return RedirectResponse("/assistent", status_code=303)
 
-            team_count = conn.execute(
-                "SELECT COUNT(*) AS n FROM teams WHERE active = 1 AND jahrgang = ?",
-                (jahrgang_value,),
-            ).fetchone()["n"]
+            # Team-Feinauswahl (Issue #85): das Formular zeigt standardmaessig
+            # alle Teams des gewaehlten Jahrgangs vorausgewaehlt an, einzelne
+            # lassen sich abwaehlen (team_selection_active markiert, dass die
+            # Checkbox-Auswahl aktiv ist statt eines leeren/veralteten
+            # team_ids ohne jegliche Absicht). Nur gueltige, aktive Teams des
+            # gewaehlten Jahrgangs werden uebernommen, analog zu
+            # /competition/create.
+            if team_selection_active == "1":
+                valid_team_ids = {
+                    row["id"] for row in conn.execute(
+                        "SELECT id FROM teams WHERE active = 1 AND jahrgang = ?",
+                        (jahrgang_value,),
+                    ).fetchall()
+                }
+                explicit_team_ids = [tid for tid in explicit_team_ids if tid in valid_team_ids]
+                team_count = len(explicit_team_ids)
+            else:
+                explicit_team_ids = []
+                team_count = conn.execute(
+                    "SELECT COUNT(*) AS n FROM teams WHERE active = 1 AND jahrgang = ?",
+                    (jahrgang_value,),
+                ).fetchone()["n"]
+
             if team_count < 2:
                 return RedirectResponse(f"/assistent/{event_id}?error=team_count", status_code=303)
 
@@ -178,7 +232,7 @@ def create_router(
             base_name = name.strip() or f"{sportart_value} Jahrgang {jahrgang_value}"
             competition_name = _unique_competition_name(conn, base_name)
 
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
@@ -192,6 +246,12 @@ def create_router(
                     DEFAULT_GAME_DURATION_MINUTES, DEFAULT_CHANGEOVER_DURATION_MINUTES,
                 ),
             )
+            new_competition_id = cursor.lastrowid
+            for team_id in explicit_team_ids:
+                conn.execute(
+                    "INSERT OR IGNORE INTO competition_teams (competition_id, team_id) VALUES (?, ?)",
+                    (new_competition_id, team_id),
+                )
             conn.commit()
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)

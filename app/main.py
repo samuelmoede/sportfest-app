@@ -601,8 +601,38 @@ def format_time_range(start: datetime, end: datetime):
     return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
+def _grobplan_column_sort_key(column):
+    if column == "Oberstufe":
+        return (1, 0)
+    try:
+        return (0, int(column.replace("Jahrgang ", "")))
+    except ValueError:
+        return (2, column)
+
+
 def build_day_schedule(competitions, event_date=None, now=None, event_status=None):
-    columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    def get_field(item, key):
+        if hasattr(item, "get"):
+            return item.get(key)
+        return item[key]
+
+    # Spalten werden aus den tatsaechlich vorhandenen Jahrgaengen der
+    # uebergebenen Wettbewerbe abgeleitet (statt einer festen Liste), damit
+    # z.B. Jahrgang 5/6 oder weitere Jahrgaenge automatisch als eigene Spalte
+    # auftauchen (Issue #85). "jahrgang"-Werte ohne Spalten-Zuordnung (u.a.
+    # 'mixed') liefern weiterhin None aus classify_yeargang() und werden hier
+    # bewusst ausgeschlossen.
+    columns = sorted(
+        {
+            column
+            for column in (
+                classify_yeargang(get_field(competition, "jahrgang"))
+                for competition in competitions
+            )
+            if column is not None
+        },
+        key=_grobplan_column_sort_key,
+    )
     blocks = {}
     now = now or app_now().replace(tzinfo=None)
     event_day = parse_event_date(event_date)
@@ -614,11 +644,6 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         event_state = "future"
     else:
         event_state = "today"
-
-    def get_field(item, key):
-        if hasattr(item, "get"):
-            return item.get(key)
-        return item[key]
 
     for competition in competitions:
         start_value = get_field(competition, "start_time")
