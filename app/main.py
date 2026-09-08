@@ -23,6 +23,7 @@ from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.venues import create_router as create_venues_router
+from app.routes.wizard import create_router as create_wizard_router
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
@@ -126,6 +127,7 @@ AREA_ACCESS_RULES = (
     ("/wettbewerbe", "admin"),
     ("/events", "admin"),
     ("/teams", "admin"),
+    ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
 )
 
@@ -2895,6 +2897,7 @@ app.include_router(create_schedule_router(
 app.include_router(create_quickstart_router(
     app_now_display_time=app_now_display_time,
 ))
+app.include_router(create_wizard_router())
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
     app_today=lambda: app_now().date(),

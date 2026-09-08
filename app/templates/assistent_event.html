@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% import "partials/ui_macros.html" as ui %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Wettbewerbs-Assistent</p>
+        <h1>{{ event.name }}</h1>
+        <p>Stammdaten prüfen, Wettbewerbe anlegen und den Spielplan bzw. die Disziplinen erzeugen.</p>
+    </div>
+    <a class="button secondary" href="/events/{{ event.id }}">Zur Veranstaltungsseite</a>
+</header>
+
+{% if error == "team_count" %}
+<section class="panel">
+    <p class="muted">Für diesen Jahrgang gibt es nicht mindestens zwei aktive Teams - Wettbewerb wurde nicht angelegt.</p>
+</section>
+{% elif error == "invalid" %}
+<section class="panel">
+    <p class="muted">Bitte Sportart und Jahrgang angeben.</p>
+</section>
+{% endif %}
+
+<section class="panel">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Schritt 2</p>
+            <h2>Stammdaten-Check</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">✅</span>
+    </div>
+
+    {% if has_teams and has_courts %}
+    <p class="muted">Teams und Spielfelder sind vorhanden - weiter geht's mit den Wettbewerben unten.</p>
+    {% endif %}
+
+    {% if not has_teams %}
+    <p>
+        Es sind noch keine aktiven Teams angelegt. Neue Klassen/Teams werden selten benötigt,
+        aber ohne mindestens zwei Teams pro Jahrgang lässt sich kein Wettbewerb anlegen.
+        <a href="/teams">Teams anlegen</a>
+    </p>
+    {% else %}
+    <table class="team-table">
+        <thead><tr><th>Jahrgang</th><th>Aktive Teams</th></tr></thead>
+        <tbody>
+            {% for jahrgang in jahrgang_options %}
+            <tr><td>{{ jahrgang }}</td><td>{{ teams_by_jahrgang[jahrgang] | length }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if not has_courts %}
+    <p>
+        Es sind noch keine aktiven Spielfelder/Bereiche angelegt. Ohne Felder kann kein Spielplan erzeugt werden.
+        <a href="/spielfelder">Spielfelder anlegen</a>
+    </p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Schritt 3</p>
+            <h2>Wettbewerbe anlegen</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">🏆</span>
+    </div>
+
+    {% if competitions %}
+    <table class="team-table">
+        <thead><tr><th>Wettbewerb</th><th>Jahrgang</th><th>Typ</th><th>Nächster Schritt</th></tr></thead>
+        <tbody>
+            {% for competition in competitions %}
+            <tr>
+                <td>{{ ui.sport_icon(competition.sportart, competition.competition_type) }} {{ competition.name }}</td>
+                <td>{{ competition.jahrgang }}</td>
+                <td>{{ competition.competition_type }}</td>
+                <td>
+                    {% if competition.competition_type == "Sechskampf" %}
+                        {% if competition.discipline_count > 0 %}
+                        <a class="button secondary" href="/wettbewerbe?event_id={{ event.id }}#competition-{{ competition.id }}">Disziplinen bearbeiten</a>
+                        {% else %}
+                        <a class="button primary" href="/wettbewerbe?event_id={{ event.id }}#competition-{{ competition.id }}">Disziplinen anlegen</a>
+                        {% endif %}
+                    {% else %}
+                        {% if competition.slot_count > 0 %}
+                        <a class="button secondary" href="/spielplan-bearbeiten?event_id={{ event.id }}&competition_id={{ competition.id }}">Spielplan bearbeiten</a>
+                        {% else %}
+                        <a class="button primary" href="/spielplan-bearbeiten?event_id={{ event.id }}&competition_id={{ competition.id }}">Spielplan erzeugen</a>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="muted">
+        Hinweis zum Spielplan-Generator: Für eine Gruppenphase mit Halbfinale "Spiele pro Team" auf die Gruppengröße setzen;
+        für ein reines "Jeder gegen jeden" mit direktem Finale (wie im <a href="/turnier-schnellstart">Turnier-Schnellstart</a>)
+        "Spiele pro Team" auf die Teamzahl setzen und die K.-o.-Runde automatisch anlegen lassen.
+    </p>
+    {% else %}
+    <p class="muted">Für diese Veranstaltung sind noch keine Wettbewerbe angelegt.</p>
+    {% endif %}
+
+    {% if has_teams %}
+    <h3>Weiteren Wettbewerb hinzufügen</h3>
+    <form method="post" action="/assistent/{{ event.id }}/wettbewerb/anlegen" class="admin-form">
+        <label>Name (optional)</label>
+        <input type="text" name="name" placeholder="wird automatisch aus Sportart und Jahrgang gebildet">
+
+        <label>Sportart</label>
+        <input type="text" name="sportart" required>
+
+        <label>Jahrgang</label>
+        <select name="jahrgang" required>
+            {% for jahrgang in jahrgang_options %}
+            <option value="{{ jahrgang }}">{{ jahrgang }} ({{ teams_by_jahrgang[jahrgang] | length }} Teams)</option>
+            {% endfor %}
+        </select>
+
+        <label>Wettbewerbstyp</label>
+        <select name="competition_type" id="assistent-competition-type">
+            {% for type in competition_types %}
+            <option value="{{ type }}">{{ type }}</option>
+            {% endfor %}
+        </select>
+
+        <label id="assistent-tournament-mode-label" style="display:none;">Turniermodus</label>
+        <select name="tournament_mode" id="assistent-tournament-mode" style="display:none;">
+            {% for mode_key, mode in schulpokal_modes.items() %}
+            <option value="{{ mode_key }}" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            {% endfor %}
+        </select>
+
+        <button class="green" type="submit">Wettbewerb anlegen</button>
+    </form>
+    <script>
+    (function () {
+        var typeSelect = document.getElementById('assistent-competition-type');
+        var modeSelect = document.getElementById('assistent-tournament-mode');
+        var modeLabel = document.getElementById('assistent-tournament-mode-label');
+        function toggleMode() {
+            var showMode = typeSelect.value === 'Schulpokal';
+            modeSelect.style.display = showMode ? '' : 'none';
+            modeLabel.style.display = showMode ? '' : 'none';
+        }
+        typeSelect.addEventListener('change', toggleMode);
+        toggleMode();
+    })();
+    </script>
+    {% endif %}
+</section>
+
+{% if competitions %}
+<section class="panel">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Schritt 5</p>
+            <h2>Abschluss</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">🏁</span>
+    </div>
+    <p>Wettbewerbe sind angelegt. Von hier aus geht es weiter zu:</p>
+    <div class="event-actions">
+        <a class="button primary" href="/spielplan?event_id={{ event.id }}">Spielplan ansehen</a>
+        <a class="button secondary" href="/ergebnisse?event_id={{ event.id }}">Ergebnisse eintragen</a>
+        <a class="button secondary" href="/tabellen?event_id={{ event.id }}">Tabellen ansehen</a>
+        <a class="button secondary" href="/events/{{ event.id }}">Veranstaltungsseite</a>
+    </div>
+</section>
+{% endif %}
+
+<a class="back-link" href="/assistent">← Zurück zur Veranstaltungsauswahl</a>
+{% endblock %}
