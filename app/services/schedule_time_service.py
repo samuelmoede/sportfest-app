@@ -119,6 +119,51 @@ def build_end_time_forecast(slots, competition):
     }
 
 
+def find_overlapping_competitions(
+    conn,
+    *,
+    competition_id: int,
+    event_id,
+    location,
+    location_subarea,
+    start_time: str,
+    end_time: str,
+):
+    """Findet andere Wettbewerbe derselben Veranstaltung, die sich am selben
+    Ort zeitlich mit [start_time, end_time) ueberschneiden - fuer die
+    Konfliktpruefung beim Verschieben/Skalieren eines Grobplan-Zeitblocks
+    (siehe /competition/{id}/update-schedule-block)."""
+    if not location or event_id is None:
+        return []
+    start = parse_slot_time(start_time)
+    end = parse_slot_time(end_time)
+    if start is None or end is None:
+        return []
+
+    rows = conn.execute("""
+        SELECT name, start_time, end_time, location_subarea
+        FROM competitions
+        WHERE event_id = ?
+          AND location = ?
+          AND id != ?
+          AND status != 'archiviert'
+          AND start_time IS NOT NULL
+          AND end_time IS NOT NULL
+    """, (event_id, location, competition_id)).fetchall()
+
+    conflicts = []
+    for row in rows:
+        if location_subarea and row["location_subarea"] and row["location_subarea"] != location_subarea:
+            continue
+        other_start = parse_slot_time(row["start_time"])
+        other_end = parse_slot_time(row["end_time"])
+        if other_start is None or other_end is None:
+            continue
+        if start < other_end and other_start < end:
+            conflicts.append(row["name"])
+    return conflicts
+
+
 def recalculate_competition_court_times(conn, competition_id: int, court_id):
     competition = conn.execute(
         "SELECT * FROM competitions WHERE id = ?", (competition_id,)
