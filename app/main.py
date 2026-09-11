@@ -97,6 +97,7 @@ from app.utils.formatting import (
     format_points_value,
     format_score,
     format_sixkampf_values,
+    jahrgang_sort_key,
     parse_score,
     slugify_filename_part,
 )
@@ -376,7 +377,10 @@ def collect_tabellen_view_data(
             continue
         visible_competitions.append(competition)
 
-    year_options = sorted({c["jahrgang"] for c in competitions if c["jahrgang"] is not None})
+    year_options = sorted(
+        {c["jahrgang"] for c in competitions if c["jahrgang"] is not None},
+        key=jahrgang_sort_key,
+    )
 
     with get_conn() as conn:
         # events_by_id speist u.a. das Veranstaltungs-Filter-Dropdown im
@@ -1429,7 +1433,10 @@ def calculate_event_overall_ranking(event_id: int):
             "competition_type": competition["competition_type"],
         })
 
-    jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
+    jahrgaenge = sorted(
+        {competition["jahrgang"] for competition in competitions},
+        key=jahrgang_sort_key,
+    )
     teams_by_jahrgang = {}
     with get_conn() as conn:
         if jahrgaenge:
