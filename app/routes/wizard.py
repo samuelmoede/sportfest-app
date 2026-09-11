@@ -9,6 +9,7 @@ from app.routes.events import EVENT_TYPES
 from app.routes.quickstart import build_quickstart_context
 from app.routes.teams import normalize_jahrgang
 from app.services.event_status_service import fetch_events_with_competition_counts
+from app.utils.formatting import jahrgang_sort_key
 from app.services.schedule_generator_service import (
     DEFAULT_SCHULPOKAL_MODE,
     SCHULPOKAL_MODES,
@@ -32,10 +33,6 @@ def _unique_competition_name(conn, base_name: str) -> str:
         candidate = f"{base_name} ({suffix})"
         suffix += 1
     return candidate
-
-
-def _jahrgang_sort_key(value):
-    return (0, value) if isinstance(value, int) else (1, str(value))
 
 
 def create_router(
@@ -118,7 +115,7 @@ def create_router(
         teams_by_jahrgang = {}
         for team in teams:
             teams_by_jahrgang.setdefault(team["jahrgang"], []).append(dict(team))
-        jahrgang_options = sorted(teams_by_jahrgang.keys(), key=_jahrgang_sort_key)
+        jahrgang_options = sorted(teams_by_jahrgang.keys(), key=jahrgang_sort_key)
 
         return templates.TemplateResponse(
             request=request,
