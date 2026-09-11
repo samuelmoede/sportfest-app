@@ -731,6 +731,12 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 }
 .results-court-column .result-meta-badges {
     gap: 3px;
+    /* Je nach Spiel sind hier 1 oder 2 Zeilen Badges noetig (z.B. mit/ohne
+       "Gestartet ..."-Pill) - ohne Mindesthoehe fuer 2 Zeilen rutschte die
+       Punkte-Zeile bei Karten mit nur einer Badge-Zeile weiter nach oben als
+       bei Karten mit zwei Zeilen, obwohl die Karten selbst (PR #92) schon
+       gleich hoch sind. */
+    min-height: 45px;
 }
 .results-court-column .result-meta .pill,
 .results-court-column .result-meta .badge,
