@@ -81,6 +81,14 @@ German status/enum values are used directly in SQL throughout — e.g. slot `sta
 `Gruppenphase` / `Halbfinale` / `Finale` / `Spiel um Platz 3`; `slot_typ` is `Spiel` / `Leer`.
 Match these strings exactly when writing queries.
 
+`users` (see `app/services/users_service.py`) holds individual login accounts — username
+(stored/compared uppercase, case-insensitive), a salted PBKDF2 password hash (`app/utils/
+password_hashing.py`), an `active` flag, and one role from `ASSIGNABLE_ROLES`. `init_db()`
+seeds `ADMIN`/`MOSA` once on first run (see the migration block near the end of `init_db()`).
+Role *authorization* (`ROLES`, `ROLE_ACCESS_LEVELS`, `can_access_role()`) still lives in
+`settings_service.py` and is unchanged by the user system — only how a session gets its
+`role` changed (via `/login` verifying against `users` instead of shared per-role passwords).
+
 ### Key logic in main.py
 
 - `generate_group_plan()` / `validate_generated_plan()` — auto-build a group-phase schedule
@@ -160,6 +168,7 @@ Match these strings exactly when writing queries.
 
 - **Authentication is opt-in.** `security_enabled` defaults to false and must keep the disabled
   mode fully backward-compatible. When enabled, central middleware protects settings, teams,
-  courts, and competition administration; results and schedule actions remain public. CSRF
-  protection is still pending.
+  courts, and competition administration; results and schedule actions remain public. Login is
+  per-user (`users` table, see Data model above) rather than shared per-role passwords; role
+  *authorization* itself (which role may do what) is untouched. CSRF protection is still pending.
 - `data/*.db` and `backups/` are gitignored — never commit the live database.

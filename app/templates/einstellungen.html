@@ -89,13 +89,11 @@
     {% endif %}
 
     {% if security_requested and not login_prepared %}
-        <p class="error-text">Sicherheit wurde angefordert, bleibt aber ohne Admin-Passwort automatisch deaktiviert.</p>
+        <p class="error-text">Sicherheit wurde angefordert, bleibt aber ohne Admin-Benutzer mit Passwort automatisch deaktiviert.</p>
     {% elif logged_in %}
         <p>Aktuelle Sitzung: als {{ current_role_label }} angemeldet. <a href="/logout">Abmelden</a></p>
-    {% elif login_prepared or helper_login_prepared %}
-        <p>Aktuelle Rolle: Viewer. <a href="/login?next=/einstellungen">Rechte erweitern</a></p>
     {% else %}
-        <p class="muted">Aktuelle Rolle: Viewer. Für eine Rechteerweiterung zuerst ein Schiedsrichter- oder Admin-Passwort konfigurieren.</p>
+        <p>Aktuelle Rolle: Viewer. <a href="/login?next=/einstellungen">Login</a></p>
     {% endif %}
 
     {% if security_environment_override is not none %}
@@ -120,48 +118,100 @@
     {% endif %}
 </section>
 
-<section class="panel">
-    <h2>Passwörter ändern</h2>
-    {% if password_status == "ok" %}
-        <p class="success-text">Das Passwort für {{ password_role_label }} wurde geändert.</p>
-    {% elif password_status == "invalid_current_password" %}
-        <p class="error-text">Das aktuelle Passwort für {{ password_role_label }} ist nicht korrekt.</p>
-    {% elif password_status == "invalid_new_password" %}
-        <p class="error-text">Das neue Passwort darf nicht leer sein.</p>
-    {% elif password_status == "environment_override" %}
-        <p class="error-text">Das Passwort für {{ password_role_label }} wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
-    {% elif password_status == "invalid_role" %}
-        <p class="error-text">Unbekannte Rolle.</p>
+<section class="panel" id="benutzer">
+    <h2>Benutzer</h2>
+    <p class="muted">Jeder Benutzer hat einen Benutzernamen (Gross-/Kleinschreibung egal) und ein Passwort (Gross-/Kleinschreibung wichtig) sowie genau eine Rolle.</p>
+    {% if user_status == "ok" %}
+        <p class="success-text">Änderung für {{ user_username }} gespeichert.</p>
+    {% elif user_status == "invalid_username" %}
+        <p class="error-text">Bitte einen Benutzernamen angeben.</p>
+    {% elif user_status == "duplicate_username" %}
+        <p class="error-text">Der Benutzername {{ user_username }} existiert bereits.</p>
+    {% elif user_status == "invalid_password" %}
+        <p class="error-text">Bitte ein Passwort angeben.</p>
+    {% elif user_status == "invalid_role" %}
+        <p class="error-text">Ungültige Rolle.</p>
+    {% elif user_status == "last_admin" %}
+        <p class="error-text">{{ user_username }} ist der letzte aktive Admin-Benutzer und kann nicht deaktiviert oder umgestuft werden.</p>
+    {% elif user_status == "not_found" %}
+        <p class="error-text">Benutzer nicht gefunden.</p>
     {% endif %}
-    {% for role in password_role_overview %}
-    <div class="settings-item">
-        <strong>{{ role.label }}</strong>
-        {% if role.environment_locked %}
-            <p class="muted">Wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
-        {% else %}
-            <form method="post" action="/einstellungen/passwort" class="inline-form">
-                <input type="hidden" name="role" value="{{ role.key }}">
-                <label for="current_password_{{ role.key }}">Aktuelles Passwort ({{ role.label }})</label>
+
+    <div class="user-list">
+    {% for user in users %}
+        <article class="settings-item user-card{% if not user.active %} user-card-inactive{% endif %}">
+            <div class="user-card-head">
+                <strong>{{ user.username }}</strong>
+                <span class="role-badge role-{{ user.role }}">
+                    <span class="role-badge-prefix">Rolle:</span> {{ role_labels[user.role] }}
+                </span>
+                {% if not user.active %}<span class="status-pill">Deaktiviert</span>{% endif %}
+            </div>
+
+            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/rolle" class="inline-form role-radio-form">
+                <div class="role-radio-options">
+                {% for role in assignable_roles %}
+                    <label class="role-radio-option">
+                        <input type="radio" name="role" value="{{ role.key }}" {% if role.key == user.role %}checked{% endif %}>
+                        {{ role.label }}
+                    </label>
+                {% endfor %}
+                </div>
+                <button type="submit">Rolle speichern</button>
+            </form>
+
+            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/passwort" class="inline-form">
+                <label for="new_password_{{ user.id }}">Neues Passwort</label>
                 <input
-                    id="current_password_{{ role.key }}"
-                    name="current_password"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                >
-                <label for="new_password_{{ role.key }}">Neues Passwort</label>
-                <input
-                    id="new_password_{{ role.key }}"
+                    id="new_password_{{ user.id }}"
                     name="new_password"
                     type="password"
                     autocomplete="new-password"
                     required
                 >
-                <button type="submit">Passwort ändern</button>
+                <button type="submit">Passwort setzen</button>
             </form>
-        {% endif %}
-    </div>
+
+            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/aktiv" class="inline-form">
+                <input type="hidden" name="active" value="{{ 'false' if user.active else 'true' }}">
+                <button type="submit" class="{{ 'danger' if user.active else 'secondary' }}">
+                    {{ 'Deaktivieren' if user.active else 'Aktivieren' }}
+                </button>
+            </form>
+        </article>
     {% endfor %}
+    </div>
+
+    <h3>Neuen Benutzer anlegen</h3>
+    <form method="post" action="/einstellungen/benutzer/anlegen" class="form-grid">
+        <label for="new_user_username">Benutzername</label>
+        <input
+            id="new_user_username"
+            name="username"
+            type="text"
+            autocapitalize="characters"
+            placeholder="z.B. MOSA"
+            required
+        >
+        <label for="new_user_password">Passwort</label>
+        <input
+            id="new_user_password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            required
+        >
+        <span>Rolle</span>
+        <div class="role-radio-options">
+        {% for role in assignable_roles %}
+            <label class="role-radio-option">
+                <input type="radio" name="role" value="{{ role.key }}" required>
+                {{ role.label }}
+            </label>
+        {% endfor %}
+        </div>
+        <button class="primary" type="submit">Benutzer anlegen</button>
+    </form>
 </section>
 
 <section class="panel" id="aenderungsprotokoll">

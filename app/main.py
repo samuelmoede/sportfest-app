@@ -76,22 +76,19 @@ from app.services.schedule_time_service import (
     parse_slot_time,
 )
 from app.services.settings_service import (
-    ROLE_LABELS,
     can_access_role,
-    get_admin_password,
     get_beamer_refresh_seconds,
     get_current_role,
     get_current_role_description,
     get_current_role_label,
     get_dashboard_info_html,
-    get_referee_password,
     get_site_theme,
-    get_tournament_lead_password,
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
     render_rich_text_html,
 )
+from app.services.users_service import verify_login
 from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
     format_points_value,
@@ -1905,8 +1902,6 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
         context={
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
-            "helper_login_prepared": bool(get_referee_password()),
-            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),
@@ -1965,9 +1960,9 @@ def _register_login_success(key: str) -> None:
 @app.post("/login")
 def login(
     request: Request,
+    username: str = Form(""),
     password: str = Form(""),
     next: str = Form("/"),
-    target_role: str = Form("admin"),
 ):
     client_key = _login_client_key(request)
     lockout_remaining = _login_lockout_remaining(client_key)
@@ -1978,8 +1973,6 @@ def login(
             context={
                 "next_url": safe_next_url(next),
                 "admin_login_prepared": is_login_prepared(),
-                "helper_login_prepared": bool(get_referee_password()),
-                "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
                 "security_enabled": is_security_enabled(),
                 "logged_in": is_logged_in(request),
                 "current_role": get_current_role(request),
@@ -1993,43 +1986,30 @@ def login(
             status_code=429,
         )
 
-    role_passwords = {
-        "referee": get_referee_password(),
-        "tournament_lead": get_tournament_lead_password(),
-        "admin": get_admin_password(),
-    }
-    configured_password = role_passwords.get(target_role, "")
-    if configured_password and secrets.compare_digest(password, configured_password):
+    user = verify_login(username, password)
+    if user is not None:
         _register_login_success(client_key)
         request.session.clear()
-        request.session["admin_logged_in"] = target_role == "admin"
-        request.session["role"] = target_role
+        request.session["role"] = user["role"]
+        request.session["user_id"] = user["id"]
+        request.session["username"] = user["username"]
         return RedirectResponse(safe_next_url(next), status_code=303)
 
-    if configured_password:
-        _register_login_failure(client_key)
-
-    role_label = ROLE_LABELS.get(target_role, "ausgewählte")
+    _register_login_failure(client_key)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
-            "helper_login_prepared": bool(get_referee_password()),
-            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),
             "current_role_label": get_current_role_label(request),
             "logged_out": False,
-            "login_error": (
-                f"Das {role_label}-Passwort ist nicht korrekt."
-                if configured_password
-                else f"Es ist noch kein Passwort für die Rolle {role_label} konfiguriert."
-            ),
+            "login_error": "Benutzername oder Passwort ist nicht korrekt.",
         },
-        status_code=401 if configured_password else 200,
+        status_code=401,
     )
 
 
