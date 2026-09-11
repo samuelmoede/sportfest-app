@@ -802,6 +802,15 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     padding: 5px 7px;
     font-size: 0.75rem;
 }
+/* Buttons in der schmalen Ergebnis-Spalte sind zu knapp fuer laengere Labels
+   wie "Start rueckgaengig" - ohne Umbruch lief der Text ueber die Button- und
+   Kartengrenze hinweg statt zweizeilig in seinem Button zu bleiben. */
+.results-court-column .result-actions button,
+.results-court-column .correction-unlocked-actions button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
 @media (max-width: 640px) {
     .results-time-grid {
         grid-template-columns: 44px repeat(var(--editor-court-count), minmax(180px, 220px));

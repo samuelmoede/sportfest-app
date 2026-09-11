@@ -19,6 +19,14 @@
     box-sizing: border-box;
 }
 
+/* Mehrere Komponenten (u.a. "button" unten sowie .correction-unlocked-actions
+   in results.css) setzen "display" per Klassen-/Typselektor - das gewinnt per
+   CSS-Kaskade gegen die niedrig priorisierte UA-Regel fuers hidden-Attribut,
+   wodurch mit "hidden" ausgeblendete Elemente trotzdem sichtbar blieben. */
+[hidden] {
+    display: none !important;
+}
+
 html {
     overflow-y: scroll;
 }
