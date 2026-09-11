@@ -19,6 +19,17 @@
     overflow-x: auto;
 }
 
+.change-log-scroll {
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.change-log-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
 .standings-table-scroll {
     margin-top: 10px;
     padding-bottom: 4px;

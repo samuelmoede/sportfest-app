@@ -41,6 +41,24 @@
         </form>
         {% endif %}
 
+        {% if current_role == "viewer" and tournament_lead_login_prepared %}
+        <h2>Als Turnierleitung anmelden</h2>
+        <form method="post" action="/login" class="form-grid">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <input type="hidden" name="target_role" value="tournament_lead">
+            <label for="tournament_lead_password">Turnierleitung-Passwort</label>
+            <input
+                id="tournament_lead_password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                {% if not helper_login_prepared %}autofocus{% endif %}
+            >
+            <button class="primary" type="submit">Als Turnierleitung anmelden</button>
+        </form>
+        {% endif %}
+
         <h2>Als Admin anmelden</h2>
         <form method="post" action="/login" class="form-grid">
             <input type="hidden" name="next" value="{{ next_url }}">
@@ -52,7 +70,7 @@
                 type="password"
                 autocomplete="current-password"
                 required
-                {% if current_role == "referee" %}autofocus{% endif %}
+                {% if current_role in ("referee", "tournament_lead") or (current_role == "viewer" and not helper_login_prepared and not tournament_lead_login_prepared) %}autofocus{% endif %}
             >
             <button class="primary" type="submit">Als Admin anmelden</button>
         </form>

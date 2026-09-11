@@ -1,0 +1,72 @@
+<div id="change-log-content">
+    <p class="muted">
+        {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.
+    </p>
+    {% if reset_status == "ok" %}
+    <p class="success-text">Alle Änderungszähler wurden zurückgesetzt.</p>
+    {% endif %}
+    {% if change_log_count > 0 %}
+    <form method="post" action="/einstellungen/reset-aenderungszaehler"
+          onsubmit="return confirm('Alle {{ change_log_count }} protokollierten Einträge unwiderruflich löschen? Die Änderungszähler bei der Ergebniseingabe werden damit auf 0 zurückgesetzt.');"
+          style="margin-bottom: 16px;">
+        <button class="danger" type="submit">Änderungszähler zurücksetzen</button>
+    </form>
+    {% endif %}
+    {% if change_log_roles or change_log_competitions %}
+    <form method="get" action="/einstellungen" class="change-log-filter-form" data-change-log-filter-form style="margin-bottom: 16px;">
+        <label for="change_log_role">Rolle</label>
+        <select id="change_log_role" name="change_log_role">
+            <option value="">Alle Rollen</option>
+            {% for role in change_log_roles %}
+            <option value="{{ role.key }}" {% if role.key == change_log_role %}selected{% endif %}>{{ role.label }}</option>
+            {% endfor %}
+        </select>
+        <label for="change_log_competition_id">Wettbewerb</label>
+        <select id="change_log_competition_id" name="change_log_competition_id">
+            <option value="">Alle Wettbewerbe</option>
+            {% for competition in change_log_competitions %}
+            <option value="{{ competition.id }}" {% if competition.id == change_log_competition_id %}selected{% endif %}>{{ competition.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filtern</button>
+        {% if change_log_role or change_log_competition_id %}
+        <a href="/einstellungen#aenderungsprotokoll" data-change-log-reset-filter>Filter zurücksetzen</a>
+        {% endif %}
+    </form>
+    {% endif %}
+    {% if recent_changes %}
+    <div class="table-scroll change-log-scroll">
+        <table class="change-log-table">
+            <thead>
+                <tr>
+                    <th>Zeitpunkt</th>
+                    <th>Rolle</th>
+                    <th>Aktion</th>
+                    <th>Wettbewerb / Eintrag</th>
+                    <th>Vorher</th>
+                    <th>Nachher</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in recent_changes %}
+                <tr>
+                    <td>{{ change.created_at_display }}</td>
+                    <td>{{ change.actor_role_label }}</td>
+                    <td>{{ change.action }}</td>
+                    <td>
+                        <strong>{{ change.competition_name or "Unbekannter Wettbewerb" }}</strong><br>
+                        <span class="muted">{{ change.target_label }}</span>
+                    </td>
+                    <td>{{ change.old_value or "–" }}</td>
+                    <td>{{ change.new_value or "–" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif change_log_role or change_log_competition_id %}
+    <p class="muted">Keine Einträge für die gewählte Filterauswahl.</p>
+    {% else %}
+    <p class="muted">Noch keine Ergebnisänderungen protokolliert.</p>
+    {% endif %}
+</div>

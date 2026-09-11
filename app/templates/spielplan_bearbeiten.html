@@ -175,6 +175,24 @@
         flex-wrap: wrap;
         margin-top: 12px;
     }
+
+    .timing-edit-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .timing-edit-form label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-weight: normal;
+    }
+
+    .timing-edit-form input[type="number"] {
+        width: 70px;
+    }
 </style>
 
 <div class="schedule-editor-page">
@@ -229,6 +247,17 @@
                 {{ selected_timing.changeover_duration_minutes }} min Wechselzeit =
                 {{ selected_timing.slot_interval_minutes }} min Startabstand
             </span>
+            <form method="post" action="/competition/{{ selected_competition_id }}/update-timing" class="timing-edit-form">
+                <label>
+                    Spielzeit (min)
+                    <input type="number" name="game_duration_minutes" value="{{ selected_timing.game_duration_minutes }}" min="1" required>
+                </label>
+                <label>
+                    Wechselzeit (min)
+                    <input type="number" name="changeover_duration_minutes" value="{{ selected_timing.changeover_duration_minutes }}" min="0" required>
+                </label>
+                <button type="submit">Speichern</button>
+            </form>
         </div>
         {% if current_end_time_forecast and current_end_time_forecast.overall_end %}
         <div>
@@ -301,6 +330,14 @@
               onsubmit="return confirm('Finale und Spiel um Platz 3 automatisch anhand der Halbfinals besetzen?');">
             <button class="green" type="submit" {% if not can_generate_finals %}disabled{% endif %}>
                 Finale automatisch besetzen
+            </button>
+        </form>
+
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/generate-finals-from-table"
+              onsubmit="return confirm('Finale und Spiel um Platz 3 automatisch anhand der Tabelle besetzen?');">
+            <button class="green" type="submit" {% if not can_generate_finals_from_table %}disabled{% endif %}>
+                Endplatzierung aus Tabelle besetzen
             </button>
         </form>
     </div>

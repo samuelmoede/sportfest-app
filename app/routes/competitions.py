@@ -16,6 +16,7 @@ from app.services.schedule_generator_service import (
     DEFAULT_SCHULPOKAL_MODE,
     SCHULPOKAL_MODES,
 )
+from app.services.schedule_time_service import find_overlapping_competitions, parse_slot_time
 from app.web import templates
 
 COMPETITION_TYPES = ("Turnier", "Sechskampf", "Schulpokal")
@@ -435,6 +436,54 @@ def create_router(
             f"/wettbewerbe?saved_competition_id={competition_id}&saved_at={saved_at}#competition-{competition_id}",
             status_code=303,
         )
+
+    @router.post("/competition/{competition_id}/update-schedule-block")
+    def update_competition_schedule_block(
+        competition_id: int,
+        start_time: str = Form(...),
+        end_time: str = Form(...),
+    ):
+        """Grobplan: verschiebt/skaliert den Zeitblock eines Wettbewerbs in der
+        Tagesplan-Timeline (Drag-to-move/Drag-to-resize, siehe
+        day_schedule.html). Ueberschneidungen mit anderen Wettbewerben am
+        selben Ort werden als nicht-blockierende Warnung zurueckgegeben,
+        analog zu /slot/{id}/move."""
+        start_value = start_time.strip()
+        end_value = end_time.strip()
+        start = parse_slot_time(start_value)
+        end = parse_slot_time(end_value)
+        if start is None or end is None or end <= start:
+            return JSONResponse({"success": False, "warnings": []}, status_code=400)
+
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+            if competition is None:
+                return JSONResponse({"success": False, "warnings": []}, status_code=404)
+
+            conflicts = find_overlapping_competitions(
+                conn,
+                competition_id=competition_id,
+                event_id=competition["event_id"],
+                location=competition["location"],
+                location_subarea=competition["location_subarea"],
+                start_time=start_value,
+                end_time=end_value,
+            )
+
+            conn.execute("""
+                UPDATE competitions
+                SET start_time = ?, end_time = ?
+                WHERE id = ?
+            """, (start_value, end_value, competition_id))
+            conn.commit()
+
+        warnings = [
+            {"message": f'Überschneidung mit "{name}" am selben Ort.'}
+            for name in conflicts
+        ]
+        return JSONResponse({"success": True, "warnings": warnings})
 
     @router.post("/competition/{competition_id}/discipline/create")
     def create_competition_discipline(

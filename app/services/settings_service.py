@@ -2,6 +2,7 @@ from datetime import datetime
 import html
 import os
 import re
+import secrets
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -23,23 +24,26 @@ SITE_THEMES = {
 DEFAULT_SITE_THEME = "standard"
 ALLOWED_BOLD_TAG_RE = re.compile(r"</?(?:b|strong)>", re.IGNORECASE)
 TRUE_SETTING_VALUES = {"1", "true", "yes", "on", "ja"}
-ROLES = {"viewer", "station_helper", "referee", "admin"}
+ROLES = {"viewer", "station_helper", "referee", "tournament_lead", "admin"}
 ROLE_LABELS = {
     "viewer": "Viewer",
     "station_helper": "Stationshelfer",
     "referee": "Schiedsrichter",
+    "tournament_lead": "Turnierleitung",
     "admin": "Admin",
 }
 ROLE_DESCRIPTIONS = {
     "viewer": "\u00d6ffentliche Ansichten ohne Bearbeitungsrechte",
     "station_helper": "Stationsrolle vorbereitet, derzeit noch ohne Anmeldung und Stationsrechte",
     "referee": "Ergebnisse erfassen und Spieltimer bedienen",
+    "tournament_lead": "Wie Schiedsrichter, zus\u00e4tzlich Gewinnlisten und Siegerehrung einsehen",
     "admin": "Vollzugriff auf Verwaltung und Planung",
 }
 ROLE_ACCESS_LEVELS = {
     "viewer": 0,
     "station_helper": 0,
     "referee": 1,
+    "tournament_lead": 1,
     "admin": 2,
 }
 
@@ -186,6 +190,69 @@ def get_referee_password():
     return get_setting("referee_password", "") or ""
 
 
+def get_tournament_lead_password():
+    environment_password = os.getenv("SPORTFEST_TOURNAMENT_LEAD_PASSWORD")
+    if environment_password:
+        return environment_password
+    return get_setting("tournament_lead_password", "") or ""
+
+
+PASSWORD_ROLES = {
+    "admin": {
+        "setting_key": "admin_password",
+        "environment_variables": ("SPORTFEST_ADMIN_PASSWORD", "ADMIN_PASSWORD"),
+        "get_password": get_admin_password,
+    },
+    "referee": {
+        "setting_key": "referee_password",
+        "environment_variables": ("SPORTFEST_REFEREE_PASSWORD",),
+        "get_password": get_referee_password,
+    },
+    "tournament_lead": {
+        "setting_key": "tournament_lead_password",
+        "environment_variables": ("SPORTFEST_TOURNAMENT_LEAD_PASSWORD",),
+        "get_password": get_tournament_lead_password,
+    },
+}
+
+
+def get_password_environment_override(role: str):
+    config = PASSWORD_ROLES.get(role)
+    if not config:
+        return None
+    for variable in config["environment_variables"]:
+        value = os.getenv(variable)
+        if value:
+            return value
+    return None
+
+
+def change_role_password(role: str, current_password: str, new_password: str):
+    """Aendert das gespeicherte Passwort einer Rolle, sofern das aktuelle
+    Passwort korrekt bestaetigt wird. Ein per Umgebungsvariable gesetztes
+    Passwort ueberschreibt die Datenbank immer (siehe get_admin_password /
+    get_referee_password) - eine Aenderung waere daher wirkungslos und wird
+    hier abgelehnt, statt still zu scheitern."""
+    config = PASSWORD_ROLES.get(role)
+    if not config:
+        return "invalid_role"
+
+    if get_password_environment_override(role) is not None:
+        return "environment_override"
+
+    configured_password = config["get_password"]()
+    if not configured_password or not secrets.compare_digest(
+        current_password or "", configured_password
+    ):
+        return "invalid_current_password"
+
+    if not new_password:
+        return "invalid_new_password"
+
+    set_setting(config["setting_key"], new_password)
+    return "ok"
+
+
 def is_login_prepared():
     return bool(get_admin_password())
 
@@ -220,22 +287,45 @@ def can_access_role(request: Request, required_role: str):
         return current_role in {"station_helper", "admin"}
     if current_role == "station_helper":
         return required_role == "viewer"
+    # Turnierleitung liegt auf demselben Zugriffslevel wie Schiedsrichter
+    # (siehe ROLE_ACCESS_LEVELS), bekommt aber ueber diese explizite Pruefung
+    # zusaetzlich Zugriff auf einzelne, sonst admin-only Ansichten (z.B.
+    # Gesamtwertung/Siegerehrung), ohne durch einen reinen Level-Vergleich
+    # gleich auch admin-only Verwaltungsbereiche (Spielfelder, Events,
+    # Wettbewerbe anlegen) freizuschalten.
+    if required_role == "tournament_lead":
+        return current_role in {"tournament_lead", "admin"}
     current_level = ROLE_ACCESS_LEVELS[current_role]
     required_level = ROLE_ACCESS_LEVELS[required_role]
     return current_level >= required_level
 
 
 def is_logged_in(request: Request):
-    return get_current_role(request) in {"station_helper", "referee", "admin"}
+    return get_current_role(request) in {
+        "station_helper", "referee", "tournament_lead", "admin",
+    }
 
 
-def get_recent_change_log(limit: int = 50):
+def get_recent_change_log(
+    limit: int = 50,
+    role: Optional[str] = None,
+    competition_id: Optional[int] = None,
+):
     safe_limit = max(1, min(int(limit), 200))
+    conditions = []
+    params = []
+    if role:
+        conditions.append("log.actor_role = ?")
+        params.append(role)
+    if competition_id is not None:
+        conditions.append("log.competition_id = ?")
+        params.append(competition_id)
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with get_conn() as conn:
         rows = [
             dict(row)
             for row in conn.execute(
-                """
+                f"""
                 SELECT log.*,
                        competition.name AS competition_name,
                        discipline.name AS discipline_name,
@@ -256,10 +346,11 @@ def get_recent_change_log(limit: int = 50):
                     ON team_a.id = slot.team_a_id
                 LEFT JOIN teams AS team_b
                     ON team_b.id = slot.team_b_id
+                {where_clause}
                 ORDER BY log.id DESC
                 LIMIT ?
                 """,
-                (safe_limit,),
+                (*params, safe_limit),
             ).fetchall()
         ]
 
@@ -296,6 +387,35 @@ def get_change_log_count():
         return conn.execute(
             "SELECT COUNT(*) AS n FROM change_log"
         ).fetchone()["n"]
+
+
+def get_change_log_filter_options():
+    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe als
+    Filterauswahl anbieten (keine statische Liste)."""
+    with get_conn() as conn:
+        role_rows = conn.execute(
+            "SELECT DISTINCT actor_role FROM change_log ORDER BY actor_role"
+        ).fetchall()
+        competition_rows = conn.execute(
+            """
+            SELECT DISTINCT competition.id AS id, competition.name AS name
+            FROM change_log AS log
+            JOIN competitions AS competition ON competition.id = log.competition_id
+            ORDER BY competition.name
+            """
+        ).fetchall()
+    return {
+        "roles": [
+            {
+                "key": row["actor_role"],
+                "label": ROLE_LABELS.get(row["actor_role"], row["actor_role"]),
+            }
+            for row in role_rows
+        ],
+        "competitions": [
+            {"id": row["id"], "name": row["name"]} for row in competition_rows
+        ],
+    }
 
 
 def collect_system_info():

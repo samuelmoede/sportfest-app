@@ -420,6 +420,52 @@
     opacity: 0.75;
 }
 
+.day-timeline-block.is-editable {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.day-timeline-block.is-editable.is-dragging {
+    cursor: grabbing;
+    z-index: 3;
+    box-shadow: 0 4px 14px rgba(23, 32, 51, 0.18);
+}
+
+.day-timeline-block-link {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+
+.day-timeline-block-link:hover {
+    color: var(--blue);
+}
+
+.day-timeline-resize-handle {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 1;
+}
+
+.day-timeline-resize-handle.handle-start {
+    top: 0;
+}
+
+.day-timeline-resize-handle.handle-end {
+    bottom: 0;
+}
+
+#grobplan-warnings {
+    margin: 0 0 14px;
+}
+
 .day-status {
     display: inline-flex;
     align-items: center;

@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 {% import "partials/ui_macros.html" as ui %}
 {% block content %}
+{% set can_manage_event = can_access_role(request, "admin") %}
 <div class="siegerehrung-visibility-bar">
     <span class="siegerehrung-visibility-badge {% if event.siegerehrung_public %}is-public{% else %}is-private{% endif %}">
         {% if event.siegerehrung_public %}🌐 Siegerehrung öffentlich{% else %}🔒 Siegerehrung privat{% endif %}
     </span>
     {% if event.siegerehrung_public %}
     <a class="siegerehrung-public-link" href="/siegerehrung/{{ event.id }}" target="_blank">Öffentlicher Link öffnen ↗</a>
+    {% if can_manage_event %}
     <form method="post" action="/events/{{ event.id }}/siegerehrung-private">
         <button class="secondary" type="submit">Privat</button>
     </form>
-    {% else %}
+    {% endif %}
+    {% elif can_manage_event %}
     <form method="post" action="/events/{{ event.id }}/siegerehrung-public">
         <button class="secondary" type="submit">Öffentlich</button>
     </form>
@@ -29,7 +32,9 @@
         {% if event.description %}<p class="hero-description">{{ event.description }}</p>{% endif %}
     </div>
     <div class="hero-actions">
+        {% if can_manage_event %}
         <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
+        {% endif %}
         <a class="button primary" href="/spielplan">Spielplan öffnen</a>
     </div>
 </header>
@@ -62,7 +67,7 @@
 }
 </style>
 
-<section class="panel">
+<section class="panel" id="tagesplan">
     <div class="section-heading">
         <div>
             <p class="eyebrow">Ablauf</p>
@@ -71,6 +76,7 @@
         <span class="section-icon" aria-hidden="true">🕒</span>
     </div>
     {% set day_schedule_compact = true %}
+    {% set day_schedule_editable = can_manage_event %}
     {% set day_schedule_empty_text = "Für diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
     {% include "partials/day_schedule.html" %}
 </section>
@@ -86,5 +92,9 @@
     {% include "partials/gesamtwertung.html" %}
 </section>
 
+{% if can_manage_event %}
 <a class="back-link" href="/events">← Zurück zu Veranstaltungen</a>
+{% else %}
+<a class="back-link" href="/">← Zurück zum Dashboard</a>
+{% endif %}
 {% endblock %}

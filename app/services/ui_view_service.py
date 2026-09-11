@@ -43,14 +43,10 @@ def classify_yeargang(value):
                 return "Oberstufe"
         return None  # Lehrer, Mixed, Finalrunde, Eltern, etc. → no column
 
-    if year == 7:
-        return "Jahrgang 7"
-    if year == 8:
-        return "Jahrgang 8"
-    if year == 9:
-        return "Jahrgang 9"
     if year >= 10:
         return "Oberstufe"
+    if year >= 1:
+        return f"Jahrgang {year}"
     return None
 
 

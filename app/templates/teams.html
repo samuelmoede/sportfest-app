@@ -30,6 +30,18 @@
     </form>
 </section>
 
+{# Die pro-Team-Formulare (Speichern/Loeschen) muessen als eigenstaendige
+   Top-Level-<form>-Elemente ausserhalb von #team-bulk-form stehen: HTML
+   erlaubt kein form-Nesting, und ein <form> innerhalb eines anderen <form>
+   wird beim Parsen von Browsern verworfen (das jeweils zuerst geoeffnete
+   verschachtelte <form> wird nie erzeugt) - betroffene Felder/Buttons
+   verlieren dadurch kommentarlos ihren Form-Bezug und das Speichern/Loeschen
+   tut clientseitig scheinbar nichts (Issue #72). Die Zuordnung der Felder in
+   der Tabelle erfolgt weiterhin ueber das form="..."-Attribut. #}
+{% for t in teams %}
+<form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
+<form id="team-delete-{{ t.id }}" method="post" action="/team/{{ t.id }}/delete"></form>
+{% endfor %}
 <form method="post" action="/teams/bulk-action" id="team-bulk-form">
     <div class="bulk-actions panel" style="margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 20px;">
         <span class="muted" style="font-size: 0.85rem; font-weight: 600; margin-right: 4px;">Ausgewählte:</span>
@@ -65,7 +77,6 @@
                     <tr class="{% if not t.active %}team-row-inactive{% endif %}">
                         <td><input type="checkbox" name="team_ids" value="{{ t.id }}" class="team-check" data-gruppe="{{ t.jahrgang }}"></td>
                         <td>
-                            <form id="team-update-{{ t.id }}" method="post" action="/team/{{ t.id }}/update"></form>
                             <input form="team-update-{{ t.id }}" type="text" name="name" value="{{ t.name }}" required>
                         </td>
                         <td>
@@ -91,13 +102,9 @@
                             <span class="save-feedback-inline">✓ {{ saved_at }}</span>
                             {% endif %}
                             {% if t.deletable %}
-                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team wirklich löschen?');">
-                                <button class="danger" type="submit">Löschen</button>
-                            </form>
+                            <button form="team-delete-{{ t.id }}" class="danger" type="submit" onclick="return confirm('Team wirklich löschen?');">Löschen</button>
                             {% else %}
-                            <form method="post" action="/team/{{ t.id }}/delete" onsubmit="return confirm('Team inkl. aller zugehörigen Daten löschen? {{ t.dependent_count }} abhängige Datensätze werden entfernt.');">
-                                <button type="submit" class="danger">Löschen inkl. Daten</button>
-                            </form>
+                            <button form="team-delete-{{ t.id }}" class="danger" type="submit" onclick="return confirm('Team inkl. aller zugehörigen Daten löschen? {{ t.dependent_count }} abhängige Datensätze werden entfernt.');">Löschen inkl. Daten</button>
                             {% endif %}
                         </td>
                     </tr>

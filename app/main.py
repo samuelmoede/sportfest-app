@@ -19,10 +19,12 @@ from app.database import init_db, get_conn, DB_PATH
 from app.routes.settings import router as settings_router
 from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
+from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.venues import create_router as create_venues_router
-from app.services.schedule_grid_service import get_all_slots
+from app.routes.wizard import create_router as create_wizard_router
+from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
     filter_courts_for_location,
@@ -53,6 +55,7 @@ from app.services.schedule_generator_service import (
     get_next_phase_names,
     get_winner_loser,
     group_phase_finished,
+    has_semifinal_slots,
     is_next_phase_started,
     semifinals_finished,
 )
@@ -83,6 +86,7 @@ from app.services.settings_service import (
     get_dashboard_info_html,
     get_referee_password,
     get_site_theme,
+    get_tournament_lead_password,
     is_logged_in,
     is_login_prepared,
     is_security_enabled,
@@ -93,6 +97,7 @@ from app.utils.formatting import (
     format_points_value,
     format_score,
     format_sixkampf_values,
+    parse_score,
     slugify_filename_part,
 )
 
@@ -114,6 +119,7 @@ SESSION_HTTPS_ONLY = os.getenv(
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
+    ("/turnier-schnellstart", "admin"),
     ("/einstellungen", "admin"),
     ("/dokumentation", "admin"),
     ("/roadmap", "admin"),
@@ -121,13 +127,20 @@ AREA_ACCESS_RULES = (
     ("/wettbewerbe", "admin"),
     ("/events", "admin"),
     ("/teams", "admin"),
+    ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
 # Bereichspfads. Die Zuordnung hier hält auch direkte POST-Aufrufe im selben
 # zentralen Bereichsschutz.
+#
+# Wird vor AREA_ACCESS_RULES geprüft (siehe get_required_role): so können
+# einzelne Pfade unterhalb eines sonst admin-only Bereichspräfixes (z.B.
+# /events) gezielt für eine schwächere Rolle geöffnet werden, ohne den
+# gesamten Bereich freizugeben.
 ACTION_ACCESS_RULES = (
+    (re.compile(r"^/events/\d+$"), "tournament_lead"),
     (
         re.compile(
             r"^/competition/[^/]+/discipline/[^/]+/team/[^/]+/results$"
@@ -136,12 +149,14 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result)$"
+            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result|undo-correction)$"
         ),
         "referee",
     ),
     (
-        re.compile(r"^/competition/[^/]+/(?:generate-semifinals|generate-finals)$"),
+        re.compile(
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table)$"
+        ),
         "referee",
     ),
     (re.compile(r"^/team(?:/create|/[^/]+/(?:update|delete))$"), "admin"),
@@ -149,7 +164,7 @@ ACTION_ACCESS_RULES = (
     (re.compile(r"^/competition/create$"), "admin"),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
+            r"^/competition/[^/]+/(?:duplicate|update|update-schedule-block|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
         ),
         "admin",
     ),
@@ -291,12 +306,12 @@ def safe_next_url(value: str, default: str = "/"):
     return default
 
 def get_required_role(path: str):
-    for prefix, required_role in AREA_ACCESS_RULES:
-        if path == prefix or path.startswith(f"{prefix}/"):
-            return required_role
-
     for pattern, required_role in ACTION_ACCESS_RULES:
         if pattern.fullmatch(path):
+            return required_role
+
+    for prefix, required_role in AREA_ACCESS_RULES:
+        if path == prefix or path.startswith(f"{prefix}/"):
             return required_role
     return None
 
@@ -586,8 +601,38 @@ def format_time_range(start: datetime, end: datetime):
     return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
+def _grobplan_column_sort_key(column):
+    if column == "Oberstufe":
+        return (1, 0)
+    try:
+        return (0, int(column.replace("Jahrgang ", "")))
+    except ValueError:
+        return (2, column)
+
+
 def build_day_schedule(competitions, event_date=None, now=None, event_status=None):
-    columns = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    def get_field(item, key):
+        if hasattr(item, "get"):
+            return item.get(key)
+        return item[key]
+
+    # Spalten werden aus den tatsaechlich vorhandenen Jahrgaengen der
+    # uebergebenen Wettbewerbe abgeleitet (statt einer festen Liste), damit
+    # z.B. Jahrgang 5/6 oder weitere Jahrgaenge automatisch als eigene Spalte
+    # auftauchen (Issue #85). "jahrgang"-Werte ohne Spalten-Zuordnung (u.a.
+    # 'mixed') liefern weiterhin None aus classify_yeargang() und werden hier
+    # bewusst ausgeschlossen.
+    columns = sorted(
+        {
+            column
+            for column in (
+                classify_yeargang(get_field(competition, "jahrgang"))
+                for competition in competitions
+            )
+            if column is not None
+        },
+        key=_grobplan_column_sort_key,
+    )
     blocks = {}
     now = now or app_now().replace(tzinfo=None)
     event_day = parse_event_date(event_date)
@@ -599,11 +644,6 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         event_state = "future"
     else:
         event_state = "today"
-
-    def get_field(item, key):
-        if hasattr(item, "get"):
-            return item.get(key)
-        return item[key]
 
     for competition in competitions:
         start_value = get_field(competition, "start_time")
@@ -1110,7 +1150,12 @@ def include_teams_with_existing_sixkampf_results(conn, competition_id: int, team
     return list(teams) + list(extra_teams)
 
 
-def calculate_table(competition_id: int):
+def calculate_table(competition_id: int, phase: Optional[str] = None):
+    """phase=None wertet alle beendeten Spiele des Wettbewerbs; ein
+    konkreter Wert (z.B. "Gruppenphase") beschraenkt die Tabelle auf diese
+    Phase - genutzt von generate_finals_from_table, damit ein bereits
+    gespieltes und dort ueberschriebenes Finale/Spiel um Platz 3 nicht in die
+    fuer die Neubesetzung herangezogene Rangfolge zurueckfliesst."""
     with get_conn() as conn:
         competition = conn.execute(
             "SELECT * FROM competitions WHERE id = ?",
@@ -1122,7 +1167,9 @@ def calculate_table(competition_id: int):
 
         teams = get_teams_for_competition(conn, competition_id, competition["jahrgang"])
 
-        slots = conn.execute("""
+        phase_clause = " AND phase = ?" if phase is not None else ""
+        params = (competition_id, phase) if phase is not None else (competition_id,)
+        slots = conn.execute(f"""
             SELECT slots.*, ta.name AS team_a, tb.name AS team_b
             FROM slots
             LEFT JOIN teams ta ON ta.id = slots.team_a_id
@@ -1132,7 +1179,8 @@ def calculate_table(competition_id: int):
               AND status = 'beendet'
               AND team_a_id IS NOT NULL
               AND team_b_id IS NOT NULL
-        """, (competition_id,)).fetchall()
+              {phase_clause}
+        """, params).fetchall()
 
     table = {}
 
@@ -1851,6 +1899,7 @@ def login_page(request: Request, next: str = "/", logged_out: str = ""):
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
             "helper_login_prepared": bool(get_referee_password()),
+            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),
@@ -1923,6 +1972,7 @@ def login(
                 "next_url": safe_next_url(next),
                 "admin_login_prepared": is_login_prepared(),
                 "helper_login_prepared": bool(get_referee_password()),
+                "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
                 "security_enabled": is_security_enabled(),
                 "logged_in": is_logged_in(request),
                 "current_role": get_current_role(request),
@@ -1938,6 +1988,7 @@ def login(
 
     role_passwords = {
         "referee": get_referee_password(),
+        "tournament_lead": get_tournament_lead_password(),
         "admin": get_admin_password(),
     }
     configured_password = role_passwords.get(target_role, "")
@@ -1959,6 +2010,7 @@ def login(
             "next_url": safe_next_url(next),
             "admin_login_prepared": is_login_prepared(),
             "helper_login_prepared": bool(get_referee_password()),
+            "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
             "security_enabled": is_security_enabled(),
             "logged_in": is_logged_in(request),
             "current_role": get_current_role(request),
@@ -2037,7 +2089,9 @@ def ergebnisse(
     phase_ready_competition_id: str = "",
     overwrite_warning: str = "",
     correction_blocked: str = "",
+    nur_aktive: str = "",
 ):
+    nur_aktive_enabled = nur_aktive == "1"
     filter_state = build_results_filter_state(
         get_active_competitions(),
         event_id_value=event_id,
@@ -2078,17 +2132,20 @@ def ergebnisse(
     phase_ready_dismiss_url = None
     parsed_phase_ready_competition_id = parse_filter_id(phase_ready_competition_id)
     if (
-        phase_ready in ("Halbfinale", "Finale")
+        phase_ready in ("Halbfinale", "Finale", "FinaleAusTabelle")
         and parsed_phase_ready_competition_id is not None
         and parsed_phase_ready_competition_id == selected_competition_id
     ):
+        if phase_ready == "Halbfinale":
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-semifinals"
+        elif phase_ready == "FinaleAusTabelle":
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-finals-from-table"
+        else:
+            phase_ready_action = f"/competition/{parsed_phase_ready_competition_id}/generate-finals"
         phase_ready_prompt = {
-            "phase": phase_ready,
-            "action": (
-                f"/competition/{parsed_phase_ready_competition_id}/generate-semifinals"
-                if phase_ready == "Halbfinale"
-                else f"/competition/{parsed_phase_ready_competition_id}/generate-finals"
-            ),
+            "phase": "Finale" if phase_ready == "FinaleAusTabelle" else phase_ready,
+            "from_table": phase_ready == "FinaleAusTabelle",
+            "action": phase_ready_action,
         }
         current_url = request.url.path
         if request.url.query:
@@ -2100,17 +2157,19 @@ def ergebnisse(
     if overwrite_warning in ("Halbfinale", "Finale") and selected_competition_id is not None:
         already_played = get_already_played_ko_targets(selected_competition_id, overwrite_warning)
         if already_played:
+            if overwrite_warning == "Halbfinale":
+                overwrite_action = f"/competition/{selected_competition_id}/generate-semifinals"
+            elif has_semifinal_slots(selected_competition_id):
+                overwrite_action = f"/competition/{selected_competition_id}/generate-finals"
+            else:
+                overwrite_action = f"/competition/{selected_competition_id}/generate-finals-from-table"
             overwrite_warning_prompt = {
                 "phase": overwrite_warning,
                 "results": [
                     f"{slot['phase']}: {slot['team_a'] or '?'} {slot['score_a']}:{slot['score_b']} {slot['team_b'] or '?'}"
                     for slot in already_played
                 ],
-                "action": (
-                    f"/competition/{selected_competition_id}/generate-semifinals"
-                    if overwrite_warning == "Halbfinale"
-                    else f"/competition/{selected_competition_id}/generate-finals"
-                ),
+                "action": overwrite_action,
             }
             current_url = request.url.path
             if request.url.query:
@@ -2223,10 +2282,8 @@ def ergebnisse(
                 "change_counts": change_counts,
                 "saved_team_id": saved_team_id_value,
                 "saved_at": saved_at_value,
-                "slots": [],
-                "archived_slots": [],
-                "active_columns": [],
-                "archived_columns": [],
+                "result_columns": [],
+                "nur_aktive": nur_aktive_enabled,
                 "phase_ready_prompt": None,
                 "phase_ready_dismiss_url": None,
                 "overwrite_warning_prompt": None,
@@ -2243,69 +2300,93 @@ def ergebnisse(
         ]
     if selected_court_id is not None:
         slots = [slot for slot in slots if slot["court_id"] == selected_court_id]
-    active_slots = sorted(
-        (
-            slot for slot in slots
-            if slot["slot_typ"] == "Spiel" and slot["status"] in ("geplant", "läuft")
-        ),
+
+    # Beendete Spiele bleiben (Issue #50) an ihrer Position im Spielplan stehen,
+    # statt in eine separate, nach Speicherzeit sortierte Archiv-Liste zu wandern -
+    # daher hier eine einzige, nach Anstoßzeit sortierte Liste statt zwei Listen.
+    result_slots = sorted(
+        (slot for slot in slots if slot["slot_typ"] == "Spiel"),
         key=lambda slot: (slot["startzeit"], slot["id"]),
-    )
-    archived_slots = sorted(
-        (
-            slot for slot in slots
-            if slot["slot_typ"] == "Spiel" and slot["status"] == "beendet"
-        ),
-        key=lambda slot: (slot["finished_at"] or "", slot["startzeit"], slot["id"]),
-        reverse=True,
     )
 
     group_pending_counts = {}
-    for slot in slots:
-        if slot["slot_typ"] == "Spiel" and slot["phase"] == "Gruppenphase" and slot["gruppe"]:
-            if slot["status"] != "beendet":
-                key = (slot["competition_id"], slot["gruppe"])
-                group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
+    for slot in result_slots:
+        if slot["phase"] == "Gruppenphase" and slot["gruppe"] and slot["status"] != "beendet":
+            key = (slot["competition_id"], slot["gruppe"])
+            group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
 
-    for slot in active_slots:
+    beendet_slot_ids = [slot["id"] for slot in result_slots if slot["status"] == "beendet"]
+    last_result_changes = {}
+    if beendet_slot_ids:
+        placeholders = ", ".join("?" for _ in beendet_slot_ids)
+        with get_conn() as conn:
+            for row in conn.execute(
+                f"""
+                SELECT entity_id, action, old_value, new_value
+                FROM change_log
+                WHERE entity_type = 'slot_result' AND entity_id IN ({placeholders})
+                ORDER BY id
+                """,
+                beendet_slot_ids,
+            ).fetchall():
+                # ueberschreibt bei mehreren Eintraegen je Slot bewusst mit dem
+                # zuletzt protokollierten - nur der neueste Stand entscheidet,
+                # ob "Rueckgaengig" gerade eine echte Korrektur zuruecknehmen wuerde.
+                last_result_changes[row["entity_id"]] = row
+
+    for slot in result_slots:
         slot["group_patt_risk"] = None
         if (
-            slot["slot_typ"] == "Spiel"
-            and slot["phase"] == "Gruppenphase"
+            slot["phase"] == "Gruppenphase"
             and slot["gruppe"]
             and slot["team_a"]
             and slot["team_b"]
+            and slot["status"] != "beendet"
             and group_pending_counts.get((slot["competition_id"], slot["gruppe"])) == 1
         ):
             slot["group_patt_risk"] = find_group_patt_risk(
                 slot["competition_id"], slot["gruppe"], slot["team_a"], slot["team_b"]
             )
-
-    for slot in active_slots + archived_slots:
         slot["is_draw_unresolved"] = (
             slot["phase"] in KO_DECISIVE_PHASES
             and slot["score_a"] is not None
             and slot["score_a"] == slot["score_b"]
         )
-    for slot in archived_slots:
-        slot["correction_locked"] = is_next_phase_started(
-            slot["competition_id"], slot["phase"]
-        )
+        slot["correction_locked"] = False
+        slot["undo_available"] = False
+        slot["undo_old_label"] = None
+        if slot["status"] == "beendet":
+            slot["correction_locked"] = is_next_phase_started(
+                slot["competition_id"], slot["phase"]
+            )
+            last_change = last_result_changes.get(slot["id"])
+            if (
+                not slot["correction_locked"]
+                and last_change is not None
+                and last_change["action"] == "Ergebnis nachträglich korrigiert"
+                and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
+            ):
+                old_a, old_b = parse_score(last_change["old_value"])
+                if old_a is not None and old_b is not None:
+                    slot["undo_available"] = True
+                    slot["undo_old_label"] = last_change["old_value"]
 
-    active_columns = _group_slots_by_court(active_slots, courts)
-    archived_columns = _group_slots_by_court(archived_slots, courts)
-    # Pro Feld begrenzen statt global - sonst verdraengen Felder mit vielen
-    # Ergebnissen andere Felder komplett aus dem sichtbaren Archiv.
-    for column in archived_columns:
-        column["slots"] = column["slots"][:20]
+    if nur_aktive_enabled:
+        result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
+
+    result_columns = _group_slots_by_court(result_slots, courts)
+    # Issue #53: zeitgleiche bzw. zeitlich nahe Spiele sollen ueber die Spalten
+    # hinweg auf gleicher Hoehe stehen statt lose je Feld gestapelt zu werden -
+    # nutzt dasselbe Zeit-Raster wie der Spielplan-Editor (siehe schedule_grid_service).
+    result_time_marks = build_editor_time_grid(result_columns)
 
     return templates.TemplateResponse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
-            "slots": active_slots,
-            "archived_slots": archived_slots,
-            "active_columns": active_columns,
-            "archived_columns": archived_columns,
+            "result_columns": result_columns,
+            "result_time_marks": result_time_marks,
+            "nur_aktive": nur_aktive_enabled,
             "competitions": competitions,
             "event_options": event_options,
             "selected_event_id": selected_event_id,
@@ -2535,11 +2616,16 @@ def save_slot(
             if slot is not None and (
                 slot["score_a"] != score_a or slot["score_b"] != score_b
             ):
-                action = (
-                    "Ergebnis erfasst"
-                    if slot["score_a"] is None and slot["score_b"] is None
-                    else "Ergebnis geändert"
-                )
+                if slot["score_a"] is None and slot["score_b"] is None:
+                    action = "Ergebnis erfasst"
+                elif is_correction:
+                    # Eigene Bezeichnung fuer eine Korrektur eines bereits beendeten
+                    # Spiels (im Unterschied zu einer Aenderung waehrend das Spiel
+                    # noch laeuft) - /ergebnisse erkennt daran, ob "Rueckgaengig"
+                    # angeboten werden kann (siehe last_result_changes oben).
+                    action = "Ergebnis nachträglich korrigiert"
+                else:
+                    action = "Ergebnis geändert"
                 record_change(
                     conn,
                     request=request,
@@ -2606,7 +2692,10 @@ def save_slot(
     )
     if just_completed:
         if slot["phase"] == "Gruppenphase" and group_phase_finished(slot["competition_id"]):
-            phase_ready = "Halbfinale"
+            phase_ready = (
+                "Halbfinale" if has_semifinal_slots(slot["competition_id"])
+                else "FinaleAusTabelle"
+            )
         elif slot["phase"] == "Halbfinale" and semifinals_finished(slot["competition_id"]):
             phase_ready = "Finale"
 
@@ -2701,6 +2790,71 @@ def clear_slot_result(
     )
 
 
+@app.post("/slot/{slot_id}/undo-correction")
+def undo_slot_correction(
+    slot_id: int, request: Request, results_return_to: str = Form("")
+):
+    """Macht die letzte protokollierte Korrektur eines bereits beendeten Spiels
+    rueckgaengig (Issue #50) - basiert auf dem im Aenderungsprotokoll ohnehin
+    gespeicherten Vorher-Wert, statt eigene Undo-Historie zu fuehren."""
+    correction_blocked = False
+    with get_conn() as conn:
+        slot = conn.execute(
+            "SELECT competition_id, status, score_a, score_b, phase FROM slots WHERE id = ?",
+            (slot_id,),
+        ).fetchone()
+        last_change = conn.execute(
+            """
+            SELECT action, old_value, new_value FROM change_log
+            WHERE entity_type = 'slot_result' AND entity_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (slot_id,),
+        ).fetchone()
+
+        # Nur rueckgaengig machen, wenn der zuletzt protokollierte Eintrag
+        # tatsaechlich genau diese Korrektur war und der Spielstand seitdem
+        # unveraendert ist - sonst (z.B. Doppelklick, zwischenzeitliche weitere
+        # Aenderung) lieber nichts tun statt einen falschen Stand wiederherzustellen.
+        is_matching_correction = (
+            slot is not None
+            and slot["status"] == "beendet"
+            and last_change is not None
+            and last_change["action"] == "Ergebnis nachträglich korrigiert"
+            and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
+        )
+        if is_matching_correction:
+            if is_next_phase_started(slot["competition_id"], slot["phase"]):
+                correction_blocked = True
+            else:
+                old_a, old_b = parse_score(last_change["old_value"])
+                conn.execute(
+                    "UPDATE slots SET score_a = ?, score_b = ? WHERE id = ?",
+                    (old_a, old_b, slot_id),
+                )
+                record_change(
+                    conn,
+                    request=request,
+                    action="Korrektur rückgängig gemacht",
+                    entity_type="slot_result",
+                    entity_id=slot_id,
+                    competition_id=slot["competition_id"],
+                    old_value=format_score(slot["score_a"], slot["score_b"]),
+                    new_value=format_score(old_a, old_b),
+                )
+                conn.commit()
+
+    redirect_updates = {}
+    if not results_return_to and slot is not None:
+        redirect_updates["competition_id"] = slot["competition_id"]
+    if correction_blocked:
+        redirect_updates["correction_blocked"] = "1"
+    return RedirectResponse(
+        build_results_redirect_url(results_return_to, **redirect_updates),
+        status_code=303,
+    )
+
+
 @app.get("/tabellen")
 def tabellen(
     request: Request,
@@ -2761,8 +2915,15 @@ app.include_router(create_schedule_router(
     parse_jahrgang_filter=parse_jahrgang_filter,
     get_active_competitions=get_active_competitions,
     calculate_group_table=calculate_group_table,
+    calculate_table=calculate_table,
     get_teams_for_competition=get_teams_for_competition,
     calculate_sixkampf_station_rotation=calculate_sixkampf_station_rotation,
+))
+app.include_router(create_quickstart_router(
+    app_now_display_time=app_now_display_time,
+))
+app.include_router(create_wizard_router(
+    app_now_display_time=app_now_display_time,
 ))
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,

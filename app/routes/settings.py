@@ -10,16 +10,21 @@ from app.services.backup_service import (
     restore_database_backup,
 )
 from app.services.settings_service import (
+    PASSWORD_ROLES,
     ROLE_DESCRIPTIONS,
     ROLE_LABELS,
     app_now_db_timestamp,
+    change_role_password,
     collect_system_info,
     get_admin_password,
     get_change_log_count,
+    get_change_log_filter_options,
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_password_environment_override,
     get_referee_password,
+    get_tournament_lead_password,
     get_recent_change_log,
     get_security_enabled_setting,
     get_security_environment_override,
@@ -53,15 +58,30 @@ def einstellungen(
     restore_status: str = "",
     delete_status: str = "",
     theme_status: str = "",
+    password_status: str = "",
+    password_role: str = "",
     saved_at: str = "",
+    change_log_role: str = "",
+    change_log_competition_id: str = "",
 ):
     try:
         saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
     except ValueError:
         saved_at_value = ""
 
+    try:
+        change_log_competition_id_value = (
+            int(change_log_competition_id) if change_log_competition_id else None
+        )
+    except ValueError:
+        change_log_competition_id_value = None
+
     context = collect_system_info()
-    recent_changes = get_recent_change_log()
+    recent_changes = get_recent_change_log(
+        role=change_log_role or None,
+        competition_id=change_log_competition_id_value,
+    )
+    change_log_filter_options = get_change_log_filter_options()
     context.update({
         "backup_status": backup_status,
         "backup_file": backup_file,
@@ -71,6 +91,9 @@ def einstellungen(
         "restore_status": restore_status,
         "delete_status": delete_status,
         "theme_status": theme_status,
+        "password_status": password_status,
+        "password_role": password_role,
+        "password_role_label": ROLE_LABELS.get(password_role, password_role),
         "saved_at": saved_at_value,
         "site_theme": get_site_theme(),
         "site_themes": SITE_THEMES,
@@ -79,6 +102,7 @@ def einstellungen(
         "security_environment_override": get_security_environment_override(),
         "login_prepared": is_login_prepared(),
         "helper_login_prepared": bool(get_referee_password()),
+        "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
         "logged_in": is_logged_in(request),
         "current_role": get_current_role(request),
         "current_role_label": get_current_role_label(request),
@@ -90,15 +114,59 @@ def einstellungen(
                 "description": ROLE_DESCRIPTIONS[role],
                 "prepared_only": role == "station_helper",
             }
-            for role in ("viewer", "station_helper", "referee", "admin")
+            for role in ("viewer", "station_helper", "referee", "tournament_lead", "admin")
         ],
         "recent_changes": recent_changes,
         "change_log_count": get_change_log_count(),
+        "change_log_roles": change_log_filter_options["roles"],
+        "change_log_competitions": change_log_filter_options["competitions"],
+        "change_log_role": change_log_role,
+        "change_log_competition_id": change_log_competition_id_value,
+        "password_role_overview": [
+            {
+                "key": role,
+                "label": ROLE_LABELS[role],
+                "environment_locked": get_password_environment_override(role) is not None,
+            }
+            for role in PASSWORD_ROLES
+        ],
     })
     return templates.TemplateResponse(
         request=request,
         name="einstellungen.html",
         context=context,
+    )
+
+
+@router.get("/einstellungen/aenderungsprotokoll")
+def einstellungen_aenderungsprotokoll(
+    request: Request,
+    change_log_role: str = "",
+    change_log_competition_id: str = "",
+):
+    try:
+        change_log_competition_id_value = (
+            int(change_log_competition_id) if change_log_competition_id else None
+        )
+    except ValueError:
+        change_log_competition_id_value = None
+
+    recent_changes = get_recent_change_log(
+        role=change_log_role or None,
+        competition_id=change_log_competition_id_value,
+    )
+    change_log_filter_options = get_change_log_filter_options()
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/change_log.html",
+        context={
+            "recent_changes": recent_changes,
+            "change_log_count": get_change_log_count(),
+            "change_log_roles": change_log_filter_options["roles"],
+            "change_log_competitions": change_log_filter_options["competitions"],
+            "change_log_role": change_log_role,
+            "change_log_competition_id": change_log_competition_id_value,
+        },
     )
 
 
@@ -163,6 +231,19 @@ def update_security_setting(
     request.session["role"] = "admin"
     return RedirectResponse(
         f"/einstellungen?security_status={'enabled' if target_value == 'true' else 'disabled'}",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/passwort")
+def update_role_password(
+    role: str = Form(...),
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+):
+    status = change_role_password(role, current_password, new_password)
+    return RedirectResponse(
+        f"/einstellungen?password_status={status}&password_role={role}",
         status_code=303,
     )
 

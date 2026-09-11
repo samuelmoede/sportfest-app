@@ -121,53 +121,52 @@
 </section>
 
 <section class="panel">
-    <h2>Änderungsprotokoll</h2>
-    <p class="muted">
-        {{ change_log_count }} protokollierte Ergebnisänderungen. Angezeigt werden die letzten {{ recent_changes|length }} Einträge.
-    </p>
-    {% if reset_status == "ok" %}
-    <p class="success-text">Alle Änderungszähler wurden zurückgesetzt.</p>
+    <h2>Passwörter ändern</h2>
+    {% if password_status == "ok" %}
+        <p class="success-text">Das Passwort für {{ password_role_label }} wurde geändert.</p>
+    {% elif password_status == "invalid_current_password" %}
+        <p class="error-text">Das aktuelle Passwort für {{ password_role_label }} ist nicht korrekt.</p>
+    {% elif password_status == "invalid_new_password" %}
+        <p class="error-text">Das neue Passwort darf nicht leer sein.</p>
+    {% elif password_status == "environment_override" %}
+        <p class="error-text">Das Passwort für {{ password_role_label }} wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
+    {% elif password_status == "invalid_role" %}
+        <p class="error-text">Unbekannte Rolle.</p>
     {% endif %}
-    {% if change_log_count > 0 %}
-    <form method="post" action="/einstellungen/reset-aenderungszaehler"
-          onsubmit="return confirm('Alle {{ change_log_count }} protokollierten Einträge unwiderruflich löschen? Die Änderungszähler bei der Ergebniseingabe werden damit auf 0 zurückgesetzt.');"
-          style="margin-bottom: 16px;">
-        <button class="danger" type="submit">Änderungszähler zurücksetzen</button>
-    </form>
-    {% endif %}
-    {% if recent_changes %}
-    <div class="table-scroll">
-        <table class="change-log-table">
-            <thead>
-                <tr>
-                    <th>Zeitpunkt</th>
-                    <th>Rolle</th>
-                    <th>Aktion</th>
-                    <th>Wettbewerb / Eintrag</th>
-                    <th>Vorher</th>
-                    <th>Nachher</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for change in recent_changes %}
-                <tr>
-                    <td>{{ change.created_at_display }}</td>
-                    <td>{{ change.actor_role_label }}</td>
-                    <td>{{ change.action }}</td>
-                    <td>
-                        <strong>{{ change.competition_name or "Unbekannter Wettbewerb" }}</strong><br>
-                        <span class="muted">{{ change.target_label }}</span>
-                    </td>
-                    <td>{{ change.old_value or "–" }}</td>
-                    <td>{{ change.new_value or "–" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    {% for role in password_role_overview %}
+    <div class="settings-item">
+        <strong>{{ role.label }}</strong>
+        {% if role.environment_locked %}
+            <p class="muted">Wird durch eine Umgebungsvariable vorgegeben und kann hier nicht geändert werden.</p>
+        {% else %}
+            <form method="post" action="/einstellungen/passwort" class="inline-form">
+                <input type="hidden" name="role" value="{{ role.key }}">
+                <label for="current_password_{{ role.key }}">Aktuelles Passwort ({{ role.label }})</label>
+                <input
+                    id="current_password_{{ role.key }}"
+                    name="current_password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                >
+                <label for="new_password_{{ role.key }}">Neues Passwort</label>
+                <input
+                    id="new_password_{{ role.key }}"
+                    name="new_password"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                >
+                <button type="submit">Passwort ändern</button>
+            </form>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="muted">Noch keine Ergebnisänderungen protokolliert.</p>
-    {% endif %}
+    {% endfor %}
+</section>
+
+<section class="panel" id="aenderungsprotokoll">
+    <h2>Änderungsprotokoll</h2>
+    {% include "partials/change_log.html" %}
 </section>
 
 <section class="panel">
@@ -329,5 +328,73 @@
     <p>Öffne diese URL auf dem Beamer-PC:</p>
     <code>{{ request.base_url }}beamer</code>
 </section>
+
+<script>
+(function () {
+    const panel = document.getElementById('aenderungsprotokoll');
+    if (!panel) return;
+
+    function buildUrls(params) {
+        const query = params.toString();
+        const suffix = query ? `?${query}` : '';
+        return {
+            fetchUrl: `/einstellungen/aenderungsprotokoll${suffix}`,
+            displayUrl: `/einstellungen${suffix}#aenderungsprotokoll`,
+        };
+    }
+
+    async function loadChangeLog(params) {
+        const content = panel.querySelector('#change-log-content');
+        if (!content) return;
+        const { fetchUrl, displayUrl } = buildUrls(params);
+
+        try {
+            const response = await fetch(fetchUrl, { credentials: 'same-origin' });
+            if (!response.ok) {
+                throw new Error(`Laden fehlgeschlagen (${response.status})`);
+            }
+            const html = await response.text();
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            const newContent = wrapper.querySelector('#change-log-content');
+            if (!newContent) return;
+            content.replaceWith(newContent);
+            window.history.replaceState(null, '', displayUrl);
+        } catch (error) {
+            console.error(error);
+            window.alert('Das Änderungsprotokoll konnte nicht aktualisiert werden. Bitte erneut versuchen.');
+        }
+    }
+
+    function paramsFromFilterForm(form) {
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            if (value) params.set(key, String(value));
+        }
+        return params;
+    }
+
+    panel.addEventListener('submit', event => {
+        const form = event.target.closest('form.change-log-filter-form');
+        if (!form) return;
+        event.preventDefault();
+        loadChangeLog(paramsFromFilterForm(form));
+    });
+
+    panel.addEventListener('change', event => {
+        const select = event.target.closest('#change_log_role, #change_log_competition_id');
+        if (!select) return;
+        select.form.requestSubmit();
+    });
+
+    panel.addEventListener('click', event => {
+        const resetLink = event.target.closest('[data-change-log-reset-filter]');
+        if (!resetLink) return;
+        event.preventDefault();
+        loadChangeLog(new URLSearchParams());
+    });
+})();
+</script>
 
 {% endblock %}

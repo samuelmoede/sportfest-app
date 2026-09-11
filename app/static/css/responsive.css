@@ -218,7 +218,7 @@ body {
         flex-wrap: wrap;
     }
     .result-form-row .result-actions button {
-        flex: 1 1 auto;
+        flex: 0 1 auto;
     }
     .slot-teams,
     .slot-footer {
