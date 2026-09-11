@@ -3,7 +3,7 @@
 <header class="page-header">
     <div>
         <p class="eyebrow">Zugriff</p>
-        <h1>Rechte erweitern</h1>
+        <h1>Login</h1>
         <p>Für öffentliche Ansichten ist keine Anmeldung nötig.</p>
     </div>
 </header>
@@ -16,66 +16,37 @@
     <p>Aktuelle Rolle: <strong>{{ current_role_label }}</strong></p>
 
     {% if not security_enabled %}
-        <p class="muted">Der Zugriffsschutz ist derzeit deaktiviert. Die Rechteerweiterung kann trotzdem getestet werden.</p>
+        <p class="muted">Der Zugriffsschutz ist derzeit deaktiviert. Der Login kann trotzdem getestet werden.</p>
     {% endif %}
 
-    {% if current_role == "admin" %}
-        <p>Du besitzt bereits alle Verwaltungsrechte.</p>
+    {% if current_role != "viewer" %}
+        <p>Du bist als <strong>{{ current_role_label }}</strong> angemeldet.</p>
         <p><a href="{{ next_url }}">Weiter</a> oder <a href="/logout">abmelden</a>.</p>
     {% else %}
-        {% if current_role == "viewer" and helper_login_prepared %}
-        <h2>Als Schiedsrichter anmelden</h2>
         <form method="post" action="/login" class="form-grid">
             <input type="hidden" name="next" value="{{ next_url }}">
-            <input type="hidden" name="target_role" value="referee">
-            <label for="helper_password">Schiedsrichter-Passwort</label>
+            <label for="login_username">Benutzername</label>
             <input
-                id="helper_password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
+                id="login_username"
+                name="username"
+                type="text"
+                autocomplete="username"
+                autocapitalize="characters"
                 required
                 autofocus
             >
-            <button class="primary" type="submit">Als Schiedsrichter anmelden</button>
-        </form>
-        {% endif %}
-
-        {% if current_role == "viewer" and tournament_lead_login_prepared %}
-        <h2>Als Turnierleitung anmelden</h2>
-        <form method="post" action="/login" class="form-grid">
-            <input type="hidden" name="next" value="{{ next_url }}">
-            <input type="hidden" name="target_role" value="tournament_lead">
-            <label for="tournament_lead_password">Turnierleitung-Passwort</label>
+            <label for="login_password">Passwort</label>
             <input
-                id="tournament_lead_password"
+                id="login_password"
                 name="password"
                 type="password"
                 autocomplete="current-password"
                 required
-                {% if not helper_login_prepared %}autofocus{% endif %}
             >
-            <button class="primary" type="submit">Als Turnierleitung anmelden</button>
-        </form>
-        {% endif %}
-
-        <h2>Als Admin anmelden</h2>
-        <form method="post" action="/login" class="form-grid">
-            <input type="hidden" name="next" value="{{ next_url }}">
-            <input type="hidden" name="target_role" value="admin">
-            <label for="admin_password">Admin-Passwort</label>
-            <input
-                id="admin_password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required
-                {% if current_role in ("referee", "tournament_lead") or (current_role == "viewer" and not helper_login_prepared and not tournament_lead_login_prepared) %}autofocus{% endif %}
-            >
-            <button class="primary" type="submit">Als Admin anmelden</button>
+            <button class="primary" type="submit">Anmelden</button>
         </form>
         {% if not admin_login_prepared %}
-            <p class="muted">Noch kein Admin-Passwort konfiguriert. Der Verwaltungsschutz bleibt automatisch deaktiviert.</p>
+            <p class="muted">Noch kein Admin-Benutzer mit Passwort eingerichtet. Der Verwaltungsschutz bleibt automatisch deaktiviert.</p>
         {% endif %}
     {% endif %}
 

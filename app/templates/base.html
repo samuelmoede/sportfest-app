@@ -113,7 +113,7 @@
         {% if access_logged_in %}
             <a class="access-action" href="/logout">Abmelden</a>
         {% else %}
-            <a class="access-action" href="/login">Rechte erweitern</a>
+            <a class="access-action" href="/login">Login</a>
         {% endif %}
         </div>
     </nav>
@@ -212,9 +212,9 @@
                     <span class="access-action-label">Abmelden</span>
                 </a>
                 {% else %}
-                <a class="access-action" href="/login" aria-label="Rechte erweitern">
+                <a class="access-action" href="/login" aria-label="Login">
                     <span class="access-action-icon" aria-hidden="true">🔑</span>
-                    <span class="access-action-label">Rechte erweitern</span>
+                    <span class="access-action-label">Login</span>
                 </a>
                 {% endif %}
             </div>

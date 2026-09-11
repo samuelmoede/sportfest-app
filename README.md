@@ -122,7 +122,8 @@ Weiterführende Inhalte:
 ## Zugriffsschutz
 
 - Die Login- und Session-Grundlage ist vorbereitet, aber standardmäßig vollständig deaktiviert.
-- Solange `SPORTFEST_SECURITY_ENABLED=false` ist oder kein Admin-Passwort gesetzt wurde, verhält sich die App wie bisher: kein Login und keine blockierten Seiten.
+- Solange `SPORTFEST_SECURITY_ENABLED=false` ist oder kein aktiver Admin-Benutzer mit gesetztem Passwort existiert, verhält sich die App wie bisher: kein Login und keine blockierten Seiten.
+- Der Login ist benutzerbasiert (`/login`, Benutzername + Passwort statt geteilter Rollen-Passwörter): jeder Benutzer hat einen Benutzernamen (Groß-/Kleinschreibung egal), ein Passwort (Groß-/Kleinschreibung wichtig) und genau eine Rolle. Beim allerersten Start legt die Migration automatisch die Benutzer `ADMIN` (Rolle Admin) und `MOSA` (Rolle Schiedsrichter) an; deren Startpasswort kommt, falls gesetzt, aus `SPORTFEST_ADMIN_PASSWORD`/`SPORTFEST_REFEREE_PASSWORD` (bzw. dem alten Settings-Wert) - diese Variablen wirken nur bei dieser einmaligen Migration, danach werden Benutzer und Passwörter ausschließlich unter `/einstellungen` verwaltet.
 - Zum Testen bzw. späteren Aktivieren in einer `.env`-Datei sichere Werte setzen:
 
   ```env
@@ -133,9 +134,9 @@ Weiterführende Inhalte:
   ```
 
 - `SPORTFEST_SESSION_HTTPS_ONLY=true` erst verwenden, wenn die App über HTTPS erreichbar ist.
-- Alternativ kann das Passwort im Settings-Schlüssel `admin_password` liegen; die Umgebungsvariable hat Vorrang und ist für den Betrieb vorzuziehen.
 - Bei aktiver Sicherheit schützt eine zentrale Middleware die Admin-Bereiche `/einstellungen`, `/teams`, `/spielfelder` und `/wettbewerbe` einschließlich ihrer Verwaltungsaktionen. Öffentliche Ansichten, Ergebniseingabe und Spielplanaktionen bleiben offen.
-- Ohne gesetzten Environment-Override kann die Sicherheit auf `/einstellungen` nach erneuter Eingabe des Admin-Kennworts aktiviert oder deaktiviert werden. `SPORTFEST_SECURITY_ENABLED` hat weiterhin Vorrang und sperrt den Schalter.
+- Ohne gesetzten Environment-Override kann die Sicherheit auf `/einstellungen` nach erneuter Eingabe des eigenen Passworts (des gerade angemeldeten Admin-Benutzers) aktiviert oder deaktiviert werden. `SPORTFEST_SECURITY_ENABLED` hat weiterhin Vorrang und sperrt den Schalter.
+- Neue Benutzer, Rollenzuweisung, Passwort- und Aktiv-Status werden unter `/einstellungen` verwaltet (nur für Admins sichtbar); der letzte aktive Admin-Benutzer kann weder deaktiviert noch umgestuft werden.
 
 ## Tests und CI/CD
 
