@@ -236,7 +236,13 @@ button.outline {
 }
 
 .result-card.archived {
-    background: var(--surface-soft);
+    /* var(--surface-soft) war zu nah an der weissen Kartenfarbe aktiver
+       Spiele (kaum Kontrast) - var(--bg) ist der Seitenhintergrund und laesst
+       beendete Karten sichtbarer "zurueck"treten. Der graue Rand ersetzt den
+       gruenen Akzent aktiver Karten (siehe .result-card:not(.archived) in
+       theme.css), damit auch auf einen Blick erkennbar ist, was fertig ist. */
+    background: var(--bg);
+    border-left: 4px solid var(--muted);
 }
 
 .result-card.archived input:disabled {
