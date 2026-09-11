@@ -552,7 +552,8 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     {% endif %}
                     {% if s.undo_available %}
                     <form method="post" action="/slot/{{ s.id }}/undo-correction" class="undo-correction-form"
-                          onsubmit="return confirm('Korrektur rückgängig machen und {{ s.undo_old_label }} wiederherstellen?');">
+                          data-ajax-reload
+                          data-confirm="Korrektur rückgängig machen und {{ s.undo_old_label }} wiederherstellen?">
                         <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                         <button class="outline undo-btn" type="submit" title="Letzte Korrektur zurücknehmen">
                             ↺ Rückgängig ({{ s.undo_old_label }})
@@ -584,12 +585,13 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                         <div class="correction-unlocked-actions" hidden>
                             <button class="primary correction-save" type="submit" form="result-form-{{ s.id }}" name="finish" value="1" disabled>Korrigieren &amp; speichern</button>
                             <button type="button" class="outline correction-cancel">Abbrechen</button>
-                            <form method="post" action="/slot/{{ s.id }}/reactivate">
+                            <form method="post" action="/slot/{{ s.id }}/reactivate" data-ajax-reload>
                                 <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                                 <button class="secondary" type="submit">Reaktivieren</button>
                             </form>
                             <form method="post" action="/slot/{{ s.id }}/clear-result"
-                                  onsubmit="return confirm('Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?');">
+                                  data-ajax-reload
+                                  data-confirm="Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?">
                                 <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                                 <button class="danger" type="submit">Ergebnis löschen</button>
                             </form>
@@ -1183,10 +1185,56 @@ function attachCorrectionAreaHandler(area) {
     }
 }
 
+// Reaktivieren/Ergebnis loeschen/Korrektur rueckgaengig aendern den Kartenzustand
+// grundlegend (z.B. von gesperrt/beendet zurueck zu offen) - bisher ein normaler
+// Form-Submit mit vollem Seiten-Reload. fetch() folgt dem 303-Redirect der Route
+// automatisch als GET, danach wird wie bei initNurAktiveToggle nur der Ergebnis-
+// Ausschnitt ersetzt statt die ganze Seite neu zu laden (Feedback: unnoetiger
+// Reload beim Loeschen eines Ergebnisses).
+function attachAjaxReloadForm(form) {
+    if (form.dataset.ajaxReloadAttached) return;
+    form.dataset.ajaxReloadAttached = '1';
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+
+        const confirmMessage = form.dataset.confirm;
+        if (confirmMessage && !window.confirm(confirmMessage)) return;
+
+        const button = form.querySelector('button');
+        if (button) button.disabled = true;
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error(`Aktion fehlgeschlagen (${response.status})`);
+            }
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const current = document.getElementById('results-section');
+            const updated = doc.getElementById('results-section');
+            if (current && updated) {
+                current.replaceWith(updated);
+                initResultBoardHandlers();
+                updateResultTimers();
+            }
+        } catch (error) {
+            if (button) button.disabled = false;
+            window.alert('Die Aktion konnte nicht ausgeführt werden. Bitte erneut versuchen.');
+            console.error(error);
+        }
+    });
+}
+
 function initResultBoardHandlers() {
     document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
     document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
     document.querySelectorAll('[data-correction-area]').forEach(attachCorrectionAreaHandler);
+    document.querySelectorAll('[data-ajax-reload]').forEach(attachAjaxReloadForm);
     document.querySelectorAll('.result-form').forEach(form => {
         if (form.dataset.resultHandlerAttached) return;
         form.dataset.resultHandlerAttached = '1';
