@@ -51,6 +51,7 @@ from app.services.schedule_time_service import (
 )
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
+from app.utils.formatting import jahrgang_sort_key
 from app.web import templates
 
 
@@ -383,7 +384,10 @@ def create_router(
             event_id=selected_event_id,
             exclude_archived_events=True,
         )
-        available_jahrgaenge = sorted({competition["jahrgang"] for competition in competitions})
+        available_jahrgaenge = sorted(
+            {competition["jahrgang"] for competition in competitions},
+            key=jahrgang_sort_key,
+        )
 
         sixkampf_rotation_competition = next(
             (

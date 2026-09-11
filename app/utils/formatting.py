@@ -40,6 +40,16 @@ def parse_score(value):
     return parse_part(parts[0]), parse_part(parts[1])
 
 
+def jahrgang_sort_key(value):
+    """competitions.jahrgang ist INTEGER, speichert aber auch den String
+    "mixed" fuer Wettbewerbe ohne festen Jahrgang (explizite Teamauswahl,
+    siehe app/routes/competitions.py). sorted() ueber eine Mischung aus int
+    und str wirft TypeError ("'<' not supported between instances of 'int'
+    and 'str'") - dieser Key sortiert Zahlen zuerst (numerisch), alles
+    andere danach (alphabetisch)."""
+    return (0, value) if isinstance(value, int) else (1, str(value))
+
+
 def format_sixkampf_values(values):
     if not values:
         return "–"
