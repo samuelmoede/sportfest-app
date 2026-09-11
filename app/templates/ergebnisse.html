@@ -727,10 +727,22 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .result-meta .pill,
 .results-court-column .result-meta .badge,
 .results-court-column .result-meta .change-counter,
-.results-court-column .result-meta .phase-pill {
+.results-court-column .result-meta .phase-pill,
+.results-court-column .result-meta .slot-duration {
     padding: 2px 5px;
     font-size: 0.64rem;
     min-height: 0;
+}
+/* .slot-duration (schedule.css) ist global white-space: nowrap ohne
+   Breitenbegrenzung - der Laufzeit-Text ("Laufzeit 00m 00s · geplant
+   07m 00s") ist in der schmalen Ergebnis-Spalte laenger als die Karte
+   und lief ueber deren rechten Rand hinaus. */
+.results-court-column .result-meta .slot-duration {
+    flex-basis: 100%;
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
 }
 .results-court-column .result-form-row,
 .results-court-column .result-form,
