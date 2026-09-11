@@ -687,6 +687,12 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     padding: 10px;
     margin-bottom: 0;
     border-radius: 10px;
+    /* Die Zeitzeile teilt sich ihre Hoehe per Subgrid ueber alle Feld-Spalten
+       (die kuerzeste Karte bestimmt sie nicht) - ohne flex-grow blieb die
+       Karte selbst bei ihrer Inhaltshoehe und liess darunter unsichtbaren
+       Leerraum, wodurch Karten mit unterschiedlich langem Inhalt (z.B. mit/
+       ohne "Gestartet ..."-Zeile) sichtbar unterschiedlich hoch wirkten. */
+    flex: 1 1 auto;
 }
 .results-court-column .result-meta {
     gap: 6px;
