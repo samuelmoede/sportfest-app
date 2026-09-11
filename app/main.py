@@ -2724,7 +2724,10 @@ def reactivate_slot(slot_id: int, results_return_to: str = Form("")):
         if slot is not None and is_next_phase_started(slot["competition_id"], slot["phase"]):
             correction_blocked = True
         else:
-            conn.execute("UPDATE slots SET status = 'läuft' WHERE id = ?", (slot_id,))
+            conn.execute(
+                "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
+                (app_now_db_timestamp(), slot_id),
+            )
             conn.commit()
 
     redirect_updates = {}
