@@ -288,6 +288,71 @@ class ResultSaveButtonFormDataOrderingTests(unittest.TestCase):
         )
 
 
+class ReactivateSlotTests(unittest.TestCase):
+    """Reaktivieren eines beendeten Spiels setzte den Laufzeit-Timer nicht
+    zurueck: started_at blieb auf dem alten (laengst vergangenen) Wert
+    stehen, wodurch die Karte sofort eine falsche/abgelaufene Laufzeit
+    anzeigte, statt frisch bei 0 zu starten."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "reactivate-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+        init_db()
+
+        with get_conn() as conn:
+            (
+                self.competition_id, self.court_id,
+                self.team_a_id, self.team_b_id,
+            ) = _create_competition_and_teams(conn)
+
+            self.finished_slot_id = _insert_slot(
+                conn,
+                competition_id=self.competition_id,
+                court_id=self.court_id,
+                team_a_id=self.team_a_id,
+                team_b_id=self.team_b_id,
+                startzeit="09:00",
+                score_a=3,
+                score_b=1,
+                status="beendet",
+            )
+            conn.execute(
+                """
+                UPDATE slots SET started_at = '2020-01-01 09:00:00',
+                                  finished_at = '2020-01-01 09:20:00'
+                WHERE id = ?
+                """,
+                (self.finished_slot_id,),
+            )
+            conn.commit()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_reactivate_resets_started_at_and_clears_finished_at(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                f"/slot/{self.finished_slot_id}/reactivate",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+
+        with get_conn() as conn:
+            slot = conn.execute(
+                "SELECT status, started_at, finished_at FROM slots WHERE id = ?",
+                (self.finished_slot_id,),
+            ).fetchone()
+
+        self.assertEqual(slot["status"], "läuft")
+        self.assertIsNone(slot["finished_at"])
+        self.assertNotEqual(slot["started_at"], "2020-01-01 09:00:00")
+
+
 class UndoCorrectionRoleAccessTests(unittest.TestCase):
     """Die neue Undo-Route soll denselben Rollenschutz wie die uebrigen
     Ergebnis-Aktionen bekommen (siehe ACTION_ACCESS_RULES in app/main.py)."""
