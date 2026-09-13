@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -156,6 +157,7 @@ def init_db(db_path=None):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             created_at TEXT NOT NULL,
             actor_role TEXT NOT NULL,
+            actor_username TEXT,
             action TEXT NOT NULL,
             entity_type TEXT NOT NULL,
             entity_id INTEGER,
@@ -182,6 +184,15 @@ def init_db(db_path=None):
 
         CREATE INDEX IF NOT EXISTS idx_competition_teams_lookup
             ON competition_teams (competition_id, team_id);
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
         """)
 
         columns = [
@@ -278,6 +289,17 @@ def init_db(db_path=None):
             SET event_type = 'Sonstiges'
             WHERE event_type IS NULL OR TRIM(event_type) = ''
         """)
+
+        change_log_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(change_log)").fetchall()
+        }
+
+        if "actor_username" not in change_log_columns:
+            # Bestehende Eintraege bleiben hier NULL (kein Benutzer-Login zum
+            # Zeitpunkt des Eintrags nachtraeglich rekonstruierbar) - siehe
+            # Issue #98.
+            conn.execute("ALTER TABLE change_log ADD COLUMN actor_username TEXT")
 
         competition_columns = {
             row["name"]
@@ -440,6 +462,52 @@ def init_db(db_path=None):
             INSERT OR IGNORE INTO settings (key, value)
             VALUES ('dashboard_info_text', 'Achtung - bei Regen wird Plan B durchgeführt.')
         """)
+
+        # Einmalige Migration vom alten geteilten Rollen-Passwort-System auf
+        # benutzerbasierten Login (siehe app/services/users_service.py):
+        # beim ersten Start ohne bestehende Benutzer werden ADMIN und MOSA
+        # angelegt, mit den bisherigen Admin-/Schiedsrichter-Passwoertern als
+        # Startpasswort (Umgebungsvariable hat wie zuvor Vorrang vor dem
+        # Settings-Wert). Absichtlich hier statt in settings_service/
+        # users_service inline gehalten, um einen Zirkelimport zu vermeiden
+        # (beide Module importieren ihrerseits aus database.py).
+        has_any_user = conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
+        if not has_any_user:
+            import os as _os
+
+            from app.utils.password_hashing import hash_password as _hash_password
+
+            def _effective_setting_password(setting_key, *env_vars):
+                for env_var in env_vars:
+                    value = _os.getenv(env_var)
+                    if value:
+                        return value
+                row = conn.execute(
+                    "SELECT value FROM settings WHERE key = ?", (setting_key,)
+                ).fetchone()
+                return (row["value"] if row else "") or ""
+
+            admin_password = _effective_setting_password(
+                "admin_password", "SPORTFEST_ADMIN_PASSWORD", "ADMIN_PASSWORD"
+            )
+            referee_password = _effective_setting_password(
+                "referee_password", "SPORTFEST_REFEREE_PASSWORD"
+            )
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, active, created_at)
+                VALUES ('ADMIN', ?, 'admin', 1, ?)
+                """,
+                (_hash_password(admin_password) if admin_password else "", now),
+            )
+            conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, active, created_at)
+                VALUES ('MOSA', ?, 'referee', 1, ?)
+                """,
+                (_hash_password(referee_password) if referee_password else "", now),
+            )
 
         conn.commit()
     conn.close()

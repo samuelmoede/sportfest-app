@@ -1,5 +1,4 @@
 from datetime import datetime
-import secrets
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
@@ -10,21 +9,15 @@ from app.services.backup_service import (
     restore_database_backup,
 )
 from app.services.settings_service import (
-    PASSWORD_ROLES,
     ROLE_DESCRIPTIONS,
     ROLE_LABELS,
     app_now_db_timestamp,
-    change_role_password,
     collect_system_info,
-    get_admin_password,
     get_change_log_count,
     get_change_log_filter_options,
     get_current_role,
     get_current_role_description,
     get_current_role_label,
-    get_password_environment_override,
-    get_referee_password,
-    get_tournament_lead_password,
     get_recent_change_log,
     get_security_enabled_setting,
     get_security_environment_override,
@@ -39,6 +32,17 @@ from app.services.settings_service import (
     set_setting,
     set_site_theme,
     SITE_THEMES,
+)
+from app.services.users_service import (
+    ASSIGNABLE_ROLES,
+    create_user,
+    get_user_by_id,
+    list_users,
+    normalize_username,
+    set_user_active,
+    set_user_password,
+    update_user_role,
+    verify_user_password,
 )
 from app.database import get_conn
 from app.web import templates
@@ -58,11 +62,12 @@ def einstellungen(
     restore_status: str = "",
     delete_status: str = "",
     theme_status: str = "",
-    password_status: str = "",
-    password_role: str = "",
+    user_status: str = "",
+    user_username: str = "",
     saved_at: str = "",
     change_log_role: str = "",
     change_log_competition_id: str = "",
+    change_log_username: str = "",
 ):
     try:
         saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
@@ -80,6 +85,7 @@ def einstellungen(
     recent_changes = get_recent_change_log(
         role=change_log_role or None,
         competition_id=change_log_competition_id_value,
+        username=change_log_username or None,
     )
     change_log_filter_options = get_change_log_filter_options()
     context.update({
@@ -91,9 +97,8 @@ def einstellungen(
         "restore_status": restore_status,
         "delete_status": delete_status,
         "theme_status": theme_status,
-        "password_status": password_status,
-        "password_role": password_role,
-        "password_role_label": ROLE_LABELS.get(password_role, password_role),
+        "user_status": user_status,
+        "user_username": user_username,
         "saved_at": saved_at_value,
         "site_theme": get_site_theme(),
         "site_themes": SITE_THEMES,
@@ -101,8 +106,6 @@ def einstellungen(
         "security_requested": get_security_enabled_setting(),
         "security_environment_override": get_security_environment_override(),
         "login_prepared": is_login_prepared(),
-        "helper_login_prepared": bool(get_referee_password()),
-        "tournament_lead_login_prepared": bool(get_tournament_lead_password()),
         "logged_in": is_logged_in(request),
         "current_role": get_current_role(request),
         "current_role_label": get_current_role_label(request),
@@ -120,16 +123,15 @@ def einstellungen(
         "change_log_count": get_change_log_count(),
         "change_log_roles": change_log_filter_options["roles"],
         "change_log_competitions": change_log_filter_options["competitions"],
+        "change_log_usernames": change_log_filter_options["usernames"],
         "change_log_role": change_log_role,
         "change_log_competition_id": change_log_competition_id_value,
-        "password_role_overview": [
-            {
-                "key": role,
-                "label": ROLE_LABELS[role],
-                "environment_locked": get_password_environment_override(role) is not None,
-            }
-            for role in PASSWORD_ROLES
+        "change_log_username": change_log_username,
+        "users": list_users(),
+        "assignable_roles": [
+            {"key": role, "label": ROLE_LABELS[role]} for role in ASSIGNABLE_ROLES
         ],
+        "role_labels": ROLE_LABELS,
     })
     return templates.TemplateResponse(
         request=request,
@@ -143,6 +145,7 @@ def einstellungen_aenderungsprotokoll(
     request: Request,
     change_log_role: str = "",
     change_log_competition_id: str = "",
+    change_log_username: str = "",
 ):
     try:
         change_log_competition_id_value = (
@@ -154,6 +157,7 @@ def einstellungen_aenderungsprotokoll(
     recent_changes = get_recent_change_log(
         role=change_log_role or None,
         competition_id=change_log_competition_id_value,
+        username=change_log_username or None,
     )
     change_log_filter_options = get_change_log_filter_options()
     return templates.TemplateResponse(
@@ -164,8 +168,10 @@ def einstellungen_aenderungsprotokoll(
             "change_log_count": get_change_log_count(),
             "change_log_roles": change_log_filter_options["roles"],
             "change_log_competitions": change_log_filter_options["competitions"],
+            "change_log_usernames": change_log_filter_options["usernames"],
             "change_log_role": change_log_role,
             "change_log_competition_id": change_log_competition_id_value,
+            "change_log_username": change_log_username,
         },
     )
 
@@ -203,11 +209,7 @@ def update_security_setting(
     security_enabled: str = Form(...),
     admin_password: str = Form(...),
 ):
-    configured_password = get_admin_password()
-    if not configured_password or not secrets.compare_digest(
-        admin_password,
-        configured_password,
-    ):
+    if not verify_user_password(request.session.get("user_id"), admin_password):
         return RedirectResponse(
             "/einstellungen?security_status=invalid_password",
             status_code=303,
@@ -235,15 +237,48 @@ def update_security_setting(
     )
 
 
-@router.post("/einstellungen/passwort")
-def update_role_password(
+@router.post("/einstellungen/benutzer/anlegen")
+def create_user_route(
+    username: str = Form(...),
+    password: str = Form(...),
     role: str = Form(...),
-    current_password: str = Form(...),
-    new_password: str = Form(...),
 ):
-    status = change_role_password(role, current_password, new_password)
+    status = create_user(username, password, role)
     return RedirectResponse(
-        f"/einstellungen?password_status={status}&password_role={role}",
+        f"/einstellungen?user_status={status}&user_username={normalize_username(username)}#benutzer",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/benutzer/{user_id}/rolle")
+def update_user_role_route(user_id: int, role: str = Form(...)):
+    status = update_user_role(user_id, role)
+    user = get_user_by_id(user_id)
+    username = user["username"] if user else ""
+    return RedirectResponse(
+        f"/einstellungen?user_status={status}&user_username={username}#benutzer",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/benutzer/{user_id}/passwort")
+def update_user_password_route(user_id: int, new_password: str = Form(...)):
+    status = set_user_password(user_id, new_password)
+    user = get_user_by_id(user_id)
+    username = user["username"] if user else ""
+    return RedirectResponse(
+        f"/einstellungen?user_status={status}&user_username={username}#benutzer",
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/benutzer/{user_id}/aktiv")
+def update_user_active_route(user_id: int, active: str = Form(...)):
+    status = set_user_active(user_id, active.strip().lower() == "true")
+    user = get_user_by_id(user_id)
+    username = user["username"] if user else ""
+    return RedirectResponse(
+        f"/einstellungen?user_status={status}&user_username={username}#benutzer",
         status_code=303,
     )
 
@@ -265,14 +300,11 @@ def create_backup():
 
 @router.post("/einstellungen/backup/restore")
 def restore_backup(
+    request: Request,
     backup_file: str = Form(...),
     admin_password: str = Form(...),
 ):
-    configured_password = get_admin_password()
-    if not configured_password or not secrets.compare_digest(
-        admin_password,
-        configured_password,
-    ):
+    if not verify_user_password(request.session.get("user_id"), admin_password):
         return RedirectResponse(
             "/einstellungen?restore_status=invalid_password",
             status_code=303,

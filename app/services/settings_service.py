@@ -2,7 +2,6 @@ from datetime import datetime
 import html
 import os
 import re
-import secrets
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -10,6 +9,7 @@ from fastapi import Request
 
 from app.database import DB_PATH, get_conn
 from app.services.backup_service import list_backup_files
+from app.services.users_service import has_prepared_admin_user
 from app.utils.formatting import format_bytes
 from app.web import ROOT_DIR, get_app_version
 
@@ -173,88 +173,13 @@ def get_security_enabled_setting():
     return get_security_database_setting()
 
 
-def get_admin_password():
-    environment_password = (
-        os.getenv("SPORTFEST_ADMIN_PASSWORD")
-        or os.getenv("ADMIN_PASSWORD")
-    )
-    if environment_password:
-        return environment_password
-    return get_setting("admin_password", "") or ""
-
-
-def get_referee_password():
-    environment_password = os.getenv("SPORTFEST_REFEREE_PASSWORD")
-    if environment_password:
-        return environment_password
-    return get_setting("referee_password", "") or ""
-
-
-def get_tournament_lead_password():
-    environment_password = os.getenv("SPORTFEST_TOURNAMENT_LEAD_PASSWORD")
-    if environment_password:
-        return environment_password
-    return get_setting("tournament_lead_password", "") or ""
-
-
-PASSWORD_ROLES = {
-    "admin": {
-        "setting_key": "admin_password",
-        "environment_variables": ("SPORTFEST_ADMIN_PASSWORD", "ADMIN_PASSWORD"),
-        "get_password": get_admin_password,
-    },
-    "referee": {
-        "setting_key": "referee_password",
-        "environment_variables": ("SPORTFEST_REFEREE_PASSWORD",),
-        "get_password": get_referee_password,
-    },
-    "tournament_lead": {
-        "setting_key": "tournament_lead_password",
-        "environment_variables": ("SPORTFEST_TOURNAMENT_LEAD_PASSWORD",),
-        "get_password": get_tournament_lead_password,
-    },
-}
-
-
-def get_password_environment_override(role: str):
-    config = PASSWORD_ROLES.get(role)
-    if not config:
-        return None
-    for variable in config["environment_variables"]:
-        value = os.getenv(variable)
-        if value:
-            return value
-    return None
-
-
-def change_role_password(role: str, current_password: str, new_password: str):
-    """Aendert das gespeicherte Passwort einer Rolle, sofern das aktuelle
-    Passwort korrekt bestaetigt wird. Ein per Umgebungsvariable gesetztes
-    Passwort ueberschreibt die Datenbank immer (siehe get_admin_password /
-    get_referee_password) - eine Aenderung waere daher wirkungslos und wird
-    hier abgelehnt, statt still zu scheitern."""
-    config = PASSWORD_ROLES.get(role)
-    if not config:
-        return "invalid_role"
-
-    if get_password_environment_override(role) is not None:
-        return "environment_override"
-
-    configured_password = config["get_password"]()
-    if not configured_password or not secrets.compare_digest(
-        current_password or "", configured_password
-    ):
-        return "invalid_current_password"
-
-    if not new_password:
-        return "invalid_new_password"
-
-    set_setting(config["setting_key"], new_password)
-    return "ok"
-
-
 def is_login_prepared():
-    return bool(get_admin_password())
+    # Ehemals "bool(get_admin_password())" - seit dem Umstieg auf
+    # benutzerbasierten Login (siehe app/services/users_service.py) ist die
+    # Sicherheit erst nutzbar, wenn mindestens ein aktiver Admin-Benutzer
+    # mit gesetztem Passwort existiert (per Migration wird "ADMIN" immer
+    # angelegt, siehe database.py init_db()).
+    return has_prepared_admin_user()
 
 
 def is_security_enabled():
@@ -269,6 +194,14 @@ def get_current_role(request: Request):
     if request.session.get("admin_logged_in") is True:
         return "admin"
     return "viewer"
+
+
+def get_current_username(request: Request):
+    """Der angemeldete Benutzername (siehe session["username"] in /login) -
+    None ohne Benutzer-Login (Sicherheit deaktiviert oder Legacy-Admin-Login
+    ueber das geteilte Passwort, siehe /einstellungen/admin-login)."""
+    username = request.session.get("username")
+    return username if isinstance(username, str) and username else None
 
 
 def get_current_role_label(request: Request):
@@ -310,6 +243,7 @@ def get_recent_change_log(
     limit: int = 50,
     role: Optional[str] = None,
     competition_id: Optional[int] = None,
+    username: Optional[str] = None,
 ):
     safe_limit = max(1, min(int(limit), 200))
     conditions = []
@@ -320,6 +254,9 @@ def get_recent_change_log(
     if competition_id is not None:
         conditions.append("log.competition_id = ?")
         params.append(competition_id)
+    if username:
+        conditions.append("log.actor_username = ?")
+        params.append(username)
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with get_conn() as conn:
         rows = [
@@ -390,7 +327,7 @@ def get_change_log_count():
 
 
 def get_change_log_filter_options():
-    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe als
+    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe/Benutzer als
     Filterauswahl anbieten (keine statische Liste)."""
     with get_conn() as conn:
         role_rows = conn.execute(
@@ -404,6 +341,13 @@ def get_change_log_filter_options():
             ORDER BY competition.name
             """
         ).fetchall()
+        username_rows = conn.execute(
+            """
+            SELECT DISTINCT actor_username FROM change_log
+            WHERE actor_username IS NOT NULL AND actor_username != ''
+            ORDER BY actor_username
+            """
+        ).fetchall()
     return {
         "roles": [
             {
@@ -415,6 +359,7 @@ def get_change_log_filter_options():
         "competitions": [
             {"id": row["id"], "name": row["name"]} for row in competition_rows
         ],
+        "usernames": [row["actor_username"] for row in username_rows],
     }
 
 

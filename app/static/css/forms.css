@@ -95,6 +95,51 @@
     font-weight: 700;
 }
 
+.user-list {
+    display: grid;
+    gap: 14px;
+    margin: 14px 0 26px;
+}
+
+.user-card {
+    display: grid;
+    gap: 10px;
+}
+
+.user-card-inactive {
+    opacity: 0.65;
+}
+
+.user-card-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Bewusst keine Dropdown-Auswahl fuer die Rollenzuweisung - eine Zeile aus
+   Radio-Buttons zeigt alle Rollen auf einen Blick statt sie in einem
+   geschlossenen Menue zu verstecken. */
+.role-radio-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+}
+
+.role-radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.role-radio-option input {
+    width: auto;
+    accent-color: var(--navy);
+}
+
 .success-text {
     color: var(--green);
     font-weight: 700;
