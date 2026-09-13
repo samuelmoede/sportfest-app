@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from itertools import permutations
 from typing import List
 
@@ -9,6 +9,19 @@ from app.services.schedule_location_service import (
     schedule_planning_available,
 )
 from app.services.schedule_time_service import get_competition_timing, get_game_end_time
+
+
+def _minutes_to_clock(total_minutes: int) -> str:
+    """Formatiert Minuten seit Mitternacht als HH:MM, ohne bei 24:00 auf
+    00:00 zurueckzuspringen. Ein echtes datetime-Objekt (via strftime)
+    wuerde das tun - bei vielen Runden auf wenigen Feldern (z.B. "jeder
+    gegen jeden" mit 25+ Teams auf nur 2 Feldern, siehe Issue #101) reicht
+    die Rundenzahl ueber 24 Stunden hinaus, wodurch eine spaetere Runde exakt
+    denselben Uhrzeit-String wie eine fruehere bekaeme und dadurch faelschlich
+    als Team-/Feld-Doppelbelegung erkannt wuerde, obwohl es tatsaechlich
+    unterschiedliche Runden sind."""
+    hours, minutes = divmod(total_minutes, 60)
+    return f"{hours:02d}:{minutes:02d}"
 
 
 def _generate_balanced_pairings(team_names, games_per_team):
@@ -239,10 +252,11 @@ def generate_group_plan(
     rounds = _schedule_pairings_into_rounds(pairings, team_names, court_ids)
 
     proposed_slots = []
-    current_time = datetime.strptime(startzeit, "%H:%M")
+    start_dt = datetime.strptime(startzeit, "%H:%M")
+    current_minutes = start_dt.hour * 60 + start_dt.minute
 
     for round_assignments in rounds:
-        time_value = current_time.strftime("%H:%M")
+        time_value = _minutes_to_clock(current_minutes)
         for court_id, team_a, team_b, gruppe in round_assignments:
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -259,7 +273,7 @@ def generate_group_plan(
                 "team_b": team_b,
                 "note": "",
             })
-        current_time += timedelta(minutes=slot_interval_minutes)
+        current_minutes += slot_interval_minutes
 
     if include_ko:
         # Die hartkodierten 6er-/7er-Sonderfaelle in _build_pairings sind die
@@ -275,7 +289,7 @@ def generate_group_plan(
         has_group_split = any(gruppe for _team_a, _team_b, gruppe in pairings)
 
         if has_group_split:
-            hf_time = current_time.strftime("%H:%M")
+            hf_time = _minutes_to_clock(current_minutes)
 
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -308,9 +322,9 @@ def generate_group_plan(
                     "team_b": "?",
                     "note": "HF2: 1. Gruppe B gegen 2. Gruppe A",
                 })
-            current_time += timedelta(minutes=slot_interval_minutes)
+            current_minutes += slot_interval_minutes
 
-            final_time = current_time.strftime("%H:%M")
+            final_time = _minutes_to_clock(current_minutes)
 
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -344,7 +358,7 @@ def generate_group_plan(
                     "note": "Spiel um Platz 3: Verlierer HF1 gegen Verlierer HF2",
                 })
         else:
-            final_time = current_time.strftime("%H:%M")
+            final_time = _minutes_to_clock(current_minutes)
 
             proposed_slots.append({
                 "competition_id": competition_id,
@@ -377,7 +391,7 @@ def generate_group_plan(
                     "team_b": "?",
                     "note": "Spiel um Platz 3: Platz 3 gegen Platz 4 der Tabelle",
                 })
-            current_time += timedelta(minutes=slot_interval_minutes)
+            current_minutes += slot_interval_minutes
     for slot in proposed_slots:
         slot["game_end_time"] = get_game_end_time(
             slot["startzeit"], timing["game_duration_minutes"]
@@ -498,7 +512,8 @@ def generate_schulpokal_plan(
     slot_interval_minutes = timing["slot_interval_minutes"]
 
     proposed_slots = []
-    current_time = datetime.strptime(startzeit, "%H:%M")
+    start_dt = datetime.strptime(startzeit, "%H:%M")
+    current_minutes = start_dt.hour * 60 + start_dt.minute
     round_pointers = [0] * len(entries)
 
     while any(
@@ -509,7 +524,7 @@ def generate_schulpokal_plan(
             if round_pointers[i] >= len(entry["rounds"]):
                 continue
 
-            time_value = current_time.strftime("%H:%M")
+            time_value = _minutes_to_clock(current_minutes)
             for court_id, team_a, team_b, gruppe in entry["rounds"][round_pointers[i]]:
                 proposed_slots.append({
                     "competition_id": entry["competition_id"],
@@ -528,7 +543,7 @@ def generate_schulpokal_plan(
                 })
 
             round_pointers[i] += 1
-            current_time += timedelta(minutes=slot_interval_minutes)
+            current_minutes += slot_interval_minutes
 
     for slot in proposed_slots:
         slot["game_end_time"] = get_game_end_time(
