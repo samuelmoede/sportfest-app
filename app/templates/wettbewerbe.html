@@ -98,10 +98,13 @@
             <option value="Schulpokal">Schulpokal</option>
         </select>
 
-        <label class="schulpokal-mode" hidden>Turniermodus</label>
-        <select class="schulpokal-mode" hidden name="tournament_mode">
+        <label class="tournament-mode-field" hidden>Turniermodus</label>
+        <select class="tournament-mode-field" hidden name="tournament_mode">
             {% for mode_key, mode in schulpokal_modes.items() %}
-            <option value="{{ mode_key }}" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            <option value="{{ mode_key }}" data-for-type="Schulpokal" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            {% endfor %}
+            {% for mode_key, mode in turnier_modes.items() %}
+            <option value="{{ mode_key }}" data-for-type="Turnier" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
             {% endfor %}
         </select>
 
@@ -247,10 +250,13 @@
                     <option value="Schulpokal" {% if c.competition_type == "Schulpokal" %}selected{% endif %}>Schulpokal</option>
                 </select>
 
-                <label class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %}>Turniermodus</label>
-                <select class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %} name="tournament_mode">
+                <label class="tournament-mode-field" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Turniermodus</label>
+                <select class="tournament-mode-field" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %} name="tournament_mode">
                     {% for mode_key, mode in schulpokal_modes.items() %}
-                    <option value="{{ mode_key }}" {% if (c.tournament_mode or default_schulpokal_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
+                    <option value="{{ mode_key }}" data-for-type="Schulpokal" {% if c.competition_type == "Schulpokal" and (c.tournament_mode or default_schulpokal_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
+                    {% endfor %}
+                    {% for mode_key, mode in turnier_modes.items() %}
+                    <option value="{{ mode_key }}" data-for-type="Turnier" {% if c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
                     {% endfor %}
                 </select>
 
@@ -414,15 +420,34 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
     const toggleTypeFields = () => {
         const isSixkampf = typeSelect.value === "Sechskampf";
         const isSchulpokal = typeSelect.value === "Schulpokal";
+        const isTurnier = typeSelect.value === "Turnier";
         form.querySelectorAll('.sixkampf-points').forEach(element => {
             element.hidden = !isSixkampf;
         });
         form.querySelectorAll('.tournament-timing').forEach(element => {
             element.hidden = isSixkampf;
         });
-        form.querySelectorAll('.schulpokal-mode').forEach(element => {
-            element.hidden = !isSchulpokal;
+        form.querySelectorAll('.tournament-mode-field').forEach(element => {
+            element.hidden = !(isSchulpokal || isTurnier);
         });
+        // Der Modus-Select ist fuer Schulpokal und Turnier gemeinsam (ein
+        // Formularfeld "tournament_mode"), zeigt aber je Typ nur die dazu
+        // passenden Optionen an; springt die aktuelle Auswahl beim
+        // Typwechsel auf eine nicht mehr passende Option, wird automatisch
+        // die erste passende Option gewaehlt.
+        const modeSelect = form.querySelector('select.tournament-mode-field');
+        if (modeSelect) {
+            let firstVisibleOption = null;
+            Array.from(modeSelect.options).forEach(option => {
+                option.hidden = option.dataset.forType !== typeSelect.value;
+                if (!option.hidden && !firstVisibleOption) {
+                    firstVisibleOption = option;
+                }
+            });
+            if (firstVisibleOption && modeSelect.selectedOptions[0]?.hidden) {
+                modeSelect.value = firstVisibleOption.value;
+            }
+        }
     };
     typeSelect.addEventListener("change", toggleTypeFields);
     toggleTypeFields();

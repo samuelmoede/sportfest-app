@@ -304,7 +304,7 @@
 </section>
 {% endif %}
 
-{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal %}
+{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal and not is_ko_runde %}
 <section class="ko-box">
     <h2>Nächste Phase automatisch besetzen</h2>
 
@@ -409,6 +409,49 @@
         </p>
 
         <button class="green" type="submit">Vorschlag erstellen</button>
+    </form>
+    {% elif is_ko_runde %}
+    <form method="post" action="/plan-generator/preview-ko" class="generator-grid">
+        <label>Turnier</label>
+        <select name="competition_id" required onchange="syncGeneratorCompetition(this)">
+            {% for c in competitions if c.competition_type == "Turnier" %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Ort</label>
+        <strong>{{ selected_competition_location }}</strong>
+
+        <label>Felder/Bereiche</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if not selected_generator_court_ids or court.id in selected_generator_court_ids %}checked{% endif %}>
+                {{ court.name }}
+            </label>
+            {% else %}
+            <span class="muted">Für diesen Ort sind keine aktiven Felder/Bereiche angelegt.</span>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="{{ selected_competition.start_time or '08:00' }}" required>
+
+        <label>Turniermodus</label>
+        <strong>{{ turnier_modes["ko_runde"].label }}</strong>
+        <p class="muted" style="grid-column: 2;">
+            Direktes Einzelausscheiden ohne Gruppenphase - der komplette Baum
+            (inkl. Freilosen bei ungerader/nicht als Zweierpotenz vorliegender
+            Teamzahl) wird auf einmal als Vorschlag erzeugt. Folgerunden
+            müssen nach jeder gespielten Runde noch manuell in der
+            Spielplan-Bearbeitung eingetragen werden - eine automatische
+            Weiterbesetzung wie bei "Gruppenphase mit KO-Runde" ist für
+            diesen Modus noch nicht umgesetzt.
+        </p>
+
+        <button class="green" type="submit">KO-Baum erstellen</button>
     </form>
     {% else %}
     <form method="post" action="/plan-generator/preview" class="generator-grid">
