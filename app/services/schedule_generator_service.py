@@ -746,7 +746,13 @@ def get_already_played_ko_targets(competition_id: int, phase: str):
     return [dict(row) for row in rows]
 
 
-KO_DECISIVE_PHASES = ("Halbfinale", "Finale", "Spiel um Platz 3", "Kleines Finale", "Platzierung")
+KO_DECISIVE_PHASES = (
+    "Halbfinale", "Finale", "Spiel um Platz 3", "Kleines Finale", "Platzierung",
+    # Fruehere KO-Runden des Modus "Reine KO-Runde" (siehe
+    # app/services/tournament_modes/ko_runde.py, Issue #101) bei mehr als 4
+    # Teams - auch dort braucht jedes Spiel ein entscheidendes Ergebnis.
+    "Viertelfinale", "Achtelfinale", "Sechzehntelfinale",
+)
 
 
 def get_next_phase_names(phase: str):

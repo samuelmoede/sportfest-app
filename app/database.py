@@ -315,8 +315,13 @@ def init_db(db_path=None):
                 ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
             """)
 
-        # Nur bei competition_type = 'Schulpokal' relevant; Schluessel aus
-        # schedule_generator_service.SCHULPOKAL_MODES (aktuell nur "jeder_gegen_jeden").
+        # Modusauswahl je nach competition_type; Schluessel aus
+        # schedule_generator_service.SCHULPOKAL_MODES (Typ 'Schulpokal',
+        # aktuell nur "jeder_gegen_jeden") bzw. aus
+        # tournament_modes.TURNIER_MODES (Typ 'Turnier', siehe Issue #101 -
+        # "gruppenphase_ko" [Default, bisheriges Verhalten] oder "ko_runde").
+        # NULL bleibt fuer beide Typen gleichbedeutend mit dem jeweiligen
+        # Default, damit bestehende Wettbewerbe unveraendert funktionieren.
         if "tournament_mode" not in competition_columns:
             conn.execute("""
                 ALTER TABLE competitions

@@ -17,15 +17,18 @@ from app.services.schedule_generator_service import (
     SCHULPOKAL_MODES,
 )
 from app.services.schedule_time_service import find_overlapping_competitions, parse_slot_time
+from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.web import templates
 
 COMPETITION_TYPES = ("Turnier", "Sechskampf", "Schulpokal")
 
 
 def _normalize_tournament_mode(competition_type: str, tournament_mode: str):
-    if competition_type != "Schulpokal":
-        return None
-    return tournament_mode if tournament_mode in SCHULPOKAL_MODES else DEFAULT_SCHULPOKAL_MODE
+    if competition_type == "Schulpokal":
+        return tournament_mode if tournament_mode in SCHULPOKAL_MODES else DEFAULT_SCHULPOKAL_MODE
+    if competition_type == "Turnier":
+        return tournament_mode if tournament_mode in TURNIER_MODES else DEFAULT_TURNIER_MODE
+    return None
 
 
 def get_all_competitions():
@@ -160,6 +163,8 @@ def create_router(
                 "default_changeover_duration_minutes": default_changeover_duration_minutes,
                 "schulpokal_modes": SCHULPOKAL_MODES,
                 "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
+                "turnier_modes": TURNIER_MODES,
+                "default_turnier_mode": DEFAULT_TURNIER_MODE,
             }
         )
 
