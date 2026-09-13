@@ -126,6 +126,9 @@ body {
         width: 100%;
         grid-column: auto;
     }
+    .schedule-editor-page .generator-hint {
+        grid-column: auto;
+    }
     .schedule-editor-page .filter-row select,
     .schedule-editor-page .generator-grid input,
     .schedule-editor-page .generator-grid select,

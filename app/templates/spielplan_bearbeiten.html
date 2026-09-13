@@ -29,6 +29,10 @@
         color: var(--muted);
     }
 
+    .generator-hint {
+        grid-column: 2;
+    }
+
     .court-checkboxes {
         display: flex;
         gap: 14px;
@@ -380,7 +384,7 @@
             <span class="muted">Kein weiterer Schulpokal-Wettbewerb an diesem Ort angelegt.</span>
             {% endfor %}
         </div>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Angehakte Wettbewerbe teilen sich die unten gewählten Felder und kommen
             rundenweise abwechselnd an die Reihe (z. B. 7. Klassen, dann 8. Klassen, dann wieder 7. usw.).
         </p>
@@ -403,7 +407,7 @@
         {% set mode_key = selected_competition.tournament_mode or default_schulpokal_mode %}
         <label>Turniermodus</label>
         <strong>{{ schulpokal_modes[mode_key].label if mode_key in schulpokal_modes else mode_key }}</strong>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
             Teamzahl je Wettbewerb, keine Halbfinal-/Finalrunde.
         </p>
@@ -441,7 +445,7 @@
 
         <label>Turniermodus</label>
         <strong>{{ turnier_modes["ko_runde"].label }}</strong>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Direktes Einzelausscheiden ohne Gruppenphase - der komplette Baum
             (inkl. Freilosen bei ungerader/nicht als Zweierpotenz vorliegender
             Teamzahl) wird auf einmal als Vorschlag erzeugt. Folgerunden
@@ -484,7 +488,7 @@
 
         <label>Turniermodus</label>
         <strong>{{ turnier_modes["punkterunde"].label }}</strong>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
             Teamzahl, keine Halbfinal-/Finalrunde. Die Endplatzierung ergibt
             sich allein aus der Tabelle.
