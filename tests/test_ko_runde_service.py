@@ -40,6 +40,12 @@ def make_in_memory_db():
     start = schema_sql.index('conn.executescript("""') + len('conn.executescript("""')
     end = schema_sql.index('""")', start)
     conn.executescript(schema_sql[start:end])
+
+    # tournament_mode wird erst per nachgelagerter, geguardeter ALTER-TABLE-
+    # Migration in init_db() ergaenzt (siehe database.py), ist also nicht Teil
+    # des oben extrahierten Basis-CREATE-TABLE-Blocks - hier direkt nachziehen,
+    # weil _make_ko_competition() die Spalte beim INSERT befuellt.
+    conn.execute("ALTER TABLE competitions ADD COLUMN tournament_mode TEXT")
     return conn
 
 
