@@ -1980,9 +1980,14 @@ section.cards.competition-list {
     white-space: nowrap;
 }
 
-/* --- Admin-Form: breitere Label-Spalte für bessere Proportionen --- */
-.admin-form {
-    grid-template-columns: 160px 1fr;
+/* --- Admin-Form: breitere Label-Spalte für bessere Proportionen ---
+   Nur ab 701px, damit diese Regel den Mobile-Reset auf 1fr (siehe
+   @media (max-width: 700px) weiter oben) nicht durch spätere
+   Position im Quelltext bei gleicher Spezifität aushebelt. --- */
+@media (min-width: 701px) {
+    .admin-form {
+        grid-template-columns: 160px 1fr;
+    }
 }
 
 .field-hint {
