@@ -157,6 +157,7 @@ def init_db(db_path=None):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             created_at TEXT NOT NULL,
             actor_role TEXT NOT NULL,
+            actor_username TEXT,
             action TEXT NOT NULL,
             entity_type TEXT NOT NULL,
             entity_id INTEGER,
@@ -288,6 +289,17 @@ def init_db(db_path=None):
             SET event_type = 'Sonstiges'
             WHERE event_type IS NULL OR TRIM(event_type) = ''
         """)
+
+        change_log_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(change_log)").fetchall()
+        }
+
+        if "actor_username" not in change_log_columns:
+            # Bestehende Eintraege bleiben hier NULL (kein Benutzer-Login zum
+            # Zeitpunkt des Eintrags nachtraeglich rekonstruierbar) - siehe
+            # Issue #98.
+            conn.execute("ALTER TABLE change_log ADD COLUMN actor_username TEXT")
 
         competition_columns = {
             row["name"]

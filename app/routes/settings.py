@@ -67,6 +67,7 @@ def einstellungen(
     saved_at: str = "",
     change_log_role: str = "",
     change_log_competition_id: str = "",
+    change_log_username: str = "",
 ):
     try:
         saved_at_value = datetime.strptime(saved_at, "%H:%M").strftime("%H:%M") if saved_at else ""
@@ -84,6 +85,7 @@ def einstellungen(
     recent_changes = get_recent_change_log(
         role=change_log_role or None,
         competition_id=change_log_competition_id_value,
+        username=change_log_username or None,
     )
     change_log_filter_options = get_change_log_filter_options()
     context.update({
@@ -121,8 +123,10 @@ def einstellungen(
         "change_log_count": get_change_log_count(),
         "change_log_roles": change_log_filter_options["roles"],
         "change_log_competitions": change_log_filter_options["competitions"],
+        "change_log_usernames": change_log_filter_options["usernames"],
         "change_log_role": change_log_role,
         "change_log_competition_id": change_log_competition_id_value,
+        "change_log_username": change_log_username,
         "users": list_users(),
         "assignable_roles": [
             {"key": role, "label": ROLE_LABELS[role]} for role in ASSIGNABLE_ROLES
@@ -141,6 +145,7 @@ def einstellungen_aenderungsprotokoll(
     request: Request,
     change_log_role: str = "",
     change_log_competition_id: str = "",
+    change_log_username: str = "",
 ):
     try:
         change_log_competition_id_value = (
@@ -152,6 +157,7 @@ def einstellungen_aenderungsprotokoll(
     recent_changes = get_recent_change_log(
         role=change_log_role or None,
         competition_id=change_log_competition_id_value,
+        username=change_log_username or None,
     )
     change_log_filter_options = get_change_log_filter_options()
     return templates.TemplateResponse(
@@ -162,8 +168,10 @@ def einstellungen_aenderungsprotokoll(
             "change_log_count": get_change_log_count(),
             "change_log_roles": change_log_filter_options["roles"],
             "change_log_competitions": change_log_filter_options["competitions"],
+            "change_log_usernames": change_log_filter_options["usernames"],
             "change_log_role": change_log_role,
             "change_log_competition_id": change_log_competition_id_value,
+            "change_log_username": change_log_username,
         },
     )
 
