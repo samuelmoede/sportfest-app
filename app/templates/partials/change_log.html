@@ -12,13 +12,20 @@
         <button class="danger" type="submit">Änderungszähler zurücksetzen</button>
     </form>
     {% endif %}
-    {% if change_log_roles or change_log_competitions %}
+    {% if change_log_roles or change_log_competitions or change_log_usernames %}
     <form method="get" action="/einstellungen" class="change-log-filter-form" data-change-log-filter-form style="margin-bottom: 16px;">
         <label for="change_log_role">Rolle</label>
         <select id="change_log_role" name="change_log_role">
             <option value="">Alle Rollen</option>
             {% for role in change_log_roles %}
             <option value="{{ role.key }}" {% if role.key == change_log_role %}selected{% endif %}>{{ role.label }}</option>
+            {% endfor %}
+        </select>
+        <label for="change_log_username">Benutzer</label>
+        <select id="change_log_username" name="change_log_username">
+            <option value="">Alle Benutzer</option>
+            {% for username in change_log_usernames %}
+            <option value="{{ username }}" {% if username == change_log_username %}selected{% endif %}>{{ username }}</option>
             {% endfor %}
         </select>
         <label for="change_log_competition_id">Wettbewerb</label>
@@ -29,7 +36,7 @@
             {% endfor %}
         </select>
         <button type="submit">Filtern</button>
-        {% if change_log_role or change_log_competition_id %}
+        {% if change_log_role or change_log_competition_id or change_log_username %}
         <a href="/einstellungen#aenderungsprotokoll" data-change-log-reset-filter>Filter zurücksetzen</a>
         {% endif %}
     </form>
@@ -41,6 +48,7 @@
                 <tr>
                     <th>Zeitpunkt</th>
                     <th>Rolle</th>
+                    <th>Benutzer</th>
                     <th>Aktion</th>
                     <th>Wettbewerb / Eintrag</th>
                     <th>Vorher</th>
@@ -52,6 +60,7 @@
                 <tr>
                     <td>{{ change.created_at_display }}</td>
                     <td>{{ change.actor_role_label }}</td>
+                    <td>{{ change.actor_username or "–" }}</td>
                     <td>{{ change.action }}</td>
                     <td>
                         <strong>{{ change.competition_name or "Unbekannter Wettbewerb" }}</strong><br>
@@ -64,7 +73,7 @@
             </tbody>
         </table>
     </div>
-    {% elif change_log_role or change_log_competition_id %}
+    {% elif change_log_role or change_log_competition_id or change_log_username %}
     <p class="muted">Keine Einträge für die gewählte Filterauswahl.</p>
     {% else %}
     <p class="muted">Noch keine Ergebnisänderungen protokolliert.</p>

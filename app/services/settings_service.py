@@ -196,6 +196,14 @@ def get_current_role(request: Request):
     return "viewer"
 
 
+def get_current_username(request: Request):
+    """Der angemeldete Benutzername (siehe session["username"] in /login) -
+    None ohne Benutzer-Login (Sicherheit deaktiviert oder Legacy-Admin-Login
+    ueber das geteilte Passwort, siehe /einstellungen/admin-login)."""
+    username = request.session.get("username")
+    return username if isinstance(username, str) and username else None
+
+
 def get_current_role_label(request: Request):
     return ROLE_LABELS[get_current_role(request)]
 
@@ -235,6 +243,7 @@ def get_recent_change_log(
     limit: int = 50,
     role: Optional[str] = None,
     competition_id: Optional[int] = None,
+    username: Optional[str] = None,
 ):
     safe_limit = max(1, min(int(limit), 200))
     conditions = []
@@ -245,6 +254,9 @@ def get_recent_change_log(
     if competition_id is not None:
         conditions.append("log.competition_id = ?")
         params.append(competition_id)
+    if username:
+        conditions.append("log.actor_username = ?")
+        params.append(username)
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with get_conn() as conn:
         rows = [
@@ -315,7 +327,7 @@ def get_change_log_count():
 
 
 def get_change_log_filter_options():
-    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe als
+    """Nur tatsächlich im Protokoll vorkommende Rollen/Wettbewerbe/Benutzer als
     Filterauswahl anbieten (keine statische Liste)."""
     with get_conn() as conn:
         role_rows = conn.execute(
@@ -329,6 +341,13 @@ def get_change_log_filter_options():
             ORDER BY competition.name
             """
         ).fetchall()
+        username_rows = conn.execute(
+            """
+            SELECT DISTINCT actor_username FROM change_log
+            WHERE actor_username IS NOT NULL AND actor_username != ''
+            ORDER BY actor_username
+            """
+        ).fetchall()
     return {
         "roles": [
             {
@@ -340,6 +359,7 @@ def get_change_log_filter_options():
         "competitions": [
             {"id": row["id"], "name": row["name"]} for row in competition_rows
         ],
+        "usernames": [row["actor_username"] for row in username_rows],
     }
 
 

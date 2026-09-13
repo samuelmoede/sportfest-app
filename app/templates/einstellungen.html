@@ -433,7 +433,7 @@
     });
 
     panel.addEventListener('change', event => {
-        const select = event.target.closest('#change_log_role, #change_log_competition_id');
+        const select = event.target.closest('#change_log_role, #change_log_competition_id, #change_log_username');
         if (!select) return;
         select.form.requestSubmit();
     });
