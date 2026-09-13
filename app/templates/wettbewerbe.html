@@ -149,7 +149,7 @@
         <label>Punkte Niederlage</label>
         <input type="number" step="0.5" name="points_loss" value="0" required>
 
-        <button class="primary" type="submit" style="grid-column: 2;">Wettbewerb anlegen</button>
+        <button class="primary" type="submit">Wettbewerb anlegen</button>
     </form>
     </div>
 </details>
@@ -317,9 +317,9 @@
                 <label>Niederlage</label>
                 <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
 
-                <button class="primary" type="submit" style="grid-column: 2;">Speichern</button>
+                <button class="primary" type="submit">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
-                <span class="save-feedback-inline" style="grid-column: 2;">✓ Gespeichert um {{ saved_at }}</span>
+                <span class="save-feedback-inline competition-save-feedback">✓ Gespeichert um {{ saved_at }}</span>
                 {% endif %}
             </form>
 
