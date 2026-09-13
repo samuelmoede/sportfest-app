@@ -167,7 +167,7 @@ ACTION_ACCESS_RULES = (
         "admin",
     ),
     (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "admin"),
-    (re.compile(r"^/plan-generator/(?:preview|preview-schulpokal|preview-ko|apply)$"), "admin"),
+    (re.compile(r"^/plan-generator/(?:preview|preview-schulpokal|preview-ko|preview-punkterunde|apply)$"), "admin"),
     (
         re.compile(r"^/slot(?:/create|/[^/]+/(?:update|delete|move|copy))$"),
         "admin",
