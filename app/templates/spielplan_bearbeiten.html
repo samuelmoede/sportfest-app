@@ -453,6 +453,45 @@
 
         <button class="green" type="submit">KO-Baum erstellen</button>
     </form>
+    {% elif is_punkterunde %}
+    <form method="post" action="/plan-generator/preview-punkterunde" class="generator-grid">
+        <label>Turnier</label>
+        <select name="competition_id" required onchange="syncGeneratorCompetition(this)">
+            {% for c in competitions if c.competition_type == "Turnier" %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Ort</label>
+        <strong>{{ selected_competition_location }}</strong>
+
+        <label>Felder/Bereiche</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if not selected_generator_court_ids or court.id in selected_generator_court_ids %}checked{% endif %}>
+                {{ court.name }}
+            </label>
+            {% else %}
+            <span class="muted">Für diesen Ort sind keine aktiven Felder/Bereiche angelegt.</span>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="{{ selected_competition.start_time or '08:00' }}" required>
+
+        <label>Turniermodus</label>
+        <strong>{{ turnier_modes["punkterunde"].label }}</strong>
+        <p class="muted" style="grid-column: 2;">
+            Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
+            Teamzahl, keine Halbfinal-/Finalrunde. Die Endplatzierung ergibt
+            sich allein aus der Tabelle.
+        </p>
+
+        <button class="green" type="submit">Vorschlag erstellen</button>
+    </form>
     {% else %}
     <form method="post" action="/plan-generator/preview" class="generator-grid">
         <label>Turnier</label>
