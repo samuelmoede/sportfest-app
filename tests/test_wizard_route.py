@@ -92,7 +92,8 @@ class WizardRouteTests(unittest.TestCase):
             response = client.get(f"/assistent/{event_id}")
         self.assertEqual(response.status_code, 200)
         self.assertIn("Teams anlegen", response.text)
-        self.assertIn("Spielfelder anlegen", response.text)
+        self.assertIn("noch keine aktiven Spielfelder", response.text)
+        self.assertIn('action="/assistent/{}/spielfeld/anlegen"'.format(event_id), response.text)
 
     def test_event_step_shows_existing_teams_and_courts(self):
         from app.main import app as fastapi_app
@@ -106,8 +107,11 @@ class WizardRouteTests(unittest.TestCase):
             response = client.get(f"/assistent/{event_id}")
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("Teams anlegen", response.text)
-        self.assertNotIn("Spielfelder anlegen", response.text)
+        self.assertNotIn("noch keine aktiven Spielfelder", response.text)
         self.assertIn("Weiteren Wettbewerb hinzufügen", response.text)
+        # Die Inline-Anlage bleibt (analog zu Klassen) auch verfuegbar, wenn
+        # bereits Felder vorhanden sind.
+        self.assertIn('action="/assistent/{}/spielfeld/anlegen"'.format(event_id), response.text)
 
     def test_create_competition_for_event(self):
         from app.main import app as fastapi_app
@@ -231,6 +235,214 @@ class WizardRouteTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["location"], "/assistent")
+
+    def test_create_court_inline_from_wizard(self):
+        """Issue #107: Spielfelder lassen sich direkt im Assistenten anlegen,
+        analog zur Team-Inline-Anlage (nutzt dieselbe Insert-Logik wie
+        /court/create)."""
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            response = client.post(
+                f"/assistent/{event_id}/spielfeld/anlegen",
+                data={"name": "Feld 2", "sportart": "Fußball", "location": "Fußballplatz"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], f"/assistent/{event_id}")
+
+        with get_conn() as conn:
+            court = conn.execute("SELECT * FROM courts WHERE name = 'Feld 2'").fetchone()
+        self.assertIsNotNone(court)
+        self.assertEqual(court["sportart"], "Fußball")
+        self.assertEqual(court["location"], "Fußballplatz")
+        self.assertEqual(court["active"], 1)
+
+    def test_create_court_inline_from_wizard_requires_name(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            response = client.post(
+                f"/assistent/{event_id}/spielfeld/anlegen",
+                data={"name": "  "},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("error=court_invalid", response.headers["location"])
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM courts").fetchone()["n"]
+        # init_db() seedet bereits zwei Standardfelder - es soll keines dazukommen.
+        self.assertEqual(count, 2)
+
+    def test_create_court_inline_from_wizard_unknown_event_redirects_to_start(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/assistent/999999/spielfeld/anlegen",
+                data={"name": "Feld 2"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/assistent")
+
+    def test_event_step_shows_schritt_4_marker_for_spielplan_and_disziplinen(self):
+        """Issue #107: die Nummerierung darf nicht von Schritt 3 direkt auf
+        Schritt 5 springen - die Spielplan-/Disziplin-Erzeugung wird als
+        Schritt 4 gekennzeichnet, auch wenn sie teils auf einer separaten,
+        bereits gefuehrten Seite (/spielplan-bearbeiten) stattfindet."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Völkerball", "jahrgang": "7", "competition_type": "Turnier"},
+                follow_redirects=False,
+            )
+            response = client.get(f"/assistent/{event_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Schritt 4", response.text)
+
+    def test_create_discipline_inline_from_wizard(self):
+        """Issue #107: Sechskampf-Disziplinen lassen sich direkt im
+        Assistenten anlegen, ohne auf /wettbewerbe umzuleiten - nutzt
+        dieselbe Insert-Logik wie /competition/{id}/discipline/create."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Sechskampf", "jahrgang": "7", "competition_type": "Sechskampf"},
+                follow_redirects=False,
+            )
+            with get_conn() as conn:
+                competition_id = conn.execute(
+                    "SELECT id FROM competitions WHERE event_id = ?", (event_id,)
+                ).fetchone()["id"]
+
+            response = client.post(
+                f"/assistent/{event_id}/wettbewerb/{competition_id}/disziplin/anlegen",
+                data={"name": "Weitsprung", "unit": "cm", "scoring_direction": "higher"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], f"/assistent/{event_id}")
+
+        with get_conn() as conn:
+            discipline = conn.execute(
+                "SELECT * FROM competition_disciplines WHERE competition_id = ?", (competition_id,)
+            ).fetchone()
+        self.assertIsNotNone(discipline)
+        self.assertEqual(discipline["name"], "Weitsprung")
+        self.assertEqual(discipline["unit"], "cm")
+        self.assertEqual(discipline["scoring_direction"], "higher")
+        self.assertEqual(discipline["sort_order"], 1)
+
+        with TestClient(fastapi_app) as client:
+            response = client.get(f"/assistent/{event_id}")
+        self.assertIn("Weitsprung", response.text)
+        self.assertIn("Disziplinen bearbeiten", response.text)
+
+    def test_create_discipline_inline_requires_name(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Sechskampf", "jahrgang": "7", "competition_type": "Sechskampf"},
+                follow_redirects=False,
+            )
+            with get_conn() as conn:
+                competition_id = conn.execute(
+                    "SELECT id FROM competitions WHERE event_id = ?", (event_id,)
+                ).fetchone()["id"]
+
+            response = client.post(
+                f"/assistent/{event_id}/wettbewerb/{competition_id}/disziplin/anlegen",
+                data={"name": "  "},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("error=discipline_invalid", response.headers["location"])
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM competition_disciplines").fetchone()["n"]
+        self.assertEqual(count, 0)
+
+    def test_create_discipline_inline_rejects_non_sechskampf_competition(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Völkerball", "jahrgang": "7", "competition_type": "Turnier"},
+                follow_redirects=False,
+            )
+            with get_conn() as conn:
+                competition_id = conn.execute(
+                    "SELECT id FROM competitions WHERE event_id = ?", (event_id,)
+                ).fetchone()["id"]
+
+            response = client.post(
+                f"/assistent/{event_id}/wettbewerb/{competition_id}/disziplin/anlegen",
+                data={"name": "Weitsprung"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM competition_disciplines").fetchone()["n"]
+        self.assertEqual(count, 0)
+
+    def test_delete_discipline_inline_from_wizard(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Sechskampf", "jahrgang": "7", "competition_type": "Sechskampf"},
+                follow_redirects=False,
+            )
+            with get_conn() as conn:
+                competition_id = conn.execute(
+                    "SELECT id FROM competitions WHERE event_id = ?", (event_id,)
+                ).fetchone()["id"]
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/{competition_id}/disziplin/anlegen",
+                data={"name": "Weitsprung"},
+                follow_redirects=False,
+            )
+            with get_conn() as conn:
+                discipline_id = conn.execute(
+                    "SELECT id FROM competition_disciplines WHERE competition_id = ?", (competition_id,)
+                ).fetchone()["id"]
+
+            response = client.post(
+                f"/assistent/{event_id}/disziplin/{discipline_id}/loeschen",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], f"/assistent/{event_id}")
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM competition_disciplines").fetchone()["n"]
+        self.assertEqual(count, 0)
 
     def test_create_competition_with_explicit_team_selection(self):
         """Issue #85: Team-Feinauswahl - werden einzelne Klassen abgewaehlt,
@@ -415,6 +627,88 @@ class WizardQuickstartIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Es sind keine aktiven Teams angelegt", response.text)
         self.assertNotIn('action="/turnier-schnellstart"', response.text)
+
+    def test_start_page_offers_inline_team_creation_when_no_teams(self):
+        """Issue #107: statt auf /teams zu verweisen, bietet der
+        Schnellstart-Bereich dieselbe Inline-Team-Anlage wie der
+        Wettbewerbs-Assistent selbst."""
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.get("/assistent")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('action="/assistent/team/anlegen"', response.text)
+        self.assertNotIn("Lege zuerst unter", response.text)
+
+    def test_start_page_offers_inline_court_creation_when_no_courts(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7a', 7, 1)")
+            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7b', 7, 1)")
+            # Standardfelder liegen am Ort "Fussballplatz", der Schnellstart
+            # filtert auf DEFAULT_COMPETITION_LOCATION ("Turnhalle") - ohne
+            # aktives Turnhalle-Feld bleibt courts also leer.
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            response = client.get("/assistent")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('action="/assistent/spielfeld/anlegen"', response.text)
+        self.assertNotIn("Lege zuerst unter", response.text)
+
+    def test_quickstart_inline_team_creation(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/assistent/team/anlegen",
+                data={"name": "5a", "jahrgang": "5"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/assistent")
+        with get_conn() as conn:
+            team = conn.execute("SELECT * FROM teams WHERE name = '5a'").fetchone()
+        self.assertIsNotNone(team)
+        self.assertEqual(team["jahrgang"], 5)
+
+    def test_quickstart_inline_team_creation_requires_name_and_jahrgang(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/assistent/team/anlegen",
+                data={"name": "  ", "jahrgang": "5"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("qs_error=team_invalid", response.headers["location"])
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM teams").fetchone()["n"]
+        self.assertEqual(count, 0)
+
+    def test_quickstart_inline_court_creation(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/assistent/spielfeld/anlegen",
+                data={"name": "Halle 1", "location": "Turnhalle"},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/assistent")
+        with get_conn() as conn:
+            court = conn.execute("SELECT * FROM courts WHERE name = 'Halle 1'").fetchone()
+        self.assertIsNotNone(court)
+        self.assertEqual(court["location"], "Turnhalle")
+        self.assertEqual(court["active"], 1)
+
+    def test_quickstart_inline_court_creation_requires_name(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/assistent/spielfeld/anlegen",
+                data={"name": "  "},
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("qs_error=court_invalid", response.headers["location"])
 
 
 if __name__ == "__main__":

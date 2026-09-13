@@ -103,13 +103,48 @@
         Spiel um Platz 3 wird sofort erzeugt und gespeichert.
     </p>
 
+    {% if qs_error == "team_invalid" %}
+    <p class="muted">Bitte Klassenname und Jahrgang angeben - Klasse wurde nicht angelegt.</p>
+    {% elif qs_error == "court_invalid" %}
+    <p class="muted">Bitte einen Namen für das Spielfeld angeben - Spielfeld wurde nicht angelegt.</p>
+    {% endif %}
+
     {% if not teams_by_jahrgang %}
-    <p class="muted">Es sind keine aktiven Teams angelegt. Lege zuerst unter <a href="/teams">Teams</a> welche an.</p>
+    <p class="muted">Es sind keine aktiven Teams angelegt.</p>
+    <details class="team-selector-details">
+        <summary class="team-selector-toggle">+ Klasse spontan anlegen</summary>
+        <div class="team-selector-panel">
+            <form method="post" action="/assistent/team/anlegen" class="admin-form">
+                <label>Klassenname</label>
+                <input type="text" name="name" placeholder="z. B. 7a" required>
+
+                <label>Jahrgang</label>
+                <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST" required>
+
+                <button class="green" type="submit">Klasse anlegen</button>
+            </form>
+        </div>
+    </details>
     {% elif not courts %}
     <p class="muted">
         Für den Ort "{{ location }}" sind keine aktiven Felder/Bereiche angelegt.
-        Lege zuerst unter <a href="/spielfelder">Spielfelder</a> welche an.
     </p>
+    <details class="team-selector-details">
+        <summary class="team-selector-toggle">+ Spielfeld spontan anlegen</summary>
+        <div class="team-selector-panel">
+            <form method="post" action="/assistent/spielfeld/anlegen" class="admin-form">
+                <label>Name</label>
+                <input type="text" name="name" placeholder="z. B. Feld 1" required>
+
+                <label>Sportart (optional)</label>
+                <input type="text" name="sportart" placeholder="z. B. Fußball">
+
+                <input type="hidden" name="location" value="{{ location }}">
+
+                <button class="green" type="submit">Spielfeld anlegen</button>
+            </form>
+        </div>
+    </details>
     {% else %}
     <form method="post" action="/turnier-schnellstart" class="admin-form">
         <label>Name (optional)</label>
