@@ -4,7 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
-from app.routes.competitions import COMPETITION_TYPES
+from app.routes.competitions import COMPETITION_TYPES, _normalize_tournament_mode
 from app.routes.events import EVENT_TYPES
 from app.routes.quickstart import build_quickstart_context
 from app.routes.teams import normalize_jahrgang
@@ -23,6 +23,7 @@ from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
 )
+from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.web import templates
 
 DISCIPLINE_SCORING_DIRECTIONS = ("higher", "lower")
@@ -201,9 +202,13 @@ def create_router(
                 "competition_types": COMPETITION_TYPES,
                 "schulpokal_modes": SCHULPOKAL_MODES,
                 "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
+                "turnier_modes": TURNIER_MODES,
+                "default_turnier_mode": DEFAULT_TURNIER_MODE,
                 "disciplines_by_competition": disciplines_by_competition,
                 "court_locations": COMPETITION_LOCATIONS,
                 "default_court_location": DEFAULT_COMPETITION_LOCATION,
+                "default_game_duration_minutes": DEFAULT_GAME_DURATION_MINUTES,
+                "default_changeover_duration_minutes": DEFAULT_CHANGEOVER_DURATION_MINUTES,
             },
         )
 
@@ -268,6 +273,8 @@ def create_router(
         jahrgang: str = Form(...),
         competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
+        game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
+        changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
         team_ids: List[str] = Form([]),
         team_selection_active: str = Form(""),
     ):
@@ -278,6 +285,8 @@ def create_router(
             not sportart_value
             or jahrgang_value is None
             or competition_type not in COMPETITION_TYPES
+            or game_duration_minutes < 1
+            or changeover_duration_minutes < 0
         ):
             return RedirectResponse(f"/assistent/{event_id}?error=invalid", status_code=303)
 
@@ -320,11 +329,7 @@ def create_router(
             if team_count < 2:
                 return RedirectResponse(f"/assistent/{event_id}?error=team_count", status_code=303)
 
-            tournament_mode_value = None
-            if competition_type == "Schulpokal":
-                tournament_mode_value = (
-                    tournament_mode if tournament_mode in SCHULPOKAL_MODES else DEFAULT_SCHULPOKAL_MODE
-                )
+            tournament_mode_value = _normalize_tournament_mode(competition_type, tournament_mode)
 
             base_name = name.strip() or f"{sportart_value} Jahrgang {jahrgang_value}"
             competition_name = _unique_competition_name(conn, base_name)
@@ -340,7 +345,7 @@ def create_router(
                 (
                     competition_name, sportart_value, jahrgang_value, team_count,
                     event_id, competition_type, tournament_mode_value,
-                    DEFAULT_GAME_DURATION_MINUTES, DEFAULT_CHANGEOVER_DURATION_MINUTES,
+                    game_duration_minutes, changeover_duration_minutes,
                 ),
             )
             new_competition_id = cursor.lastrowid

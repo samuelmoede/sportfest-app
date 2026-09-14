@@ -564,6 +564,119 @@ class WizardRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(f"/events/{event_id}#tagesplan", response.text)
 
+    def test_create_competition_form_offers_timing_fields_and_turnier_modes(self):
+        """Issue #114: das Formular "Wettbewerb anlegen" im Assistenten bekommt
+        Spielzeit-/Wechselzeit-Felder (vorausgefuellt mit den globalen
+        Defaults) sowie ein Turniermodus-Dropdown, das fuer den Typ "Turnier"
+        aus TURNIER_MODES befuellt wird - nicht nur aus SCHULPOKAL_MODES."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            response = client.get(f"/assistent/{event_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name="game_duration_minutes"', response.text)
+        self.assertIn('name="changeover_duration_minutes"', response.text)
+        self.assertIn("Reine KO-Runde", response.text)
+        self.assertIn("Punkterunde (Jeder gegen Jeden)", response.text)
+        self.assertIn('data-for-type="Turnier"', response.text)
+
+    def test_create_competition_uses_submitted_timing_values(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={
+                    "sportart": "Völkerball",
+                    "jahrgang": "7",
+                    "competition_type": "Turnier",
+                    "game_duration_minutes": "12",
+                    "changeover_duration_minutes": "4",
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        self.assertEqual(competition["game_duration_minutes"], 12)
+        self.assertEqual(competition["changeover_duration_minutes"], 4)
+
+    def test_create_competition_rejects_invalid_timing(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            response = client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={
+                    "sportart": "Völkerball",
+                    "jahrgang": "7",
+                    "competition_type": "Turnier",
+                    "game_duration_minutes": "0",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        self.assertIn("error=invalid", response.headers["location"])
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"]
+        self.assertEqual(count, 0)
+
+    def test_create_competition_stores_selected_turnier_mode(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={
+                    "sportart": "Völkerball",
+                    "jahrgang": "7",
+                    "competition_type": "Turnier",
+                    "tournament_mode": "ko_runde",
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        self.assertEqual(competition["tournament_mode"], "ko_runde")
+
+    def test_create_competition_defaults_turnier_mode_when_not_submitted(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={"sportart": "Völkerball", "jahrgang": "7", "competition_type": "Turnier"},
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        self.assertEqual(competition["tournament_mode"], "gruppenphase_ko")
+
     def test_completion_step_hides_grobplan_link_with_single_competition(self):
         from app.main import app as fastapi_app
         with get_conn() as conn:
