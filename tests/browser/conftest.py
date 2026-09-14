@@ -45,6 +45,23 @@ def chromium_available() -> bool:
         return False
 
 
+def _seed_quickstart_data():
+    """Mindestdaten fuer den Turnier-Schnellstart auf /assistent (siehe
+    app/routes/quickstart.py::build_quickstart_context): ohne mindestens zwei
+    aktive Teams und ein aktives Feld am Standard-Standort ("Turnhalle")
+    blendet assistent_start.html das Schnellstart-Formular (inkl. Zeitfeld)
+    komplett aus und zeigt nur einen Hinweistext."""
+    import app.database as database
+
+    with database.get_conn() as conn:
+        conn.execute("INSERT INTO teams (name, jahrgang) VALUES ('7a', 7)")
+        conn.execute("INSERT INTO teams (name, jahrgang) VALUES ('7b', 7)")
+        conn.execute(
+            "INSERT INTO courts (name, sportart, location) VALUES ('Feld 1', 'Zweifelderball', 'Turnhalle')"
+        )
+        conn.commit()
+
+
 @pytest.fixture(scope="session")
 def live_server_url():
     import httpx
@@ -75,9 +92,31 @@ def live_server_url():
     else:
         raise RuntimeError("Live-Testserver ist nicht rechtzeitig gestartet")
 
+    _seed_quickstart_data()
+
     yield base_url
 
     server.should_exit = True
     thread.join(timeout=5)
     database.DB_PATH = original_db_path
     tmpdir.cleanup()
+
+
+@pytest.fixture(scope="session")
+def schulpokal_competition_id(live_server_url):
+    """Legt einen Schulpokal-Wettbewerb an, ueber den /spielplan-bearbeiten
+    per ?competition_id=... angesteuert werden kann (siehe
+    app/routes/schedule.py::build_editor_context: .generator-hint erscheint
+    nur, wenn ein Wettbewerb ausgewaehlt und die Planung fuer dessen Standort
+    ueberhaupt aktiviert ist - Standard-Standort "Turnhalle" erfuellt das)."""
+    import app.database as database
+
+    with database.get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO competitions (name, sportart, jahrgang, status, competition_type, location)
+            VALUES ('Schulpokal Browsertest', 'Zweifelderball', 7, 'geplant', 'Schulpokal', 'Turnhalle')
+            """
+        )
+        conn.commit()
+        return cursor.lastrowid

@@ -19,11 +19,15 @@ DESKTOP_VIEWPORT = {"width": 1280, "height": 900}
 MOBILE_VIEWPORT = {"width": 375, "height": 812}
 
 
-def test_generator_hint_grid_column_resets_below_860px(live_server_url, page):
+def test_generator_hint_grid_column_resets_below_860px(
+    live_server_url, schulpokal_competition_id, page
+):
     """Issue #109: .generator-hint (spielplan_bearbeiten.html) muss unter
     860px per Media Query auf grid-column: auto zurueckgesetzt werden, statt
     fest auf der zweiten Spalte zu bleiben."""
-    page.goto(f"{live_server_url}/spielplan-bearbeiten")
+    page.goto(
+        f"{live_server_url}/spielplan-bearbeiten?competition_id={schulpokal_competition_id}"
+    )
     hint = page.locator(".generator-hint").first
 
     page.set_viewport_size(DESKTOP_VIEWPORT)
