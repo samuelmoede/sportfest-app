@@ -1,8 +1,9 @@
 /*
- * Einheitliche Uhrzeit-Auswahl (Issue #113/#117): ergänzt jedes
- * <input type="time"> appweit um ein analoges 24h-Zifferblatt mit Zeiger
- * (Drag oder Antippen), unabhängig von Browser/Gerät. Die
- * Enhancement-Logik dazu liegt zentral in base.html (progressive
+ * Einheitliche Uhrzeit-Auswahl (Issue #113/#117/#120): ergänzt jedes
+ * <input type="time"> appweit um ein Android/Material-typisches 24h-
+ * Zifferblatt mit Doppelring (äußerer Ring 1-12, innerer, kleinerer Ring
+ * 13-23/0) und Zeiger (Drag oder Antippen), unabhängig von Browser/Gerät.
+ * Die Enhancement-Logik dazu liegt zentral in base.html (progressive
  * enhancement über document.querySelectorAll('input[type="time"]')).
  * Das native Feld bleibt vollständig erhalten - Tab/Tippen funktionieren
  * weiter.
@@ -10,7 +11,8 @@
  * Bewusst KEIN scrollbarer Listen-Container (siehe Issue #117) - das
  * native Scrollbar-Rendering war auf manchen Geräten/Browsern fehlerhaft.
  * Die Auswahl läuft ausschließlich über Pointer-Events direkt auf dem
- * Zifferblatt-Kreis.
+ * Zifferblatt-Kreis; der Abstand zum Mittelpunkt entscheidet im
+ * Stundenmodus zusätzlich, welcher der beiden Ringe gemeint ist.
  */
 
 .time-field-wrap {
@@ -162,6 +164,16 @@
     pointer-events: none;
 }
 
+/* Innerer Ring (Stunden 13-23 sowie 0) etwas kleiner und blasser als der
+   äußere Ring (Stunden 1-12 bzw. Minuten) abgesetzt - klassisches
+   Android/Material-Doppelring-Layout, siehe Issue #120. */
+.time-clock-number.is-inner {
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+
 .time-clock-number.is-selected {
     background: var(--blue);
     color: #fff;
@@ -177,6 +189,12 @@
     background: var(--blue);
     transform-origin: bottom center;
     pointer-events: none;
+}
+
+/* Zeiger verkürzt sich, wenn eine Stunde auf dem inneren Ring (13-23/0)
+   ausgewählt ist, damit die Spitze weiterhin auf der Ziffer landet. */
+.time-clock-hand.is-inner {
+    height: 21%;
 }
 
 .time-clock-center {
