@@ -27,13 +27,15 @@ TEMPLATES_WITH_TIME_FIELDS = {
 
 
 class TimePickerEnhancementStructureTests(unittest.TestCase):
-    """Issue #113: einheitliche, appweite Uhrzeit-Auswahl fuer alle
-    input[type="time"]-Felder statt browserabhaengiger nativer Steuerelemente.
-    Es gibt keine Browser-Testinfrastruktur (siehe CLAUDE.md / Issues #109,
-    #111) - diese Tests pruefen deshalb auf Quelltext-/Struktur-Ebene, dass
-    die Enhancement-Logik zentral in base.html liegt, appweit generisch alle
-    Zeitfelder erfasst, die bestehende HH:MM-Formularuebermittlung nicht
-    veraendert und keine externe Bibliothek einbindet."""
+    """Issue #113/#117: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+    input[type="time"]-Felder statt browserabhaengiger nativer Steuerelemente
+    (bzw. der fehlerhaften Scroll-Wheel-Variante aus PR #116). Es gibt keine
+    Browser-Testinfrastruktur (siehe CLAUDE.md / Issues #109, #111) - diese
+    Tests pruefen deshalb auf Quelltext-/Struktur-Ebene, dass die
+    Enhancement-Logik zentral in base.html liegt, appweit generisch alle
+    Zeitfelder erfasst, als analoges 24h-Zifferblatt ohne scrollbare
+    Container umgesetzt ist, die bestehende HH:MM-Formularuebermittlung
+    nicht veraendert und keine externe Bibliothek einbindet."""
 
     @classmethod
     def setUpClass(cls):
@@ -121,11 +123,43 @@ class TimePickerEnhancementStructureTests(unittest.TestCase):
             ".time-field-wrap",
             ".time-picker-toggle",
             ".time-picker-panel",
-            ".time-picker-col",
-            ".time-picker-option",
+            ".time-picker-display",
+            ".time-clock",
+            ".time-clock-face",
+            ".time-clock-numbers",
+            ".time-clock-number",
+            ".time-clock-hand",
+            ".time-clock-center",
             ".is-selected",
         ):
             self.assertIn(selector, self.time_picker_css_text)
+
+    def test_time_picker_css_avoids_native_scrollable_lists(self):
+        # Issue #117: die vorherige Scroll-Wheel-Umsetzung (zwei Listen mit
+        # overflow-y: auto) rendert auf manchen Geraeten/Browsern fehlerhaft
+        # (unsichtbare Zahlen, nur native Scrollbar-Pfeile sichtbar). Das
+        # Zifferblatt darf sich deshalb nicht auf overflow-y: auto verlassen.
+        self.assertNotIn("overflow-y: auto", self.time_picker_css_text)
+        self.assertNotIn(".time-picker-col", self.time_picker_css_text)
+        self.assertNotIn(".time-picker-option", self.time_picker_css_text)
+
+    def test_enhancement_uses_pointer_events_not_scroll_container(self):
+        # Die Auswahl laeuft ueber Drag/Tap direkt auf dem Zifferblatt-Kreis
+        # (Pointer Events), nicht ueber scrollbare Listen.
+        for expected in ("pointerdown", "pointermove", "pointerup"):
+            self.assertIn(expected, self.base_html_text)
+        self.assertNotIn("time-picker-col", self.base_html_text)
+        self.assertNotIn("time-picker-option", self.base_html_text)
+
+    def test_enhancement_builds_24_hour_and_5_minute_dial_numbers(self):
+        # 24 gleichmaessig verteilte Stunden (0-23) und Fuenf-Minuten-Ziffern
+        # (0/5/.../55) am Rand, mit stufenlosem Ziehen dazwischen (siehe
+        # Issue #117) - kein getrenntes inneres/aeusseres 12h-AM/PM-Design.
+        self.assertIn('mode === "hours" ? 24 : 60', self.base_html_text)
+        self.assertIn('mode === "hours" ? 1 : 5', self.base_html_text)
+
+    def test_enhancement_switches_from_hours_to_minutes_after_selection(self):
+        self.assertIn('switchMode("minutes")', self.base_html_text)
 
 
 class TimePickerFormSubmissionCompatibilityTests(unittest.TestCase):
