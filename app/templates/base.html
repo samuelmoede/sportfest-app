@@ -475,33 +475,23 @@
     });
 })();
 
-// Issue #113: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+// Issue #113/#117: einheitliche, appweite Uhrzeit-Auswahl fuer alle
 // input[type="time"]-Felder per Progressive Enhancement. Das native Feld
 // bleibt unveraendert (Name/Value als HH:MM, Tab-Fokus, Zahlen tippen) -
-// die Scroll-Wheel-Auswahl ist eine zusaetzliche, appweit einheitliche
-// Bedienoption ueber eine Schaltflaeche, unabhaengig von Browser/Geraet.
+// die Auswahl erfolgt appweit einheitlich ueber ein analoges 24h-
+// Zifferblatt mit Zeiger (Drag oder Antippen), unabhaengig von
+// Browser/Geraet. Bewusst KEIN scrollbarer Container mit
+// overflow-y: auto - das native Scrollbar-Rendering der vorherigen
+// Scroll-Wheel-Variante war auf manchen Geraeten/Browsern fehlerhaft.
 (() => {
     const pad2 = (value) => String(value).padStart(2, "0");
-    const hourValues = Array.from({ length: 24 }, (_, i) => pad2(i));
-    const minuteValues = Array.from({ length: 60 }, (_, i) => pad2(i));
     const clockIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>';
 
-    const buildColumn = (values, label) => {
-        const col = document.createElement("div");
-        col.className = "time-picker-col";
-        col.setAttribute("role", "listbox");
-        col.setAttribute("aria-label", label);
-        values.forEach((value) => {
-            const option = document.createElement("button");
-            option.type = "button";
-            option.className = "time-picker-option";
-            option.dataset.value = value;
-            option.setAttribute("role", "option");
-            option.textContent = value;
-            col.appendChild(option);
-        });
-        return col;
-    };
+    // Radius der Ziffern als Prozentsatz der Zifferblatt-Breite/-Hoehe -
+    // bewusst prozentual statt in Pixeln, damit die Positionierung
+    // unabhaengig von der tatsaechlich gerenderten Groesse funktioniert
+    // (kein Neuberechnen bei Resize noetig).
+    const NUMBER_RADIUS_PERCENT = 38;
 
     const closeAllPanels = (except) => {
         document.querySelectorAll(".time-picker-panel").forEach((panel) => {
@@ -547,17 +537,46 @@
         panel.className = "time-picker-panel";
         panel.hidden = true;
 
-        const columns = document.createElement("div");
-        columns.className = "time-picker-columns";
+        const display = document.createElement("div");
+        display.className = "time-picker-display";
 
-        const hoursCol = buildColumn(hourValues, "Stunde");
-        const sep = document.createElement("div");
-        sep.className = "time-picker-sep";
-        sep.setAttribute("aria-hidden", "true");
-        sep.textContent = ":";
-        const minutesCol = buildColumn(minuteValues, "Minute");
+        const hourDisplay = document.createElement("button");
+        hourDisplay.type = "button";
+        hourDisplay.className = "time-picker-display-part";
+        hourDisplay.dataset.mode = "hours";
 
-        columns.append(hoursCol, sep, minutesCol);
+        const sepDisplay = document.createElement("span");
+        sepDisplay.className = "time-picker-display-sep";
+        sepDisplay.setAttribute("aria-hidden", "true");
+        sepDisplay.textContent = ":";
+
+        const minuteDisplay = document.createElement("button");
+        minuteDisplay.type = "button";
+        minuteDisplay.className = "time-picker-display-part";
+        minuteDisplay.dataset.mode = "minutes";
+
+        display.append(hourDisplay, sepDisplay, minuteDisplay);
+
+        const clock = document.createElement("div");
+        clock.className = "time-clock";
+        clock.setAttribute("role", "slider");
+        clock.setAttribute("tabindex", "0");
+        clock.setAttribute("aria-label", "Zifferblatt zur Uhrzeit-Auswahl");
+        clock.setAttribute("aria-valuemin", "0");
+
+        const face = document.createElement("div");
+        face.className = "time-clock-face";
+
+        const numbers = document.createElement("div");
+        numbers.className = "time-clock-numbers";
+
+        const hand = document.createElement("div");
+        hand.className = "time-clock-hand";
+
+        const center = document.createElement("div");
+        center.className = "time-clock-center";
+
+        clock.append(face, numbers, hand, center);
 
         const actions = document.createElement("div");
         actions.className = "time-picker-actions";
@@ -572,42 +591,153 @@
         doneButton.textContent = "Fertig";
 
         actions.append(nowButton, doneButton);
-        panel.append(columns, actions);
+        panel.append(display, clock, actions);
         wrap.appendChild(panel);
 
-        const highlightSelection = () => {
-            const [hh, mm] = (input.value || "").split(":");
-            [[hoursCol, hh], [minutesCol, mm]].forEach(([col, current]) => {
-                col.querySelectorAll(".time-picker-option").forEach((option) => {
-                    option.classList.toggle("is-selected", option.dataset.value === current);
-                });
-                const selected = col.querySelector(".is-selected");
-                if (selected) {
-                    selected.scrollIntoView({ block: "center" });
-                }
-            });
+        // "hours" waehlt aus 24 gleichmaessig verteilten Stunden (0-23),
+        // "minutes" aus 12 Fuenf-Minuten-Ziffern (0/5/10/.../55) am Rand,
+        // dazwischen ist stufenloses Ziehen moeglich (Feinauswahl per Drag).
+        let mode = "hours";
+
+        const currentValues = () => {
+            const [hh, mm] = (input.value || "00:00").split(":");
+            return { hh: hh || "00", mm: mm || "00" };
         };
 
         const setValue = (hh, mm) => {
             input.value = `${hh}:${mm}`;
             input.dispatchEvent(new Event("input", { bubbles: true }));
             input.dispatchEvent(new Event("change", { bubbles: true }));
-            highlightSelection();
+            render();
         };
 
-        hoursCol.addEventListener("click", (event) => {
-            const option = event.target.closest(".time-picker-option");
-            if (!option) return;
-            const [, mm] = (input.value || "00:00").split(":");
-            setValue(option.dataset.value, mm || "00");
+        const angleForValue = (value, total) => (value / total) * 360;
+
+        const positionOnCircle = (angleDeg) => {
+            const angleRad = (angleDeg * Math.PI) / 180;
+            return {
+                left: `${50 + NUMBER_RADIUS_PERCENT * Math.sin(angleRad)}%`,
+                top: `${50 - NUMBER_RADIUS_PERCENT * Math.cos(angleRad)}%`
+            };
+        };
+
+        const renderNumbers = (activeValue) => {
+            numbers.innerHTML = "";
+            const total = mode === "hours" ? 24 : 60;
+            const step = mode === "hours" ? 1 : 5;
+            for (let value = 0; value < total; value += step) {
+                const angleDeg = angleForValue(value, total);
+                const pos = positionOnCircle(angleDeg);
+                const numberEl = document.createElement("div");
+                numberEl.className = "time-clock-number";
+                numberEl.dataset.value = String(value);
+                numberEl.style.left = pos.left;
+                numberEl.style.top = pos.top;
+                numberEl.style.transform = "translate(-50%, -50%)";
+                numberEl.textContent = mode === "hours" ? String(value) : pad2(value);
+                if (value === activeValue) {
+                    numberEl.classList.add("is-selected");
+                }
+                numbers.appendChild(numberEl);
+            }
+        };
+
+        const render = () => {
+            const { hh, mm } = currentValues();
+            const activeValue = mode === "hours" ? Number(hh) : Number(mm);
+            const total = mode === "hours" ? 24 : 60;
+
+            hourDisplay.textContent = hh;
+            minuteDisplay.textContent = mm;
+            hourDisplay.classList.toggle("is-active", mode === "hours");
+            minuteDisplay.classList.toggle("is-active", mode === "minutes");
+
+            renderNumbers(activeValue);
+
+            const angleDeg = angleForValue(activeValue, total);
+            hand.style.transform = `rotate(${angleDeg}deg)`;
+
+            clock.setAttribute("aria-valuemax", String(total - 1));
+            clock.setAttribute("aria-valuenow", String(activeValue));
+            clock.setAttribute(
+                "aria-valuetext",
+                mode === "hours" ? `${pad2(activeValue)} Uhr` : `${pad2(activeValue)} Minuten`
+            );
+        };
+
+        const switchMode = (nextMode) => {
+            mode = nextMode;
+            render();
+        };
+
+        const applyValueFromAngle = (angleDeg) => {
+            const total = mode === "hours" ? 24 : 60;
+            const rawValue = Math.round((angleDeg / 360) * total) % total;
+            const { hh, mm } = currentValues();
+            if (mode === "hours") {
+                setValue(pad2(rawValue), mm);
+            } else {
+                setValue(hh, pad2(rawValue));
+            }
+        };
+
+        const angleFromPointer = (event) => {
+            const rect = face.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dx = event.clientX - cx;
+            const dy = event.clientY - cy;
+            let angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+            if (angleDeg < 0) angleDeg += 360;
+            return angleDeg;
+        };
+
+        let dragging = false;
+
+        clock.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            dragging = true;
+            clock.setPointerCapture(event.pointerId);
+            applyValueFromAngle(angleFromPointer(event));
         });
 
-        minutesCol.addEventListener("click", (event) => {
-            const option = event.target.closest(".time-picker-option");
-            if (!option) return;
-            const [hh] = (input.value || "00:00").split(":");
-            setValue(hh || "00", option.dataset.value);
+        clock.addEventListener("pointermove", (event) => {
+            if (!dragging) return;
+            applyValueFromAngle(angleFromPointer(event));
         });
+
+        const stopDrag = () => {
+            if (!dragging) return;
+            dragging = false;
+            if (mode === "hours") {
+                switchMode("minutes");
+            }
+        };
+
+        clock.addEventListener("pointerup", stopDrag);
+        clock.addEventListener("pointercancel", stopDrag);
+
+        clock.addEventListener("keydown", (event) => {
+            const total = mode === "hours" ? 24 : 60;
+            const { hh, mm } = currentValues();
+            const current = mode === "hours" ? Number(hh) : Number(mm);
+            let next = null;
+            if (event.key === "ArrowUp" || event.key === "ArrowRight") {
+                next = (current + 1) % total;
+            } else if (event.key === "ArrowDown" || event.key === "ArrowLeft") {
+                next = (current - 1 + total) % total;
+            }
+            if (next === null) return;
+            event.preventDefault();
+            if (mode === "hours") {
+                setValue(pad2(next), mm);
+            } else {
+                setValue(hh, pad2(next));
+            }
+        });
+
+        hourDisplay.addEventListener("click", () => switchMode("hours"));
+        minuteDisplay.addEventListener("click", () => switchMode("minutes"));
 
         nowButton.addEventListener("click", () => {
             const now = new Date();
@@ -628,7 +758,8 @@
             closeAllPanels(panel);
             panel.hidden = false;
             toggle.setAttribute("aria-expanded", "true");
-            highlightSelection();
+            mode = "hours";
+            render();
         });
     });
 })();
