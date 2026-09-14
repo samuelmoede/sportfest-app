@@ -475,23 +475,30 @@
     });
 })();
 
-// Issue #113/#117: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+// Issue #113/#117/#120: einheitliche, appweite Uhrzeit-Auswahl fuer alle
 // input[type="time"]-Felder per Progressive Enhancement. Das native Feld
 // bleibt unveraendert (Name/Value als HH:MM, Tab-Fokus, Zahlen tippen) -
-// die Auswahl erfolgt appweit einheitlich ueber ein analoges 24h-
-// Zifferblatt mit Zeiger (Drag oder Antippen), unabhaengig von
-// Browser/Geraet. Bewusst KEIN scrollbarer Container mit
-// overflow-y: auto - das native Scrollbar-Rendering der vorherigen
-// Scroll-Wheel-Variante war auf manchen Geraeten/Browsern fehlerhaft.
+// die Auswahl erfolgt appweit einheitlich ueber ein Android/Material-
+// typisches 24h-Zifferblatt mit Doppelring (aeusserer Ring 1-12, innerer,
+// kleinerer Ring 13-23/0) und Zeiger (Drag oder Antippen), unabhaengig von
+// Browser/Geraet. Ersetzt das Einzelring-Layout aus PR #118 (Issue #117),
+// das mit 24 eng stehenden Ziffern auf einem Ring unuebersichtlich wirkte.
+// Bewusst KEIN scrollbarer Container mit overflow-y: auto - das native
+// Scrollbar-Rendering der vorherigen Scroll-Wheel-Variante war auf
+// manchen Geraeten/Browsern fehlerhaft.
 (() => {
     const pad2 = (value) => String(value).padStart(2, "0");
     const clockIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>';
 
-    // Radius der Ziffern als Prozentsatz der Zifferblatt-Breite/-Hoehe -
+    // Radien der Ziffern als Prozentsatz der Zifferblatt-Breite/-Hoehe -
     // bewusst prozentual statt in Pixeln, damit die Positionierung
     // unabhaengig von der tatsaechlich gerenderten Groesse funktioniert
-    // (kein Neuberechnen bei Resize noetig).
-    const NUMBER_RADIUS_PERCENT = 38;
+    // (kein Neuberechnen bei Resize noetig). Der aeussere Ring traegt die
+    // Minutenziffern und - im Stundenmodus - die Stunden 1-12; der innere,
+    // kleinere Ring traegt im Stundenmodus die Stunden 13-23 sowie 0.
+    const OUTER_NUMBER_RADIUS_PERCENT = 38;
+    const INNER_NUMBER_RADIUS_PERCENT = 24;
+    const RING_THRESHOLD_PERCENT = (OUTER_NUMBER_RADIUS_PERCENT + INNER_NUMBER_RADIUS_PERCENT) / 2;
 
     const closeAllPanels = (except) => {
         document.querySelectorAll(".time-picker-panel").forEach((panel) => {
@@ -594,9 +601,11 @@
         panel.append(display, clock, actions);
         wrap.appendChild(panel);
 
-        // "hours" waehlt aus 24 gleichmaessig verteilten Stunden (0-23),
-        // "minutes" aus 12 Fuenf-Minuten-Ziffern (0/5/10/.../55) am Rand,
-        // dazwischen ist stufenloses Ziehen moeglich (Feinauswahl per Drag).
+        // "hours" waehlt aus 24 Stunden (0-23) im Android/Material-
+        // Doppelring: aeusserer Ring = 1-12, innerer Ring = 13-23 und 0.
+        // "minutes" aus 12 Fuenf-Minuten-Ziffern (0/5/10/.../55) auf einem
+        // einzelnen (aeusseren) Ring, dazwischen ist stufenloses Ziehen
+        // moeglich (Feinauswahl per Drag).
         let mode = "hours";
 
         const currentValues = () => {
@@ -613,32 +622,47 @@
 
         const angleForValue = (value, total) => (value / total) * 360;
 
-        const positionOnCircle = (angleDeg) => {
+        // Stunden 1-12 liegen auf dem aeusseren Ring, 13-23 und 0 auf dem
+        // inneren - beide Ringe teilen sich dieselben 12 Winkelpositionen
+        // (je 30 Grad), analog zu einem klassischen 12h-Zifferblatt.
+        const isOuterHour = (hour) => hour >= 1 && hour <= 12;
+        const hourAngle = (hour) => (hour % 12) * 30;
+
+        const positionOnCircle = (angleDeg, radiusPercent) => {
             const angleRad = (angleDeg * Math.PI) / 180;
             return {
-                left: `${50 + NUMBER_RADIUS_PERCENT * Math.sin(angleRad)}%`,
-                top: `${50 - NUMBER_RADIUS_PERCENT * Math.cos(angleRad)}%`
+                left: `${50 + radiusPercent * Math.sin(angleRad)}%`,
+                top: `${50 - radiusPercent * Math.cos(angleRad)}%`
             };
+        };
+
+        const addNumber = (value, label, angleDeg, radiusPercent, ringClass, activeValue) => {
+            const pos = positionOnCircle(angleDeg, radiusPercent);
+            const numberEl = document.createElement("div");
+            numberEl.className = `time-clock-number ${ringClass}`;
+            numberEl.dataset.value = String(value);
+            numberEl.style.left = pos.left;
+            numberEl.style.top = pos.top;
+            numberEl.style.transform = "translate(-50%, -50%)";
+            numberEl.textContent = label;
+            if (value === activeValue) {
+                numberEl.classList.add("is-selected");
+            }
+            numbers.appendChild(numberEl);
         };
 
         const renderNumbers = (activeValue) => {
             numbers.innerHTML = "";
-            const total = mode === "hours" ? 24 : 60;
-            const step = mode === "hours" ? 1 : 5;
-            for (let value = 0; value < total; value += step) {
-                const angleDeg = angleForValue(value, total);
-                const pos = positionOnCircle(angleDeg);
-                const numberEl = document.createElement("div");
-                numberEl.className = "time-clock-number";
-                numberEl.dataset.value = String(value);
-                numberEl.style.left = pos.left;
-                numberEl.style.top = pos.top;
-                numberEl.style.transform = "translate(-50%, -50%)";
-                numberEl.textContent = mode === "hours" ? String(value) : pad2(value);
-                if (value === activeValue) {
-                    numberEl.classList.add("is-selected");
+            if (mode === "hours") {
+                for (let hour = 0; hour < 24; hour += 1) {
+                    const outer = isOuterHour(hour);
+                    const radiusPercent = outer ? OUTER_NUMBER_RADIUS_PERCENT : INNER_NUMBER_RADIUS_PERCENT;
+                    addNumber(hour, String(hour), hourAngle(hour), radiusPercent, outer ? "is-outer" : "is-inner", activeValue);
                 }
-                numbers.appendChild(numberEl);
+            } else {
+                for (let value = 0; value < 60; value += 5) {
+                    addNumber(value, pad2(value), angleForValue(value, 60), OUTER_NUMBER_RADIUS_PERCENT, "is-outer", activeValue);
+                }
             }
         };
 
@@ -654,8 +678,10 @@
 
             renderNumbers(activeValue);
 
-            const angleDeg = angleForValue(activeValue, total);
+            const isInnerHand = mode === "hours" && !isOuterHour(activeValue);
+            const angleDeg = mode === "hours" ? hourAngle(activeValue) : angleForValue(activeValue, total);
             hand.style.transform = `rotate(${angleDeg}deg)`;
+            hand.classList.toggle("is-inner", isInnerHand);
 
             clock.setAttribute("aria-valuemax", String(total - 1));
             clock.setAttribute("aria-valuenow", String(activeValue));
@@ -670,13 +696,20 @@
             render();
         };
 
-        const applyValueFromAngle = (angleDeg) => {
-            const total = mode === "hours" ? 24 : 60;
-            const rawValue = Math.round((angleDeg / 360) * total) % total;
+        const applyValueFromAngle = (angleDeg, distancePercent) => {
             const { hh, mm } = currentValues();
             if (mode === "hours") {
-                setValue(pad2(rawValue), mm);
+                // Winkel bestimmt die Position auf dem 12er-Zifferblatt,
+                // der Abstand zum Mittelpunkt (Ring) entscheidet, ob die
+                // aeussere (1-12) oder innere (13-23/0) Stunde gemeint ist.
+                const position = Math.round(angleDeg / 30) % 12;
+                const preferOuter = distancePercent === undefined || distancePercent >= RING_THRESHOLD_PERCENT;
+                const hour = preferOuter
+                    ? (position === 0 ? 12 : position)
+                    : (position === 0 ? 0 : position + 12);
+                setValue(pad2(hour), mm);
             } else {
+                const rawValue = Math.round((angleDeg / 360) * 60) % 60;
                 setValue(hh, pad2(rawValue));
             }
         };
@@ -689,7 +722,8 @@
             const dy = event.clientY - cy;
             let angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI;
             if (angleDeg < 0) angleDeg += 360;
-            return angleDeg;
+            const distancePercent = (Math.sqrt(dx * dx + dy * dy) / rect.width) * 100;
+            return { angleDeg, distancePercent };
         };
 
         let dragging = false;
@@ -698,12 +732,14 @@
             event.preventDefault();
             dragging = true;
             clock.setPointerCapture(event.pointerId);
-            applyValueFromAngle(angleFromPointer(event));
+            const { angleDeg, distancePercent } = angleFromPointer(event);
+            applyValueFromAngle(angleDeg, distancePercent);
         });
 
         clock.addEventListener("pointermove", (event) => {
             if (!dragging) return;
-            applyValueFromAngle(angleFromPointer(event));
+            const { angleDeg, distancePercent } = angleFromPointer(event);
+            applyValueFromAngle(angleDeg, distancePercent);
         });
 
         const stopDrag = () => {

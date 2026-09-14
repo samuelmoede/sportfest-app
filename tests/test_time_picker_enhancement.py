@@ -27,15 +27,17 @@ TEMPLATES_WITH_TIME_FIELDS = {
 
 
 class TimePickerEnhancementStructureTests(unittest.TestCase):
-    """Issue #113/#117: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+    """Issue #113/#117/#120: einheitliche, appweite Uhrzeit-Auswahl fuer alle
     input[type="time"]-Felder statt browserabhaengiger nativer Steuerelemente
     (bzw. der fehlerhaften Scroll-Wheel-Variante aus PR #116). Es gibt keine
-    Browser-Testinfrastruktur (siehe CLAUDE.md / Issues #109, #111) - diese
-    Tests pruefen deshalb auf Quelltext-/Struktur-Ebene, dass die
+    Browser-Testinfrastruktur (siehe CLAUDE.md / Issues #109, #111, #119) -
+    diese Tests pruefen deshalb auf Quelltext-/Struktur-Ebene, dass die
     Enhancement-Logik zentral in base.html liegt, appweit generisch alle
-    Zeitfelder erfasst, als analoges 24h-Zifferblatt ohne scrollbare
-    Container umgesetzt ist, die bestehende HH:MM-Formularuebermittlung
-    nicht veraendert und keine externe Bibliothek einbindet."""
+    Zeitfelder erfasst, als Android/Material-typisches 24h-Zifferblatt mit
+    Doppelring (aeusserer Ring 1-12, innerer Ring 13-23/0, siehe Issue #120)
+    ohne scrollbare Container umgesetzt ist, die bestehende HH:MM-
+    Formularuebermittlung nicht veraendert und keine externe Bibliothek
+    einbindet."""
 
     @classmethod
     def setUpClass(cls):
@@ -134,6 +136,14 @@ class TimePickerEnhancementStructureTests(unittest.TestCase):
         ):
             self.assertIn(selector, self.time_picker_css_text)
 
+    def test_time_picker_css_defines_double_ring_styling(self):
+        # Issue #120: Android/Material-Doppelring statt Einzelring - der
+        # innere Ring (Stunden 13-23/0) muss sich optisch (Groesse/Farbe)
+        # vom aeusseren Ring absetzen, und der Zeiger braucht eine kuerzere
+        # Variante fuer Ziffern auf dem inneren Ring.
+        self.assertIn(".time-clock-number.is-inner", self.time_picker_css_text)
+        self.assertIn(".time-clock-hand.is-inner", self.time_picker_css_text)
+
     def test_time_picker_css_avoids_native_scrollable_lists(self):
         # Issue #117: die vorherige Scroll-Wheel-Umsetzung (zwei Listen mit
         # overflow-y: auto) rendert auf manchen Geraeten/Browsern fehlerhaft
@@ -151,12 +161,32 @@ class TimePickerEnhancementStructureTests(unittest.TestCase):
         self.assertNotIn("time-picker-col", self.base_html_text)
         self.assertNotIn("time-picker-option", self.base_html_text)
 
-    def test_enhancement_builds_24_hour_and_5_minute_dial_numbers(self):
-        # 24 gleichmaessig verteilte Stunden (0-23) und Fuenf-Minuten-Ziffern
-        # (0/5/.../55) am Rand, mit stufenlosem Ziehen dazwischen (siehe
-        # Issue #117) - kein getrenntes inneres/aeusseres 12h-AM/PM-Design.
-        self.assertIn('mode === "hours" ? 24 : 60', self.base_html_text)
-        self.assertIn('mode === "hours" ? 1 : 5', self.base_html_text)
+    def test_enhancement_builds_24_hour_double_ring_and_5_minute_dial_numbers(self):
+        # Issue #120: Android/Material-Doppelring statt Einzelring - alle
+        # 24 Stunden (0-23) werden auf zwei konzentrischen Ringen verteilt
+        # (aeusserer Ring 1-12, innerer Ring 13-23/0), Minuten bleiben ein
+        # einzelner Ring mit Fuenf-Minuten-Ziffern (0/5/.../55), mit
+        # stufenlosem Ziehen dazwischen (siehe Issue #117).
+        self.assertIn("for (let hour = 0; hour < 24; hour += 1)", self.base_html_text)
+        self.assertIn("for (let value = 0; value < 60; value += 5)", self.base_html_text)
+        self.assertIn("OUTER_NUMBER_RADIUS_PERCENT", self.base_html_text)
+        self.assertIn("INNER_NUMBER_RADIUS_PERCENT", self.base_html_text)
+
+    def test_enhancement_assigns_hours_to_inner_and_outer_ring(self):
+        # Aeusserer Ring traegt die Stunden 1-12, innerer Ring 13-23 sowie 0
+        # (0/12 teilen sich dieselbe Winkelposition oben, wie im Android/
+        # Material-Vorbild aus Issue #120).
+        self.assertIn("const isOuterHour = (hour) => hour >= 1 && hour <= 12;", self.base_html_text)
+        self.assertIn('"is-outer"', self.base_html_text)
+        self.assertIn('"is-inner"', self.base_html_text)
+
+    def test_enhancement_uses_pointer_distance_to_disambiguate_ring(self):
+        # Da sich beide Ringe dieselben 12 Winkelpositionen teilen, muss
+        # zusaetzlich der Abstand zum Mittelpunkt ausgewertet werden, um
+        # beim Antippen/Ziehen zwischen aeusserer und innerer Stunde zu
+        # unterscheiden.
+        self.assertIn("distancePercent", self.base_html_text)
+        self.assertIn("RING_THRESHOLD_PERCENT", self.base_html_text)
 
     def test_enhancement_switches_from_hours_to_minutes_after_selection(self):
         self.assertIn('switchMode("minutes")', self.base_html_text)
