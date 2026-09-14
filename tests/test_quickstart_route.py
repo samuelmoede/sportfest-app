@@ -246,6 +246,77 @@ class QuickstartRouteTests(unittest.TestCase):
         # 5 Teams jeder gegen jeden = 10 Spiele, keine KO-Runde.
         self.assertEqual(len(slots), 10)
 
+    def test_post_with_punkterunde_finals_flags_persists_and_creates_placeholders(self):
+        """Issue #125: grosses/kleines Finale sind ueber den Schnellstart
+        waehlbar und werden sowohl auf dem Wettbewerb persistiert als auch
+        vom Punkterunde-Generator als Platzhalter-Slots angelegt."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/turnier-schnellstart",
+                data={
+                    "name": "Punkte-Turnier-mit-Finale",
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "tournament_mode": "punkterunde",
+                    "punkterunde_grosses_finale": "1",
+                    "punkterunde_kleines_finale": "1",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE name = 'Punkte-Turnier-mit-Finale'"
+            ).fetchone()
+            self.assertEqual(competition["punkterunde_grosses_finale"], 1)
+            self.assertEqual(competition["punkterunde_kleines_finale"], 1)
+            slots = conn.execute(
+                "SELECT * FROM slots WHERE competition_id = ?", (competition["id"],)
+            ).fetchall()
+
+        phases = {s["phase"] for s in slots}
+        self.assertIn("Finale", phases)
+        self.assertIn("Spiel um Platz 3", phases)
+
+    def test_post_without_finals_flags_defaults_to_zero(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+
+        with TestClient(fastapi_app) as client:
+            client.post(
+                "/turnier-schnellstart",
+                data={
+                    "name": "Punkte-Turnier-ohne-Finale",
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "tournament_mode": "punkterunde",
+                },
+                follow_redirects=False,
+            )
+
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE name = 'Punkte-Turnier-ohne-Finale'"
+            ).fetchone()
+        self.assertEqual(competition["punkterunde_grosses_finale"], 0)
+        self.assertEqual(competition["punkterunde_kleines_finale"], 0)
+
     def test_post_with_too_few_teams_does_not_create_competition(self):
         from app.main import app as fastapi_app
         with get_conn() as conn:

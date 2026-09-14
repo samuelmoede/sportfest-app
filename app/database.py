@@ -69,6 +69,8 @@ def init_db(db_path=None):
             regeln TEXT,
             siegerehrung_published_at TEXT,
             archived_via_event INTEGER NOT NULL DEFAULT 0,
+            punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0,
+            punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -382,6 +384,20 @@ def init_db(db_path=None):
         if "archived_via_event" not in competition_columns:
             conn.execute(
                 "ALTER TABLE competitions ADD COLUMN archived_via_event INTEGER NOT NULL DEFAULT 0"
+            )
+
+        # Optionales grosses Finale (Platz 1 gegen Platz 2) und/oder kleines
+        # Finale (Spiel um Platz 3) im Anschluss an eine Punkterunde (Issue
+        # #125) - unabhaengig voneinander wählbar, daher zwei Spalten statt
+        # einer im tournament_mode-String kodierten Variante.
+        if "punkterunde_grosses_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "punkterunde_kleines_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0"
             )
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.

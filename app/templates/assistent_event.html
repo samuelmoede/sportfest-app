@@ -266,6 +266,12 @@
             {% endfor %}
         </select>
 
+        <label id="assistent-punkterunde-finals-label" style="display:none;">Endplatzierung</label>
+        <div id="assistent-punkterunde-finals" style="display:none;">
+            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
+        </div>
+
         <label id="assistent-timing-label-game" style="display:none;">Spielzeit (Min.)</label>
         <input id="assistent-timing-game" style="display:none;" type="number" name="game_duration_minutes"
                value="{{ default_game_duration_minutes }}" min="1" required>
@@ -286,6 +292,10 @@
             document.getElementById('assistent-timing-game'),
             document.getElementById('assistent-timing-label-changeover'),
             document.getElementById('assistent-timing-changeover'),
+        ];
+        var punkterundeFinalsFields = [
+            document.getElementById('assistent-punkterunde-finals-label'),
+            document.getElementById('assistent-punkterunde-finals'),
         ];
         function toggleMode() {
             var isSchulpokal = typeSelect.value === 'Schulpokal';
@@ -309,8 +319,15 @@
             if (firstVisibleOption && modeSelect.selectedOptions[0] && modeSelect.selectedOptions[0].hidden) {
                 modeSelect.value = firstVisibleOption.value;
             }
+            // Grosses/kleines Finale (Issue #125) sind nur fuer den
+            // Turniermodus "Punkterunde" waehlbar.
+            var isPunkterunde = isTurnier && modeSelect.value === 'punkterunde';
+            punkterundeFinalsFields.forEach(function (field) {
+                field.style.display = isPunkterunde ? '' : 'none';
+            });
         }
         typeSelect.addEventListener('change', toggleMode);
+        modeSelect.addEventListener('change', toggleMode);
         toggleMode();
     })();
     (function () {

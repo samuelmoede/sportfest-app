@@ -56,6 +56,8 @@ class TournamentModeMigrationTests(unittest.TestCase):
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(competitions)")}
                 self.assertIn("tournament_mode", columns)
                 self.assertIn("competition_type", columns)
+                self.assertIn("punkterunde_grosses_finale", columns)
+                self.assertIn("punkterunde_kleines_finale", columns)
             finally:
                 conn.close()
 
@@ -187,6 +189,91 @@ class TournamentModePersistenceTests(unittest.TestCase):
             self.assertEqual(
                 self._get_competition("Wechsel-Turnier")["tournament_mode"], "gruppenphase_ko"
             )
+
+    def test_create_punkterunde_with_finals_flags_persists(self):
+        """Issue #125: grosses/kleines Finale sind unabhaengig voneinander
+        waehlbar und werden als 0/1 auf dem Wettbewerb gespeichert."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with get_conn() as conn:
+            conn.execute("INSERT INTO teams (name, jahrgang) VALUES ('7a', 7)")
+            conn.commit()
+
+        with TestClient(fastapi_app) as client:
+            client.post(
+                "/competition/create",
+                data={
+                    "name": "Punkterunde-Finale-Turnier", "sportart": "Fußball", "jahrgang": "7",
+                    "competition_type": "Turnier", "tournament_mode": "punkterunde",
+                    "punkterunde_grosses_finale": "1", "punkterunde_kleines_finale": "1",
+                },
+                follow_redirects=False,
+            )
+
+        competition = self._get_competition("Punkterunde-Finale-Turnier")
+        self.assertIsNotNone(competition)
+        self.assertEqual(competition["punkterunde_grosses_finale"], 1)
+        self.assertEqual(competition["punkterunde_kleines_finale"], 1)
+
+    def test_create_without_finals_flags_defaults_to_zero(self):
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with get_conn() as conn:
+            conn.execute("INSERT INTO teams (name, jahrgang) VALUES ('7a', 7)")
+            conn.commit()
+
+        with TestClient(fastapi_app) as client:
+            client.post(
+                "/competition/create",
+                data={
+                    "name": "Punkterunde-ohne-Finale", "sportart": "Fußball", "jahrgang": "7",
+                    "competition_type": "Turnier", "tournament_mode": "punkterunde",
+                },
+                follow_redirects=False,
+            )
+
+        competition = self._get_competition("Punkterunde-ohne-Finale")
+        self.assertEqual(competition["punkterunde_grosses_finale"], 0)
+        self.assertEqual(competition["punkterunde_kleines_finale"], 0)
+
+    def test_update_toggles_finals_flags_independently(self):
+        from fastapi.testclient import TestClient
+
+        from app.main import app as fastapi_app
+
+        with get_conn() as conn:
+            conn.execute("INSERT INTO teams (name, jahrgang) VALUES ('7a', 7)")
+            conn.execute("""
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, competition_type, tournament_mode
+                )
+                VALUES ('Finale-Wechsel-Turnier', 'Fußball', 7, 'geplant', 'Turnier', 'punkterunde')
+            """)
+            conn.commit()
+            competition_id = conn.execute(
+                "SELECT id FROM competitions WHERE name = 'Finale-Wechsel-Turnier'"
+            ).fetchone()["id"]
+
+        update_payload = {
+            "name": "Finale-Wechsel-Turnier", "sportart": "Fußball", "jahrgang": "7",
+            "status": "geplant", "points_win": "3", "points_draw": "1", "points_loss": "0",
+            "competition_type": "Turnier", "tournament_mode": "punkterunde",
+            "punkterunde_kleines_finale": "1",
+        }
+
+        with TestClient(fastapi_app) as client:
+            client.post(
+                f"/competition/{competition_id}/update",
+                data=update_payload,
+                follow_redirects=False,
+            )
+        competition = self._get_competition("Finale-Wechsel-Turnier")
+        self.assertEqual(competition["punkterunde_grosses_finale"], 0)
+        self.assertEqual(competition["punkterunde_kleines_finale"], 1)
 
     def test_switching_competition_type_away_from_schulpokal_drops_its_mode(self):
         """Ein Wettbewerb, der von 'Schulpokal' auf 'Turnier' umgestellt

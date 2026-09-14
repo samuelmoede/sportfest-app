@@ -250,6 +250,17 @@ def create_router(
             and selected_competition["competition_type"] == "Turnier"
             and (selected_competition["tournament_mode"] or DEFAULT_TURNIER_MODE) == "punkterunde"
         )
+        # Nur wenn mindestens eines der beiden Finale-Flags (Issue #125)
+        # aktiviert ist, legt generate_punkterunde_plan() ueberhaupt
+        # Finale-/Spiel-um-Platz-3-Platzhalter an, die generate-finals-from-
+        # table anschliessend befuellen koennte - sonst bleibt der Bereich
+        # "Naechste Phase automatisch besetzen" fuer Punkterunde weiterhin
+        # ausgeblendet (bisheriges Verhalten fuer Bestandswettbewerbe ohne
+        # diese Auswahl).
+        punkterunde_has_finals_config = is_punkterunde and (
+            selected_competition["punkterunde_grosses_finale"]
+            or selected_competition["punkterunde_kleines_finale"]
+        )
         schulpokal_partner_competitions = [
             competition for competition in competitions
             if is_schulpokal
@@ -259,12 +270,16 @@ def create_router(
         ]
         if (
             selected_competition_id and schedule_planning_enabled
-            and not is_schulpokal and not is_ko_runde and not is_punkterunde
+            and not is_schulpokal and not is_ko_runde
+            and (not is_punkterunde or punkterunde_has_finals_config)
         ):
             # Halbfinale-Platzhalter existieren nur beim Zwei-Gruppen-Schema
             # (siehe generate_group_plan); eine einzelne "jeder gegen jeden"-
-            # Runde ohne Gruppen-Split besetzt Finale/Platz 3 stattdessen
-            # direkt aus der Gesamttabelle (generate_finals_from_table).
+            # Runde ohne Gruppen-Split (Standardmodus ohne Gruppen-Split oder
+            # Punkterunde mit aktiviertem Finale-Flag) besetzt Finale/Platz 3
+            # stattdessen direkt aus der Gesamttabelle
+            # (generate_finals_from_table) - has_semifinal_slots ist fuer
+            # Punkterunde immer False, landet also im else-Zweig.
             if has_semifinal_slots(selected_competition_id):
                 can_generate_semifinals = group_phase_finished(selected_competition_id)
                 can_generate_finals = semifinals_finished(selected_competition_id)
@@ -332,6 +347,7 @@ def create_router(
             "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
             "is_ko_runde": is_ko_runde,
             "is_punkterunde": is_punkterunde,
+            "punkterunde_has_finals_config": punkterunde_has_finals_config,
             "turnier_modes": TURNIER_MODES,
             "default_turnier_mode": DEFAULT_TURNIER_MODE,
         }
