@@ -1,0 +1,146 @@
+/*
+ * Einheitliche Uhrzeit-Auswahl (Issue #113): ergänzt jedes <input type="time">
+ * appweit um eine gleich aussehende Scroll-Wheel-Auswahl, unabhängig von
+ * Browser/Gerät. Die Enhancement-Logik dazu liegt zentral in base.html
+ * (progressive enhancement über document.querySelectorAll('input[type="time"]')).
+ * Das native Feld bleibt vollständig erhalten - Tab/Tippen funktionieren weiter.
+ */
+
+.time-field-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.time-field-wrap input[type="time"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 40px;
+}
+
+/* Natives Uhr-Icon ausblenden, damit nicht zwei Auswahl-Icons nebeneinander
+   stehen - die eigene Schaltfläche übernimmt diese Rolle appweit einheitlich. */
+.time-field-wrap input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+.time-picker-toggle {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    min-height: 32px;
+    width: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    box-shadow: none;
+}
+
+.time-picker-toggle:hover {
+    color: var(--text);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    transform: translateY(-50%);
+}
+
+.time-picker-toggle:focus-visible {
+    outline: 2px solid #5b8fe8;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.time-picker-panel {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 190px;
+    max-width: calc(100vw - 32px);
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+}
+
+.time-picker-panel[hidden] {
+    display: none;
+}
+
+.time-picker-columns {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.time-picker-col {
+    flex: 1;
+    max-height: 190px;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+}
+
+.time-picker-sep {
+    display: flex;
+    align-items: center;
+    font-weight: 800;
+    color: var(--muted);
+    padding: 0 2px;
+}
+
+.time-picker-option {
+    display: block;
+    width: 100%;
+    scroll-snap-align: center;
+    padding: 7px 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    cursor: pointer;
+    min-height: 0;
+}
+
+.time-picker-option:hover {
+    background: var(--blue-soft);
+}
+
+.time-picker-option.is-selected {
+    background: var(--blue);
+    color: #fff;
+    font-weight: 700;
+}
+
+.time-picker-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.time-picker-actions button {
+    flex: 1;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+}

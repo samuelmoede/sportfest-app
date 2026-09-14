@@ -474,6 +474,164 @@
         });
     });
 })();
+
+// Issue #113: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+// input[type="time"]-Felder per Progressive Enhancement. Das native Feld
+// bleibt unveraendert (Name/Value als HH:MM, Tab-Fokus, Zahlen tippen) -
+// die Scroll-Wheel-Auswahl ist eine zusaetzliche, appweit einheitliche
+// Bedienoption ueber eine Schaltflaeche, unabhaengig von Browser/Geraet.
+(() => {
+    const pad2 = (value) => String(value).padStart(2, "0");
+    const hourValues = Array.from({ length: 24 }, (_, i) => pad2(i));
+    const minuteValues = Array.from({ length: 60 }, (_, i) => pad2(i));
+    const clockIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>';
+
+    const buildColumn = (values, label) => {
+        const col = document.createElement("div");
+        col.className = "time-picker-col";
+        col.setAttribute("role", "listbox");
+        col.setAttribute("aria-label", label);
+        values.forEach((value) => {
+            const option = document.createElement("button");
+            option.type = "button";
+            option.className = "time-picker-option";
+            option.dataset.value = value;
+            option.setAttribute("role", "option");
+            option.textContent = value;
+            col.appendChild(option);
+        });
+        return col;
+    };
+
+    const closeAllPanels = (except) => {
+        document.querySelectorAll(".time-picker-panel").forEach((panel) => {
+            if (panel === except || panel.hidden) return;
+            panel.hidden = true;
+            const associatedToggle = panel.previousElementSibling;
+            if (associatedToggle && associatedToggle.classList.contains("time-picker-toggle")) {
+                associatedToggle.setAttribute("aria-expanded", "false");
+            }
+        });
+    };
+
+    document.addEventListener("click", (event) => {
+        if (event.target.closest(".time-field-wrap")) return;
+        closeAllPanels(null);
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeAllPanels(null);
+        }
+    });
+
+    document.querySelectorAll('input[type="time"]').forEach((input) => {
+        if (input.dataset.timeEnhanced) return;
+        input.dataset.timeEnhanced = "true";
+
+        const wrap = document.createElement("div");
+        wrap.className = "time-field-wrap";
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "time-picker-toggle";
+        toggle.setAttribute("aria-label", "Uhrzeit auswählen");
+        toggle.setAttribute("aria-haspopup", "true");
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.innerHTML = clockIcon;
+        wrap.appendChild(toggle);
+
+        const panel = document.createElement("div");
+        panel.className = "time-picker-panel";
+        panel.hidden = true;
+
+        const columns = document.createElement("div");
+        columns.className = "time-picker-columns";
+
+        const hoursCol = buildColumn(hourValues, "Stunde");
+        const sep = document.createElement("div");
+        sep.className = "time-picker-sep";
+        sep.setAttribute("aria-hidden", "true");
+        sep.textContent = ":";
+        const minutesCol = buildColumn(minuteValues, "Minute");
+
+        columns.append(hoursCol, sep, minutesCol);
+
+        const actions = document.createElement("div");
+        actions.className = "time-picker-actions";
+
+        const nowButton = document.createElement("button");
+        nowButton.type = "button";
+        nowButton.textContent = "Jetzt";
+
+        const doneButton = document.createElement("button");
+        doneButton.type = "button";
+        doneButton.className = "secondary";
+        doneButton.textContent = "Fertig";
+
+        actions.append(nowButton, doneButton);
+        panel.append(columns, actions);
+        wrap.appendChild(panel);
+
+        const highlightSelection = () => {
+            const [hh, mm] = (input.value || "").split(":");
+            [[hoursCol, hh], [minutesCol, mm]].forEach(([col, current]) => {
+                col.querySelectorAll(".time-picker-option").forEach((option) => {
+                    option.classList.toggle("is-selected", option.dataset.value === current);
+                });
+                const selected = col.querySelector(".is-selected");
+                if (selected) {
+                    selected.scrollIntoView({ block: "center" });
+                }
+            });
+        };
+
+        const setValue = (hh, mm) => {
+            input.value = `${hh}:${mm}`;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            highlightSelection();
+        };
+
+        hoursCol.addEventListener("click", (event) => {
+            const option = event.target.closest(".time-picker-option");
+            if (!option) return;
+            const [, mm] = (input.value || "00:00").split(":");
+            setValue(option.dataset.value, mm || "00");
+        });
+
+        minutesCol.addEventListener("click", (event) => {
+            const option = event.target.closest(".time-picker-option");
+            if (!option) return;
+            const [hh] = (input.value || "00:00").split(":");
+            setValue(hh || "00", option.dataset.value);
+        });
+
+        nowButton.addEventListener("click", () => {
+            const now = new Date();
+            setValue(pad2(now.getHours()), pad2(now.getMinutes()));
+        });
+
+        doneButton.addEventListener("click", () => {
+            panel.hidden = true;
+            toggle.setAttribute("aria-expanded", "false");
+        });
+
+        toggle.addEventListener("click", () => {
+            if (!panel.hidden) {
+                panel.hidden = true;
+                toggle.setAttribute("aria-expanded", "false");
+                return;
+            }
+            closeAllPanels(panel);
+            panel.hidden = false;
+            toggle.setAttribute("aria-expanded", "true");
+            highlightSelection();
+        });
+    });
+})();
 </script>
 </body>
 </html>
