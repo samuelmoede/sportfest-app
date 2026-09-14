@@ -237,8 +237,8 @@ def create_router(
                         points_loss, points_first_place, placement_points,
                         event_id, competition_type,
                         game_duration_minutes, changeover_duration_minutes,
-                        start_time, end_time, location
-                    ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        start_time, end_time, location, competition_date
+                    ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     get_unique_competition_name(conn, competition["name"]),
                     competition["sportart"], competition["jahrgang"],
@@ -249,6 +249,7 @@ def create_router(
                     timing["game_duration_minutes"], timing["changeover_duration_minutes"],
                     competition["start_time"],
                     competition["end_time"], competition["location"],
+                    competition["competition_date"],
                 ))
                 copy_competition_disciplines(
                     conn, competition["id"], competition_cursor.lastrowid

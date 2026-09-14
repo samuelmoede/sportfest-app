@@ -54,6 +54,10 @@
             {% endfor %}
         </select>
 
+        <label>Eigenes Datum</label>
+        <input type="date" name="competition_date" value="">
+        <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
+
         <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
         <div class="jahrgang-selector-field">
             <select name="jahrgang" id="create-jahrgang-input">
@@ -185,6 +189,9 @@
                     {% endif %}
                     <span class="competition-meta-item">🕒 {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
                     <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
+                    {% if c.competition_date %}
+                    <span class="competition-meta-item">🗓 {{ c.competition_date }}</span>
+                    {% endif %}
                     <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
                 </div>
                 {% if c.competition_type in ("Turnier", "Schulpokal") %}
@@ -296,6 +303,10 @@
                     <option value="{{ location }}" {% if c.location == location %}selected{% endif %}>{{ location }}</option>
                     {% endfor %}
                 </select>
+
+                <label>Eigenes Datum</label>
+                <input type="date" name="competition_date" value="{{ c.competition_date or '' }}">
+                <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
 
                 <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
                 <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}

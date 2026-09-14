@@ -37,6 +37,7 @@ from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     get_archived_event_ids,
     get_dashboard_event,
+    get_dashboard_standalone_competitions,
     get_upcoming_events,
     normalize_event_statuses,
     resolve_selected_event_id,
@@ -779,7 +780,22 @@ def get_day_schedule_for_event(event_id: int):
     return enrich_day_schedule_view(
         schedule,
         competitions,
-        event_id,
+        now=app_now(),
+    )
+
+
+def get_day_schedule_for_competitions(competitions: list, schedule_date):
+    """Analog zu get_day_schedule_for_event, aber fuer Wettbewerbe mit
+    eigenem competition_date statt fuer eine Veranstaltung (Issue #134) -
+    schedule_date ist bereits das gemeinsame Ziel-Datum aller uebergebenen
+    Wettbewerbe (siehe get_dashboard_standalone_competitions)."""
+    schedule = build_day_schedule(
+        competitions,
+        schedule_date.isoformat() if schedule_date else None,
+    )
+    return enrich_day_schedule_view(
+        schedule,
+        competitions,
         now=app_now(),
     )
 
@@ -903,7 +919,29 @@ def fetch_dashboard_data():
             exclude_event_id=next_event["id"] if next_event else None,
         )
 
+        # Faellt next_event aus (keine datierte/aktive Veranstaltung), kann
+        # trotzdem ein einzelner Wettbewerb mit eigenem competition_date
+        # anstehen (Issue #134) - der Tagesplan zeigt dann dessen Tag statt
+        # leer zu bleiben. Existiert bereits eine Veranstaltung mit Tagesplan,
+        # hat diese Vorrang (siehe get_dashboard_standalone_competitions).
+        standalone_schedule_date = None
+        standalone_schedule_competitions = []
+        if next_event is None:
+            standalone_schedule_date, standalone_schedule_competitions = (
+                get_dashboard_standalone_competitions(conn, today)
+            )
+
     next_event_details_text = (next_event["details"] or "").strip() if next_event else ""
+
+    schedule_event = next_event
+    if schedule_event is None and standalone_schedule_competitions:
+        names = [c["name"] for c in standalone_schedule_competitions]
+        schedule_event = {
+            "id": None,
+            "name": names[0] if len(names) == 1 else f"Wettbewerbe am {standalone_schedule_date.isoformat()}",
+            "event_date": standalone_schedule_date.isoformat(),
+            "status": None,
+        }
 
     return {
         "competitions": competitions,
@@ -913,7 +951,9 @@ def fetch_dashboard_data():
         "upcoming": upcoming,
         "ended_count": ended_count,
         "next_event": next_event,
-        "schedule_event": next_event,
+        "schedule_event": schedule_event,
+        "standalone_schedule_date": standalone_schedule_date,
+        "standalone_schedule_competitions": standalone_schedule_competitions,
         "additional_upcoming_events": additional_upcoming_events,
         "dashboard_info_html": get_dashboard_info_html(),
         "next_event_details_html": (
@@ -2022,8 +2062,12 @@ def logout(request: Request):
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
-    if data["schedule_event"]:
+    if data["schedule_event"] and data["schedule_event"]["id"] is not None:
         data["schedule"] = get_day_schedule_for_event(data["schedule_event"]["id"])
+    elif data["standalone_schedule_competitions"]:
+        data["schedule"] = get_day_schedule_for_competitions(
+            data["standalone_schedule_competitions"], data["standalone_schedule_date"]
+        )
     else:
         data["schedule"] = build_day_schedule([], event_date=None)
     template_name = (
