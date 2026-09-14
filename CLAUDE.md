@@ -36,6 +36,11 @@ docker compose up --build
   `pip install`, which is left as-is so the production build stays unaffected). There is still
   **no linter**. CI (GitHub Actions, `.github/workflows/ci.yml`) runs this suite on every push/PR
   to `main`/`develop`.
+- The `tests/browser/` Playwright tests need real browser binaries: `python -m playwright
+  install chromium` (or `--with-deps chromium` on a fresh machine/CI runner) once, after
+  installing `requirements-dev.txt`. Without that install step they skip themselves (see
+  `chromium_available()` in `tests/browser/conftest.py`) instead of failing, so plain
+  `python -m pytest tests -v` stays green either way.
 
 ## Architecture
 
@@ -53,6 +58,13 @@ docker compose up --build
   touch the database always override `app.database.DB_PATH` to a temp file first — **never**
   let a test use the real `DB_PATH`, since (see Workflow section) the repo root can be a
   live-mounted production folder.
+- `tests/browser/` — real Playwright browser tests (pytest-style functions, not
+  `unittest.TestCase`, to use the `page`/`browser` fixtures from `pytest-playwright`) for
+  visual/interactive behavior that source-level string/regex assertions can't verify (time
+  picker click interaction, `getComputedStyle` at mobile viewport widths). `conftest.py`'s
+  `live_server_url` fixture boots the app as a real `uvicorn` server in a background thread
+  (a real browser can't talk to `TestClient`'s in-process ASGI transport) against a temp DB.
+  Tests skip themselves when Chromium isn't installed — see the Commands section above.
 
 Templates in `app/templates/` (Jinja2, all extend `base.html`), single stylesheet `app/static/style.css`.
 `app_version` (read from the `VERSION` file) is injected as a Jinja global.

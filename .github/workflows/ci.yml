@@ -17,6 +17,9 @@ jobs:
 
       - run: pip install -r requirements-dev.txt
 
+      - name: Chromium fuer Playwright-Browser-Tests installieren
+        run: python -m playwright install --with-deps chromium
+
       - run: python -m pytest tests -v
 
   docker:
