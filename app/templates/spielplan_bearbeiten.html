@@ -308,7 +308,7 @@
 </section>
 {% endif %}
 
-{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal and not is_ko_runde %}
+{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal and not is_ko_runde and (not is_punkterunde or punkterunde_has_finals_config) %}
 <section class="ko-box">
     <h2>Nächste Phase automatisch besetzen</h2>
 
@@ -490,8 +490,20 @@
         <strong>{{ turnier_modes["punkterunde"].label }}</strong>
         <p class="muted generator-hint">
             Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
-            Teamzahl, keine Halbfinal-/Finalrunde. Die Endplatzierung ergibt
-            sich allein aus der Tabelle.
+            Teamzahl. Die Endplatzierung ergibt sich allein aus der Tabelle.
+            {% if selected_competition.punkterunde_grosses_finale or selected_competition.punkterunde_kleines_finale %}
+            Im Anschluss werden Platzhalter für
+            {% if selected_competition.punkterunde_grosses_finale and selected_competition.punkterunde_kleines_finale %}
+            das große Finale und das Spiel um Platz 3
+            {% elif selected_competition.punkterunde_grosses_finale %}
+            das große Finale
+            {% else %}
+            das Spiel um Platz 3
+            {% endif %}
+            angelegt (einstellbar unter Wettbewerbe).
+            {% else %}
+            Kein Finale/Spiel um Platz 3 (einstellbar unter Wettbewerbe).
+            {% endif %}
         </p>
 
         <button class="green" type="submit">Vorschlag erstellen</button>

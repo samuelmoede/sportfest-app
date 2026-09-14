@@ -108,6 +108,12 @@
             {% endfor %}
         </select>
 
+        <label class="punkterunde-finals-field" hidden>Endplatzierung</label>
+        <div class="punkterunde-finals-field" hidden>
+            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
+        </div>
+
         <label class="tournament-timing">Spielzeit (Min.)</label>
         <input class="tournament-timing" type="number" name="game_duration_minutes"
                value="{{ default_game_duration_minutes }}" min="1" required>
@@ -259,6 +265,13 @@
                     <option value="{{ mode_key }}" data-for-type="Turnier" {% if c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
                     {% endfor %}
                 </select>
+
+                {% set is_punkterunde_edit = c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == "punkterunde" %}
+                <label class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>Endplatzierung</label>
+                <div class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>
+                    <label><input type="checkbox" name="punkterunde_grosses_finale" value="1" {% if c.punkterunde_grosses_finale %}checked{% endif %}> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+                    <label><input type="checkbox" name="punkterunde_kleines_finale" value="1" {% if c.punkterunde_kleines_finale %}checked{% endif %}> Spiel um Platz 3 anschließen</label>
+                </div>
 
                 <label class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Spielzeit (Min.)</label>
                 <input class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}
@@ -448,8 +461,18 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
                 modeSelect.value = firstVisibleOption.value;
             }
         }
+        // Grosses/kleines Finale (Issue #125) sind nur fuer den Turniermodus
+        // "Punkterunde" waehlbar.
+        const isPunkterunde = isTurnier && !!modeSelect && modeSelect.value === "punkterunde";
+        form.querySelectorAll('.punkterunde-finals-field').forEach(element => {
+            element.hidden = !isPunkterunde;
+        });
     };
     typeSelect.addEventListener("change", toggleTypeFields);
+    const modeSelectForToggle = form.querySelector('select.tournament-mode-field');
+    if (modeSelectForToggle) {
+        modeSelectForToggle.addEventListener("change", toggleTypeFields);
+    }
     toggleTypeFields();
 });
 

@@ -658,6 +658,34 @@ class WizardRouteTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(competition["tournament_mode"], "ko_runde")
 
+    def test_create_competition_stores_punkterunde_finals_flags(self):
+        """Issue #125: grosses/kleines Finale sind unabhaengig voneinander
+        waehlbar und werden auf dem Wettbewerb persistiert."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("7a", "7b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 7, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={
+                    "sportart": "Völkerball",
+                    "jahrgang": "7",
+                    "competition_type": "Turnier",
+                    "tournament_mode": "punkterunde",
+                    "punkterunde_grosses_finale": "1",
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        self.assertEqual(competition["punkterunde_grosses_finale"], 1)
+        self.assertEqual(competition["punkterunde_kleines_finale"], 0)
+
     def test_create_competition_defaults_turnier_mode_when_not_submitted(self):
         from app.main import app as fastapi_app
         with get_conn() as conn:

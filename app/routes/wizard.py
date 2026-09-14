@@ -273,6 +273,8 @@ def create_router(
         jahrgang: str = Form(...),
         competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
+        punkterunde_grosses_finale: str = Form("0"),
+        punkterunde_kleines_finale: str = Form("0"),
         game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
         changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
         team_ids: List[str] = Form([]),
@@ -330,6 +332,8 @@ def create_router(
                 return RedirectResponse(f"/assistent/{event_id}?error=team_count", status_code=303)
 
             tournament_mode_value = _normalize_tournament_mode(competition_type, tournament_mode)
+            punkterunde_grosses_finale_value = 1 if punkterunde_grosses_finale == "1" else 0
+            punkterunde_kleines_finale_value = 1 if punkterunde_kleines_finale == "1" else 0
 
             base_name = name.strip() or f"{sportart_value} Jahrgang {jahrgang_value}"
             competition_name = _unique_competition_name(conn, base_name)
@@ -339,13 +343,15 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
-                    tournament_mode, game_duration_minutes, changeover_duration_minutes
-                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?)
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes,
+                    punkterunde_grosses_finale, punkterunde_kleines_finale
+                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     competition_name, sportart_value, jahrgang_value, team_count,
                     event_id, competition_type, tournament_mode_value,
                     game_duration_minutes, changeover_duration_minutes,
+                    punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
                 ),
             )
             new_competition_id = cursor.lastrowid

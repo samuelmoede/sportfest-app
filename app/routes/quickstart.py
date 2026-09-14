@@ -85,6 +85,8 @@ def create_router(
         court_ids: List[int] = Form(default=[]),
         startzeit: str = Form(...),
         tournament_mode: str = Form(DEFAULT_TURNIER_MODE),
+        punkterunde_grosses_finale: str = Form("0"),
+        punkterunde_kleines_finale: str = Form("0"),
         game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
         changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
     ):
@@ -95,6 +97,8 @@ def create_router(
         tournament_mode_value = (
             tournament_mode if tournament_mode in TURNIER_MODES else DEFAULT_TURNIER_MODE
         )
+        punkterunde_grosses_finale_value = 1 if punkterunde_grosses_finale == "1" else 0
+        punkterunde_kleines_finale_value = 1 if punkterunde_kleines_finale == "1" else 0
 
         if (
             len(team_ids) < 2
@@ -125,12 +129,14 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
-                    tournament_mode, game_duration_minutes, changeover_duration_minutes, start_time
-                ) VALUES (?, ?, 'mixed', 'geplant', 3, 1, 0, ?, NULL, 'Turnier', ?, ?, ?, ?)
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes, start_time,
+                    punkterunde_grosses_finale, punkterunde_kleines_finale
+                ) VALUES (?, ?, 'mixed', 'geplant', 3, 1, 0, ?, NULL, 'Turnier', ?, ?, ?, ?, ?, ?)
             """, (
                 competition_name, sportart_value, len(team_ids),
                 tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 startzeit,
+                punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
             ))
             competition_id = cursor.lastrowid
 

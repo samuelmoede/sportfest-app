@@ -2,8 +2,17 @@
 (Issue #105) - fuer den Wettbewerbstyp "Turnier", als eigenstaendiges Modul in
 der TURNIER_MODES-Registry analog zu ko_runde.py. Die Endplatzierung ergibt
 sich ausschliesslich aus der Tabelle (calculate_table()/sort_table_rows() in
-app/main.py, unveraendert) - es gibt bewusst keine Halbfinale-/Finale-
-Platzhalter.
+app/main.py, unveraendert) - es gibt bewusst keine Halbfinale-Platzhalter.
+
+Optional (Issue #125, competitions.punkterunde_grosses_finale /
+punkterunde_kleines_finale) kann im Anschluss an die letzte Runde ein grosses
+Finale (Platz 1 gegen Platz 2) und/oder ein kleines Finale/Spiel um Platz 3
+(Platz 3 gegen Platz 4) als Platzhalter angelegt werden - analog zu den
+Finale-/Spiel-um-Platz-3-Platzhaltern, die generate_group_plan() fuer den
+Standardmodus ohne echten Gruppen-Split erzeugt. Die Route
+/competition/{id}/generate-finals-from-table (app/routes/schedule.py) besetzt
+diese Platzhalter unveraendert aus der Tabelle, sobald die Punkterunde
+beendet ist.
 
 Die Paarungs- und Rundenlogik wird bewusst nicht dupliziert, sondern 1:1 aus
 app/services/schedule_generator_service.py wiederverwendet
@@ -109,6 +118,52 @@ def generate_punkterunde_plan(competition_id: int, court_ids, startzeit: str):
                 "note": "",
             })
         current_minutes += slot_interval_minutes
+
+    grosses_finale = bool(competition["punkterunde_grosses_finale"])
+    kleines_finale = bool(competition["punkterunde_kleines_finale"])
+
+    if grosses_finale or kleines_finale:
+        final_time = _minutes_to_clock(current_minutes)
+
+        if grosses_finale:
+            proposed_slots.append({
+                "competition_id": competition_id,
+                "competition_name": competition["name"],
+                "startzeit": final_time,
+                "slot_typ": "Spiel",
+                "court_id": court_ids[0],
+                "court_name": court_map.get(court_ids[0], ""),
+                "phase": "Finale",
+                "gruppe": "",
+                "team_a_id": "",
+                "team_b_id": "",
+                "team_a": "?",
+                "team_b": "?",
+                "note": "Finale: Platz 1 gegen Platz 2 der Tabelle",
+            })
+
+        if kleines_finale:
+            # Bei aktiviertem grossem Finale auf ein zweites Feld ausweichen
+            # (falls vorhanden), damit beide Platzhalter zeitgleich auf
+            # unterschiedlichen Feldern stehen, analog zu generate_group_plan.
+            kleines_finale_court_id = (
+                court_ids[1] if grosses_finale and len(court_ids) > 1 else court_ids[0]
+            )
+            proposed_slots.append({
+                "competition_id": competition_id,
+                "competition_name": competition["name"],
+                "startzeit": final_time,
+                "slot_typ": "Spiel",
+                "court_id": kleines_finale_court_id,
+                "court_name": court_map.get(kleines_finale_court_id, ""),
+                "phase": "Spiel um Platz 3",
+                "gruppe": "",
+                "team_a_id": "",
+                "team_b_id": "",
+                "team_a": "?",
+                "team_b": "?",
+                "note": "Spiel um Platz 3: Platz 3 gegen Platz 4 der Tabelle",
+            })
 
     for slot in proposed_slots:
         slot["game_end_time"] = get_game_end_time(

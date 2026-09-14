@@ -46,11 +46,17 @@
         <input type="text" name="sportart" value="{{ default_sportart }}" required>
 
         <label>Turniermodus</label>
-        <select name="tournament_mode">
+        <select name="tournament_mode" id="quickstart-tournament-mode">
             {% for mode_key, mode in turnier_modes.items() %}
             <option value="{{ mode_key }}" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
             {% endfor %}
         </select>
+
+        <label class="punkterunde-finals-field" hidden>Endplatzierung</label>
+        <div class="punkterunde-finals-field" hidden>
+            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
+        </div>
 
         <label>Spielzeit (Min.)</label>
         <input type="number" name="game_duration_minutes" value="{{ default_game_duration_minutes }}" min="1" required>
@@ -107,5 +113,21 @@ document.querySelectorAll('.gruppe-all-quickstart').forEach(function (groupCb) {
         });
     });
 });
+
+// Grosses/kleines Finale (Issue #125) sind nur fuer den Turniermodus
+// "Punkterunde" waehlbar.
+(function () {
+    var modeSelect = document.getElementById('quickstart-tournament-mode');
+    if (!modeSelect) return;
+    var finalsFields = document.querySelectorAll('.punkterunde-finals-field');
+    function toggleFinalsFields() {
+        var isPunkterunde = modeSelect.value === 'punkterunde';
+        finalsFields.forEach(function (field) {
+            field.hidden = !isPunkterunde;
+        });
+    }
+    modeSelect.addEventListener('change', toggleFinalsFields);
+    toggleFinalsFields();
+})();
 </script>
 {% endblock %}
