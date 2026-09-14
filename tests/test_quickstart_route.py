@@ -103,6 +103,149 @@ class QuickstartRouteTests(unittest.TestCase):
         self.assertIn("Finale", phases)
         self.assertIn("Spiel um Platz 3", phases)
 
+    def test_get_form_offers_turnier_modes_and_timing_fields(self):
+        """Issue #114: der Turnier-Schnellstart fragt Spielzeit/Wechselzeit
+        und Turniermodus (aus TURNIER_MODES) ab, statt sie fest zu verdrahten."""
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            response = client.get("/turnier-schnellstart")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('name="game_duration_minutes"', response.text)
+        self.assertIn('name="changeover_duration_minutes"', response.text)
+        self.assertIn("Gruppenphase mit KO-Runde", response.text)
+        self.assertIn("Reine KO-Runde", response.text)
+        self.assertIn("Punkterunde (Jeder gegen Jeden)", response.text)
+
+    def test_post_uses_submitted_timing_values(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+        with TestClient(fastapi_app) as client:
+            client.post(
+                "/turnier-schnellstart",
+                data={
+                    "name": "Zeit-Turnier",
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "game_duration_minutes": "8",
+                    "changeover_duration_minutes": "3",
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE name = 'Zeit-Turnier'"
+            ).fetchone()
+        self.assertIsNotNone(competition)
+        self.assertEqual(competition["game_duration_minutes"], 8)
+        self.assertEqual(competition["changeover_duration_minutes"], 3)
+
+    def test_post_rejects_invalid_timing(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/turnier-schnellstart",
+                data={
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "game_duration_minutes": "0",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+        with get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"]
+        self.assertEqual(count, 0)
+
+    def test_post_with_ko_runde_mode_generates_ko_bracket_instead_of_group_plan(self):
+        """Issue #114: turnier_schnellstart_create() ruft je nach gewaehltem
+        Turniermodus die passende Generator-Funktion auf, statt immer
+        generate_group_plan(..., include_ko=True) fest zu verdrahten."""
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/turnier-schnellstart",
+                data={
+                    "name": "KO-Turnier",
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "tournament_mode": "ko_runde",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE name = 'KO-Turnier'"
+            ).fetchone()
+            self.assertEqual(competition["tournament_mode"], "ko_runde")
+            slots = conn.execute(
+                "SELECT * FROM slots WHERE competition_id = ?", (competition["id"],)
+            ).fetchall()
+
+        phases = {s["phase"] for s in slots}
+        self.assertNotIn("Gruppenphase", phases)
+        self.assertIn("Halbfinale", phases)
+        self.assertIn("Finale", phases)
+
+    def test_post_with_punkterunde_mode_generates_round_robin_without_finals(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            court_ids = [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+
+        with TestClient(fastapi_app) as client:
+            response = client.post(
+                "/turnier-schnellstart",
+                data={
+                    "name": "Punkte-Turnier",
+                    "team_ids": [str(tid) for tid in self.team_ids],
+                    "court_ids": [str(cid) for cid in court_ids],
+                    "startzeit": "10:00",
+                    "tournament_mode": "punkterunde",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303)
+
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE name = 'Punkte-Turnier'"
+            ).fetchone()
+            self.assertEqual(competition["tournament_mode"], "punkterunde")
+            slots = conn.execute(
+                "SELECT * FROM slots WHERE competition_id = ?", (competition["id"],)
+            ).fetchall()
+
+        phases = {s["phase"] for s in slots}
+        self.assertEqual(phases, {"Gruppenphase"})
+        # 5 Teams jeder gegen jeden = 10 Spiele, keine KO-Runde.
+        self.assertEqual(len(slots), 10)
+
     def test_post_with_too_few_teams_does_not_create_competition(self):
         from app.main import app as fastapi_app
         with get_conn() as conn:

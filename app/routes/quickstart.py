@@ -13,6 +13,9 @@ from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
 )
+from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
+from app.services.tournament_modes.ko_runde import generate_ko_plan
+from app.services.tournament_modes.punkterunde import generate_punkterunde_plan
 from app.web import templates
 
 DEFAULT_QUICKSTART_SPORTART = "Sportfest"
@@ -53,6 +56,10 @@ def build_quickstart_context(app_now_display_time: Callable[[], str]) -> dict:
         "location": DEFAULT_COMPETITION_LOCATION,
         "default_start_time": app_now_display_time(),
         "default_sportart": DEFAULT_QUICKSTART_SPORTART,
+        "turnier_modes": TURNIER_MODES,
+        "default_turnier_mode": DEFAULT_TURNIER_MODE,
+        "default_game_duration_minutes": DEFAULT_GAME_DURATION_MINUTES,
+        "default_changeover_duration_minutes": DEFAULT_CHANGEOVER_DURATION_MINUTES,
     }
 
 
@@ -77,13 +84,24 @@ def create_router(
         team_ids: List[int] = Form(default=[]),
         court_ids: List[int] = Form(default=[]),
         startzeit: str = Form(...),
+        tournament_mode: str = Form(DEFAULT_TURNIER_MODE),
+        game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
+        changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
     ):
         team_ids = list(dict.fromkeys(team_ids))
         court_ids = list(dict.fromkeys(court_ids))
         name_value = name.strip()
         sportart_value = sportart.strip() or DEFAULT_QUICKSTART_SPORTART
+        tournament_mode_value = (
+            tournament_mode if tournament_mode in TURNIER_MODES else DEFAULT_TURNIER_MODE
+        )
 
-        if len(team_ids) < 2 or not court_ids:
+        if (
+            len(team_ids) < 2
+            or not court_ids
+            or game_duration_minutes < 1
+            or changeover_duration_minutes < 0
+        ):
             return RedirectResponse("/turnier-schnellstart", status_code=303)
 
         with get_conn() as conn:
@@ -107,11 +125,11 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
-                    game_duration_minutes, changeover_duration_minutes, start_time
-                ) VALUES (?, ?, 'mixed', 'geplant', 3, 1, 0, ?, NULL, 'Turnier', ?, ?, ?)
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes, start_time
+                ) VALUES (?, ?, 'mixed', 'geplant', 3, 1, 0, ?, NULL, 'Turnier', ?, ?, ?, ?)
             """, (
                 competition_name, sportart_value, len(team_ids),
-                DEFAULT_GAME_DURATION_MINUTES, DEFAULT_CHANGEOVER_DURATION_MINUTES,
+                tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 startzeit,
             ))
             competition_id = cursor.lastrowid
@@ -123,16 +141,29 @@ def create_router(
                 )
             conn.commit()
 
-        # games_per_team = Teamzahl (nicht Teamzahl - 1): _generate_balanced_pairings
-        # rotiert bei ungerader Teamzahl mit Freilos ueber Teamzahl Runden, nicht
-        # Teamzahl - 1 - siehe _jeder_gegen_jeden_pairings fuer dieselbe Logik.
-        proposed_slots = generate_group_plan(
-            competition_id=competition_id,
-            court_ids=court_ids,
-            startzeit=startzeit,
-            games_per_team=len(team_ids),
-            include_ko=True,
-        )
+        if tournament_mode_value == "ko_runde":
+            proposed_slots = generate_ko_plan(
+                competition_id=competition_id,
+                court_ids=court_ids,
+                startzeit=startzeit,
+            )
+        elif tournament_mode_value == "punkterunde":
+            proposed_slots = generate_punkterunde_plan(
+                competition_id=competition_id,
+                court_ids=court_ids,
+                startzeit=startzeit,
+            )
+        else:
+            # games_per_team = Teamzahl (nicht Teamzahl - 1): _generate_balanced_pairings
+            # rotiert bei ungerader Teamzahl mit Freilos ueber Teamzahl Runden, nicht
+            # Teamzahl - 1 - siehe _jeder_gegen_jeden_pairings fuer dieselbe Logik.
+            proposed_slots = generate_group_plan(
+                competition_id=competition_id,
+                court_ids=court_ids,
+                startzeit=startzeit,
+                games_per_team=len(team_ids),
+                include_ko=True,
+            )
 
         if proposed_slots:
             with get_conn() as conn:

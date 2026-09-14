@@ -259,9 +259,20 @@
         <label id="assistent-tournament-mode-label" style="display:none;">Turniermodus</label>
         <select name="tournament_mode" id="assistent-tournament-mode" style="display:none;">
             {% for mode_key, mode in schulpokal_modes.items() %}
-            <option value="{{ mode_key }}" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            <option value="{{ mode_key }}" data-for-type="Schulpokal" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            {% endfor %}
+            {% for mode_key, mode in turnier_modes.items() %}
+            <option value="{{ mode_key }}" data-for-type="Turnier" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
             {% endfor %}
         </select>
+
+        <label id="assistent-timing-label-game" style="display:none;">Spielzeit (Min.)</label>
+        <input id="assistent-timing-game" style="display:none;" type="number" name="game_duration_minutes"
+               value="{{ default_game_duration_minutes }}" min="1" required>
+
+        <label id="assistent-timing-label-changeover" style="display:none;">Wechselzeit (Min.)</label>
+        <input id="assistent-timing-changeover" style="display:none;" type="number" name="changeover_duration_minutes"
+               value="{{ default_changeover_duration_minutes }}" min="0" required>
 
         <button class="green" type="submit">Wettbewerb anlegen</button>
     </form>
@@ -270,10 +281,34 @@
         var typeSelect = document.getElementById('assistent-competition-type');
         var modeSelect = document.getElementById('assistent-tournament-mode');
         var modeLabel = document.getElementById('assistent-tournament-mode-label');
+        var timingFields = [
+            document.getElementById('assistent-timing-label-game'),
+            document.getElementById('assistent-timing-game'),
+            document.getElementById('assistent-timing-label-changeover'),
+            document.getElementById('assistent-timing-changeover'),
+        ];
         function toggleMode() {
-            var showMode = typeSelect.value === 'Schulpokal';
+            var isSchulpokal = typeSelect.value === 'Schulpokal';
+            var isTurnier = typeSelect.value === 'Turnier';
+            var showMode = isSchulpokal || isTurnier;
             modeSelect.style.display = showMode ? '' : 'none';
             modeLabel.style.display = showMode ? '' : 'none';
+            timingFields.forEach(function (field) {
+                field.style.display = showMode ? '' : 'none';
+            });
+            // Der Modus-Select ist fuer Schulpokal und Turnier gemeinsam (ein
+            // Formularfeld "tournament_mode"), zeigt aber je Typ nur die dazu
+            // passenden Optionen an - analog zum Verhalten in wettbewerbe.html.
+            var firstVisibleOption = null;
+            Array.from(modeSelect.options).forEach(function (option) {
+                option.hidden = option.dataset.forType !== typeSelect.value;
+                if (!option.hidden && !firstVisibleOption) {
+                    firstVisibleOption = option;
+                }
+            });
+            if (firstVisibleOption && modeSelect.selectedOptions[0] && modeSelect.selectedOptions[0].hidden) {
+                modeSelect.value = firstVisibleOption.value;
+            }
         }
         typeSelect.addEventListener('change', toggleMode);
         toggleMode();
