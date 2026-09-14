@@ -173,7 +173,7 @@ def create_router(
         name: str = Form(...), sportart: str = Form(...), jahrgang: str = Form(""),
         points_win: float = Form(3), points_draw: float = Form(1), points_loss: float = Form(0),
         start_time: str = Form(""), end_time: str = Form(""),
-        location: str = Form(""),
+        location: str = Form(""), competition_date: str = Form(""),
         event_id: str = Form(""), competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
         punkterunde_grosses_finale: str = Form("0"),
@@ -271,15 +271,15 @@ def create_router(
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points, event_id, competition_type,
                     tournament_mode, game_duration_minutes, changeover_duration_minutes,
-                    start_time, end_time, location,
+                    start_time, end_time, location, competition_date,
                     punkterunde_grosses_finale, punkterunde_kleines_finale
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 name_value, sportart_value, stored_jahrgang, status, points_win, points_draw, points_loss,
                 points_first_place_value, placement_points_value or None, event_id_value, competition_type,
                 tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 start_time.strip() or None, end_time.strip() or None,
-                location_value or None,
+                location_value or None, competition_date.strip() or None,
                 punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
             ))
             new_competition_id = cursor.lastrowid
@@ -308,9 +308,9 @@ def create_router(
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, placement_points, event_id, competition_type,
                     tournament_mode, game_duration_minutes, changeover_duration_minutes,
-                    start_time, end_time, location,
+                    start_time, end_time, location, competition_date,
                     punkterunde_grosses_finale, punkterunde_kleines_finale
-                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 get_unique_competition_name(conn, competition["name"]),
                 competition["sportart"], competition["jahrgang"], competition["points_win"],
@@ -320,7 +320,7 @@ def create_router(
                 competition["tournament_mode"],
                 timing["game_duration_minutes"], timing["changeover_duration_minutes"],
                 competition["start_time"], competition["end_time"],
-                competition["location"],
+                competition["location"], competition["competition_date"],
                 competition["punkterunde_grosses_finale"], competition["punkterunde_kleines_finale"],
             ))
             new_id = cursor.lastrowid
@@ -344,7 +344,7 @@ def create_router(
         jahrgang: str = Form(""), status: str = Form(...),
         points_win: str = Form(...), points_draw: str = Form(...), points_loss: str = Form(...),
         start_time: str = Form(""), end_time: str = Form(""),
-        location: str = Form(""),
+        location: str = Form(""), competition_date: str = Form(""),
         event_id: str = Form(""), competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
         punkterunde_grosses_finale: str = Form("0"),
@@ -429,6 +429,7 @@ def create_router(
                     points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
                     tournament_mode = ?, game_duration_minutes = ?, changeover_duration_minutes = ?,
                     start_time = ?, end_time = ?, location = ?, location_subarea = NULL,
+                    competition_date = ?,
                     punkterunde_grosses_finale = ?, punkterunde_kleines_finale = ?
                 WHERE id = ?
             """, (
@@ -438,6 +439,7 @@ def create_router(
                 tournament_mode_value, game_duration_minutes, changeover_duration_minutes,
                 start_time.strip() or None, end_time.strip() or None,
                 location_value or None,
+                competition_date.strip() or None,
                 punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
                 competition_id,
             ))

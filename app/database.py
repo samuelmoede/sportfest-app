@@ -71,6 +71,7 @@ def init_db(db_path=None):
             archived_via_event INTEGER NOT NULL DEFAULT 0,
             punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0,
             punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
+            competition_date TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -399,6 +400,15 @@ def init_db(db_path=None):
             conn.execute(
                 "ALTER TABLE competitions ADD COLUMN punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0"
             )
+
+        # Eigenes Datum fuer einen einzelnen Wettbewerb, unabhaengig vom
+        # (optionalen) event_date seiner Veranstaltung - z.B. fuer
+        # Wettbewerbe ohne Veranstaltung oder mit einem vom Sportfest
+        # abweichenden Termin (Issue #134). Wird analog zu events.event_date
+        # ausgewertet, damit ein solcher Wettbewerb ebenfalls im Tagesplan
+        # der Startseite auftaucht.
+        if "competition_date" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN competition_date TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

@@ -135,6 +135,40 @@ def get_dashboard_event(conn, today):
     return select_default_event(events, today)
 
 
+def get_dashboard_standalone_competitions(conn, today):
+    """Analog zu get_dashboard_event, aber fuer einzelne Wettbewerbe mit
+    eigenem competition_date statt einer datierten Veranstaltung (Issue
+    #134): liefert alle nicht archivierten Wettbewerbe des naechstgelegenen
+    Datums >= today (nur, wenn keine Veranstaltung dafuer bereits einen
+    Tagesplan liefert - siehe get_dashboard_event), oder (None, []) wenn
+    keiner ansteht."""
+    rows = conn.execute(
+        """
+        SELECT * FROM competitions
+        WHERE status != ?
+          AND competition_date IS NOT NULL
+          AND TRIM(competition_date) != ''
+        """,
+        (EVENT_STATUS_ARCHIVED,),
+    ).fetchall()
+
+    dated = [
+        (competition_date, row)
+        for row in rows
+        for competition_date in [parse_event_date(row["competition_date"])]
+        if competition_date is not None and competition_date >= today
+    ]
+    if not dated:
+        return None, []
+
+    target_date = min(competition_date for competition_date, _ in dated)
+    matching = sorted(
+        (dict(row) for competition_date, row in dated if competition_date == target_date),
+        key=lambda row: (str(row.get("name") or "").casefold(), row.get("id") or 0),
+    )
+    return target_date, matching
+
+
 def get_upcoming_events(conn, today, *, limit=4, exclude_event_id=None):
     params = [EVENT_STATUS_ARCHIVED, today.isoformat()]
     exclude_clause = ""
