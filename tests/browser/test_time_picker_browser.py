@@ -113,3 +113,53 @@ def test_time_picker_panel_closes_on_escape(live_server_url, page):
 
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
+
+
+def _assert_fully_inside(inner_box: dict, outer_box: dict) -> None:
+    assert inner_box["x"] >= outer_box["x"]
+    assert inner_box["y"] >= outer_box["y"]
+    assert inner_box["x"] + inner_box["width"] <= outer_box["x"] + outer_box["width"]
+    assert inner_box["y"] + inner_box["height"] <= outer_box["y"] + outer_box["height"]
+
+
+@pytest.mark.parametrize("viewport_width", [1280, 400])
+def test_time_picker_panel_contains_all_content(live_server_url, page, viewport_width):
+    """Regressionstest fuer Issue #123: die Minuten-Anzeige und der
+    "Fertig"-Button ragten sichtbar ueber die abgerundete Kante der
+    .time-picker-panel-Karte hinaus, statt vollstaendig darin zu bleiben."""
+    page.set_viewport_size({"width": viewport_width, "height": 900})
+    page.goto(f"{live_server_url}/assistent")
+
+    page.locator(".time-picker-toggle").click()
+    panel = page.locator(".time-picker-panel")
+    expect(panel).to_be_visible()
+
+    # In den Minuten-Modus wechseln, damit die aktive Minuten-Anzeige
+    # (data-mode="minutes") sichtbar hervorgehoben ist, wie im Issue
+    # beschrieben.
+    page.locator('.time-picker-display-part[data-mode="minutes"]').click()
+
+    panel_box = panel.bounding_box()
+    assert panel_box is not None
+
+    minutes_box = page.locator('.time-picker-display-part[data-mode="minutes"]').bounding_box()
+    assert minutes_box is not None
+    _assert_fully_inside(minutes_box, panel_box)
+
+    hours_box = page.locator('.time-picker-display-part[data-mode="hours"]').bounding_box()
+    assert hours_box is not None
+    _assert_fully_inside(hours_box, panel_box)
+
+    done_button = page.locator(".time-picker-actions button", has_text="Fertig")
+    done_box = done_button.bounding_box()
+    assert done_box is not None
+    _assert_fully_inside(done_box, panel_box)
+
+    now_button = page.locator(".time-picker-actions button", has_text="Jetzt")
+    now_box = now_button.bounding_box()
+    assert now_box is not None
+    _assert_fully_inside(now_box, panel_box)
+
+    clock_box = page.locator(".time-clock").bounding_box()
+    assert clock_box is not None
+    _assert_fully_inside(clock_box, panel_box)

@@ -84,6 +84,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-md);
+    /* Haerter Container-Rahmen (Issue #123): egal ob die digitale Anzeige
+       oder die Aktions-Buttons durch Font-Metriken/Rundungsfehler minimal
+       zu breit geraten - nichts darf ueber die abgerundete Kante der Karte
+       hinaus gezeichnet werden. */
+    overflow: hidden;
 }
 
 .time-picker-panel[hidden] {
@@ -95,12 +100,14 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
+    max-width: 100%;
     font-size: 1.6rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 
 .time-picker-display-part {
+    min-height: auto;
     padding: 2px 6px;
     border: none;
     border-radius: var(--radius-sm);
@@ -218,6 +225,11 @@
 
 .time-picker-actions button {
     flex: 1;
+    /* Flex-Items verweigern das Schrumpfen unter ihre Inhaltsbreite, solange
+       min-width nicht explizit auf 0 gesetzt ist - sonst kann der "Fertig"-
+       Button (laengerer Text) die Zeile ueber die Panel-Breite hinaus
+       schieben (Issue #123). */
+    min-width: 0;
     min-height: 34px;
     padding: 6px 8px;
     font-size: 0.82rem;
