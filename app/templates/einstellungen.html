@@ -137,6 +137,39 @@
         <p class="error-text">Benutzer nicht gefunden.</p>
     {% endif %}
 
+    <h3>Derzeit angemeldet</h3>
+    {% if logged_in_sessions %}
+        <div class="table-scroll">
+        <table class="backup-table logged-in-table">
+            <thead>
+                <tr>
+                    <th>Benutzer</th>
+                    <th>Rolle</th>
+                    <th>Angemeldet seit</th>
+                    <th>Letzte Aktivität</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in logged_in_sessions %}
+                <tr>
+                    <td><strong>{{ entry.username }}</strong>{% if not entry.active %} <span class="status-pill">Deaktiviert</span>{% endif %}</td>
+                    <td>{{ role_labels.get(entry.role, entry.role) }}</td>
+                    <td>{{ entry.logged_in_at }}</td>
+                    <td>
+                        {{ entry.last_seen_at }}
+                        {% if entry.online %}<span class="status-pill ok">gerade aktiv</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <p class="muted">Pro Gerät/Browser eine Zeile. „Gerade aktiv“ = Aktivität in den letzten 5 Minuten; ohne Abmelden läuft eine Anmeldung nach 14 Tagen ohne Aktivität ab.</p>
+    {% else %}
+        <p class="muted">Derzeit ist niemand angemeldet.</p>
+    {% endif %}
+
+    <h3>Alle Benutzer</h3>
     <div class="user-list">
     {% for user in users %}
         <article class="settings-item user-card{% if not user.active %} user-card-inactive{% endif %}">

@@ -37,6 +37,7 @@ from app.services.users_service import (
     ASSIGNABLE_ROLES,
     create_user,
     get_user_by_id,
+    list_logged_in_sessions,
     list_users,
     normalize_username,
     set_user_active,
@@ -128,6 +129,7 @@ def einstellungen(
         "change_log_competition_id": change_log_competition_id_value,
         "change_log_username": change_log_username,
         "users": list_users(),
+        "logged_in_sessions": list_logged_in_sessions(),
         "assignable_roles": [
             {"key": role, "label": ROLE_LABELS[role]} for role in ASSIGNABLE_ROLES
         ],
