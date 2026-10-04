@@ -82,6 +82,7 @@ from app.services.settings_service import (
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_current_username,
     get_dashboard_info_html,
     get_site_theme,
     is_logged_in,
@@ -89,7 +90,13 @@ from app.services.settings_service import (
     is_security_enabled,
     render_rich_text_html,
 )
-from app.services.users_service import verify_login
+from app.services.users_service import (
+    SESSION_MAX_AGE_SECONDS,
+    end_user_session,
+    start_user_session,
+    touch_user_session,
+    verify_login,
+)
 from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
     format_points_value,
@@ -185,13 +192,35 @@ class RoleAreaMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class UserActivityMiddleware(BaseHTTPMiddleware):
+    """Merkt sich die letzte Aktivitaet angemeldeter Benutzer (fuer die
+    Uebersicht "Angemeldete Benutzer" in /einstellungen)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/static"):
+            user_id = request.session.get("user_id")
+            if user_id is not None:
+                token = request.session.get("session_token")
+                if not token:
+                    token = secrets.token_urlsafe(24)
+                    request.session["session_token"] = token
+                try:
+                    touch_user_session(token, user_id)
+                except Exception:
+                    # Aktivitaets-Tracking darf nie eine Anfrage scheitern lassen.
+                    pass
+        return await call_next(request)
+
+
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
+app.add_middleware(UserActivityMiddleware)
 app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     session_cookie="sportfest_session",
+    max_age=SESSION_MAX_AGE_SECONDS,
     same_site="lax",
     https_only=SESSION_HTTPS_ONLY,
 )
@@ -253,6 +282,7 @@ def slot_minutes_until(startzeit, now, default=0):
 templates.env.globals["get_current_role"] = get_current_role
 templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
+templates.env.globals["get_current_username"] = get_current_username
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
@@ -2033,6 +2063,7 @@ def login(
         request.session["role"] = user["role"]
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
+        request.session["session_token"] = start_user_session(user["id"])
         return RedirectResponse(safe_next_url(next), status_code=303)
 
     _register_login_failure(client_key)
@@ -2055,6 +2086,7 @@ def login(
 
 @app.get("/logout")
 def logout(request: Request):
+    end_user_session(request.session.get("session_token"))
     request.session.clear()
     return RedirectResponse("/", status_code=303)
 

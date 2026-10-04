@@ -1,4 +1,8 @@
-from datetime import datetime, timezone
+import os
+import secrets
+import time
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from app.database import get_conn
 from app.utils.password_hashing import hash_password, verify_password
@@ -161,3 +165,127 @@ def set_user_active(user_id: int, active: bool):
         )
         conn.commit()
     return "ok"
+
+
+# --- Angemeldete Sitzungen ---------------------------------------------
+# Die Login-Session selbst steckt weiterhin im signierten Cookie
+# (SessionMiddleware). Damit Admins in den Einstellungen sehen koennen, wer
+# gerade angemeldet ist und wann zuletzt aktiv, bekommt jede Anmeldung
+# zusaetzlich ein zufaelliges Token (session["session_token"]) und eine
+# Zeile in user_sessions. Abmelden setzt ended_at; eine Sitzung ohne
+# Aktivitaet laenger als SESSION_MAX_AGE_SECONDS ist auch ohne Abmelden
+# abgelaufen (das Cookie selbst laeuft dann ebenfalls ab).
+
+SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
+SESSION_TOUCH_INTERVAL_SECONDS = 60
+SESSION_ONLINE_SECONDS = 5 * 60
+
+DISPLAY_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
+
+# Prozess-lokale Drosselung, damit nicht jede einzelne Anfrage einen
+# Schreibzugriff auf die Datenbank ausloest (die App laeuft als
+# Einzelprozess, siehe Login-Rate-Limit in app/main.py).
+_last_session_touch: dict = {}
+
+
+def _parse_utc(value):
+    return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+
+
+def start_user_session(user_id: int) -> str:
+    token = secrets.token_urlsafe(24)
+    now = _now()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_sessions (token, user_id, created_at, last_seen_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (token, user_id, now, now),
+        )
+        conn.commit()
+    _last_session_touch[token] = time.monotonic()
+    return token
+
+
+def end_user_session(token) -> None:
+    if not token:
+        return
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE user_sessions SET ended_at = ? WHERE token = ? AND ended_at IS NULL",
+            (_now(), token),
+        )
+        conn.commit()
+    _last_session_touch.pop(token, None)
+
+
+def touch_user_session(token, user_id, force: bool = False) -> None:
+    """Aktualisiert die letzte Aktivitaet einer Sitzung (hoechstens einmal
+    pro SESSION_TOUCH_INTERVAL_SECONDS). Fehlt die Zeile (z.B. Login von
+    vor Einfuehrung dieser Tabelle), wird sie nachtraeglich angelegt."""
+    if not token or user_id is None:
+        return
+    now_monotonic = time.monotonic()
+    last = _last_session_touch.get(token)
+    if not force and last is not None and now_monotonic - last < SESSION_TOUCH_INTERVAL_SECONDS:
+        return
+    _last_session_touch[token] = now_monotonic
+    now = _now()
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE user_sessions SET last_seen_at = ? WHERE token = ? AND ended_at IS NULL",
+            (now, token),
+        )
+        if result.rowcount == 0:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO user_sessions (token, user_id, created_at, last_seen_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (token, user_id, now, now),
+            )
+        conn.commit()
+
+
+def list_logged_in_sessions(now=None):
+    """Alle offenen (nicht abgemeldeten, nicht abgelaufenen) Sitzungen,
+    zuletzt aktive zuerst - mit lokal formatierten Zeiten fuer die
+    Einstellungsseite."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - timedelta(seconds=SESSION_MAX_AGE_SECONDS)).strftime("%Y-%m-%d %H:%M:%S")
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT s.token, s.created_at, s.last_seen_at,
+                   u.id AS user_id, u.username, u.role, u.active
+            FROM user_sessions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.ended_at IS NULL AND s.last_seen_at >= ?
+            ORDER BY s.last_seen_at DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+
+    today = now.astimezone(DISPLAY_TIMEZONE).date()
+    sessions = []
+    for row in rows:
+        last_seen = _parse_utc(row["last_seen_at"])
+        created = _parse_utc(row["created_at"])
+        sessions.append({
+            "user_id": row["user_id"],
+            "username": row["username"],
+            "role": row["role"],
+            "active": bool(row["active"]),
+            "logged_in_at": _format_local(created, today),
+            "last_seen_at": _format_local(last_seen, today),
+            "online": (now - last_seen).total_seconds() <= SESSION_ONLINE_SECONDS,
+        })
+    return sessions
+
+
+def _format_local(value, today):
+    local = value.astimezone(DISPLAY_TIMEZONE)
+    if local.date() == today:
+        return local.strftime("%H:%M")
+    return local.strftime("%d.%m. %H:%M")
