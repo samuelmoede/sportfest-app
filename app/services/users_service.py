@@ -289,3 +289,18 @@ def _format_local(value, today):
     if local.date() == today:
         return local.strftime("%H:%M")
     return local.strftime("%d.%m. %H:%M")
+
+
+def get_last_activity_by_user(now=None):
+    """Letzte Aktivitaet je Benutzer ueber alle (auch beendete) Sitzungen -
+    {user_id: "HH:MM" bzw. "TT.MM. HH:MM"} fuer die Benutzertabelle."""
+    now = now or datetime.now(timezone.utc)
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT user_id, MAX(last_seen_at) AS last_seen_at FROM user_sessions GROUP BY user_id"
+        ).fetchall()
+    today = now.astimezone(DISPLAY_TIMEZONE).date()
+    return {
+        row["user_id"]: _format_local(_parse_utc(row["last_seen_at"]), today)
+        for row in rows
+    }

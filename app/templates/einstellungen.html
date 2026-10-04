@@ -170,50 +170,89 @@
     {% endif %}
 
     <h3>Alle Benutzer</h3>
-    <div class="user-list">
-    {% for user in users %}
-        <article class="settings-item user-card{% if not user.active %} user-card-inactive{% endif %}">
-            <div class="user-card-head">
-                <strong>{{ user.username }}</strong>
-                <span class="role-badge role-{{ user.role }}">
-                    <span class="role-badge-prefix">Rolle:</span> {{ role_labels[user.role] }}
-                </span>
-                {% if not user.active %}<span class="status-pill">Deaktiviert</span>{% endif %}
-            </div>
+    <div class="table-scroll">
+    <table class="backup-table user-table">
+        <thead>
+            <tr>
+                <th>Benutzer</th>
+                <th>Rolle</th>
+                <th>Status</th>
+                <th>Zuletzt aktiv</th>
+                <th>Aktion</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for user in users %}
+            {% set user_open = user_status and user_username == user.username %}
+            <tr class="user-row{% if not user.active %} user-row-inactive{% endif %}">
+                <td><strong>{{ user.username }}</strong></td>
+                <td>
+                    <span class="role-badge role-{{ user.role }}">{{ role_labels[user.role] }}</span>
+                </td>
+                <td>
+                    {% if user.active %}<span class="status-pill ok">Aktiv</span>{% else %}<span class="status-pill">Deaktiviert</span>{% endif %}
+                </td>
+                <td class="user-last-seen" data-label="Zuletzt aktiv:">{{ last_activity_by_user.get(user.id, "–") }}</td>
+                <td class="user-row-actions">
+                    <button
+                        type="button"
+                        class="secondary user-edit-toggle"
+                        aria-expanded="{{ 'true' if user_open else 'false' }}"
+                        aria-controls="user-edit-{{ user.id }}"
+                    >{{ 'Schließen' if user_open else 'Bearbeiten' }}</button>
+                </td>
+            </tr>
+            <tr id="user-edit-{{ user.id }}" class="user-edit-row"{% if not user_open %} hidden{% endif %}>
+                <td colspan="5">
+                    <div class="user-edit-panel">
+                        <form method="post" action="/einstellungen/benutzer/{{ user.id }}/rolle" class="inline-form role-radio-form">
+                            <div class="role-radio-options">
+                            {% for role in assignable_roles %}
+                                <label class="role-radio-option">
+                                    <input type="radio" name="role" value="{{ role.key }}" {% if role.key == user.role %}checked{% endif %}>
+                                    {{ role.label }}
+                                </label>
+                            {% endfor %}
+                            </div>
+                            <button type="submit">Rolle speichern</button>
+                        </form>
 
-            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/rolle" class="inline-form role-radio-form">
-                <div class="role-radio-options">
-                {% for role in assignable_roles %}
-                    <label class="role-radio-option">
-                        <input type="radio" name="role" value="{{ role.key }}" {% if role.key == user.role %}checked{% endif %}>
-                        {{ role.label }}
-                    </label>
-                {% endfor %}
-                </div>
-                <button type="submit">Rolle speichern</button>
-            </form>
+                        <form method="post" action="/einstellungen/benutzer/{{ user.id }}/passwort" class="inline-form">
+                            <label for="new_password_{{ user.id }}">Neues Passwort</label>
+                            <input
+                                id="new_password_{{ user.id }}"
+                                name="new_password"
+                                type="password"
+                                autocomplete="new-password"
+                                required
+                            >
+                            <button type="submit">Passwort setzen</button>
+                        </form>
 
-            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/passwort" class="inline-form">
-                <label for="new_password_{{ user.id }}">Neues Passwort</label>
-                <input
-                    id="new_password_{{ user.id }}"
-                    name="new_password"
-                    type="password"
-                    autocomplete="new-password"
-                    required
-                >
-                <button type="submit">Passwort setzen</button>
-            </form>
-
-            <form method="post" action="/einstellungen/benutzer/{{ user.id }}/aktiv" class="inline-form">
-                <input type="hidden" name="active" value="{{ 'false' if user.active else 'true' }}">
-                <button type="submit" class="{{ 'danger' if user.active else 'secondary' }}">
-                    {{ 'Deaktivieren' if user.active else 'Aktivieren' }}
-                </button>
-            </form>
-        </article>
-    {% endfor %}
+                        <form method="post" action="/einstellungen/benutzer/{{ user.id }}/aktiv" class="inline-form">
+                            <input type="hidden" name="active" value="{{ 'false' if user.active else 'true' }}">
+                            <button type="submit" class="{{ 'danger' if user.active else 'secondary' }}">
+                                {{ 'Deaktivieren' if user.active else 'Aktivieren' }}
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
     </div>
+    <script>
+    document.querySelectorAll(".user-edit-toggle").forEach(function (button) {
+        button.addEventListener("click", function () {
+            var row = document.getElementById(button.getAttribute("aria-controls"));
+            var open = button.getAttribute("aria-expanded") !== "true";
+            button.setAttribute("aria-expanded", open ? "true" : "false");
+            button.textContent = open ? "Schließen" : "Bearbeiten";
+            row.hidden = !open;
+        });
+    });
+    </script>
 
     <h3>Neuen Benutzer anlegen</h3>
     <form method="post" action="/einstellungen/benutzer/anlegen" class="form-grid">

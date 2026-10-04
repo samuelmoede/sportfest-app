@@ -17,6 +17,7 @@ from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     create_user,
     end_user_session,
+    get_last_activity_by_user,
     get_user_by_username,
     list_logged_in_sessions,
     start_user_session,
@@ -117,6 +118,23 @@ class UserSessionServiceTests(_TempDbTestCase):
         self.assertEqual([entry["username"] for entry in sessions], ["ABCD", "TSTA"])
 
 
+class LastActivityByUserTests(_TempDbTestCase):
+    def test_user_without_sessions_has_no_entry(self):
+        self.assertNotIn(self.user_id, get_last_activity_by_user())
+
+    def test_latest_session_wins_even_after_logout(self):
+        older = start_user_session(self.user_id)
+        newer = start_user_session(self.user_id)
+        self._set_last_seen(older, datetime(2026, 1, 5, 8, 0, tzinfo=timezone.utc))
+        self._set_last_seen(newer, datetime(2026, 1, 6, 9, 30, tzinfo=timezone.utc))
+        end_user_session(newer)
+
+        result = get_last_activity_by_user(now=datetime(2026, 2, 1, tzinfo=timezone.utc))
+
+        # 09:30 UTC = 10:30 Europe/Berlin (Winterzeit)
+        self.assertEqual(result[self.user_id], "06.01. 10:30")
+
+
 class UserSessionRouteTests(_TempDbTestCase):
     def _login(self, client):
         response = client.post(
@@ -152,6 +170,26 @@ class UserSessionRouteTests(_TempDbTestCase):
             client.get("/logout", follow_redirects=False)
 
         self.assertEqual(list_logged_in_sessions(), [])
+
+
+class UserTableRouteTests(_TempDbTestCase):
+    def test_users_are_listed_as_table_with_collapsed_edit_rows(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            page = client.get("/einstellungen").text
+
+        self.assertIn('class="backup-table user-table"', page)
+        self.assertIn(f'id="user-edit-{self.user_id}" class="user-edit-row" hidden', page)
+        self.assertIn("Zuletzt aktiv", page)
+
+    def test_edit_row_stays_open_after_saving_that_user(self):
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            page = client.get("/einstellungen?user_status=ok&user_username=TSTA").text
+
+        self.assertIn(f'id="user-edit-{self.user_id}" class="user-edit-row">', page)
 
 
 if __name__ == "__main__":
