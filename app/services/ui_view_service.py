@@ -234,13 +234,18 @@ def build_day_timeline(columns, competitions, now=None):
     }
 
 
-def enrich_day_schedule_view(schedule, competitions, event_id, now=None):
+def enrich_day_schedule_view(schedule, competitions, now=None):
     """Add presentation-only cards and marker data to an existing day schedule."""
     view_schedule = dict(schedule)
     rows = [dict(row) for row in schedule.get("rows", [])]
     view_schedule["rows"] = rows
 
-    slots = get_all_slots(event_id=event_id) if event_id is not None else []
+    competition_ids = [
+        competition.get("id")
+        for competition in competitions
+        if competition.get("id") is not None
+    ]
+    slots = get_all_slots(competition_ids=competition_ids) if competition_ids else []
     groups_by_competition = defaultdict(set)
     courts_by_competition = defaultdict(set)
     for slot in slots:

@@ -69,6 +69,9 @@ def init_db(db_path=None):
             regeln TEXT,
             siegerehrung_published_at TEXT,
             archived_via_event INTEGER NOT NULL DEFAULT 0,
+            punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0,
+            punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
+            competition_date TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -193,6 +196,19 @@ def init_db(db_path=None):
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            ended_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_sessions_open
+            ON user_sessions (ended_at, last_seen_at);
         """)
 
         columns = [
@@ -315,8 +331,13 @@ def init_db(db_path=None):
                 ADD COLUMN competition_type TEXT NOT NULL DEFAULT 'Turnier'
             """)
 
-        # Nur bei competition_type = 'Schulpokal' relevant; Schluessel aus
-        # schedule_generator_service.SCHULPOKAL_MODES (aktuell nur "jeder_gegen_jeden").
+        # Modusauswahl je nach competition_type; Schluessel aus
+        # schedule_generator_service.SCHULPOKAL_MODES (Typ 'Schulpokal',
+        # aktuell nur "jeder_gegen_jeden") bzw. aus
+        # tournament_modes.TURNIER_MODES (Typ 'Turnier', siehe Issue #101 -
+        # "gruppenphase_ko" [Default, bisheriges Verhalten] oder "ko_runde").
+        # NULL bleibt fuer beide Typen gleichbedeutend mit dem jeweiligen
+        # Default, damit bestehende Wettbewerbe unveraendert funktionieren.
         if "tournament_mode" not in competition_columns:
             conn.execute("""
                 ALTER TABLE competitions
@@ -378,6 +399,29 @@ def init_db(db_path=None):
             conn.execute(
                 "ALTER TABLE competitions ADD COLUMN archived_via_event INTEGER NOT NULL DEFAULT 0"
             )
+
+        # Optionales grosses Finale (Platz 1 gegen Platz 2) und/oder kleines
+        # Finale (Spiel um Platz 3) im Anschluss an eine Punkterunde (Issue
+        # #125) - unabhaengig voneinander wählbar, daher zwei Spalten statt
+        # einer im tournament_mode-String kodierten Variante.
+        if "punkterunde_grosses_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "punkterunde_kleines_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0"
+            )
+
+        # Eigenes Datum fuer einen einzelnen Wettbewerb, unabhaengig vom
+        # (optionalen) event_date seiner Veranstaltung - z.B. fuer
+        # Wettbewerbe ohne Veranstaltung oder mit einem vom Sportfest
+        # abweichenden Termin (Issue #134). Wird analog zu events.event_date
+        # ausgewertet, damit ein solcher Wettbewerb ebenfalls im Tagesplan
+        # der Startseite auftaucht.
+        if "competition_date" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN competition_date TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

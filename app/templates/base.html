@@ -14,6 +14,10 @@
 {% set access_role_label = get_current_role_label(request) %}
 {% set access_role_description = get_current_role_description(request) %}
 {% set access_logged_in = is_logged_in(request) %}
+{% set access_username = get_current_username(request) %}
+{% set access_badge_prefix = "Benutzer:" if access_username else "Rolle:" %}
+{% set access_badge_text = access_username or access_role_label %}
+{% set access_badge_aria = ("Angemeldet als " ~ access_username ~ ", Rolle: " ~ access_role_label) if access_username else ("Aktuelle Rolle: " ~ access_role_label) %}
 {% set can_view_results = can_access_role(request, "referee") %}
 {% set can_view_admin = can_access_role(request, "admin") %}
 {% set current_path = request.url.path %}
@@ -23,8 +27,8 @@
         <span>Manager</span>
     </div>
     <div class="mobile-access">
-        <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
-            <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
+        <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+            <span class="role-badge-prefix">{{ access_badge_prefix }}</span> {{ access_badge_text }}
         </span>
         <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
     </div>
@@ -103,12 +107,12 @@
         {% endif %}
         <a class="beamer-link" href="/beamer" target="_blank">
             <span class="beamer-icon" aria-hidden="true">⚡</span>
-            <span class="beamer-text">Beamer-Ansicht öffnen</span>
+            <span class="beamer-text">Beamer</span>
         </a>
         <a class="impressum-link" href="/impressum">Impressum</a>
         <div class="access-strip mobile-access-strip" aria-label="Zugriff">
-            <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="{{ access_role_description }}">
-                <span class="role-badge-prefix">Rolle:</span> {{ access_role_label }}
+            <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+                <span class="role-badge-prefix">{{ access_badge_prefix }}</span> {{ access_badge_text }}
             </span>
         {% if access_logged_in %}
             <a class="access-action" href="/logout">Abmelden</a>
@@ -200,11 +204,11 @@
         <div class="sidebar-footer">
             <a class="beamer-link" href="/beamer" target="_blank">
                 <span class="beamer-icon" aria-hidden="true">⚡</span>
-                <span class="beamer-text">Beamer-Ansicht öffnen</span>
+                <span class="beamer-text">Beamer</span>
             </a>
             <div class="access-strip" aria-label="Zugriff">
-                <span class="role-badge role-{{ access_role }}" aria-label="Aktuelle Rolle: {{ access_role_label }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
-                    <span class="role-badge-prefix">Rolle:</span> <span class="role-badge-label">{{ access_role_label }}</span>
+                <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+                    <span class="role-badge-prefix">{{ access_badge_prefix }}</span> <span class="role-badge-label">{{ access_badge_text }}</span>
                 </span>
                 {% if access_logged_in %}
                 <a class="access-action" href="/logout" aria-label="Abmelden">
@@ -471,6 +475,331 @@
             toggle.setAttribute("aria-pressed", isHidden ? "true" : "false");
             toggle.setAttribute("aria-label", isHidden ? "Passwort verbergen" : "Passwort anzeigen");
             toggle.innerHTML = isHidden ? eyeOpenIcon : eyeOffIcon;
+        });
+    });
+})();
+
+// Issue #113/#117/#120: einheitliche, appweite Uhrzeit-Auswahl fuer alle
+// input[type="time"]-Felder per Progressive Enhancement. Das native Feld
+// bleibt unveraendert (Name/Value als HH:MM, Tab-Fokus, Zahlen tippen) -
+// die Auswahl erfolgt appweit einheitlich ueber ein Android/Material-
+// typisches 24h-Zifferblatt mit Doppelring (aeusserer Ring 1-12, innerer,
+// kleinerer Ring 13-23/0) und Zeiger (Drag oder Antippen), unabhaengig von
+// Browser/Geraet. Ersetzt das Einzelring-Layout aus PR #118 (Issue #117),
+// das mit 24 eng stehenden Ziffern auf einem Ring unuebersichtlich wirkte.
+// Bewusst KEIN scrollbarer Container mit overflow-y: auto - das native
+// Scrollbar-Rendering der vorherigen Scroll-Wheel-Variante war auf
+// manchen Geraeten/Browsern fehlerhaft.
+(() => {
+    const pad2 = (value) => String(value).padStart(2, "0");
+    const clockIcon = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>';
+
+    // Radien der Ziffern als Prozentsatz der Zifferblatt-Breite/-Hoehe -
+    // bewusst prozentual statt in Pixeln, damit die Positionierung
+    // unabhaengig von der tatsaechlich gerenderten Groesse funktioniert
+    // (kein Neuberechnen bei Resize noetig). Der aeussere Ring traegt die
+    // Minutenziffern und - im Stundenmodus - die Stunden 1-12; der innere,
+    // kleinere Ring traegt im Stundenmodus die Stunden 13-23 sowie 0.
+    const OUTER_NUMBER_RADIUS_PERCENT = 38;
+    const INNER_NUMBER_RADIUS_PERCENT = 24;
+    const RING_THRESHOLD_PERCENT = (OUTER_NUMBER_RADIUS_PERCENT + INNER_NUMBER_RADIUS_PERCENT) / 2;
+
+    const closeAllPanels = (except) => {
+        document.querySelectorAll(".time-picker-panel").forEach((panel) => {
+            if (panel === except || panel.hidden) return;
+            panel.hidden = true;
+            const associatedToggle = panel.previousElementSibling;
+            if (associatedToggle && associatedToggle.classList.contains("time-picker-toggle")) {
+                associatedToggle.setAttribute("aria-expanded", "false");
+            }
+        });
+    };
+
+    document.addEventListener("click", (event) => {
+        if (event.target.closest(".time-field-wrap")) return;
+        closeAllPanels(null);
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeAllPanels(null);
+        }
+    });
+
+    document.querySelectorAll('input[type="time"]').forEach((input) => {
+        if (input.dataset.timeEnhanced) return;
+        input.dataset.timeEnhanced = "true";
+
+        const wrap = document.createElement("div");
+        wrap.className = "time-field-wrap";
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "time-picker-toggle";
+        toggle.setAttribute("aria-label", "Uhrzeit auswählen");
+        toggle.setAttribute("aria-haspopup", "true");
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.innerHTML = clockIcon;
+        wrap.appendChild(toggle);
+
+        const panel = document.createElement("div");
+        panel.className = "time-picker-panel";
+        panel.hidden = true;
+
+        const display = document.createElement("div");
+        display.className = "time-picker-display";
+
+        const hourDisplay = document.createElement("button");
+        hourDisplay.type = "button";
+        hourDisplay.className = "time-picker-display-part";
+        hourDisplay.dataset.mode = "hours";
+
+        const sepDisplay = document.createElement("span");
+        sepDisplay.className = "time-picker-display-sep";
+        sepDisplay.setAttribute("aria-hidden", "true");
+        sepDisplay.textContent = ":";
+
+        const minuteDisplay = document.createElement("button");
+        minuteDisplay.type = "button";
+        minuteDisplay.className = "time-picker-display-part";
+        minuteDisplay.dataset.mode = "minutes";
+
+        display.append(hourDisplay, sepDisplay, minuteDisplay);
+
+        const clock = document.createElement("div");
+        clock.className = "time-clock";
+        clock.setAttribute("role", "slider");
+        clock.setAttribute("tabindex", "0");
+        clock.setAttribute("aria-label", "Zifferblatt zur Uhrzeit-Auswahl");
+        clock.setAttribute("aria-valuemin", "0");
+
+        const face = document.createElement("div");
+        face.className = "time-clock-face";
+
+        const numbers = document.createElement("div");
+        numbers.className = "time-clock-numbers";
+
+        const hand = document.createElement("div");
+        hand.className = "time-clock-hand";
+
+        const center = document.createElement("div");
+        center.className = "time-clock-center";
+
+        clock.append(face, numbers, hand, center);
+
+        const actions = document.createElement("div");
+        actions.className = "time-picker-actions";
+
+        const nowButton = document.createElement("button");
+        nowButton.type = "button";
+        nowButton.textContent = "Jetzt";
+
+        const doneButton = document.createElement("button");
+        doneButton.type = "button";
+        doneButton.className = "secondary";
+        doneButton.textContent = "Fertig";
+
+        actions.append(nowButton, doneButton);
+        panel.append(display, clock, actions);
+        wrap.appendChild(panel);
+
+        // "hours" waehlt aus 24 Stunden (0-23) im Android/Material-
+        // Doppelring: aeusserer Ring = 1-12, innerer Ring = 13-23 und 0.
+        // "minutes" aus 12 Fuenf-Minuten-Ziffern (0/5/10/.../55) auf einem
+        // einzelnen (aeusseren) Ring, dazwischen ist stufenloses Ziehen
+        // moeglich (Feinauswahl per Drag).
+        let mode = "hours";
+
+        const currentValues = () => {
+            const [hh, mm] = (input.value || "00:00").split(":");
+            return { hh: hh || "00", mm: mm || "00" };
+        };
+
+        const setValue = (hh, mm) => {
+            input.value = `${hh}:${mm}`;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            render();
+        };
+
+        const angleForValue = (value, total) => (value / total) * 360;
+
+        // Stunden 1-12 liegen auf dem aeusseren Ring, 13-23 und 0 auf dem
+        // inneren - beide Ringe teilen sich dieselben 12 Winkelpositionen
+        // (je 30 Grad), analog zu einem klassischen 12h-Zifferblatt.
+        const isOuterHour = (hour) => hour >= 1 && hour <= 12;
+        const hourAngle = (hour) => (hour % 12) * 30;
+
+        const positionOnCircle = (angleDeg, radiusPercent) => {
+            const angleRad = (angleDeg * Math.PI) / 180;
+            return {
+                left: `${50 + radiusPercent * Math.sin(angleRad)}%`,
+                top: `${50 - radiusPercent * Math.cos(angleRad)}%`
+            };
+        };
+
+        const addNumber = (value, label, angleDeg, radiusPercent, ringClass, activeValue) => {
+            const pos = positionOnCircle(angleDeg, radiusPercent);
+            const numberEl = document.createElement("div");
+            numberEl.className = `time-clock-number ${ringClass}`;
+            numberEl.dataset.value = String(value);
+            numberEl.style.left = pos.left;
+            numberEl.style.top = pos.top;
+            numberEl.style.transform = "translate(-50%, -50%)";
+            numberEl.textContent = label;
+            if (value === activeValue) {
+                numberEl.classList.add("is-selected");
+            }
+            numbers.appendChild(numberEl);
+        };
+
+        const renderNumbers = (activeValue) => {
+            numbers.innerHTML = "";
+            if (mode === "hours") {
+                for (let hour = 0; hour < 24; hour += 1) {
+                    const outer = isOuterHour(hour);
+                    const radiusPercent = outer ? OUTER_NUMBER_RADIUS_PERCENT : INNER_NUMBER_RADIUS_PERCENT;
+                    addNumber(hour, String(hour), hourAngle(hour), radiusPercent, outer ? "is-outer" : "is-inner", activeValue);
+                }
+            } else {
+                for (let value = 0; value < 60; value += 5) {
+                    addNumber(value, pad2(value), angleForValue(value, 60), OUTER_NUMBER_RADIUS_PERCENT, "is-outer", activeValue);
+                }
+            }
+        };
+
+        const render = () => {
+            const { hh, mm } = currentValues();
+            const activeValue = mode === "hours" ? Number(hh) : Number(mm);
+            const total = mode === "hours" ? 24 : 60;
+
+            hourDisplay.textContent = hh;
+            minuteDisplay.textContent = mm;
+            hourDisplay.classList.toggle("is-active", mode === "hours");
+            minuteDisplay.classList.toggle("is-active", mode === "minutes");
+
+            renderNumbers(activeValue);
+
+            const isInnerHand = mode === "hours" && !isOuterHour(activeValue);
+            const angleDeg = mode === "hours" ? hourAngle(activeValue) : angleForValue(activeValue, total);
+            hand.style.transform = `rotate(${angleDeg}deg)`;
+            hand.classList.toggle("is-inner", isInnerHand);
+
+            clock.setAttribute("aria-valuemax", String(total - 1));
+            clock.setAttribute("aria-valuenow", String(activeValue));
+            clock.setAttribute(
+                "aria-valuetext",
+                mode === "hours" ? `${pad2(activeValue)} Uhr` : `${pad2(activeValue)} Minuten`
+            );
+        };
+
+        const switchMode = (nextMode) => {
+            mode = nextMode;
+            render();
+        };
+
+        const applyValueFromAngle = (angleDeg, distancePercent) => {
+            const { hh, mm } = currentValues();
+            if (mode === "hours") {
+                // Winkel bestimmt die Position auf dem 12er-Zifferblatt,
+                // der Abstand zum Mittelpunkt (Ring) entscheidet, ob die
+                // aeussere (1-12) oder innere (13-23/0) Stunde gemeint ist.
+                const position = Math.round(angleDeg / 30) % 12;
+                const preferOuter = distancePercent === undefined || distancePercent >= RING_THRESHOLD_PERCENT;
+                const hour = preferOuter
+                    ? (position === 0 ? 12 : position)
+                    : (position === 0 ? 0 : position + 12);
+                setValue(pad2(hour), mm);
+            } else {
+                const rawValue = Math.round((angleDeg / 360) * 60) % 60;
+                setValue(hh, pad2(rawValue));
+            }
+        };
+
+        const angleFromPointer = (event) => {
+            const rect = face.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dx = event.clientX - cx;
+            const dy = event.clientY - cy;
+            let angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+            if (angleDeg < 0) angleDeg += 360;
+            const distancePercent = (Math.sqrt(dx * dx + dy * dy) / rect.width) * 100;
+            return { angleDeg, distancePercent };
+        };
+
+        let dragging = false;
+
+        clock.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            dragging = true;
+            clock.setPointerCapture(event.pointerId);
+            const { angleDeg, distancePercent } = angleFromPointer(event);
+            applyValueFromAngle(angleDeg, distancePercent);
+        });
+
+        clock.addEventListener("pointermove", (event) => {
+            if (!dragging) return;
+            const { angleDeg, distancePercent } = angleFromPointer(event);
+            applyValueFromAngle(angleDeg, distancePercent);
+        });
+
+        const stopDrag = () => {
+            if (!dragging) return;
+            dragging = false;
+            if (mode === "hours") {
+                switchMode("minutes");
+            }
+        };
+
+        clock.addEventListener("pointerup", stopDrag);
+        clock.addEventListener("pointercancel", stopDrag);
+
+        clock.addEventListener("keydown", (event) => {
+            const total = mode === "hours" ? 24 : 60;
+            const { hh, mm } = currentValues();
+            const current = mode === "hours" ? Number(hh) : Number(mm);
+            let next = null;
+            if (event.key === "ArrowUp" || event.key === "ArrowRight") {
+                next = (current + 1) % total;
+            } else if (event.key === "ArrowDown" || event.key === "ArrowLeft") {
+                next = (current - 1 + total) % total;
+            }
+            if (next === null) return;
+            event.preventDefault();
+            if (mode === "hours") {
+                setValue(pad2(next), mm);
+            } else {
+                setValue(hh, pad2(next));
+            }
+        });
+
+        hourDisplay.addEventListener("click", () => switchMode("hours"));
+        minuteDisplay.addEventListener("click", () => switchMode("minutes"));
+
+        nowButton.addEventListener("click", () => {
+            const now = new Date();
+            setValue(pad2(now.getHours()), pad2(now.getMinutes()));
+        });
+
+        doneButton.addEventListener("click", () => {
+            panel.hidden = true;
+            toggle.setAttribute("aria-expanded", "false");
+        });
+
+        toggle.addEventListener("click", () => {
+            if (!panel.hidden) {
+                panel.hidden = true;
+                toggle.setAttribute("aria-expanded", "false");
+                return;
+            }
+            closeAllPanels(panel);
+            panel.hidden = false;
+            toggle.setAttribute("aria-expanded", "true");
+            mode = "hours";
+            render();
         });
     });
 })();

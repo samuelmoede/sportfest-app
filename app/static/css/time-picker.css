@@ -1,0 +1,236 @@
+/*
+ * Einheitliche Uhrzeit-Auswahl (Issue #113/#117/#120): ergänzt jedes
+ * <input type="time"> appweit um ein Android/Material-typisches 24h-
+ * Zifferblatt mit Doppelring (äußerer Ring 1-12, innerer, kleinerer Ring
+ * 13-23/0) und Zeiger (Drag oder Antippen), unabhängig von Browser/Gerät.
+ * Die Enhancement-Logik dazu liegt zentral in base.html (progressive
+ * enhancement über document.querySelectorAll('input[type="time"]')).
+ * Das native Feld bleibt vollständig erhalten - Tab/Tippen funktionieren
+ * weiter.
+ *
+ * Bewusst KEIN scrollbarer Listen-Container (siehe Issue #117) - das
+ * native Scrollbar-Rendering war auf manchen Geräten/Browsern fehlerhaft.
+ * Die Auswahl läuft ausschließlich über Pointer-Events direkt auf dem
+ * Zifferblatt-Kreis; der Abstand zum Mittelpunkt entscheidet im
+ * Stundenmodus zusätzlich, welcher der beiden Ringe gemeint ist.
+ */
+
+.time-field-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.time-field-wrap input[type="time"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 40px;
+}
+
+/* Natives Uhr-Icon ausblenden, damit nicht zwei Auswahl-Icons nebeneinander
+   stehen - die eigene Schaltfläche übernimmt diese Rolle appweit einheitlich. */
+.time-field-wrap input[type="time"]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+.time-picker-toggle {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    transform: translateY(-50%);
+    min-height: 32px;
+    width: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    box-shadow: none;
+}
+
+.time-picker-toggle:hover {
+    color: var(--text);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    transform: translateY(-50%);
+}
+
+.time-picker-toggle:focus-visible {
+    outline: 2px solid #5b8fe8;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+.time-picker-panel {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 268px;
+    max-width: calc(100vw - 32px);
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    /* Haerter Container-Rahmen (Issue #123): egal ob die digitale Anzeige
+       oder die Aktions-Buttons durch Font-Metriken/Rundungsfehler minimal
+       zu breit geraten - nichts darf ueber die abgerundete Kante der Karte
+       hinaus gezeichnet werden. */
+    overflow: hidden;
+}
+
+.time-picker-panel[hidden] {
+    display: none;
+}
+
+.time-picker-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    max-width: 100%;
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.time-picker-display-part {
+    min-height: auto;
+    padding: 2px 6px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.time-picker-display-part:hover {
+    background: var(--blue-soft);
+}
+
+.time-picker-display-part.is-active {
+    background: var(--blue-soft);
+    color: var(--blue);
+}
+
+.time-picker-display-sep {
+    color: var(--muted);
+}
+
+.time-clock {
+    position: relative;
+    width: min(230px, 62vw);
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    touch-action: none;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.time-clock-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+}
+
+.time-clock-numbers {
+    position: absolute;
+    inset: 0;
+}
+
+.time-clock-number {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 2px;
+    border-radius: 50%;
+    color: var(--text);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* Innerer Ring (Stunden 13-23 sowie 0) etwas kleiner und blasser als der
+   äußere Ring (Stunden 1-12 bzw. Minuten) abgesetzt - klassisches
+   Android/Material-Doppelring-Layout, siehe Issue #120. */
+.time-clock-number.is-inner {
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+
+.time-clock-number.is-selected {
+    background: var(--blue);
+    color: #fff;
+    font-weight: 700;
+}
+
+.time-clock-hand {
+    position: absolute;
+    left: 50%;
+    bottom: 50%;
+    width: 2px;
+    height: 34%;
+    background: var(--blue);
+    transform-origin: bottom center;
+    pointer-events: none;
+}
+
+/* Zeiger verkürzt sich, wenn eine Stunde auf dem inneren Ring (13-23/0)
+   ausgewählt ist, damit die Spitze weiterhin auf der Ziffer landet. */
+.time-clock-hand.is-inner {
+    height: 21%;
+}
+
+.time-clock-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--blue);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.time-picker-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
+
+.time-picker-actions button {
+    flex: 1;
+    /* Flex-Items verweigern das Schrumpfen unter ihre Inhaltsbreite, solange
+       min-width nicht explizit auf 0 gesetzt ist - sonst kann der "Fertig"-
+       Button (laengerer Text) die Zeile ueber die Panel-Breite hinaus
+       schieben (Issue #123). */
+    min-width: 0;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+}

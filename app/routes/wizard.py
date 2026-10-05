@@ -4,7 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
-from app.routes.competitions import COMPETITION_TYPES
+from app.routes.competitions import COMPETITION_TYPES, _normalize_tournament_mode
 from app.routes.events import EVENT_TYPES
 from app.routes.quickstart import build_quickstart_context
 from app.routes.teams import normalize_jahrgang
@@ -14,11 +14,19 @@ from app.services.schedule_generator_service import (
     DEFAULT_SCHULPOKAL_MODE,
     SCHULPOKAL_MODES,
 )
+from app.services.schedule_location_service import (
+    COMPETITION_LOCATIONS,
+    DEFAULT_COMPETITION_LOCATION,
+    normalize_competition_location,
+)
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
 )
+from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.web import templates
+
+DISCIPLINE_SCORING_DIRECTIONS = ("higher", "lower")
 
 DEFAULT_WIZARD_EVENT_STATUS = "geplant"
 DEFAULT_WIZARD_EVENT_TYPE = "Einzelturnier"
@@ -44,6 +52,7 @@ def create_router(
     @router.get("/assistent")
     def assistent_start(request: Request):
         error = request.query_params.get("error", "").strip()
+        qs_error = request.query_params.get("qs_error", "").strip()
         with get_conn() as conn:
             events = fetch_events_with_competition_counts(conn, include_archived=False)
         context = {
@@ -51,6 +60,7 @@ def create_router(
             "event_types": EVENT_TYPES,
             "default_event_type": DEFAULT_WIZARD_EVENT_TYPE,
             "error": error,
+            "qs_error": qs_error,
         }
         context.update(build_quickstart_context(app_now_display_time))
         return templates.TemplateResponse(
@@ -86,6 +96,51 @@ def create_router(
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)
 
+    @router.post("/assistent/team/anlegen")
+    def assistent_create_team_quickstart(
+        name: str = Form(...),
+        jahrgang: str = Form(...),
+    ):
+        """Spontanes Anlegen einer Klasse aus dem Schnellstart-Bereich der
+        Assistent-Startseite (Issue #107), noch ohne gewaehlte Veranstaltung -
+        nutzt dieselbe Insert-Logik wie assistent_create_team unten."""
+        name_value = name.strip()
+        jahrgang_value = normalize_jahrgang(jahrgang)
+        if not name_value or jahrgang_value is None:
+            return RedirectResponse("/assistent?qs_error=team_invalid", status_code=303)
+
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)",
+                (name_value, jahrgang_value),
+            )
+            conn.commit()
+
+        return RedirectResponse("/assistent", status_code=303)
+
+    @router.post("/assistent/spielfeld/anlegen")
+    def assistent_create_court_quickstart(
+        name: str = Form(...),
+        sportart: str = Form(""),
+        location: str = Form(DEFAULT_COMPETITION_LOCATION),
+    ):
+        """Spontanes Anlegen eines Spielfelds aus dem Schnellstart-Bereich der
+        Assistent-Startseite (Issue #107) - nutzt dieselbe Insert-Logik wie
+        /court/create (siehe app/routes/venues.py)."""
+        name_value = name.strip()
+        if not name_value:
+            return RedirectResponse("/assistent?qs_error=court_invalid", status_code=303)
+        location_value = normalize_competition_location(location) or DEFAULT_COMPETITION_LOCATION
+
+        with get_conn() as conn:
+            conn.execute(
+                "INSERT INTO courts (name, sportart, location, active) VALUES (?, ?, ?, 1)",
+                (name_value, sportart.strip() or None, location_value),
+            )
+            conn.commit()
+
+        return RedirectResponse("/assistent", status_code=303)
+
     @router.get("/assistent/{event_id}")
     def assistent_event(request: Request, event_id: int):
         error = request.query_params.get("error", "").strip()
@@ -111,11 +166,27 @@ def create_router(
                 """,
                 (event_id,),
             ).fetchall()
+            disciplines = conn.execute(
+                """
+                SELECT cd.*
+                FROM competition_disciplines cd
+                JOIN competitions c ON c.id = cd.competition_id
+                WHERE c.event_id = ?
+                ORDER BY cd.competition_id, cd.sort_order, cd.id
+                """,
+                (event_id,),
+            ).fetchall()
 
         teams_by_jahrgang = {}
         for team in teams:
             teams_by_jahrgang.setdefault(team["jahrgang"], []).append(dict(team))
         jahrgang_options = sorted(teams_by_jahrgang.keys(), key=jahrgang_sort_key)
+
+        disciplines_by_competition = {}
+        for discipline in disciplines:
+            disciplines_by_competition.setdefault(
+                discipline["competition_id"], []
+            ).append(dict(discipline))
 
         return templates.TemplateResponse(
             request=request,
@@ -131,6 +202,13 @@ def create_router(
                 "competition_types": COMPETITION_TYPES,
                 "schulpokal_modes": SCHULPOKAL_MODES,
                 "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
+                "turnier_modes": TURNIER_MODES,
+                "default_turnier_mode": DEFAULT_TURNIER_MODE,
+                "disciplines_by_competition": disciplines_by_competition,
+                "court_locations": COMPETITION_LOCATIONS,
+                "default_court_location": DEFAULT_COMPETITION_LOCATION,
+                "default_game_duration_minutes": DEFAULT_GAME_DURATION_MINUTES,
+                "default_changeover_duration_minutes": DEFAULT_CHANGEOVER_DURATION_MINUTES,
             },
         )
 
@@ -160,6 +238,33 @@ def create_router(
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)
 
+    @router.post("/assistent/{event_id}/spielfeld/anlegen")
+    def assistent_create_court(
+        event_id: int,
+        name: str = Form(...),
+        sportart: str = Form(""),
+        location: str = Form(DEFAULT_COMPETITION_LOCATION),
+    ):
+        """Spontanes Anlegen eines Spielfelds direkt im Assistenten (Issue #107),
+        analog zu assistent_create_team - nutzt dieselbe Insert-Logik wie
+        /court/create (siehe app/routes/venues.py)."""
+        name_value = name.strip()
+        if not name_value:
+            return RedirectResponse(f"/assistent/{event_id}?error=court_invalid", status_code=303)
+        location_value = normalize_competition_location(location) or DEFAULT_COMPETITION_LOCATION
+
+        with get_conn() as conn:
+            event = conn.execute("SELECT id FROM events WHERE id = ?", (event_id,)).fetchone()
+            if event is None:
+                return RedirectResponse("/assistent", status_code=303)
+            conn.execute(
+                "INSERT INTO courts (name, sportart, location, active) VALUES (?, ?, ?, 1)",
+                (name_value, sportart.strip() or None, location_value),
+            )
+            conn.commit()
+
+        return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+
     @router.post("/assistent/{event_id}/wettbewerb/anlegen")
     def assistent_create_competition(
         event_id: int,
@@ -168,6 +273,10 @@ def create_router(
         jahrgang: str = Form(...),
         competition_type: str = Form("Turnier"),
         tournament_mode: str = Form(""),
+        punkterunde_grosses_finale: str = Form("0"),
+        punkterunde_kleines_finale: str = Form("0"),
+        game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
+        changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
         team_ids: List[str] = Form([]),
         team_selection_active: str = Form(""),
     ):
@@ -178,6 +287,8 @@ def create_router(
             not sportart_value
             or jahrgang_value is None
             or competition_type not in COMPETITION_TYPES
+            or game_duration_minutes < 1
+            or changeover_duration_minutes < 0
         ):
             return RedirectResponse(f"/assistent/{event_id}?error=invalid", status_code=303)
 
@@ -220,11 +331,9 @@ def create_router(
             if team_count < 2:
                 return RedirectResponse(f"/assistent/{event_id}?error=team_count", status_code=303)
 
-            tournament_mode_value = None
-            if competition_type == "Schulpokal":
-                tournament_mode_value = (
-                    tournament_mode if tournament_mode in SCHULPOKAL_MODES else DEFAULT_SCHULPOKAL_MODE
-                )
+            tournament_mode_value = _normalize_tournament_mode(competition_type, tournament_mode)
+            punkterunde_grosses_finale_value = 1 if punkterunde_grosses_finale == "1" else 0
+            punkterunde_kleines_finale_value = 1 if punkterunde_kleines_finale == "1" else 0
 
             base_name = name.strip() or f"{sportart_value} Jahrgang {jahrgang_value}"
             competition_name = _unique_competition_name(conn, base_name)
@@ -234,13 +343,15 @@ def create_router(
                 INSERT INTO competitions (
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
-                    tournament_mode, game_duration_minutes, changeover_duration_minutes
-                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?)
+                    tournament_mode, game_duration_minutes, changeover_duration_minutes,
+                    punkterunde_grosses_finale, punkterunde_kleines_finale
+                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     competition_name, sportart_value, jahrgang_value, team_count,
                     event_id, competition_type, tournament_mode_value,
-                    DEFAULT_GAME_DURATION_MINUTES, DEFAULT_CHANGEOVER_DURATION_MINUTES,
+                    game_duration_minutes, changeover_duration_minutes,
+                    punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
                 ),
             )
             new_competition_id = cursor.lastrowid
@@ -249,6 +360,81 @@ def create_router(
                     "INSERT OR IGNORE INTO competition_teams (competition_id, team_id) VALUES (?, ?)",
                     (new_competition_id, team_id),
                 )
+            conn.commit()
+
+        return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+
+    @router.post("/assistent/{event_id}/wettbewerb/{competition_id}/disziplin/anlegen")
+    def assistent_create_discipline(
+        event_id: int,
+        competition_id: int,
+        name: str = Form(...),
+        unit: str = Form(""),
+        scoring_direction: str = Form("higher"),
+    ):
+        """Schlanke Inline-Anlage einer Sechskampf-Disziplin direkt im
+        Assistenten (Issue #107), ohne auf /wettbewerbe umzuleiten - nutzt
+        dieselbe Insert-Logik wie /competition/{id}/discipline/create (siehe
+        app/routes/competitions.py), mit sinnvollen Defaults fuer
+        values_per_team/location, die dort feiner einstellbar bleiben."""
+        name_value = name.strip()
+        if not name_value or scoring_direction not in DISCIPLINE_SCORING_DIRECTIONS:
+            return RedirectResponse(
+                f"/assistent/{event_id}?error=discipline_invalid", status_code=303
+            )
+
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            competition = conn.execute(
+                "SELECT id FROM competitions WHERE id = ? AND event_id = ? AND competition_type = 'Sechskampf'",
+                (competition_id, event_id),
+            ).fetchone()
+            if competition is None:
+                return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+            next_sort_order = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM competition_disciplines WHERE competition_id = ?",
+                (competition_id,),
+            ).fetchone()["n"]
+            conn.execute(
+                """
+                INSERT INTO competition_disciplines (
+                    competition_id, name, sort_order, unit, scoring_direction, values_per_team
+                ) VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (competition_id, name_value, next_sort_order, unit.strip() or None, scoring_direction),
+            )
+            conn.commit()
+
+        return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+
+    @router.post("/assistent/{event_id}/disziplin/{discipline_id}/loeschen")
+    def assistent_delete_discipline(event_id: int, discipline_id: int):
+        """Entfernt eine Sechskampf-Disziplin direkt im Assistenten (Issue
+        #107) - nutzt dieselbe Delete-Logik wie /discipline/{id}/delete
+        (siehe app/routes/competitions.py), redirected aber zurueck in den
+        Assistenten statt nach /wettbewerbe."""
+        with get_conn() as conn:
+            existing = conn.execute(
+                """
+                SELECT cd.id
+                FROM competition_disciplines cd
+                JOIN competitions c ON c.id = cd.competition_id
+                WHERE cd.id = ? AND c.event_id = ?
+                """,
+                (discipline_id, event_id),
+            ).fetchone()
+            if existing is None:
+                return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "DELETE FROM sixkampf_team_results WHERE discipline_id = ?", (discipline_id,)
+            )
+            conn.execute(
+                "DELETE FROM discipline_results WHERE discipline_id = ?", (discipline_id,)
+            )
+            conn.execute(
+                "DELETE FROM competition_disciplines WHERE id = ?", (discipline_id,)
+            )
             conn.commit()
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)

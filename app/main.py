@@ -37,6 +37,7 @@ from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     get_archived_event_ids,
     get_dashboard_event,
+    get_dashboard_standalone_competitions,
     get_upcoming_events,
     normalize_event_statuses,
     resolve_selected_event_id,
@@ -81,6 +82,7 @@ from app.services.settings_service import (
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_current_username,
     get_dashboard_info_html,
     get_site_theme,
     is_logged_in,
@@ -88,7 +90,13 @@ from app.services.settings_service import (
     is_security_enabled,
     render_rich_text_html,
 )
-from app.services.users_service import verify_login
+from app.services.users_service import (
+    SESSION_MAX_AGE_SECONDS,
+    end_user_session,
+    start_user_session,
+    touch_user_session,
+    verify_login,
+)
 from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
     format_points_value,
@@ -167,7 +175,7 @@ ACTION_ACCESS_RULES = (
         "admin",
     ),
     (re.compile(r"^/discipline/[^/]+/(?:update|delete)$"), "admin"),
-    (re.compile(r"^/plan-generator/(?:preview|preview-schulpokal|apply)$"), "admin"),
+    (re.compile(r"^/plan-generator/(?:preview|preview-schulpokal|preview-ko|preview-punkterunde|apply)$"), "admin"),
     (
         re.compile(r"^/slot(?:/create|/[^/]+/(?:update|delete|move|copy))$"),
         "admin",
@@ -184,13 +192,35 @@ class RoleAreaMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class UserActivityMiddleware(BaseHTTPMiddleware):
+    """Merkt sich die letzte Aktivitaet angemeldeter Benutzer (fuer die
+    Uebersicht "Angemeldete Benutzer" in /einstellungen)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/static"):
+            user_id = request.session.get("user_id")
+            if user_id is not None:
+                token = request.session.get("session_token")
+                if not token:
+                    token = secrets.token_urlsafe(24)
+                    request.session["session_token"] = token
+                try:
+                    touch_user_session(token, user_id)
+                except Exception:
+                    # Aktivitaets-Tracking darf nie eine Anfrage scheitern lassen.
+                    pass
+        return await call_next(request)
+
+
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
+app.add_middleware(UserActivityMiddleware)
 app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     session_cookie="sportfest_session",
+    max_age=SESSION_MAX_AGE_SECONDS,
     same_site="lax",
     https_only=SESSION_HTTPS_ONLY,
 )
@@ -252,6 +282,7 @@ def slot_minutes_until(startzeit, now, default=0):
 templates.env.globals["get_current_role"] = get_current_role
 templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
+templates.env.globals["get_current_username"] = get_current_username
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
@@ -779,7 +810,22 @@ def get_day_schedule_for_event(event_id: int):
     return enrich_day_schedule_view(
         schedule,
         competitions,
-        event_id,
+        now=app_now(),
+    )
+
+
+def get_day_schedule_for_competitions(competitions: list, schedule_date):
+    """Analog zu get_day_schedule_for_event, aber fuer Wettbewerbe mit
+    eigenem competition_date statt fuer eine Veranstaltung (Issue #134) -
+    schedule_date ist bereits das gemeinsame Ziel-Datum aller uebergebenen
+    Wettbewerbe (siehe get_dashboard_standalone_competitions)."""
+    schedule = build_day_schedule(
+        competitions,
+        schedule_date.isoformat() if schedule_date else None,
+    )
+    return enrich_day_schedule_view(
+        schedule,
+        competitions,
         now=app_now(),
     )
 
@@ -903,7 +949,29 @@ def fetch_dashboard_data():
             exclude_event_id=next_event["id"] if next_event else None,
         )
 
+        # Faellt next_event aus (keine datierte/aktive Veranstaltung), kann
+        # trotzdem ein einzelner Wettbewerb mit eigenem competition_date
+        # anstehen (Issue #134) - der Tagesplan zeigt dann dessen Tag statt
+        # leer zu bleiben. Existiert bereits eine Veranstaltung mit Tagesplan,
+        # hat diese Vorrang (siehe get_dashboard_standalone_competitions).
+        standalone_schedule_date = None
+        standalone_schedule_competitions = []
+        if next_event is None:
+            standalone_schedule_date, standalone_schedule_competitions = (
+                get_dashboard_standalone_competitions(conn, today)
+            )
+
     next_event_details_text = (next_event["details"] or "").strip() if next_event else ""
+
+    schedule_event = next_event
+    if schedule_event is None and standalone_schedule_competitions:
+        names = [c["name"] for c in standalone_schedule_competitions]
+        schedule_event = {
+            "id": None,
+            "name": names[0] if len(names) == 1 else f"Wettbewerbe am {standalone_schedule_date.isoformat()}",
+            "event_date": standalone_schedule_date.isoformat(),
+            "status": None,
+        }
 
     return {
         "competitions": competitions,
@@ -913,7 +981,9 @@ def fetch_dashboard_data():
         "upcoming": upcoming,
         "ended_count": ended_count,
         "next_event": next_event,
-        "schedule_event": next_event,
+        "schedule_event": schedule_event,
+        "standalone_schedule_date": standalone_schedule_date,
+        "standalone_schedule_competitions": standalone_schedule_competitions,
         "additional_upcoming_events": additional_upcoming_events,
         "dashboard_info_html": get_dashboard_info_html(),
         "next_event_details_html": (
@@ -1993,6 +2063,7 @@ def login(
         request.session["role"] = user["role"]
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
+        request.session["session_token"] = start_user_session(user["id"])
         return RedirectResponse(safe_next_url(next), status_code=303)
 
     _register_login_failure(client_key)
@@ -2015,6 +2086,7 @@ def login(
 
 @app.get("/logout")
 def logout(request: Request):
+    end_user_session(request.session.get("session_token"))
     request.session.clear()
     return RedirectResponse("/", status_code=303)
 
@@ -2022,8 +2094,12 @@ def logout(request: Request):
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
-    if data["schedule_event"]:
+    if data["schedule_event"] and data["schedule_event"]["id"] is not None:
         data["schedule"] = get_day_schedule_for_event(data["schedule_event"]["id"])
+    elif data["standalone_schedule_competitions"]:
+        data["schedule"] = get_day_schedule_for_competitions(
+            data["standalone_schedule_competitions"], data["standalone_schedule_date"]
+        )
     else:
         data["schedule"] = build_day_schedule([], event_date=None)
     template_name = (

@@ -29,6 +29,10 @@
         color: var(--muted);
     }
 
+    .generator-hint {
+        grid-column: 2;
+    }
+
     .court-checkboxes {
         display: flex;
         gap: 14px;
@@ -304,7 +308,7 @@
 </section>
 {% endif %}
 
-{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal %}
+{% if selected_competition_id and schedule_planning_enabled and not is_schulpokal and not is_ko_runde and (not is_punkterunde or punkterunde_has_finals_config) %}
 <section class="ko-box">
     <h2>Nächste Phase automatisch besetzen</h2>
 
@@ -380,7 +384,7 @@
             <span class="muted">Kein weiterer Schulpokal-Wettbewerb an diesem Ort angelegt.</span>
             {% endfor %}
         </div>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Angehakte Wettbewerbe teilen sich die unten gewählten Felder und kommen
             rundenweise abwechselnd an die Reihe (z. B. 7. Klassen, dann 8. Klassen, dann wieder 7. usw.).
         </p>
@@ -403,9 +407,103 @@
         {% set mode_key = selected_competition.tournament_mode or default_schulpokal_mode %}
         <label>Turniermodus</label>
         <strong>{{ schulpokal_modes[mode_key].label if mode_key in schulpokal_modes else mode_key }}</strong>
-        <p class="muted" style="grid-column: 2;">
+        <p class="muted generator-hint">
             Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
             Teamzahl je Wettbewerb, keine Halbfinal-/Finalrunde.
+        </p>
+
+        <button class="green" type="submit">Vorschlag erstellen</button>
+    </form>
+    {% elif is_ko_runde %}
+    <form method="post" action="/plan-generator/preview-ko" class="generator-grid">
+        <label>Turnier</label>
+        <select name="competition_id" required onchange="syncGeneratorCompetition(this)">
+            {% for c in competitions if c.competition_type == "Turnier" %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Ort</label>
+        <strong>{{ selected_competition_location }}</strong>
+
+        <label>Felder/Bereiche</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if not selected_generator_court_ids or court.id in selected_generator_court_ids %}checked{% endif %}>
+                {{ court.name }}
+            </label>
+            {% else %}
+            <span class="muted">Für diesen Ort sind keine aktiven Felder/Bereiche angelegt.</span>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="{{ selected_competition.start_time or '08:00' }}" required>
+
+        <label>Turniermodus</label>
+        <strong>{{ turnier_modes["ko_runde"].label }}</strong>
+        <p class="muted generator-hint">
+            Direktes Einzelausscheiden ohne Gruppenphase - der komplette Baum
+            (inkl. Freilosen bei ungerader/nicht als Zweierpotenz vorliegender
+            Teamzahl) wird auf einmal als Vorschlag erzeugt. Folgerunden
+            müssen nach jeder gespielten Runde noch manuell in der
+            Spielplan-Bearbeitung eingetragen werden - eine automatische
+            Weiterbesetzung wie bei "Gruppenphase mit KO-Runde" ist für
+            diesen Modus noch nicht umgesetzt.
+        </p>
+
+        <button class="green" type="submit">KO-Baum erstellen</button>
+    </form>
+    {% elif is_punkterunde %}
+    <form method="post" action="/plan-generator/preview-punkterunde" class="generator-grid">
+        <label>Turnier</label>
+        <select name="competition_id" required onchange="syncGeneratorCompetition(this)">
+            {% for c in competitions if c.competition_type == "Turnier" %}
+            <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
+                {{ c.name }}{% if c.location %} · {{ c.location }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+
+        <label>Ort</label>
+        <strong>{{ selected_competition_location }}</strong>
+
+        <label>Felder/Bereiche</label>
+        <div class="court-checkboxes">
+            {% for court in courts %}
+            <label>
+                <input type="checkbox" name="court_ids" value="{{ court.id }}" {% if not selected_generator_court_ids or court.id in selected_generator_court_ids %}checked{% endif %}>
+                {{ court.name }}
+            </label>
+            {% else %}
+            <span class="muted">Für diesen Ort sind keine aktiven Felder/Bereiche angelegt.</span>
+            {% endfor %}
+        </div>
+
+        <label>Startzeit</label>
+        <input type="time" name="startzeit" value="{{ selected_competition.start_time or '08:00' }}" required>
+
+        <label>Turniermodus</label>
+        <strong>{{ turnier_modes["punkterunde"].label }}</strong>
+        <p class="muted generator-hint">
+            Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
+            Teamzahl. Die Endplatzierung ergibt sich allein aus der Tabelle.
+            {% if selected_competition.punkterunde_grosses_finale or selected_competition.punkterunde_kleines_finale %}
+            Im Anschluss werden Platzhalter für
+            {% if selected_competition.punkterunde_grosses_finale and selected_competition.punkterunde_kleines_finale %}
+            das große Finale und das Spiel um Platz 3
+            {% elif selected_competition.punkterunde_grosses_finale %}
+            das große Finale
+            {% else %}
+            das Spiel um Platz 3
+            {% endif %}
+            angelegt (einstellbar unter Wettbewerbe).
+            {% else %}
+            Kein Finale/Spiel um Platz 3 (einstellbar unter Wettbewerbe).
+            {% endif %}
         </p>
 
         <button class="green" type="submit">Vorschlag erstellen</button>

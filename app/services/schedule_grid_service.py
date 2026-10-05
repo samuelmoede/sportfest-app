@@ -85,6 +85,7 @@ def get_all_slots(
     location: Optional[str] = None,
     event_id: Optional[int] = None,
     exclude_archived_events: bool = False,
+    competition_ids: Optional[list] = None,
 ):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
@@ -110,6 +111,13 @@ def get_all_slots(
     if competition_id:
         query += " AND slots.competition_id = ?"
         params.append(competition_id)
+
+    if competition_ids is not None:
+        if not competition_ids:
+            return []
+        placeholders = ",".join("?" for _ in competition_ids)
+        query += f" AND slots.competition_id IN ({placeholders})"
+        params.extend(competition_ids)
 
     if event_id is not None:
         query += " AND c.event_id = ?"

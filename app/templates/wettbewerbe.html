@@ -54,6 +54,10 @@
             {% endfor %}
         </select>
 
+        <label>Eigenes Datum</label>
+        <input type="date" name="competition_date" value="">
+        <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
+
         <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
         <div class="jahrgang-selector-field">
             <select name="jahrgang" id="create-jahrgang-input">
@@ -98,12 +102,21 @@
             <option value="Schulpokal">Schulpokal</option>
         </select>
 
-        <label class="schulpokal-mode" hidden>Turniermodus</label>
-        <select class="schulpokal-mode" hidden name="tournament_mode">
+        <label class="tournament-mode-field" hidden>Turniermodus</label>
+        <select class="tournament-mode-field" hidden name="tournament_mode">
             {% for mode_key, mode in schulpokal_modes.items() %}
-            <option value="{{ mode_key }}" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            <option value="{{ mode_key }}" data-for-type="Schulpokal" {% if mode_key == default_schulpokal_mode %}selected{% endif %}>{{ mode.label }}</option>
+            {% endfor %}
+            {% for mode_key, mode in turnier_modes.items() %}
+            <option value="{{ mode_key }}" data-for-type="Turnier" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
             {% endfor %}
         </select>
+
+        <label class="punkterunde-finals-field" hidden>Endplatzierung</label>
+        <div class="punkterunde-finals-field" hidden>
+            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
+        </div>
 
         <label class="tournament-timing">Spielzeit (Min.)</label>
         <input class="tournament-timing" type="number" name="game_duration_minutes"
@@ -146,7 +159,7 @@
         <label>Punkte Niederlage</label>
         <input type="number" step="0.5" name="points_loss" value="0" required>
 
-        <button class="primary" type="submit" style="grid-column: 2;">Wettbewerb anlegen</button>
+        <button class="primary" type="submit">Wettbewerb anlegen</button>
     </form>
     </div>
 </details>
@@ -176,6 +189,9 @@
                     {% endif %}
                     <span class="competition-meta-item">🕒 {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
                     <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
+                    {% if c.competition_date %}
+                    <span class="competition-meta-item">🗓 {{ c.competition_date }}</span>
+                    {% endif %}
                     <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
                 </div>
                 {% if c.competition_type in ("Turnier", "Schulpokal") %}
@@ -247,12 +263,22 @@
                     <option value="Schulpokal" {% if c.competition_type == "Schulpokal" %}selected{% endif %}>Schulpokal</option>
                 </select>
 
-                <label class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %}>Turniermodus</label>
-                <select class="schulpokal-mode" {% if c.competition_type != "Schulpokal" %}hidden{% endif %} name="tournament_mode">
+                <label class="tournament-mode-field" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Turniermodus</label>
+                <select class="tournament-mode-field" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %} name="tournament_mode">
                     {% for mode_key, mode in schulpokal_modes.items() %}
-                    <option value="{{ mode_key }}" {% if (c.tournament_mode or default_schulpokal_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
+                    <option value="{{ mode_key }}" data-for-type="Schulpokal" {% if c.competition_type == "Schulpokal" and (c.tournament_mode or default_schulpokal_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
+                    {% endfor %}
+                    {% for mode_key, mode in turnier_modes.items() %}
+                    <option value="{{ mode_key }}" data-for-type="Turnier" {% if c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == mode_key %}selected{% endif %}>{{ mode.label }}</option>
                     {% endfor %}
                 </select>
+
+                {% set is_punkterunde_edit = c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == "punkterunde" %}
+                <label class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>Endplatzierung</label>
+                <div class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>
+                    <label><input type="checkbox" name="punkterunde_grosses_finale" value="1" {% if c.punkterunde_grosses_finale %}checked{% endif %}> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+                    <label><input type="checkbox" name="punkterunde_kleines_finale" value="1" {% if c.punkterunde_kleines_finale %}checked{% endif %}> Spiel um Platz 3 anschließen</label>
+                </div>
 
                 <label class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Spielzeit (Min.)</label>
                 <input class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}
@@ -277,6 +303,10 @@
                     <option value="{{ location }}" {% if c.location == location %}selected{% endif %}>{{ location }}</option>
                     {% endfor %}
                 </select>
+
+                <label>Eigenes Datum</label>
+                <input type="date" name="competition_date" value="{{ c.competition_date or '' }}">
+                <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
 
                 <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
                 <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
@@ -311,9 +341,9 @@
                 <label>Niederlage</label>
                 <input type="number" step="0.5" name="points_loss" value="{{ c.points_loss }}" required>
 
-                <button class="primary" type="submit" style="grid-column: 2;">Speichern</button>
+                <button class="primary" type="submit">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
-                <span class="save-feedback-inline" style="grid-column: 2;">✓ Gespeichert um {{ saved_at }}</span>
+                <span class="save-feedback-inline competition-save-feedback">✓ Gespeichert um {{ saved_at }}</span>
                 {% endif %}
             </form>
 
@@ -414,17 +444,46 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
     const toggleTypeFields = () => {
         const isSixkampf = typeSelect.value === "Sechskampf";
         const isSchulpokal = typeSelect.value === "Schulpokal";
+        const isTurnier = typeSelect.value === "Turnier";
         form.querySelectorAll('.sixkampf-points').forEach(element => {
             element.hidden = !isSixkampf;
         });
         form.querySelectorAll('.tournament-timing').forEach(element => {
             element.hidden = isSixkampf;
         });
-        form.querySelectorAll('.schulpokal-mode').forEach(element => {
-            element.hidden = !isSchulpokal;
+        form.querySelectorAll('.tournament-mode-field').forEach(element => {
+            element.hidden = !(isSchulpokal || isTurnier);
+        });
+        // Der Modus-Select ist fuer Schulpokal und Turnier gemeinsam (ein
+        // Formularfeld "tournament_mode"), zeigt aber je Typ nur die dazu
+        // passenden Optionen an; springt die aktuelle Auswahl beim
+        // Typwechsel auf eine nicht mehr passende Option, wird automatisch
+        // die erste passende Option gewaehlt.
+        const modeSelect = form.querySelector('select.tournament-mode-field');
+        if (modeSelect) {
+            let firstVisibleOption = null;
+            Array.from(modeSelect.options).forEach(option => {
+                option.hidden = option.dataset.forType !== typeSelect.value;
+                if (!option.hidden && !firstVisibleOption) {
+                    firstVisibleOption = option;
+                }
+            });
+            if (firstVisibleOption && modeSelect.selectedOptions[0]?.hidden) {
+                modeSelect.value = firstVisibleOption.value;
+            }
+        }
+        // Grosses/kleines Finale (Issue #125) sind nur fuer den Turniermodus
+        // "Punkterunde" waehlbar.
+        const isPunkterunde = isTurnier && !!modeSelect && modeSelect.value === "punkterunde";
+        form.querySelectorAll('.punkterunde-finals-field').forEach(element => {
+            element.hidden = !isPunkterunde;
         });
     };
     typeSelect.addEventListener("change", toggleTypeFields);
+    const modeSelectForToggle = form.querySelector('select.tournament-mode-field');
+    if (modeSelectForToggle) {
+        modeSelectForToggle.addEventListener("change", toggleTypeFields);
+    }
     toggleTypeFields();
 });
 

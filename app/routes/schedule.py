@@ -51,6 +51,12 @@ from app.services.schedule_time_service import (
 )
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
+from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
+from app.services.tournament_modes.ko_runde import generate_ko_plan, validate_ko_plan
+from app.services.tournament_modes.punkterunde import (
+    generate_punkterunde_plan,
+    validate_punkterunde_plan,
+)
 from app.utils.formatting import jahrgang_sort_key
 from app.web import templates
 
@@ -234,6 +240,27 @@ def create_router(
             selected_competition is not None
             and selected_competition["competition_type"] == "Schulpokal"
         )
+        is_ko_runde = (
+            selected_competition is not None
+            and selected_competition["competition_type"] == "Turnier"
+            and (selected_competition["tournament_mode"] or DEFAULT_TURNIER_MODE) == "ko_runde"
+        )
+        is_punkterunde = (
+            selected_competition is not None
+            and selected_competition["competition_type"] == "Turnier"
+            and (selected_competition["tournament_mode"] or DEFAULT_TURNIER_MODE) == "punkterunde"
+        )
+        # Nur wenn mindestens eines der beiden Finale-Flags (Issue #125)
+        # aktiviert ist, legt generate_punkterunde_plan() ueberhaupt
+        # Finale-/Spiel-um-Platz-3-Platzhalter an, die generate-finals-from-
+        # table anschliessend befuellen koennte - sonst bleibt der Bereich
+        # "Naechste Phase automatisch besetzen" fuer Punkterunde weiterhin
+        # ausgeblendet (bisheriges Verhalten fuer Bestandswettbewerbe ohne
+        # diese Auswahl).
+        punkterunde_has_finals_config = is_punkterunde and (
+            selected_competition["punkterunde_grosses_finale"]
+            or selected_competition["punkterunde_kleines_finale"]
+        )
         schulpokal_partner_competitions = [
             competition for competition in competitions
             if is_schulpokal
@@ -241,11 +268,18 @@ def create_router(
             and competition["competition_type"] == "Schulpokal"
             and get_effective_competition_location(competition) == selected_competition_location
         ]
-        if selected_competition_id and schedule_planning_enabled and not is_schulpokal:
+        if (
+            selected_competition_id and schedule_planning_enabled
+            and not is_schulpokal and not is_ko_runde
+            and (not is_punkterunde or punkterunde_has_finals_config)
+        ):
             # Halbfinale-Platzhalter existieren nur beim Zwei-Gruppen-Schema
             # (siehe generate_group_plan); eine einzelne "jeder gegen jeden"-
-            # Runde ohne Gruppen-Split besetzt Finale/Platz 3 stattdessen
-            # direkt aus der Gesamttabelle (generate_finals_from_table).
+            # Runde ohne Gruppen-Split (Standardmodus ohne Gruppen-Split oder
+            # Punkterunde mit aktiviertem Finale-Flag) besetzt Finale/Platz 3
+            # stattdessen direkt aus der Gesamttabelle
+            # (generate_finals_from_table) - has_semifinal_slots ist fuer
+            # Punkterunde immer False, landet also im else-Zweig.
             if has_semifinal_slots(selected_competition_id):
                 can_generate_semifinals = group_phase_finished(selected_competition_id)
                 can_generate_finals = semifinals_finished(selected_competition_id)
@@ -311,6 +345,11 @@ def create_router(
             "schulpokal_partner_competitions": schulpokal_partner_competitions,
             "schulpokal_modes": SCHULPOKAL_MODES,
             "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
+            "is_ko_runde": is_ko_runde,
+            "is_punkterunde": is_punkterunde,
+            "punkterunde_has_finals_config": punkterunde_has_finals_config,
+            "turnier_modes": TURNIER_MODES,
+            "default_turnier_mode": DEFAULT_TURNIER_MODE,
         }
 
     def render_editor(request, selected_competition_id, **context_overrides):
@@ -775,6 +814,201 @@ def create_router(
             plan_end_time_forecast=plan_end_time_forecast,
             selected_court_ids=court_ids,
             selected_generator_competition_ids=competition_ids,
+        )
+
+    @router.post("/plan-generator/preview-ko")
+    def plan_generator_preview_ko(
+        request: Request,
+        competition_id: int = Form(...),
+        court_ids: List[int] = Form(default=[]),
+        startzeit: str = Form(...),
+    ):
+        """Vorschau fuer den Turniermodus "Reine KO-Runde" (siehe
+        app/services/tournament_modes/ko_runde.py, Issue #101) - eigene Route
+        analog zu /plan-generator/preview-schulpokal, da sich Ablauf und
+        Formularfelder (kein games_per_team/include_ko, dafuer der komplette
+        Baum auf einmal) grundlegend vom Modus "Gruppenphase mit KO-Runde"
+        unterscheiden."""
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+            all_courts = conn.execute(
+                "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+            ).fetchall()
+            teams = conn.execute(
+                "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
+            ).fetchall()
+
+        selected_court_ids = (
+            filter_court_ids_for_competition(court_ids, all_courts, competition)
+            if competition is not None
+            else []
+        )
+        proposed_slots = []
+        plan_warnings = []
+        plan_timing = get_competition_timing(competition) if competition is not None else None
+        plan_end_time_forecast = None
+
+        if competition is None:
+            plan_warnings.append({
+                "level": "error",
+                "message": "Der ausgewählte Wettbewerb wurde nicht gefunden.",
+            })
+        elif competition["competition_type"] != "Turnier":
+            plan_warnings.append({
+                "level": "error",
+                "message": "Der KO-Baum-Generator steht nur für Wettbewerbe vom Typ Turnier zur Verfügung.",
+            })
+        elif not schedule_planning_available(competition):
+            plan_warnings.append({
+                "level": "warning",
+                "message": NO_SLOT_LOCATION_HINT,
+            })
+        elif not selected_court_ids:
+            plan_warnings.append({
+                "level": "error",
+                "message": "Wähle mindestens ein Feld oder einen Bereich für den Vorschlag aus.",
+            })
+        else:
+            proposed_slots = generate_ko_plan(
+                competition_id=competition_id,
+                court_ids=selected_court_ids,
+                startzeit=startzeit,
+            )
+            if not proposed_slots:
+                plan_warnings.append({
+                    "level": "error",
+                    "message": "Für einen KO-Baum werden mindestens zwei Teams benötigt.",
+                })
+            expected_teams = [
+                team for team in teams
+                if team["jahrgang"] == competition["jahrgang"]
+            ]
+            plan_warnings.extend(validate_ko_plan(proposed_slots, expected_teams))
+            plan_end_time_forecast = build_end_time_forecast(
+                proposed_slots,
+                competition,
+            )
+            if plan_end_time_forecast:
+                for court in plan_end_time_forecast["courts"]:
+                    if court["exceeds_planned_end"]:
+                        plan_warnings.append({
+                            "level": "warning",
+                            "message": (
+                                f"{court['court_name']} endet voraussichtlich um "
+                                f"{court['projected_end']}, geplant war "
+                                f"{plan_end_time_forecast['planned_end']}."
+                            ),
+                        })
+
+        has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
+        return render_editor(
+            request,
+            competition_id,
+            proposed_slots=proposed_slots,
+            plan_warnings=plan_warnings,
+            has_plan_errors=has_plan_errors,
+            plan_timing=plan_timing,
+            plan_end_time_forecast=plan_end_time_forecast,
+            selected_court_ids=selected_court_ids,
+        )
+
+    @router.post("/plan-generator/preview-punkterunde")
+    def plan_generator_preview_punkterunde(
+        request: Request,
+        competition_id: int = Form(...),
+        court_ids: List[int] = Form(default=[]),
+        startzeit: str = Form(...),
+    ):
+        """Vorschau fuer den Turniermodus "Punkterunde" (siehe
+        app/services/tournament_modes/punkterunde.py, Issue #105) - eigene
+        Route analog zu /plan-generator/preview-ko: eine reine Jeder-gegen-
+        Jeden-Runde ohne KO-Platzhalter braucht kein games_per_team/include_ko
+        wie der Default-Modus, sondern erzeugt die komplette Runde auf einmal."""
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+            all_courts = conn.execute(
+                "SELECT * FROM courts WHERE active = 1 ORDER BY name"
+            ).fetchall()
+            teams = conn.execute(
+                "SELECT * FROM teams WHERE active = 1 ORDER BY jahrgang, name"
+            ).fetchall()
+
+        selected_court_ids = (
+            filter_court_ids_for_competition(court_ids, all_courts, competition)
+            if competition is not None
+            else []
+        )
+        proposed_slots = []
+        plan_warnings = []
+        plan_timing = get_competition_timing(competition) if competition is not None else None
+        plan_end_time_forecast = None
+
+        if competition is None:
+            plan_warnings.append({
+                "level": "error",
+                "message": "Der ausgewählte Wettbewerb wurde nicht gefunden.",
+            })
+        elif competition["competition_type"] != "Turnier":
+            plan_warnings.append({
+                "level": "error",
+                "message": "Der Punkterunden-Generator steht nur für Wettbewerbe vom Typ Turnier zur Verfügung.",
+            })
+        elif not schedule_planning_available(competition):
+            plan_warnings.append({
+                "level": "warning",
+                "message": NO_SLOT_LOCATION_HINT,
+            })
+        elif not selected_court_ids:
+            plan_warnings.append({
+                "level": "error",
+                "message": "Wähle mindestens ein Feld oder einen Bereich für den Vorschlag aus.",
+            })
+        else:
+            proposed_slots = generate_punkterunde_plan(
+                competition_id=competition_id,
+                court_ids=selected_court_ids,
+                startzeit=startzeit,
+            )
+            if not proposed_slots:
+                plan_warnings.append({
+                    "level": "error",
+                    "message": "Für eine Punkterunde werden mindestens zwei Teams benötigt.",
+                })
+            expected_teams = [
+                team for team in teams
+                if team["jahrgang"] == competition["jahrgang"]
+            ]
+            plan_warnings.extend(validate_punkterunde_plan(proposed_slots, expected_teams))
+            plan_end_time_forecast = build_end_time_forecast(
+                proposed_slots,
+                competition,
+            )
+            if plan_end_time_forecast:
+                for court in plan_end_time_forecast["courts"]:
+                    if court["exceeds_planned_end"]:
+                        plan_warnings.append({
+                            "level": "warning",
+                            "message": (
+                                f"{court['court_name']} endet voraussichtlich um "
+                                f"{court['projected_end']}, geplant war "
+                                f"{plan_end_time_forecast['planned_end']}."
+                            ),
+                        })
+
+        has_plan_errors = any(warning["level"] == "error" for warning in plan_warnings)
+        return render_editor(
+            request,
+            competition_id,
+            proposed_slots=proposed_slots,
+            plan_warnings=plan_warnings,
+            has_plan_errors=has_plan_errors,
+            plan_timing=plan_timing,
+            plan_end_time_forecast=plan_end_time_forecast,
+            selected_court_ids=selected_court_ids,
         )
 
     @router.post("/plan-generator/apply")
