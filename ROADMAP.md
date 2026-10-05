@@ -183,7 +183,7 @@ konzipiert, nur erste Ideen:
 ## Langfristig
 
 [ ] Stations-PIN
-[ ] Benutzerverwaltung
+[x] Benutzerverwaltung (benutzerbasierter Login mit eigenen Konten, Rollen und Übersicht der angemeldeten Benutzer, Version 1.1)
 [ ] Rechteverwaltung per Checkbox
 
 ## Bugs/UX
