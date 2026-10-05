@@ -1,14 +1,55 @@
 # Changelog
 
-Alle bemerkenswerten �nderungen dieses Projekts werden hier dokumentiert.
+Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
+
+## [1.1] - 2026-10-05
+
+### Benutzer und Sicherheit
+
+- Benutzerbasierter Login: Statt geteilter Rollen-Passwörter gibt es jetzt individuelle Benutzerkonten (Benutzername/Kürzel wie "MOSA", Passwort, genau eine Rolle). Passwörter werden gesalzen gehasht (PBKDF2). Beim ersten Start werden `ADMIN` (Admin) und `MOSA` (Schiedsrichter) mit den bisherigen Admin-/Schiedsrichter-Passwörtern angelegt. Benutzer werden unter `/einstellungen` angelegt, umgestuft, (de)aktiviert und bekommen dort neue Passwörter; der letzte aktive Admin ist geschützt.
+- Benutzerlogin: Angemeldete Benutzer sehen in der Seitenleiste (und mobil) jetzt ihren Benutzernamen (z. B. "Benutzer: MOSA") statt der Rolle; die Rolle steht weiterhin im Tooltip und bestimmt die Badge-Farbe. In `/einstellungen` zeigt der Abschnitt "Benutzer" neu "Derzeit angemeldet": je Gerät/Browser Benutzer, Rolle, Anmeldezeit und letzte Aktivität (Uhrzeit), mit Hinweis "gerade aktiv" bei Aktivität in den letzten 5 Minuten. Dafür neue additive Tabelle `user_sessions` (Token je Anmeldung, Abmelden beendet die Sitzung, Aktivität wird höchstens einmal pro Minute gespeichert); bestehende Anmeldungen werden beim nächsten Seitenaufruf automatisch erfasst.
+- Einstellungen: "Alle Benutzer" ist jetzt eine kompakte Tabelle (Benutzer, Rolle, Status, Zuletzt aktiv) statt einer Karte je Benutzer. Rolle, Passwort und (De-)Aktivieren öffnen sich je Zeile über "Bearbeiten"; nach dem Speichern bleibt die Zeile des betroffenen Benutzers offen. Auf schmalen Bildschirmen wird jede Zeile als kompakte Karte dargestellt.
+- Neue Rolle Turnierleitung (Ergebnisse, Gewinnerlisten, Siegerehrung).
+- Änderungsprotokoll: Filter nach Rolle, Wettbewerb und angemeldetem Benutzer (ohne vollen Seiten-Reload) und begrenzte Höhe mit Scrollbereich.
+- DEV-Umgebung läuft jetzt standardmäßig mit aktiver Sicherheit (`docker-compose.dev.yml`); Produktion unverändert (Schalter in `/einstellungen`).
+
+### Turniere und Spielplan
+
+- Turniermodus wählbar: neben "Gruppenphase mit KO-Runde" jetzt auch "Reine KO-Runde" (vollständiger KO-Baum mit fairer Freilos-Vergabe für beliebige Teamzahl) und "Punkterunde" (jeder gegen jeden ohne KO), optional mit großem und kleinem Finale. Folgerunden der reinen KO-Runde werden bei mehr als 4 Teams vorerst manuell eingetragen.
+- Fix (kritisch): Bei vielen Teams auf wenigen Feldern konnten Runden über Mitternacht hinaus dieselbe Uhrzeit bekommen und Teams doppelt belegt werden; die Rundenzeit wird jetzt ohne 24h-Überlauf berechnet.
+- Spiel- und Wechselzeit lassen sich direkt in "Spielplan bearbeiten" anpassen.
+- Grobplan: Tagesplan-Timeline per Drag & Drop editierbar.
+- Einzelne Wettbewerbe können jetzt ein eigenes Datum (`competitions.competition_date`) bekommen, unabhängig vom Datum ihrer (optionalen) Veranstaltung - Feld "Eigenes Datum" beim Anlegen/Bearbeiten auf `/wettbewerbe`. Steht kein datierter/aktiver Veranstaltungs-Tagesplan an, zeigt der Tagesplan der Startseite stattdessen den nächstgelegenen Tag mit solchen Wettbewerben, analog zur bisherigen Veranstaltungslogik.
+
+### Assistent
+
+- Neuer Wettbewerbs-Assistent für die geführte Einrichtung einer Veranstaltung und ein spontaner Turnier-Schnellstart (z. B. für den Sportunterricht), beide in der Navigation erreichbar.
+- Im Assistenten lassen sich Klassen spontan anlegen, Teams fein auswählen, Spielfelder und Sechskampf-Disziplinen ohne Umweg über die Verwaltungsseiten einrichten sowie Spielzeit, Wechselzeit und Turniermodus wählen.
+
+### Bedienung und Darstellung
+
+- Einheitliche, moderne Uhrzeit-Auswahl für alle Zeitfelder (Zifferblatt im Android-/Material-Stil mit innerem und äußerem Ring).
+- Ergebniseingabe überarbeitet: Spalten pro Spielfeld zeitlich ausgerichtet, gleich hohe Karten je Zeitzeile, kompaktere Buttons und Badges, beendete Spiele werden direkt an Ort und Stelle gesperrt statt ins Archiv verschoben, Reaktivieren/Löschen/Rückgängig ohne vollen Reload, Scrollposition bleibt beim Speichern erhalten.
+- Wettbewerb-Formular: Jahrgang und Klassenauswahl zusammengeführt, Klassen per Dropdown statt langer Checkbox-Liste.
+- Site-weite Theme-Auswahl für Admins; Dunkel-Design auf allen Seiten vereinheitlicht und im Kontrast verbessert.
+- Kleinere Anpassungen: Beamer-Button heißt kurz "Beamer", "+ Veranstaltung anlegen" ist farblich an "Wettbewerb anlegen" angeglichen.
+
+### Fehlerbehebungen
+
+- Fix: Auf `/teams` ließ sich bei bestimmten Teams (u. a. dem in der Jahrgangs-/Namenssortierung ersten Team der Seite) weder die Gruppe (`jahrgang`) noch der Name speichern, noch das Team löschen - ohne sichtbaren Fehler, der Klick auf "Speichern"/"Löschen" tat clientseitig einfach nichts. Ursache war ungültig verschachteltes HTML: die pro-Team-`<form>`-Elemente für Speichern/Löschen lagen innerhalb des Massenaktions-`<form id="team-bulk-form">`, und Browser verwerfen beim Parsen das jeweils zuerst geöffnete verschachtelte `<form>` stillschweigend, wodurch dessen Felder ihren Formularbezug verlieren. Die pro-Team-Formulare stehen jetzt als eigenständige Formulare außerhalb des Massenaktions-Formulars und bleiben über das `form="..."`-Attribut mit ihren Feldern/Buttons in der Tabelle verknüpft.
+- Fix: Die Scroll-Wiederherstellung nach Formular-Redirects (siehe unten) sprang sichtbar animiert zur alten Position statt sofort dort zu sein, weil `window.scrollTo({..., behavior: "auto"})` der site-weiten CSS-Regel `scroll-behavior: smooth` (`theme.css`) folgt. Jetzt wird `behavior: "instant"` verwendet, das diese CSS-Regel gezielt ignoriert.
+- Fix: `/tabellen`, `/spielplan` und `/assistent` stürzten bei Wettbewerben mit gemischtem Jahrgang ab (500).
+- Fix: Reaktivieren eines beendeten Spiels setzt den Laufzeit-Timer jetzt zurück; "Beenden & Speichern" startet den Timer nicht mehr fälschlich; Laufzeit-Anzeige und Buttons laufen nicht mehr über den Kartenrand.
+- Fix: Mobile Formulare (`.admin-form`, Felder mit `grid-column:2`) brechen Beschriftungen nicht mehr buchstabenweise um.
+- Fix: Turnierleitungs-Startpasswort per Umgebungsvariable setzbar.
+
+### Technik
+
+- CI: dauerhafter Robustheitstest für den Spielplan-Generator (3 bis 32 Teams), Rauchtest über alle öffentlichen Seiten mit realistischem Datenbestand, Playwright-Browsertests für interaktives UI-Verhalten.
+- Neue Tabelle `user_sessions` (Anmeldungen und letzte Aktivität); alle Schemaänderungen sind additiv und werden beim Start automatisch angelegt.
 
 ## [1.0] - 2026-07-04
 
-- Einstellungen: "Alle Benutzer" ist jetzt eine kompakte Tabelle (Benutzer, Rolle, Status, Zuletzt aktiv) statt einer Karte je Benutzer. Rolle, Passwort und (De-)Aktivieren öffnen sich je Zeile über "Bearbeiten"; nach dem Speichern bleibt die Zeile des betroffenen Benutzers offen. Auf schmalen Bildschirmen wird jede Zeile als kompakte Karte dargestellt.
-- Benutzerlogin: Angemeldete Benutzer sehen in der Seitenleiste (und mobil) jetzt ihren Benutzernamen (z. B. "Benutzer: MOSA") statt der Rolle; die Rolle steht weiterhin im Tooltip und bestimmt die Badge-Farbe. In `/einstellungen` zeigt der Abschnitt "Benutzer" neu "Derzeit angemeldet": je Gerät/Browser Benutzer, Rolle, Anmeldezeit und letzte Aktivität (Uhrzeit), mit Hinweis "gerade aktiv" bei Aktivität in den letzten 5 Minuten. Dafür neue additive Tabelle `user_sessions` (Token je Anmeldung, Abmelden beendet die Sitzung, Aktivität wird höchstens einmal pro Minute gespeichert); bestehende Anmeldungen werden beim nächsten Seitenaufruf automatisch erfasst.
-- Einzelne Wettbewerbe können jetzt ein eigenes Datum (`competitions.competition_date`) bekommen, unabhängig vom Datum ihrer (optionalen) Veranstaltung - Feld "Eigenes Datum" beim Anlegen/Bearbeiten auf `/wettbewerbe`. Steht kein datierter/aktiver Veranstaltungs-Tagesplan an, zeigt der Tagesplan der Startseite stattdessen den nächstgelegenen Tag mit solchen Wettbewerben, analog zur bisherigen Veranstaltungslogik.
-- Fix: Auf `/teams` ließ sich bei bestimmten Teams (u. a. dem in der Jahrgangs-/Namenssortierung ersten Team der Seite) weder die Gruppe (`jahrgang`) noch der Name speichern, noch das Team löschen - ohne sichtbaren Fehler, der Klick auf "Speichern"/"Löschen" tat clientseitig einfach nichts. Ursache war ungültig verschachteltes HTML: die pro-Team-`<form>`-Elemente für Speichern/Löschen lagen innerhalb des Massenaktions-`<form id="team-bulk-form">`, und Browser verwerfen beim Parsen das jeweils zuerst geöffnete verschachtelte `<form>` stillschweigend, wodurch dessen Felder ihren Formularbezug verlieren. Die pro-Team-Formulare stehen jetzt als eigenständige Formulare außerhalb des Massenaktions-Formulars und bleiben über das `form="..."`-Attribut mit ihren Feldern/Buttons in der Tabelle verknüpft.
-- Fix: Die Scroll-Wiederherstellung nach Formular-Redirects (siehe unten) sprang sichtbar animiert zur alten Position statt sofort dort zu sein, weil `window.scrollTo({..., behavior: "auto"})` der site-weiten CSS-Regel `scroll-behavior: smooth` (`theme.css`) folgt. Jetzt wird `behavior: "instant"` verwendet, das diese CSS-Regel gezielt ignoriert.
 - Neuer Spielplan-Aushang zum Ausdrucken: `/spielplan/aushang?ort=Turnhalle` bzw. `?ort=Fußballplatz` zeigt je Ort ein kompaktes Zeit-x-Feld-Raster (alle Felder eines Ortes nebeneinander) statt der Karten-Listenansicht, für A4 (Hochformat) optimiert - über den Browser-Druckdialog direkt druckbar oder als PDF speicherbar, ohne neue Abhängigkeiten. Von der öffentlichen Spielplanseite aus über einen neuen "Aushang drucken"-Link je Ort erreichbar.
 - Tiebreak-Hinweise auf `/tabellen` (z.B. "Zyklischer Gleichstand", "Platzierung durch Tordifferenz entschieden") sind jetzt nur noch für Schiedsrichter und Admins sichtbar, nicht mehr für die öffentliche Ansicht - über das bestehende `can_view_results`-Rollenmuster aus `base.html`. Hinweis: Ist die optionale Sicherheit (`security_enabled`) nicht aktiviert, gilt weiterhin die App-Konvention "keine Einschränkungen ohne Login-System" - die Hinweise bleiben dann für alle sichtbar, wie jeder andere schiedsrichter-/admin-Bereich auch.
 - Fix (kritisch, direkte Frage nach Datenkorrektheit): Ein Team, das bei einem reinen Sechskampf-Wettbewerb bereits Ergebnisse erzielt hatte, verschwand nach nachträglicher Deaktivierung spurlos aus `/tabellen` und der Gesamtwertung - die Werte blieben in der Datenbank, wurden aber nirgends mehr angezeigt (Turniere waren nicht betroffen, deren Tabelle sich direkt aus den gespielten Spielen speist). Neue Funktion `include_teams_with_existing_sixkampf_results()` ergänzt die angezeigte Team-Liste jetzt immer um Teams mit bereits vorhandenem Ergebnis, unabhängig vom aktuellen Aktiv-Status.
