@@ -52,7 +52,12 @@ from app.services.schedule_time_service import (
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
 from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
-from app.services.tournament_modes.ko_runde import generate_ko_plan, validate_ko_plan
+from app.services.tournament_modes.ko_runde import (
+    advance_ko_rounds,
+    generate_ko_plan,
+    plan_ko_advancement,
+    validate_ko_plan,
+)
 from app.services.tournament_modes.punkterunde import (
     generate_punkterunde_plan,
     validate_punkterunde_plan,
@@ -293,6 +298,11 @@ def create_router(
                 if can_generate_finals_from_table:
                     ko_hint = "Die Vorrunde ist beendet. Finale und Spiel um Platz 3 können automatisch aus der Tabelle besetzt werden."
 
+        ko_advance = None
+        if selected_competition_id and schedule_planning_enabled and is_ko_runde:
+            with get_conn() as conn:
+                ko_advance = plan_ko_advancement(conn, selected_competition_id)
+
         overwrite_warning_prompt = None
         if (
             overwrite_warning in ("Halbfinale", "Finale")
@@ -346,6 +356,7 @@ def create_router(
             "schulpokal_modes": SCHULPOKAL_MODES,
             "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
             "is_ko_runde": is_ko_runde,
+            "ko_advance": ko_advance,
             "is_punkterunde": is_punkterunde,
             "punkterunde_has_finals_config": punkterunde_has_finals_config,
             "turnier_modes": TURNIER_MODES,
@@ -1062,6 +1073,30 @@ def create_router(
 
         return RedirectResponse(
             f"/spielplan-bearbeiten?competition_id={competition_id[0]}",
+            status_code=303,
+        )
+
+    @router.post("/competition/{competition_id}/advance-ko-round")
+    def advance_ko_round(
+        competition_id: int,
+        results_return_to: str = Form(""),
+    ):
+        """Besetzt im Turniermodus "Reine KO-Runde" alle Folgespiele, deren
+        Vorrundenspiele bereits entschieden sind (Issue #101, Teilschritt 3).
+        Bereits gestartete oder beendete Spiele bleiben unveraendert, daher
+        ist keine Ueberschreib-Bestaetigung noetig."""
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE id = ?", (competition_id,)
+            ).fetchone()
+        if (
+            competition is not None
+            and competition["competition_type"] == "Turnier"
+            and (competition["tournament_mode"] or DEFAULT_TURNIER_MODE) == "ko_runde"
+        ):
+            advance_ko_rounds(competition_id)
+        return RedirectResponse(
+            _phase_generation_redirect_target(competition_id, results_return_to),
             status_code=303,
         )
 

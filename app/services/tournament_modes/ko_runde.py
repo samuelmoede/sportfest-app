@@ -9,17 +9,15 @@ fuer bestimmte Teamzahlen: build_ko_rounds() baut den vollstaendigen KO-Baum
 fuer eine beliebige Teamzahl (>= 2), inklusive fairer Freilos-Vergabe per
 Standard-Turniersetzung bei nicht als Zweierpotenz vorliegender Teamzahl.
 
-Bewusst nicht Teil dieses Moduls: die automatische Weiterbesetzung
-nachfolgender Runden aus den Ergebnissen der vorigen (analog zu den
-bestehenden "Halbfinale"/"Finale automatisch besetzen"-Aktionen in
-app/routes/schedule.py). Das ist bei beliebiger Baumtiefe ein eigenstaendiges
-Stueck Logik und als Folgeschritt vorgesehen (siehe ROADMAP.md); bis dahin
-tragen Turnierleitungen die Teams der Folgerunden manuell in der
-Spielplan-Bearbeitung ein, sobald eine Runde beendet ist.
+Die automatische Weiterbesetzung nachfolgender Runden aus den Ergebnissen
+der vorigen (Issue #101, Teilschritt 3) uebernimmt plan_ko_advancement() /
+advance_ko_rounds(): der Baum wird dazu aus den gespeicherten Slots
+rekonstruiert, ohne zusaetzliche Spalten in der Datenbank.
 """
 from datetime import datetime
 
 from app.database import get_conn
+from app.services.schedule_generator_service import get_winner_loser
 from app.services.schedule_location_service import (
     filter_court_ids_for_competition,
     schedule_planning_available,
@@ -318,3 +316,171 @@ def validate_ko_plan(proposed_slots, expected_teams):
             })
 
     return warnings
+
+
+SMALL_FINAL_PHASE = "Spiel um Platz 3"
+_GENERIC_ROUND_PREFIX = "Runde der letzten "
+
+
+def _bracket_size_for_phase(phase):
+    """Umkehrung von _round_label: Anzahl Teams der Runde zu einem
+    Phasennamen, oder None, wenn der Name keine KO-Runde bezeichnet."""
+    for size, label in _ROUND_LABELS_BY_BRACKET_SIZE.items():
+        if label == phase:
+            return size
+    if phase and phase.startswith(_GENERIC_ROUND_PREFIX):
+        try:
+            return int(phase[len(_GENERIC_ROUND_PREFIX):])
+        except ValueError:
+            return None
+    return None
+
+
+def _matches_structure(structure, slot_rounds) -> bool:
+    """Prueft, ob die gespeicherten Slots wirklich zum rekonstruierten Baum
+    passen. Neben Rundenzahl, Spielen je Runde und Rundennamen werden die
+    Freilos-Seiten der zweiten Runde geprueft: dort muss bereits seit der
+    Erzeugung ein Team stehen, das in der ersten Runde nicht spielt. Damit
+    faellt z.B. ein geloeschtes Erstrundenspiel auf, das rein rechnerisch
+    wieder einen gueltigen (aber anderen) Baum ergeben wuerde."""
+    if [len(r) for r in structure] != [len(r) for r in slot_rounds]:
+        return False
+    if any(
+        structure_round[0]["phase"] != slot_round[0]["phase"]
+        for structure_round, slot_round in zip(structure, slot_rounds)
+    ):
+        return False
+
+    first_round_team_ids = set()
+    for slot in slot_rounds[0]:
+        if slot["team_a_id"] is None or slot["team_b_id"] is None:
+            return False
+        first_round_team_ids.update((slot["team_a_id"], slot["team_b_id"]))
+
+    for match in structure[1]:
+        slot = slot_rounds[1][match["position"]]
+        for side, column in (("source_a", "team_a_id"), ("source_b", "team_b_id")):
+            if match[side] is None and (
+                slot[column] is None or slot[column] in first_round_team_ids
+            ):
+                return False
+    return True
+
+
+def plan_ko_advancement(conn, competition_id: int):
+    """Ermittelt, welche Teams aus bereits beendeten KO-Spielen in die
+    jeweils naechste Runde (und ins Spiel um Platz 3) aufruecken.
+
+    Die Slots speichern keine Baum-Verweise. Der Baum wird deshalb aus der
+    Anzahl der Spiele je Runde rekonstruiert: Da Freilose nur in der ersten
+    Runde vorkommen, gilt fuer die Teamzahl n = Spiele Runde 1 + 2 x Spiele
+    Runde 2; build_ko_rounds(n) liefert damit exakt dieselbe Struktur wie bei
+    der Erzeugung. Innerhalb einer Runde entspricht die Reihenfolge der
+    Slot-IDs der Position im Baum (Uhrzeit/Feld koennen per Drag & Drop
+    veraendert worden sein, die ID nicht).
+
+    Gibt ein dict mit "updates" (Liste von {"slot_id", "column", "team_id"})
+    und "warnings" (Liste von Texten) zurueck. Bereits gestartete oder
+    beendete Zielspiele werden nie veraendert."""
+    rows = conn.execute("""
+        SELECT * FROM slots
+        WHERE competition_id = ? AND slot_typ = 'Spiel'
+        ORDER BY id
+    """, (competition_id,)).fetchall()
+
+    slots_by_size = {}
+    small_final_slot = None
+    for row in rows:
+        if row["phase"] == SMALL_FINAL_PHASE:
+            if small_final_slot is None:
+                small_final_slot = row
+            continue
+        size = _bracket_size_for_phase(row["phase"])
+        if size is not None:
+            slots_by_size.setdefault(size, []).append(row)
+
+    result = {"updates": [], "warnings": []}
+    if len(slots_by_size) < 2:
+        return result
+
+    slot_rounds = [slots_by_size[size] for size in sorted(slots_by_size, reverse=True)]
+    team_count = len(slot_rounds[0]) + 2 * len(slot_rounds[1])
+    structure = build_ko_rounds([str(index) for index in range(team_count)])
+    if not _matches_structure(structure, slot_rounds):
+        result["warnings"].append(
+            "Der gespeicherte KO-Baum passt nicht zur erwarteten Struktur "
+            "(Spiele wurden gelöscht oder ergänzt). Bitte die Folgerunden "
+            "manuell besetzen."
+        )
+        return result
+
+    def slot_for(match, round_index):
+        return slot_rounds[round_index][match["position"]]
+
+    def decided(source_slot):
+        if source_slot["status"] != "beendet":
+            return None, None
+        winner, loser = get_winner_loser(source_slot)
+        if winner is None:
+            result["warnings"].append(
+                f'{source_slot["phase"]}: Ein beendetes Spiel endete unentschieden. '
+                "Bitte den entschiedenen Endstand (Verlängerung/Elfmeterschießen) eintragen."
+            )
+        return winner, loser
+
+    def plan(target_slot, column, team_id):
+        if team_id is None or target_slot[column] == team_id:
+            return
+        if target_slot["status"] != "geplant" or target_slot["score_a"] is not None \
+                or target_slot["score_b"] is not None:
+            return
+        result["updates"].append({
+            "slot_id": target_slot["id"],
+            "column": column,
+            "team_id": team_id,
+        })
+
+    for round_index in range(1, len(structure)):
+        for match in structure[round_index]:
+            target_slot = slot_for(match, round_index)
+            for side, column in (("source_a", "team_a_id"), ("source_b", "team_b_id")):
+                source = match[side]
+                if source is None:
+                    continue
+                winner, _ = decided(slot_for(source, round_index - 1))
+                plan(target_slot, column, winner)
+
+    final_match = structure[-1][0]
+    if (
+        small_final_slot is not None
+        and final_match["source_a"] is not None
+        and final_match["source_b"] is not None
+    ):
+        semifinal_index = len(structure) - 2
+        for side, column in (("source_a", "team_a_id"), ("source_b", "team_b_id")):
+            source_slot = slot_for(final_match[side], semifinal_index)
+            if source_slot["status"] != "beendet":
+                continue
+            _, loser = get_winner_loser(source_slot)
+            plan(small_final_slot, column, loser)
+
+    # Unentschieden-Hinweise koennen fuer das Halbfinale doppelt entstehen
+    # (Finale und Spiel um Platz 3 lesen dieselben Spiele).
+    result["warnings"] = list(dict.fromkeys(result["warnings"]))
+    return result
+
+
+def advance_ko_rounds(competition_id: int):
+    """Traegt alle per plan_ko_advancement() ermittelten Aufsteiger ein und
+    gibt die Anzahl geaenderter Slot-Seiten sowie die Hinweise zurueck."""
+    with get_conn() as conn:
+        result = plan_ko_advancement(conn, competition_id)
+        for update in result["updates"]:
+            # column stammt ausschliesslich aus plan_ko_advancement
+            # ("team_a_id"/"team_b_id"), nie aus einer Benutzereingabe.
+            conn.execute(
+                f"UPDATE slots SET {update['column']} = ? WHERE id = ?",
+                (update["team_id"], update["slot_id"]),
+            )
+        conn.commit()
+    return result

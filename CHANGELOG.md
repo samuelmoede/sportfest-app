@@ -2,6 +2,10 @@
 
 Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
+## [Unveröffentlicht]
+
+- Reine KO-Runde: Sieger werden jetzt automatisch in die nächste Runde eingetragen, auch bei mehr als 4 Teams (Viertel-, Achtelfinale usw.); die Verlierer der Halbfinals kommen ins Spiel um Platz 3. In "Spielplan bearbeiten" gibt es dafür den Button "Nächste Runde besetzen", der schon nach jedem einzelnen beendeten Spiel greift. Bereits gestartete oder beendete Spiele werden nie verändert, ein unentschiedenes KO-Spiel wird als Hinweis gemeldet statt weitergegeben.
+
 ## [1.1] - 2026-10-05
 
 ### Benutzer und Sicherheit
