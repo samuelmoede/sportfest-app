@@ -489,6 +489,26 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </div>
 </section>
 {% endif %}
+{% if ko_error_message %}
+<section class="panel correction-blocked-banner">
+    <strong>{{ ko_error_message }}</strong>
+</section>
+{% endif %}
+{% if next_phase_action %}
+<section class="panel phase-ready-banner">
+    <div class="phase-ready-content">
+        <strong>Nächste Phase</strong>
+        <p class="muted">{{ next_phase_action.hint }}</p>
+    </div>
+    <div class="phase-ready-actions">
+        <form method="post" action="{{ next_phase_action.action }}"
+              onsubmit="return confirm('{{ next_phase_action.label }}?');">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+            <button class="green" type="submit">{{ next_phase_action.label }}</button>
+        </form>
+    </div>
+</section>
+{% endif %}
 {% if correction_blocked %}
 <section class="panel correction-blocked-banner">
     <strong>Diese Korrektur ist nicht mehr möglich.</strong>

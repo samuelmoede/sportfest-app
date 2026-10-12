@@ -51,6 +51,7 @@ from app.services.schedule_time_service import (
 )
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
+from app.services.ko_phase_service import get_ko_error_message
 from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.services.tournament_modes.ko_runde import (
     advance_ko_rounds,
@@ -147,6 +148,7 @@ def create_router(
         selected_court_ids=None,
         selected_generator_competition_ids=None,
         overwrite_warning=None,
+        ko_error=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
@@ -351,6 +353,7 @@ def create_router(
             "can_generate_finals": can_generate_finals,
             "can_generate_finals_from_table": can_generate_finals_from_table,
             "overwrite_warning_prompt": overwrite_warning_prompt,
+            "ko_error_message": get_ko_error_message(ko_error),
             "is_schulpokal": is_schulpokal,
             "schulpokal_partner_competitions": schulpokal_partner_competitions,
             "schulpokal_modes": SCHULPOKAL_MODES,
@@ -583,6 +586,7 @@ def create_router(
         event_id: str = "",
         competition_id: str = "",
         overwrite_warning: str = "",
+        ko_error: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
         # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
@@ -599,6 +603,7 @@ def create_router(
             selected_event_id=selected_event_id,
             event_options=event_options,
             overwrite_warning=overwrite_warning,
+            ko_error=ko_error,
         )
 
     @router.post("/competition/{competition_id}/update-timing")
@@ -1122,7 +1127,12 @@ def create_router(
         group_b = calculate_group_table(competition_id, "B")
 
         if len(group_a) < 2 or len(group_b) < 2:
-            return RedirectResponse(redirect_target, status_code=303)
+            return RedirectResponse(
+                _phase_generation_redirect_target(
+                    competition_id, results_return_to, ko_error="keine_gruppen"
+                ),
+                status_code=303,
+            )
 
         team_1a = group_a[0]["team_id"]
         team_2a = group_a[1]["team_id"]
@@ -1212,13 +1222,23 @@ def create_router(
             """, (competition_id,)).fetchall()
 
             if len(semifinals) < 2:
-                return RedirectResponse(redirect_target, status_code=303)
+                return RedirectResponse(
+                    _phase_generation_redirect_target(
+                        competition_id, results_return_to, ko_error="halbfinale_offen"
+                    ),
+                    status_code=303,
+                )
 
             winner_1, loser_1 = get_winner_loser(semifinals[0])
             winner_2, loser_2 = get_winner_loser(semifinals[1])
 
             if None in (winner_1, loser_1, winner_2, loser_2):
-                return RedirectResponse(redirect_target, status_code=303)
+                return RedirectResponse(
+                    _phase_generation_redirect_target(
+                        competition_id, results_return_to, ko_error="halbfinale_unentschieden"
+                    ),
+                    status_code=303,
+                )
 
             for slot in already_played:
                 record_change(
@@ -1333,7 +1353,12 @@ def create_router(
 
         ranking = calculate_table(competition_id, phase="Gruppenphase")
         if len(ranking) < 2:
-            return RedirectResponse(redirect_target, status_code=303)
+            return RedirectResponse(
+                _phase_generation_redirect_target(
+                    competition_id, results_return_to, ko_error="tabelle_zu_klein"
+                ),
+                status_code=303,
+            )
 
         with get_conn() as conn:
             for slot in already_played:

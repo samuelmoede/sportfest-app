@@ -42,6 +42,7 @@ from app.services.event_status_service import (
     normalize_event_statuses,
     resolve_selected_event_id,
 )
+from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
@@ -161,7 +162,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table)$"
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table|advance-ko-round)$"
         ),
         "referee",
     ),
@@ -2152,6 +2153,7 @@ def ergebnisse(
     phase_ready_competition_id: str = "",
     overwrite_warning: str = "",
     correction_blocked: str = "",
+    ko_error: str = "",
     nur_aktive: str = "",
 ):
     nur_aktive_enabled = nur_aktive == "1"
@@ -2463,6 +2465,13 @@ def ergebnisse(
             "overwrite_warning_prompt": overwrite_warning_prompt,
             "overwrite_warning_dismiss_url": overwrite_warning_dismiss_url,
             "correction_blocked": correction_blocked == "1",
+            "ko_error_message": get_ko_error_message(ko_error),
+            # Dauerhafter Besetzen-Button (ROADMAP Phase 4.7) - nicht doppelt
+            # neben dem einmaligen Banner direkt nach Abschluss der Phase.
+            "next_phase_action": (
+                None if phase_ready_prompt or overwrite_warning_prompt
+                else get_next_phase_action(selected_competition)
+            ),
         }
     )
 

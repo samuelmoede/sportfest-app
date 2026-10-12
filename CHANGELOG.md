@@ -4,6 +4,9 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Ergebniseingabe: Ein dauerhafter Button "Halbfinale besetzen", "Finale besetzen" bzw. "Nächste KO-Runde besetzen" erscheint, sobald die nächste Phase besetzt werden kann, und bleibt sichtbar, bis sie beginnt. Schiedsrichter können damit nach einer Ergebniskorrektur selbst neu besetzen, ohne einen Admin für die Spielplan-Bearbeitung.
+- Halbfinale/Finale automatisch besetzen: Statt eines stillen Rücksprungs erscheint jetzt eine Fehlermeldung, wenn es keine zwei gültigen Gruppen gibt, die Halbfinals noch nicht beendet sind, ein Halbfinale unentschieden endete oder die Tabelle zu wenige Teams hat.
+- Fix: Die neue Aktion "Nächste Runde besetzen" (reine KO-Runde) ist bei aktiver Sicherheit jetzt wie die übrigen Besetzen-Aktionen Schiedsrichtern und Admins vorbehalten.
 - Reine KO-Runde: Sieger werden jetzt automatisch in die nächste Runde eingetragen, auch bei mehr als 4 Teams (Viertel-, Achtelfinale usw.); die Verlierer der Halbfinals kommen ins Spiel um Platz 3. In "Spielplan bearbeiten" gibt es dafür den Button "Nächste Runde besetzen", der schon nach jedem einzelnen beendeten Spiel greift. Bereits gestartete oder beendete Spiele werden nie verändert, ein unentschiedenes KO-Spiel wird als Hinweis gemeldet statt weitergegeben.
 
 ## [1.1] - 2026-10-05
