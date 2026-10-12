@@ -182,5 +182,9 @@ Role *authorization* (`ROLES`, `ROLE_ACCESS_LEVELS`, `can_access_role()`) still 
   mode fully backward-compatible. When enabled, central middleware protects settings, teams,
   courts, and competition administration; results and schedule actions remain public. Login is
   per-user (`users` table, see Data model above) rather than shared per-role passwords; role
-  *authorization* itself (which role may do what) is untouched. CSRF protection is still pending.
+  *authorization* itself (which role may do what) is untouched. CSRF protection: with security
+  enabled, `CsrfOriginMiddleware` (`app/services/csrf_service.py`) rejects POST/PUT/PATCH/DELETE
+  whose `Origin`/`Referer` names a foreign host (403); requests without either header pass, and
+  the session cookie stays `SameSite=Lax`. Behind a reverse proxy that rewrites `Host`, set
+  `X-Forwarded-Host` or list the public URL in `SPORTFEST_TRUSTED_ORIGINS`.
 - `data/*.db` and `backups/` are gitignored — never commit the live database.

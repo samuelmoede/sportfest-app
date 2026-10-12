@@ -11,7 +11,7 @@ import time
 from typing import Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -42,6 +42,7 @@ from app.services.event_status_service import (
     normalize_event_statuses,
     resolve_selected_event_id,
 )
+from app.services.csrf_service import UNSAFE_METHODS as CSRF_UNSAFE_METHODS, is_request_origin_allowed
 from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
 from app.services.results_filter_service import (
     build_results_filter_state,
@@ -213,8 +214,34 @@ class UserActivityMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class CsrfOriginMiddleware(BaseHTTPMiddleware):
+    """Lehnt schreibende Anfragen fremder Herkunft ab (siehe
+    app/services/csrf_service.py). Nur bei aktiver Sicherheit, damit der
+    deaktivierte Modus unveraendert rueckwaertskompatibel bleibt."""
+
+    async def dispatch(self, request: Request, call_next):
+        if (
+            request.method.upper() in CSRF_UNSAFE_METHODS
+            and is_security_enabled()
+            and not is_request_origin_allowed(request.method, request.headers)
+        ):
+            logging.getLogger(__name__).warning(
+                "CSRF-Schutz: %s %s abgelehnt (Origin=%r, Referer=%r, Host=%r). "
+                "Hinter einem Proxy ggf. SPORTFEST_TRUSTED_ORIGINS setzen.",
+                request.method, request.url.path,
+                request.headers.get("origin"), request.headers.get("referer"),
+                request.headers.get("host"),
+            )
+            return PlainTextResponse(
+                "Anfrage abgelehnt: Sie stammt nicht von dieser Sportfest-App (CSRF-Schutz).",
+                status_code=403,
+            )
+        return await call_next(request)
+
+
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
+app.add_middleware(CsrfOriginMiddleware)
 app.add_middleware(UserActivityMiddleware)
 app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
