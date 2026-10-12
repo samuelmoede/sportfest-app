@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Sicherheit: CSRF-Schutz. Bei aktiver Sicherheit werden Formular-Absendungen und andere schreibende Anfragen abgelehnt, wenn der Browser eine fremde Herkunft meldet (`Origin`/`Referer`). Hinter einem Reverse-Proxy, der den Host-Header umschreibt, die öffentliche Adresse in `SPORTFEST_TRUSTED_ORIGINS` eintragen. Ohne aktive Sicherheit ändert sich nichts.
 - Spielplan-Generator: Die Vorschau prüft jetzt auch gegen den bereits gespeicherten Spielplan anderer Wettbewerbe am selben Tag. Spielt ein Team zur selben Zeit schon woanders oder ist ein Feld schon belegt, erscheint ein Fehler; ist das Datum eines Wettbewerbs unbekannt, ein Hinweis. Hat der Wettbewerb selbst schon Spiele, weist die Vorschau darauf hin.
 - Spielplan-Generator: "Übernehmen" prüft den Vorschlag serverseitig erneut und speichert bei Doppelbelegungen oder Überschneidungen nichts, statt sich nur auf das ausgeblendete Formular zu verlassen.
 - Ergebniseingabe: Ein dauerhafter Button "Halbfinale besetzen", "Finale besetzen" bzw. "Nächste KO-Runde besetzen" erscheint, sobald die nächste Phase besetzt werden kann, und bleibt sichtbar, bis sie beginnt. Schiedsrichter können damit nach einer Ergebniskorrektur selbst neu besetzen, ohne einen Admin für die Spielplan-Bearbeitung.
