@@ -287,6 +287,16 @@
     {% endif %}
 </section>
 
+{% if plan_apply_rejected %}
+<section class="ko-box correction-blocked-banner">
+    <strong>Der Vorschlag wurde nicht übernommen.</strong>
+    <p class="muted">
+        Er überschneidet sich mit bereits gespeicherten Spielen (Team oder Feld zur selben Zeit belegt)
+        oder enthält Doppelbelegungen. Bitte die Vorschau neu erstellen und die Hinweise prüfen.
+    </p>
+</section>
+{% endif %}
+
 {% if ko_error_message %}
 <section class="ko-box correction-blocked-banner">
     <strong>{{ ko_error_message }}</strong>
