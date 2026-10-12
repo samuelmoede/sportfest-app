@@ -348,6 +348,39 @@
 </section>
 {% endif %}
 
+{% if ko_advance is not none %}
+<section class="ko-box">
+    <h2>Nächste KO-Runde automatisch besetzen</h2>
+
+    {% if ko_advance.updates %}
+        <p>Es stehen Sieger fest, die in die nächste Runde eingetragen werden können.</p>
+    {% else %}
+        <p class="muted">
+            Sobald ein KO-Spiel beendet ist, kann der Sieger automatisch in die nächste Runde
+            (und der Verlierer eines Halbfinals ins Spiel um Platz 3) eingetragen werden.
+        </p>
+    {% endif %}
+
+    {% if ko_advance.warnings %}
+    <ul>
+        {% for warning in ko_advance.warnings %}
+        <li class="validation-warning"><strong>Hinweis:</strong> {{ warning }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="ko-actions">
+        <form method="post"
+              action="/competition/{{ selected_competition_id }}/advance-ko-round"
+              onsubmit="return confirm('Sieger automatisch in die nächste KO-Runde eintragen?');">
+            <button class="green" type="submit" {% if not ko_advance.updates %}disabled{% endif %}>
+                Nächste Runde besetzen
+            </button>
+        </form>
+    </div>
+</section>
+{% endif %}
+
 <section class="generator-box">
     <h2>Automatischen Spielplan-Vorschlag erstellen</h2>
     <p class="muted">Erst wird nur eine Vorschau erzeugt. Gespeichert wird der Plan erst danach.</p>
