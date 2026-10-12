@@ -4,6 +4,8 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Spielplan-Generator: Die Vorschau prüft jetzt auch gegen den bereits gespeicherten Spielplan anderer Wettbewerbe am selben Tag. Spielt ein Team zur selben Zeit schon woanders oder ist ein Feld schon belegt, erscheint ein Fehler; ist das Datum eines Wettbewerbs unbekannt, ein Hinweis. Hat der Wettbewerb selbst schon Spiele, weist die Vorschau darauf hin.
+- Spielplan-Generator: "Übernehmen" prüft den Vorschlag serverseitig erneut und speichert bei Doppelbelegungen oder Überschneidungen nichts, statt sich nur auf das ausgeblendete Formular zu verlassen.
 - Ergebniseingabe: Ein dauerhafter Button "Halbfinale besetzen", "Finale besetzen" bzw. "Nächste KO-Runde besetzen" erscheint, sobald die nächste Phase besetzt werden kann, und bleibt sichtbar, bis sie beginnt. Schiedsrichter können damit nach einer Ergebniskorrektur selbst neu besetzen, ohne einen Admin für die Spielplan-Bearbeitung.
 - Halbfinale/Finale automatisch besetzen: Statt eines stillen Rücksprungs erscheint jetzt eine Fehlermeldung, wenn es keine zwei gültigen Gruppen gibt, die Halbfinals noch nicht beendet sind, ein Halbfinale unentschieden endete oder die Tabelle zu wenige Teams hat.
 - Fix: Die neue Aktion "Nächste Runde besetzen" (reine KO-Runde) ist bei aktiver Sicherheit jetzt wie die übrigen Besetzen-Aktionen Schiedsrichtern und Admins vorbehalten.

@@ -52,6 +52,10 @@ from app.services.schedule_time_service import (
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
 from app.services.ko_phase_service import get_ko_error_message
+from app.services.schedule_conflict_service import (
+    find_existing_schedule_conflicts,
+    find_internal_conflicts,
+)
 from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.services.tournament_modes.ko_runde import (
     advance_ko_rounds,
@@ -81,6 +85,11 @@ def _phase_generation_redirect_target(
         )
     query = urlencode({"competition_id": competition_id, **extra_params})
     return f"/spielplan-bearbeiten?{query}"
+
+
+def _existing_schedule_conflicts(proposed_slots):
+    with get_conn() as conn:
+        return find_existing_schedule_conflicts(conn, proposed_slots)
 
 
 def _format_slot_result(slot) -> str:
@@ -149,6 +158,7 @@ def create_router(
         selected_generator_competition_ids=None,
         overwrite_warning=None,
         ko_error=None,
+        plan_error=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
@@ -354,6 +364,7 @@ def create_router(
             "can_generate_finals_from_table": can_generate_finals_from_table,
             "overwrite_warning_prompt": overwrite_warning_prompt,
             "ko_error_message": get_ko_error_message(ko_error),
+            "plan_apply_rejected": plan_error == "konflikt",
             "is_schulpokal": is_schulpokal,
             "schulpokal_partner_competitions": schulpokal_partner_competitions,
             "schulpokal_modes": SCHULPOKAL_MODES,
@@ -587,6 +598,7 @@ def create_router(
         competition_id: str = "",
         overwrite_warning: str = "",
         ko_error: str = "",
+        plan_error: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
         # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
@@ -604,6 +616,7 @@ def create_router(
             event_options=event_options,
             overwrite_warning=overwrite_warning,
             ko_error=ko_error,
+            plan_error=plan_error,
         )
 
     @router.post("/competition/{competition_id}/update-timing")
@@ -689,6 +702,7 @@ def create_router(
             plan_warnings.extend(
                 validate_generated_plan(proposed_slots, expected_teams, games_per_team)
             )
+            plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
             plan_end_time_forecast = build_end_time_forecast(
                 proposed_slots,
                 competition,
@@ -802,6 +816,7 @@ def create_router(
                 plan_warnings.extend(
                     validate_schulpokal_plan(proposed_slots, expected_teams_by_competition)
                 )
+                plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
                 plan_timing = get_competition_timing(primary_competition)
                 plan_end_time_forecast = build_end_time_forecast(
                     proposed_slots,
@@ -902,6 +917,7 @@ def create_router(
                 if team["jahrgang"] == competition["jahrgang"]
             ]
             plan_warnings.extend(validate_ko_plan(proposed_slots, expected_teams))
+            plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
             plan_end_time_forecast = build_end_time_forecast(
                 proposed_slots,
                 competition,
@@ -999,6 +1015,7 @@ def create_router(
                 if team["jahrgang"] == competition["jahrgang"]
             ]
             plan_warnings.extend(validate_punkterunde_plan(proposed_slots, expected_teams))
+            plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
             plan_end_time_forecast = build_end_time_forecast(
                 proposed_slots,
                 competition,
@@ -1039,7 +1056,34 @@ def create_router(
         team_b_id: List[str] = Form(...),
         note: List[str] = Form(...),
     ):
+        submitted_slots = [
+            {
+                "competition_id": competition_id[i],
+                "startzeit": startzeit[i],
+                "slot_typ": slot_typ[i],
+                "court_id": court_id[i],
+                "team_a_id": team_a_id[i],
+                "team_b_id": team_b_id[i],
+            }
+            for i in range(len(startzeit))
+        ]
         with get_conn() as conn:
+            # Serverseitige Pruefung (ROADMAP Phase 4.7): die Vorschau blendet
+            # "Übernehmen" bei Fehlern nur im Template aus - ein veraendertes
+            # oder veraltetes Formular (z.B. weil inzwischen ein anderer
+            # Wettbewerb dieselben Felder belegt) darf trotzdem keine
+            # Doppelbelegung speichern.
+            blocking = [
+                warning for warning in (
+                    find_internal_conflicts(conn, submitted_slots)
+                    + find_existing_schedule_conflicts(conn, submitted_slots)
+                )
+                if warning["level"] == "error"
+            ]
+            if blocking:
+                query = urlencode({"competition_id": competition_id[0], "plan_error": "konflikt"})
+                return RedirectResponse(f"/spielplan-bearbeiten?{query}", status_code=303)
+
             all_courts = conn.execute(
                 "SELECT * FROM courts WHERE active = 1 ORDER BY name"
             ).fetchall()
