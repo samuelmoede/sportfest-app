@@ -3,12 +3,14 @@ bekommen, unabhaengig vom event_date seiner (optionalen) Veranstaltung (Issue #1
 Steht ein solcher Wettbewerb an, soll er - analog zu einer datierten Veranstaltung -
 im Tagesplan der Startseite auftauchen, auch wenn (noch) keine datierte/aktive
 Veranstaltung existiert."""
+import os
 import sys
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -18,7 +20,11 @@ import app.database as database
 from app.database import get_conn, init_db
 from app.services.event_status_service import get_dashboard_standalone_competitions
 
-TODAY = date.today()
+# Gleiches "heute" wie die App (app_now() rechnet in SPORTFEST_TIMEZONE,
+# Standard Europe/Berlin): mit date.today() (UTC auf dem CI-Runner) schlug
+# der Dashboard-Test zwischen 23 und 24 Uhr UTC fehl, weil in Berlin schon
+# der naechste Tag war.
+TODAY = datetime.now(ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))).date()
 TOMORROW = TODAY + timedelta(days=1)
 YESTERDAY = TODAY - timedelta(days=1)
 
