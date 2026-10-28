@@ -342,6 +342,17 @@ class PdfTests(unittest.TestCase):
         self.assertTrue(pdf.startswith(b"%PDF"))
         self.assertEqual(pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page "), 3)
 
+    def test_pdf_seite_als_png_im_a4_format(self):
+        from PIL import Image
+        from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf, pdf_seite_als_png
+
+        pdf = erzeuge_urkunden_pdf([{"recipient_name": "7a", "platz": 1, "urkundentyp": URKUNDE_SIEGER}], {})
+        png = pdf_seite_als_png(pdf, breite_px=420)
+        with Image.open(BytesIO(png)) as image:
+            self.assertEqual(image.format, "PNG")
+            self.assertEqual(image.width, 420)
+            self.assertAlmostEqual(image.height / image.width, 297 / 210, places=2)
+
     def test_leeres_pdf_hat_hinweisseite(self):
         from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf
 

@@ -136,7 +136,7 @@
                 </div>
                 <div class="urkunden-aktionen">
                     <button type="submit" class="primary">Speichern</button>
-                    <button type="button" class="secondary" data-urkunde-vorschau="/urkunden/pdf?{{ query_string }}&key={{ e.key|urlencode }}" data-titel="{{ e.recipient_name }} · {{ e.quelle_label }}">Vorschau</button>
+                    <button type="button" class="secondary" data-urkunde-vorschau="/urkunden/pdf?{{ query_string }}&key={{ e.key|urlencode }}" data-bild="/urkunden/vorschau.png?{{ query_string }}&key={{ e.key|urlencode }}" data-titel="{{ e.recipient_name }} · {{ e.quelle_label }}">Vorschau</button>
                     <a class="button secondary" href="/urkunden/pdf?{{ query_string }}&key={{ e.key|urlencode }}&download=1">PDF</a>
                     {% if e.angepasst %}
                     <button type="submit" class="secondary" formaction="/urkunden/anpassung/zuruecksetzen" title="Manuelle Änderungen verwerfen">Zurücksetzen</button>
@@ -157,10 +157,28 @@
             </div>
             <div class="urkunden-vorschau-aktionen">
                 <button type="button" class="secondary" data-urkunde-vorschau="/urkunden/pdf?{{ query_string }}" data-titel="Sammel-PDF">Alle</button>
-                <a class="button secondary" id="urkunden-vorschau-tab" href="{{ vorschau_url }}" target="_blank" rel="noopener">In neuem Tab</a>
+                <a class="button secondary" id="urkunden-vorschau-tab" href="{{ vorschau_url }}" target="_blank" rel="noopener">PDF öffnen / drucken</a>
             </div>
         </div>
-        <iframe id="urkunden-vorschau-frame" title="PDF-Vorschau der Urkunden" src="{{ vorschau_url }}"></iframe>
+        {# Bilder statt eingebettetem PDF: funktioniert auch im Handy-Browser. #}
+        <div id="urkunden-vorschau-bilder" class="urkunden-vorschau-bilder">
+            {% if vorschau_key %}
+            <img src="/urkunden/vorschau.png?{{ query_string }}&key={{ vorschau_key|urlencode }}" alt="Vorschau: {{ vorschau_titel }}">
+            {% else %}
+            {% for key in vorschau_keys %}
+            <img src="/urkunden/vorschau.png?{{ query_string }}&key={{ key|urlencode }}" alt="Vorschau Urkunde {{ loop.index }}" loading="lazy">
+            {% else %}
+            <p class="muted">Keine Urkunden zum Drucken ausgewählt.</p>
+            {% endfor %}
+            {% endif %}
+        </div>
+        <template id="urkunden-vorschau-alle">
+            {% for key in vorschau_keys %}
+            <img src="/urkunden/vorschau.png?{{ query_string }}&key={{ key|urlencode }}" alt="Vorschau Urkunde {{ loop.index }}" loading="lazy">
+            {% else %}
+            <p class="muted">Keine Urkunden zum Drucken ausgewählt.</p>
+            {% endfor %}
+        </template>
     </section>
 </div>
 
@@ -236,14 +254,24 @@
 document.querySelectorAll("[data-urkunde-vorschau]").forEach(function (button) {
     button.addEventListener("click", function () {
         var url = button.getAttribute("data-urkunde-vorschau");
-        document.getElementById("urkunden-vorschau-frame").src = url;
+        var bild = button.getAttribute("data-bild");
+        var bilder = document.getElementById("urkunden-vorschau-bilder");
+        if (bild) {
+            bilder.innerHTML = "";
+            var img = document.createElement("img");
+            img.src = bild;
+            img.alt = "Vorschau: " + (button.getAttribute("data-titel") || "Urkunde");
+            bilder.appendChild(img);
+        } else {
+            bilder.innerHTML = document.getElementById("urkunden-vorschau-alle").innerHTML;
+        }
         document.getElementById("urkunden-vorschau-tab").href = url;
         document.getElementById("urkunden-vorschau-titel").textContent = button.getAttribute("data-titel") || "Urkunde";
         document.querySelectorAll(".urkunde-karte.is-selected").forEach(function (card) { card.classList.remove("is-selected"); });
         var card = button.closest(".urkunde-karte");
         if (card) { card.classList.add("is-selected"); }
         if (window.matchMedia("(max-width: 1100px)").matches) {
-            document.getElementById("urkunden-vorschau-frame").scrollIntoView({behavior: "smooth"});
+            bilder.scrollIntoView({behavior: "smooth"});
         }
     });
 });
