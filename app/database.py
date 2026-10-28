@@ -209,6 +209,21 @@ def init_db(db_path=None):
 
         CREATE INDEX IF NOT EXISTS idx_user_sessions_open
             ON user_sessions (ended_at, last_seen_at);
+
+        -- Manuelle Korrekturen fuer den Urkunden-Generator (nur fuer den
+        -- Druck, die Wertung in Tabellen/Gesamtwertung bleibt unveraendert).
+        CREATE TABLE IF NOT EXISTS urkunden_anpassungen (
+            event_id INTEGER NOT NULL,
+            eintrag_key TEXT NOT NULL,
+            platz INTEGER,
+            urkundentyp TEXT,
+            name TEXT,
+            leistung TEXT,
+            ausgeblendet INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT,
+            PRIMARY KEY (event_id, eintrag_key),
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
         """)
 
         columns = [
