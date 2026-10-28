@@ -164,7 +164,7 @@ Für Turnierleitung und Admin (bei ausgeschalteter Sicherheit für alle). Erzeug
 - Plätze werden aus Tabellen/Sechskampf/Gesamtwertung übernommen. Gleichstand = gleicher Platz (z. B. zweimal Platz 2), kein Stechen.
 - Urkundentyp: Siegerurkunde bis Platz X (Standard 3), Ehrenurkunde bis Platz Y oder ab Punktzahl Z, sonst Teilnehmerurkunde. Schwellen global und je Jahrgangsgruppe (7, 8, 9, Oberstufe) einstellbar.
 - Vor dem Druck lassen sich je Urkunde Platz, Urkundentyp, Name und Leistung korrigieren oder die Urkunde vom Druck ausnehmen. Das gilt nur für die Urkunden, nicht für Tabellen und Gesamtwertung (Tabelle `urkunden_anpassungen`).
-- Vorschau als echtes PDF im Browser, Filter nach Jahrgang, Klasse, Wettbewerb/Disziplin, Platz und Urkundentyp; Sammel-PDF nach Wettbewerb oder nach Klasse sortiert, Einzel-PDF je Urkunde.
+- Vorschau als Bild (serverseitig aus dem Druck-PDF gerendert, funktioniert auch am Handy), Filter nach Jahrgang, Klasse, Wettbewerb/Disziplin, Platz und Urkundentyp; Sammel-PDF nach Wettbewerb oder nach Klasse sortiert, Einzel-PDF je Urkunde.
 - Layout: Schulname, Veranstaltungsname, Ort, Datum (Standard: Datum von Wettbewerb bzw. Veranstaltung), Beschriftung der zwei Unterschriftszeilen und Schul-Logo (PNG/JPG, in der Datenbank gespeichert und damit im Backup enthalten).
 - Technik: `fpdf2` (reines Python) mit eingebetteter Schrift DejaVu Sans (`app/fonts/`), damit Umlaute und Sonderzeichen korrekt erscheinen; lange Namen werden automatisch verkleinert und notfalls umbrochen.
 

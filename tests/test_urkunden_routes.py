@@ -111,6 +111,24 @@ class UrkundenRouteTests(unittest.TestCase):
         self.assertIn("inline", response.headers["content-disposition"])
         self.assertIn("7b", response.headers["content-disposition"])
 
+    def test_vorschau_als_bild_fuer_handy(self):
+        page = self.client.get(f"/urkunden?event_id={self.event_id}&wertung=disziplin").text
+        self.assertIn("/urkunden/vorschau.png?", page)
+        self.assertNotIn("<iframe", page)
+
+        key = f"d:{self.discipline_id}:{self.team['7a']}"
+        response = self.client.get(
+            "/urkunden/vorschau.png", params={"event_id": self.event_id, "wertung": "disziplin", "key": key}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG"))
+
+        response = self.client.get(
+            "/urkunden/vorschau.png", params={"event_id": self.event_id, "key": "gibt-es-nicht"}
+        )
+        self.assertEqual(response.status_code, 404)
+
     def test_manuelle_platzkorrektur(self):
         key = f"d:{self.discipline_id}:{self.team['7c']}"
         response = self.client.post("/urkunden/anpassung", data={

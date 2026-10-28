@@ -187,6 +187,24 @@ def _zeichne_urkunde(pdf, eintrag, layout, logo_bytes):
         pdf.cell(breite, _pt_to_mm(size) * 1.3, label or "", align="C")
 
 
+def pdf_seite_als_png(pdf_bytes: bytes, seite: int = 0, breite_px: int = 900) -> bytes:
+    """Rendert eine PDF-Seite als PNG fuer die Vorschau im Browser. Handy-
+    Browser zeigen eingebettete PDFs (iframe) nicht an, ein Bild schon. Das
+    Bild entsteht aus genau dem PDF, das auch gedruckt wird (pypdfium2:
+    fertige Wheels mit eingebautem PDFium, keine Systempakete noetig)."""
+    import pypdfium2
+
+    document = pypdfium2.PdfDocument(pdf_bytes)
+    try:
+        page = document[seite]
+        bitmap = page.render(scale=breite_px / page.get_width())
+        buffer = BytesIO()
+        bitmap.to_pil().save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+    finally:
+        document.close()
+
+
 def erzeuge_urkunden_pdf(eintraege, layout, logo_bytes=None) -> bytes:
     pdf = UrkundenPDF()
     for eintrag in eintraege:

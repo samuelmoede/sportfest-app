@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn jinja2 python-multipart itsdangerous fpdf2
+RUN pip install --no-cache-dir fastapi uvicorn jinja2 python-multipart itsdangerous fpdf2 pypdfium2
 
 COPY app /app/app
 COPY DOKUMENTATION.md /app/DOKUMENTATION.md

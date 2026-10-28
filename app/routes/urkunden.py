@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 
 from app.database import get_conn
-from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf
+from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf, pdf_seite_als_png
 from app.services.urkunden_service import (
     JAHRGANGSGRUPPEN,
     LAYOUT_DEFAULTS,
@@ -185,6 +185,7 @@ def create_router(
                 "query_string": qs,
                 "vorschau_key": vorschau_key if vorschau_eintrag is not None else "",
                 "vorschau_url": vorschau_url,
+                "vorschau_keys": [e["key"] for e in gefiltert if not e["ausgeblendet"]],
                 "vorschau_titel": vorschau_titel,
                 "rueckweg": f"/urkunden?{qs}",
                 "layout": lade_layout(),
@@ -219,6 +220,22 @@ def create_router(
             content=pdf,
             media_type="application/pdf",
             headers={"Content-Disposition": f'{art}; filename="{dateiname}"'},
+        )
+
+    @router.get("/urkunden/vorschau.png")
+    def urkunden_vorschau_bild(request: Request):
+        """Eine Urkunde (key) als Bild, fuer die Vorschau auch auf Handys."""
+        _, _, _, _, alle, _ = lese_auswahl(request.query_params)
+        key = request.query_params.get("key")
+        auswahl = [e for e in alle if e["key"] == key]
+        if not auswahl:
+            return Response(status_code=404)
+        logo_bytes, _ = lade_logo()
+        pdf = erzeuge_urkunden_pdf(auswahl, lade_layout(), logo_bytes)
+        return Response(
+            content=pdf_seite_als_png(pdf),
+            media_type="image/png",
+            headers={"Cache-Control": "no-store"},
         )
 
     @router.post("/urkunden/anpassung")
