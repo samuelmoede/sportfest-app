@@ -20,6 +20,7 @@
 {% set access_badge_aria = ("Angemeldet als " ~ access_username ~ ", Rolle: " ~ access_role_label) if access_username else ("Aktuelle Rolle: " ~ access_role_label) %}
 {% set can_view_results = can_access_role(request, "referee") %}
 {% set can_view_admin = can_access_role(request, "admin") %}
+{% set can_view_urkunden = can_access_role(request, "tournament_lead") %}
 {% set current_path = request.url.path %}
 <header class="mobile-topbar" aria-label="Mobile Kopfzeile">
     <div class="mobile-brand">
@@ -73,6 +74,12 @@
             <span class="nav-icon" aria-hidden="true">📊</span>
             <span class="nav-text">Tabellen</span>
         </a>
+        {% if can_view_urkunden %}
+        <a class="nav-link{% if current_path == '/urkunden' %} is-active{% endif %}" href="/urkunden" {% if current_path == '/urkunden' %}aria-current="page"{% endif %}>
+            <span class="nav-icon" aria-hidden="true">📜</span>
+            <span class="nav-text">Urkunden</span>
+        </a>
+        {% endif %}
 
         {% if can_view_admin %}
         <div class="nav-group">Verwaltung</div>
@@ -167,6 +174,12 @@
                 <span class="nav-icon" aria-hidden="true">📊</span>
                 <span class="nav-text">Tabellen</span>
             </a>
+            {% if can_view_urkunden %}
+            <a class="nav-link{% if current_path == '/urkunden' %} is-active{% endif %}" href="/urkunden" {% if current_path == '/urkunden' %}aria-current="page"{% endif %}>
+                <span class="nav-icon" aria-hidden="true">📜</span>
+                <span class="nav-text">Urkunden</span>
+            </a>
+            {% endif %}
 
             {% if can_view_admin %}
             <div class="nav-group">Verwaltung</div>

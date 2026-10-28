@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Auswertung</p>
+        <h1>Urkunden</h1>
+        <p>Druckfertige Urkunden (A4) aus den Ergebnissen. Plätze und Urkundentyp lassen sich vor dem Druck je Urkunde korrigieren.</p>
+    </div>
+</header>
+
+{% if meldung %}<p class="urkunden-meldung">{{ meldung }}</p>{% endif %}
+{% if fehler %}<p class="urkunden-meldung is-error">{{ fehler }}</p>{% endif %}
+
+{% if not event %}
+<section class="panel">
+    <p class="muted">Noch keine Veranstaltung angelegt.</p>
+</section>
+{% else %}
+
+<form method="get" action="/urkunden" class="filter-row urkunden-filter">
+    <label>Veranstaltung
+        <select name="event_id">
+            {% for e in events %}
+            <option value="{{ e.id }}" {% if e.id == event.id %}selected{% endif %}>{{ e.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Wertung
+        <select name="wertung">
+            {% for value, label in wertungen.items() %}
+            <option value="{{ value }}" {% if value == wertung %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Jahrgang
+        <select name="jahrgangsgruppe">
+            <option value="">Alle</option>
+            {% for gruppe in jahrgangsgruppen %}
+            <option value="{{ gruppe }}" {% if filter.jahrgangsgruppe == gruppe %}selected{% endif %}>{{ gruppe }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Klasse
+        <select name="team_id">
+            <option value="">Alle</option>
+            {% for team_id, team_name in teams %}
+            <option value="{{ team_id }}" {% if filter.team_id == team_id %}selected{% endif %}>{{ team_name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Wettbewerb / Disziplin
+        <select name="quelle">
+            <option value="">Alle</option>
+            {% for quelle_id, quelle_label in quellen.items() %}
+            <option value="{{ quelle_id }}" {% if filter.quelle == quelle_id %}selected{% endif %}>{{ quelle_label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Platz bis
+        <input type="number" name="platz_bis" min="1" value="{{ filter.platz_bis or '' }}" placeholder="alle">
+    </label>
+    <label>Urkundentyp
+        <select name="typ">
+            <option value="">Alle</option>
+            {% for typ in urkundentypen %}
+            <option value="{{ typ }}" {% if filter.typ == typ %}selected{% endif %}>{{ typ }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Reihenfolge im Sammel-PDF
+        <select name="sortierung">
+            <option value="wertung" {% if filter.sortierung == 'wertung' %}selected{% endif %}>nach Wettbewerb/Disziplin</option>
+            <option value="klasse" {% if filter.sortierung == 'klasse' %}selected{% endif %}>nach Klasse</option>
+        </select>
+    </label>
+    <button class="primary" type="submit">Anzeigen</button>
+</form>
+
+<div class="urkunden-layout">
+    <section class="panel urkunden-liste">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">{{ wertungen[wertung] }}</p>
+                <h2>{{ eintraege|length }} Urkunden ({{ anzahl_druck }} zum Drucken)</h2>
+            </div>
+            <a class="button primary" href="/urkunden/pdf?{{ query_string }}&download=1">Sammel-PDF herunterladen</a>
+        </div>
+        <p class="muted">
+            Änderungen gelten nur für die Urkunden, nicht für Tabellen und Gesamtwertung.
+            Ist der Urkundentyp auf „automatisch“, ergibt er sich aus dem Platz (auch einem korrigierten) und den Schwellen unten.
+        </p>
+
+        {% if not eintraege %}
+        <p class="muted">Für diese Auswahl gibt es noch keine Ergebnisse.</p>
+        {% else %}
+        <div class="urkunden-karten">
+        {% for e in eintraege %}
+        <article id="{{ e.anker }}" class="urkunde-karte typ-{{ e.urkundentyp|lower }}{% if e.ausgeblendet %} is-hidden-print{% endif %}{% if e.angepasst %} is-adjusted{% endif %}{% if e.key == vorschau_key %} is-selected{% endif %}">
+            <form method="post" action="/urkunden/anpassung">
+                <input type="hidden" name="event_id" value="{{ event.id }}">
+                <input type="hidden" name="key" value="{{ e.key }}">
+                <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
+                <div class="urkunde-kopf">
+                    <label class="urkunde-druck" title="Im Sammel-PDF drucken">
+                        <input type="checkbox" name="drucken" value="1" {% if not e.ausgeblendet %}checked{% endif %}> Drucken
+                    </label>
+                    <strong class="urkunde-name">{{ e.recipient_name }}</strong>
+                    <span class="urkunde-quelle">{{ e.quelle_label }}</span>
+                    <span class="urkunde-badges">
+                        {% if e.platz %}<span class="urkunde-badge platz">{{ e.platz }}. Platz</span>{% endif %}
+                        <span class="urkunde-badge typ">{{ e.urkundentyp }}</span>
+                        {% if e.angepasst %}<span class="urkunde-badge angepasst" title="Manuell angepasst">angepasst</span>{% endif %}
+                    </span>
+                </div>
+                <div class="urkunde-felder">
+                    <label>Name auf der Urkunde
+                        <input type="text" name="name" value="{{ e.recipient_name if e.recipient_name != e.class_name else '' }}" placeholder="{{ e.class_name }}">
+                    </label>
+                    <label>Platz
+                        <input type="number" min="1" name="platz" class="urkunden-platz"
+                            value="{{ e.platz if e.platz != e.berechneter_platz else '' }}"
+                            placeholder="{{ e.berechneter_platz or '–' }}"
+                            title="Berechnet: {{ e.berechneter_platz or '–' }}. Leer lassen = berechneter Platz.">
+                    </label>
+                    <label>Urkundentyp
+                        <select name="urkundentyp">
+                            <option value="">automatisch</option>
+                            {% for typ in urkundentypen %}
+                            <option value="{{ typ }}" {% if e.typ_manuell and e.urkundentyp == typ %}selected{% endif %}>{{ typ }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>Leistung
+                        <input type="text" name="leistung" value="{{ e.leistung if e.leistung != e.berechnete_leistung else '' }}" placeholder="{{ e.berechnete_leistung }}">
+                    </label>
+                </div>
+                <div class="urkunden-aktionen">
+                    <button type="submit" class="primary">Speichern</button>
+                    <button type="button" class="secondary" data-urkunde-vorschau="/urkunden/pdf?{{ query_string }}&key={{ e.key|urlencode }}" data-titel="{{ e.recipient_name }} · {{ e.quelle_label }}">Vorschau</button>
+                    <a class="button secondary" href="/urkunden/pdf?{{ query_string }}&key={{ e.key|urlencode }}&download=1">PDF</a>
+                    {% if e.angepasst %}
+                    <button type="submit" class="secondary" formaction="/urkunden/anpassung/zuruecksetzen" title="Manuelle Änderungen verwerfen">Zurücksetzen</button>
+                    {% endif %}
+                </div>
+            </form>
+        </article>
+        {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="panel urkunden-vorschau">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">Vorschau</p>
+                <h2 id="urkunden-vorschau-titel">{{ vorschau_titel }}</h2>
+            </div>
+            <div class="urkunden-vorschau-aktionen">
+                <button type="button" class="secondary" data-urkunde-vorschau="/urkunden/pdf?{{ query_string }}" data-titel="Sammel-PDF">Alle</button>
+                <a class="button secondary" id="urkunden-vorschau-tab" href="{{ vorschau_url }}" target="_blank" rel="noopener">In neuem Tab</a>
+            </div>
+        </div>
+        <iframe id="urkunden-vorschau-frame" title="PDF-Vorschau der Urkunden" src="{{ vorschau_url }}"></iframe>
+    </section>
+</div>
+
+<details class="panel urkunden-einstellungen">
+    <summary><strong>Layout, Logo und Schwellen</strong></summary>
+
+    <form method="post" action="/urkunden/einstellungen" class="urkunden-einstellungen-form">
+        <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
+        <div class="urkunden-grid">
+            <label>Schulname <input type="text" name="schulname" value="{{ layout.schulname }}" placeholder="z. B. Städtisches Gymnasium Musterstadt"></label>
+            <label>Veranstaltungsname <input type="text" name="veranstaltungsname" value="{{ layout.veranstaltungsname }}" placeholder="leer = Name der Veranstaltung"></label>
+            <label>Ort <input type="text" name="ort" value="{{ layout.ort }}" placeholder="z. B. Musterstadt"></label>
+            <label>Datum <input type="text" name="datum" value="{{ layout.datum }}" placeholder="leer = Datum von Wettbewerb/Veranstaltung"></label>
+            <label>Unterschrift links <input type="text" name="unterschrift_links" value="{{ layout.unterschrift_links }}"></label>
+            <label>Unterschrift rechts <input type="text" name="unterschrift_rechts" value="{{ layout.unterschrift_rechts }}"></label>
+        </div>
+
+        <h3>Schwellen für den Urkundentyp</h3>
+        <p class="muted">
+            Siegerurkunde bis einschließlich „Sieger bis Platz“. Ehrenurkunde bis „Ehren bis Platz“ (0 = aus) oder ab „Ehren ab Punkten“
+            (Wettbewerb: Tabellen- bzw. Sechskampfpunkte, Disziplin: Disziplinpunkte, Gesamtwertung: Gesamtpunkte). Alle anderen bekommen eine Teilnehmerurkunde.
+            Leere Felder bei einem Jahrgang übernehmen den Standard.
+        </p>
+        <div class="table-scroll">
+            <table class="team-table urkunden-schwellen">
+                <thead>
+                    <tr><th></th><th>Sieger bis Platz</th><th>Ehren bis Platz</th><th>Ehren ab Punkten</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Standard</th>
+                        {% for feld in schwellen_felder %}
+                        {% set wert = schwellen.standard[feld] %}
+                        <td><input type="text" inputmode="decimal" name="standard_{{ feld }}" value="{{ '' if wert is none else wert }}"></td>
+                        {% endfor %}
+                    </tr>
+                    {% for gruppe in jahrgangsgruppen %}
+                    {% set gruppen_index = loop.index0 %}
+                    <tr>
+                        <th>{{ gruppe }}</th>
+                        {% for feld in schwellen_felder %}
+                        <td><input type="text" inputmode="decimal" name="gruppe{{ gruppen_index }}_{{ feld }}" value="{{ schwellen[gruppe].get(feld, '') }}" placeholder="Standard"></td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button class="primary" type="submit">Einstellungen speichern</button>
+    </form>
+
+    <h3>Schul-Logo</h3>
+    <div class="urkunden-logo">
+        {% if hat_logo %}
+        <img src="/urkunden/logo" alt="Aktuelles Schul-Logo">
+        <form method="post" action="/urkunden/logo/loeschen" class="inline-form">
+            <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
+            <button type="submit" class="secondary">Logo entfernen</button>
+        </form>
+        {% else %}
+        <p class="muted">Noch kein Logo hinterlegt.</p>
+        {% endif %}
+        <form method="post" action="/urkunden/logo" enctype="multipart/form-data" class="inline-form">
+            <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
+            <input type="file" name="logo" accept="image/png,image/jpeg" required>
+            <button type="submit" class="primary">Logo hochladen</button>
+        </form>
+        <p class="muted">PNG oder JPG, höchstens 2 MB. Wird in der Datenbank gespeichert und ist damit in jedem Backup enthalten.</p>
+    </div>
+</details>
+
+<script>
+document.querySelectorAll("[data-urkunde-vorschau]").forEach(function (button) {
+    button.addEventListener("click", function () {
+        var url = button.getAttribute("data-urkunde-vorschau");
+        document.getElementById("urkunden-vorschau-frame").src = url;
+        document.getElementById("urkunden-vorschau-tab").href = url;
+        document.getElementById("urkunden-vorschau-titel").textContent = button.getAttribute("data-titel") || "Urkunde";
+        document.querySelectorAll(".urkunde-karte.is-selected").forEach(function (card) { card.classList.remove("is-selected"); });
+        var card = button.closest(".urkunde-karte");
+        if (card) { card.classList.add("is-selected"); }
+        if (window.matchMedia("(max-width: 1100px)").matches) {
+            document.getElementById("urkunden-vorschau-frame").scrollIntoView({behavior: "smooth"});
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -22,6 +22,7 @@ from app.routes.events import create_router as create_events_router
 from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
+from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
@@ -137,6 +138,7 @@ AREA_ACCESS_RULES = (
     ("/teams", "admin"),
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
+    ("/urkunden", "tournament_lead"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
@@ -1726,6 +1728,41 @@ def calculate_event_overall_ranking(event_id: int):
     return result
 
 
+def calculate_sixkampf_competition_ranking(competition):
+    """Sechskampf-Wertung eines Wettbewerbs wie in der Gesamtwertung (nur
+    Klassen mit Ergebnissen). Gibt (disciplines, ranking) zurueck; genutzt
+    vom Urkunden-Generator."""
+    with get_conn() as conn:
+        competition_teams = get_teams_for_competition(
+            conn, competition["id"], competition["jahrgang"]
+        )
+        disciplines = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE competition_id = ?
+            ORDER BY sort_order, id
+        """, (competition["id"],)).fetchall()
+        result_rows = conn.execute(
+            "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
+            (competition["id"],)
+        ).fetchall()
+        competition_teams = include_teams_with_existing_sixkampf_results(
+            conn, competition["id"], competition_teams
+        )
+
+    if not result_rows:
+        return disciplines, []
+
+    ranking, _, _ = calculate_sixkampf_team_ranking(
+        competition_teams,
+        disciplines,
+        result_rows,
+        competition["points_first_place"],
+        require_result_entry=True,
+        placement_points=get_competition_placement_points(competition, len(competition_teams)),
+    )
+    return disciplines, ranking
+
+
 def calculate_group_table(competition_id: int, gruppe: str):
     with get_conn() as conn:
         competition = conn.execute(
@@ -3048,6 +3085,14 @@ app.include_router(create_events_router(
     get_competition_timing=get_competition_timing,
     get_unique_competition_name=get_unique_competition_name,
     copy_competition_disciplines=copy_competition_disciplines,
+))
+
+
+app.include_router(create_urkunden_router(
+    app_now_db_timestamp=app_now_db_timestamp,
+    calculate_tournament_points=calculate_tournament_points,
+    calculate_sixkampf_competition_ranking=calculate_sixkampf_competition_ranking,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
 ))
 
 

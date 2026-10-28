@@ -155,6 +155,19 @@ Aktueller Stand:
 - Die Einführung von Veranstaltungstypen ändert die Gesamtwertung derzeit nicht.
 - Für `Käthelauf` gibt es noch keine eigene Gesamtwertungslogik.
 
+### Urkunden (`/urkunden`)
+
+Für Turnierleitung und Admin (bei ausgeschalteter Sicherheit für alle). Erzeugt druckfertige PDF-Urkunden (A4 hochkant, eine Urkunde pro Seite) aus den vorhandenen Wertungen:
+
+- Wertung wählbar: je Wettbewerb (Turnier bzw. Sechskampf gesamt), je Sechskampf-Disziplin oder Gesamtwertung je Jahrgangsgruppe.
+- Empfänger ist eine Klasse (Team); Schüler:innen-Namen sind für eine spätere Erweiterung vorgesehen.
+- Plätze werden aus Tabellen/Sechskampf/Gesamtwertung übernommen. Gleichstand = gleicher Platz (z. B. zweimal Platz 2), kein Stechen.
+- Urkundentyp: Siegerurkunde bis Platz X (Standard 3), Ehrenurkunde bis Platz Y oder ab Punktzahl Z, sonst Teilnehmerurkunde. Schwellen global und je Jahrgangsgruppe (7, 8, 9, Oberstufe) einstellbar.
+- Vor dem Druck lassen sich je Urkunde Platz, Urkundentyp, Name und Leistung korrigieren oder die Urkunde vom Druck ausnehmen. Das gilt nur für die Urkunden, nicht für Tabellen und Gesamtwertung (Tabelle `urkunden_anpassungen`).
+- Vorschau als echtes PDF im Browser, Filter nach Jahrgang, Klasse, Wettbewerb/Disziplin, Platz und Urkundentyp; Sammel-PDF nach Wettbewerb oder nach Klasse sortiert, Einzel-PDF je Urkunde.
+- Layout: Schulname, Veranstaltungsname, Ort, Datum (Standard: Datum von Wettbewerb bzw. Veranstaltung), Beschriftung der zwei Unterschriftszeilen und Schul-Logo (PNG/JPG, in der Datenbank gespeichert und damit im Backup enthalten).
+- Technik: `fpdf2` (reines Python) mit eingebetteter Schrift DejaVu Sans (`app/fonts/`), damit Umlaute und Sonderzeichen korrekt erscheinen; lange Namen werden automatisch verkleinert und notfalls umbrochen.
+
 ## 7. Tagesplan und Beamer
 
 Vorhanden sind derzeit:
