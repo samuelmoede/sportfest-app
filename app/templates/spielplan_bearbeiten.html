@@ -364,6 +364,59 @@
 </section>
 {% endif %}
 
+{% if jahrgangsfinale is not none or jahrgangsfinale_partners %}
+<section class="ko-box" id="jahrgangsfinale">
+    <h2>Jahrgangsfinale</h2>
+    {% if finale_hinweis %}
+    <p class="validation-error">{{ finale_hinweis }}</p>
+    {% elif finale_ok == "angelegt" %}
+    <p class="muted">Das Finale ist angelegt. Sobald beide Wettbewerbe fertig sind, hier die Sieger eintragen lassen.</p>
+    {% elif finale_ok == "besetzt" %}
+    <p class="muted">Die Sieger sind eingetragen.</p>
+    {% endif %}
+
+    {% if jahrgangsfinale is not none %}
+        <p>
+            <strong>{{ jahrgangsfinale.name }}</strong>
+            {% if jahrgangsfinale.start_time %}um {{ jahrgangsfinale.start_time }}{% endif %}:
+            Sieger {{ jahrgangsfinale_sources | map(attribute="name") | join(" gegen Sieger ") }}.
+        </p>
+        <div class="ko-actions">
+            {% if selected_competition_id != jahrgangsfinale.id %}
+            <a class="button secondary" href="/spielplan-bearbeiten?competition_id={{ jahrgangsfinale.id }}#jahrgangsfinale">Zum Finale</a>
+            {% endif %}
+            <form method="post" action="/competition/{{ jahrgangsfinale.id }}/jahrgangsfinale/besetzen"
+                  onsubmit="return confirm('Die Tabellenersten beider Wettbewerbe ins Finale eintragen?');">
+                <button class="green" type="submit">Sieger ins Finale eintragen</button>
+            </form>
+        </div>
+    {% else %}
+        <p class="muted">
+            Die Sieger zweier Schulpokal-Wettbewerbe spielen im Anschluss gegeneinander (z. B. Sieger J7 gegen Sieger J8).
+            Das Finale wird als eigener Wettbewerb mit einem Platzhalter-Spiel angelegt.
+        </p>
+        <form method="post" action="/competition/{{ selected_competition_id }}/jahrgangsfinale/anlegen" class="generator-grid">
+            <label>Gegen den Sieger von</label>
+            <select name="partner_competition_id" required>
+                {% for partner in jahrgangsfinale_partners %}
+                <option value="{{ partner.id }}">{{ partner.name }}</option>
+                {% endfor %}
+            </select>
+            <label>Uhrzeit</label>
+            <input type="time" name="startzeit" required>
+            <label>Feld</label>
+            <select name="court_id">
+                <option value="">Kein Feld</option>
+                {% for court in courts %}
+                <option value="{{ court.id }}">{{ court.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="green" type="submit">Jahrgangsfinale anlegen</button>
+        </form>
+    {% endif %}
+</section>
+{% endif %}
+
 {% if ko_advance is not none %}
 <section class="ko-box">
     <h2>Nächste KO-Runde automatisch besetzen</h2>
