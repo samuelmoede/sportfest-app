@@ -176,5 +176,46 @@ class JahrgangsfinaleTests(unittest.TestCase):
         self.assertEqual(slot["status"], "beendet")
 
 
+    def test_manual_slot_on_busy_court_is_saved_with_hint(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            final_id = conn.execute(
+                """
+                INSERT INTO competitions (name, sportart, jahrgang, status, event_id, competition_type)
+                VALUES ('Manuell', 'Zweifelderball', 'mixed', 'geplant', ?, 'Turnier')
+                """,
+                (self.event_id,),
+            ).lastrowid
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            response = client.post("/slot/create", data={
+                "competition_id": str(final_id),
+                "startzeit": "08:00",
+                "slot_typ": "Spiel",
+                "court_id": str(self.court_id),
+                "phase": "Finale",
+                "team_a_id": str(self.teams["7a"]),
+                "team_b_id": str(self.teams["8a"]),
+            }, follow_redirects=False)
+            hint = parse_qs(urlsplit(response.headers["location"]).query)["slot_hinweis"][0]
+            page = client.get(response.headers["location"])
+        self.assertIn("Feld 1", hint)
+        self.assertIn("Gespeichert, bitte prüfen", page.text)
+        with get_conn() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) AS n FROM slots WHERE competition_id = ?", (final_id,)
+            ).fetchone()["n"]
+        self.assertEqual(count, 1)
+
+    def test_editor_preselects_same_sport_partner(self):
+        from app.main import app as fastapi_app
+        with TestClient(fastapi_app) as client:
+            page = client.get(f"/spielplan-bearbeiten?competition_id={self.comp_7}")
+        self.assertRegex(
+            page.text,
+            rf'name="partner_competition_ids" value="{self.comp_8}"\s+checked',
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

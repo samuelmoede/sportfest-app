@@ -146,7 +146,7 @@ richtige Feld/die richtige Station zu finden. Erste gesammelte Ideen, noch nicht
 
 [ ] globale Wertungseinstellungen
 [ ] Vorlage Bewegungsfest
-[ ] Vorlage Schulpokal
+[x] Vorlage Schulpokal (2026-10-30): Bereich auf `/assistent`, siehe `app/services/schulpokal_vorlage_service.py`; dazu Jahrgangsfinale (`jahrgangsfinale_service.py`), Spielzeit-Vorschlag und Hinweis statt Fehler bei gleicher Klasse in anderer Sportart
 
 ## Refactoring
 

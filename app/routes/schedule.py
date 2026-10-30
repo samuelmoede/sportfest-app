@@ -167,6 +167,7 @@ def create_router(
         plan_error=None,
         finale_hinweis=None,
         finale_ok=None,
+        slot_hinweis=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
@@ -383,6 +384,7 @@ def create_router(
             "jahrgangsfinale_sources": jahrgangsfinale_sources,
             "finale_hinweis": finale_hinweis,
             "finale_ok": finale_ok,
+            "slot_hinweis": slot_hinweis,
             "groups": groups,
             "competitions": competitions,
             "courts": courts,
@@ -647,6 +649,7 @@ def create_router(
         plan_error: str = "",
         finale_hinweis: str = "",
         finale_ok: str = "",
+        slot_hinweis: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
         # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
@@ -667,7 +670,23 @@ def create_router(
             plan_error=plan_error,
             finale_hinweis=finale_hinweis or None,
             finale_ok=finale_ok or None,
+            slot_hinweis=slot_hinweis or None,
         )
+
+    def _manual_slot_redirect(conn, competition_id, slot_values):
+        """Manuell angelegte/geaenderte Spiele werden nicht blockiert, aber
+        gegen den Spielplan anderer Wettbewerbe geprueft; Treffer erscheinen
+        als Hinweis im Editor (z.B. ein Finale auf einem noch belegten Feld)."""
+        params = {"competition_id": competition_id}
+        if slot_values.get("slot_typ") == "Spiel":
+            messages = [
+                warning["message"]
+                for warning in find_existing_schedule_conflicts(conn, [slot_values])
+                if not warning["message"].startswith("Für diesen Wettbewerb")
+            ]
+            if messages:
+                params["slot_hinweis"] = " ".join(messages)
+        return RedirectResponse(f"/spielplan-bearbeiten?{urlencode(params)}", status_code=303)
 
     def _finale_redirect(competition_id, **params):
         query = urlencode({"competition_id": competition_id, **params})
@@ -922,7 +941,9 @@ def create_router(
                             """, (c["jahrgang"],)).fetchall()
 
                 plan_warnings.extend(
-                    validate_schulpokal_plan(proposed_slots, expected_teams_by_competition)
+                    validate_schulpokal_plan(
+                        proposed_slots, expected_teams_by_competition, tournament_mode
+                    )
                 )
                 plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
                 plan_timing = get_competition_timing(primary_competition)
@@ -1594,6 +1615,10 @@ def create_router(
             if competition is not None and not schedule_planning_available(competition):
                 return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
             court_value = get_allowed_court_id(conn, competition, court_id)
+            slot_values = {
+                "competition_id": competition_id, "startzeit": startzeit, "slot_typ": slot_typ,
+                "court_id": court_value, "team_a_id": team_a_value, "team_b_id": team_b_value,
+            }
             conn.execute("""
                 INSERT INTO slots (
                     competition_id, court_id, startzeit, slot_typ, phase, gruppe,
@@ -1612,8 +1637,7 @@ def create_router(
                 note or None,
             ))
             conn.commit()
-
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+            return _manual_slot_redirect(conn, competition_id, slot_values)
 
     @router.post("/slot/{slot_id}/update")
     def update_slot(
@@ -1645,6 +1669,13 @@ def create_router(
             if status == "geplant":
                 started_at_value = None
 
+            court_value = get_allowed_court_id(conn, competition, court_id)
+            slot_values = {
+                "competition_id": competition_id, "startzeit": startzeit, "slot_typ": slot_typ,
+                "court_id": court_value,
+                "team_a_id": int(team_a_id) if team_a_id else None,
+                "team_b_id": int(team_b_id) if team_b_id else None,
+            }
             conn.execute("""
                 UPDATE slots
                 SET competition_id = ?,
@@ -1661,7 +1692,7 @@ def create_router(
                 WHERE id = ?
             """, (
                 competition_id,
-                get_allowed_court_id(conn, competition, court_id),
+                court_value,
                 startzeit,
                 slot_typ,
                 phase,
@@ -1674,8 +1705,7 @@ def create_router(
                 slot_id,
             ))
             conn.commit()
-
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+            return _manual_slot_redirect(conn, competition_id, slot_values)
 
     @router.post("/slot/{slot_id}/delete")
     def delete_slot(slot_id: int):

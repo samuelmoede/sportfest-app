@@ -185,5 +185,39 @@ class SchulpokalVorlageTests(unittest.TestCase):
         self.assertEqual(tt_games, 20)
 
 
+    def test_hin_und_rueckrunde_plays_every_pair_twice(self):
+        from collections import Counter
+        from app.services.schedule_generator_service import (
+            generate_schulpokal_plan,
+            validate_schulpokal_plan,
+        )
+        bloecke = [dict(DEFAULT_SCHULPOKAL_BLOECKE[0], finale_time="")]
+        with self._client() as client:
+            client.post("/assistent/vorlage/schulpokal", data=_form(bloecke=bloecke))
+        with get_conn() as conn:
+            ids = [row["id"] for row in conn.execute("SELECT id FROM competitions ORDER BY jahrgang")]
+            feld_ids = [row["id"] for row in conn.execute("SELECT id FROM courts WHERE name LIKE 'Feld%'")]
+            teams = {
+                competition_id: conn.execute(
+                    "SELECT * FROM teams WHERE jahrgang = (SELECT jahrgang FROM competitions WHERE id = ?)",
+                    (competition_id,),
+                ).fetchall()
+                for competition_id in ids
+            }
+        slots = generate_schulpokal_plan(ids, feld_ids, "08:00", tournament_mode="hin_rueckrunde")
+        pairs = Counter(
+            (slot["competition_id"], frozenset((slot["team_a_id"], slot["team_b_id"])))
+            for slot in slots
+        )
+        # 5 Klassen je Jahrgang: 10 Paarungen, jede zweimal.
+        self.assertEqual(len(pairs), 20)
+        self.assertEqual(set(pairs.values()), {2})
+        errors = [
+            warning for warning in validate_schulpokal_plan(slots, teams, "hin_rueckrunde")
+            if warning["level"] == "error"
+        ]
+        self.assertEqual(errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()
