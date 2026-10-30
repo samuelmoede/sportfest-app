@@ -85,7 +85,7 @@ Hoch:
 Mittel:
 
 [ ] Feld-Auswahl fürs Spiel um Platz 3 über bestehende Orts-Filterung laufen lassen statt beliebiges freies Feld
-[x] Serverseitige Validierung beim Übernehmen des Vorschlags nachrüsten (bisher nur Template-seitig ausgeblendet). Update 2026-10-12: `/plan-generator/apply` prüft die übermittelten Zeilen erneut (`find_internal_conflicts()` + Abgleich mit dem gespeicherten Spielplan) und speichert bei Fehlern nichts, sondern zeigt "Der Vorschlag wurde nicht übernommen". Turnier-Schnellstart und Assistent speichern weiterhin direkt ohne diese Prüfung
+[x] Serverseitige Validierung beim Übernehmen des Vorschlags nachrüsten (bisher nur Template-seitig ausgeblendet). Update 2026-10-12: `/plan-generator/apply` prüft die übermittelten Zeilen erneut (`find_internal_conflicts()` + Abgleich mit dem gespeicherten Spielplan) und speichert bei Fehlern nichts, sondern zeigt "Der Vorschlag wurde nicht übernommen". Turnier-Schnellstart und Assistent speichern weiterhin direkt ohne diese Prüfung. Update 2026-10-30: Der Turnier-Schnellstart prüft jetzt ebenfalls (Fehler blockieren, Überschneidungen ohne Datum müssen bestätigt werden). Der Assistent speichert selbst keine Spiele, sondern führt in den Spielplan-Generator und ist damit schon abgedeckt
 [ ] Wettbewerb ohne `event_id`: `/spielplan`, `/ergebnisse` etc. werfen die Kompetition beim aktiven Event-Filter stillschweigend aus der Auswahl und fallen auf die ungefilterte Gesamtansicht zurück, statt z.B. beim Anlegen eines Wettbewerbs auf die fehlende Veranstaltungszuordnung hinzuweisen (in der Simulation Juli 2026 aufgefallen: Testwettbewerb ohne Event tauchte im gefilterten Spielplan gar nicht auf)
 
 Niedrig:
