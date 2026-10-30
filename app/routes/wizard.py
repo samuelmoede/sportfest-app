@@ -279,9 +279,18 @@ def create_router(
         changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
         team_ids: List[str] = Form([]),
         team_selection_active: str = Form(""),
+        location: str = Form(""),
+        start_time: str = Form(""),
+        end_time: str = Form(""),
     ):
         sportart_value = sportart.strip()
         jahrgang_value = normalize_jahrgang(jahrgang)
+        # Ort und Zeitfenster wie auf /wettbewerbe (Schulpokal: Tischtennis
+        # in der Mensa, Volleyball 11:10-13:40). Ein leerer Ort bleibt NULL
+        # und gilt wie bisher als Turnhalle.
+        location_value = normalize_competition_location(location)
+        start_time_value = start_time.strip() or None
+        end_time_value = end_time.strip() or None
 
         if (
             not sportart_value
@@ -344,14 +353,16 @@ def create_router(
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
                     tournament_mode, game_duration_minutes, changeover_duration_minutes,
-                    punkterunde_grosses_finale, punkterunde_kleines_finale
-                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+                    punkterunde_grosses_finale, punkterunde_kleines_finale,
+                    location, start_time, end_time
+                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     competition_name, sportart_value, jahrgang_value, team_count,
                     event_id, competition_type, tournament_mode_value,
                     game_duration_minutes, changeover_duration_minutes,
                     punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
+                    location_value, start_time_value, end_time_value,
                 ),
             )
             new_competition_id = cursor.lastrowid

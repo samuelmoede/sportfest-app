@@ -249,6 +249,18 @@
             </div>
         </details>
 
+        <label>Ort</label>
+        <select name="location">
+            <option value="">Keine Angabe (Turnhalle)</option>
+            {% for loc in court_locations %}
+            <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+        </select>
+        <label>Startzeit (optional)</label>
+        <input type="time" name="start_time" value="">
+        <label>Endzeit (optional)</label>
+        <input type="time" name="end_time" value="">
+        <p class="muted field-hint">Mit Endzeit schlägt der Plan-Generator eine passende Spielzeit vor.</p>
         <label>Wettbewerbstyp</label>
         <select name="competition_type" id="assistent-competition-type">
             {% for type in competition_types %}
