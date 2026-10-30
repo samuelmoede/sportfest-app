@@ -4,6 +4,10 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.database import get_conn
+from app.services.schedule_conflict_service import (
+    find_existing_schedule_conflicts,
+    find_internal_conflicts,
+)
 from app.services.schedule_generator_service import generate_group_plan
 from app.services.schedule_location_service import (
     DEFAULT_COMPETITION_LOCATION,
@@ -79,6 +83,7 @@ def create_router(
 
     @router.post("/turnier-schnellstart")
     def turnier_schnellstart_create(
+        request: Request,
         name: str = Form(""),
         sportart: str = Form(DEFAULT_QUICKSTART_SPORTART),
         team_ids: List[int] = Form(default=[]),
@@ -89,6 +94,7 @@ def create_router(
         punkterunde_kleines_finale: str = Form("0"),
         game_duration_minutes: int = Form(DEFAULT_GAME_DURATION_MINUTES),
         changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
+        confirm_conflicts: str = Form("0"),
     ):
         team_ids = list(dict.fromkeys(team_ids))
         court_ids = list(dict.fromkeys(court_ids))
@@ -173,6 +179,45 @@ def create_router(
 
         if proposed_slots:
             with get_conn() as conn:
+                # Konfliktpruefung wie beim Uebernehmen im Plan-Generator
+                # (ROADMAP Phase 4.7): Fehler blockieren immer, Hinweise
+                # (Datum unbekannt - der Schnellstart legt Wettbewerbe ohne
+                # Datum an) muessen einmal bestaetigt werden.
+                conflicts = (
+                    find_internal_conflicts(conn, proposed_slots)
+                    + find_existing_schedule_conflicts(conn, proposed_slots)
+                )
+                errors = [w["message"] for w in conflicts if w["level"] == "error"]
+                hints = [w["message"] for w in conflicts if w["level"] != "error"]
+                if errors or (hints and confirm_conflicts != "1"):
+                    conn.execute(
+                        "DELETE FROM competition_teams WHERE competition_id = ?",
+                        (competition_id,),
+                    )
+                    conn.execute("DELETE FROM competitions WHERE id = ?", (competition_id,))
+                    conn.commit()
+                    return templates.TemplateResponse(
+                        request=request,
+                        name="turnier_schnellstart_konflikt.html",
+                        status_code=409,
+                        context={
+                            "errors": errors,
+                            "hints": hints,
+                            "form": {
+                                "name": name,
+                                "sportart": sportart,
+                                "team_ids": team_ids,
+                                "court_ids": court_ids,
+                                "startzeit": startzeit,
+                                "tournament_mode": tournament_mode_value,
+                                "punkterunde_grosses_finale": punkterunde_grosses_finale_value,
+                                "punkterunde_kleines_finale": punkterunde_kleines_finale_value,
+                                "game_duration_minutes": game_duration_minutes,
+                                "changeover_duration_minutes": changeover_duration_minutes,
+                            },
+                        },
+                    )
+
                 for slot in proposed_slots:
                     conn.execute("""
                         INSERT INTO slots (
