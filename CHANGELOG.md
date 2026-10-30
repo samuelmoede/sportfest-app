@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Schulpokal: Gesamtwertung, öffentliche Siegerehrung und Gesamtwertungs-Urkunden zeigen bei Veranstaltungen vom Typ „Schulpokal“ einen Sieger je Jahrgang aus allen Wettbewerben dieses Jahrgangs (z. B. Volleyball und Tischtennis zusammen), auch für Jahrgang 10 statt „GOST“. Das Jahrgangsfinale zählt nicht mit und wird mit diesen Jahrgangssiegern besetzt.
 - Neu: Vorlage Schulpokal auf der Assistent-Startseite. Legt Veranstaltung (neuer Typ „Schulpokal“), je Sportart und Jahrgang einen Schulpokal-Wettbewerb mit Ort und Zeitfenster, die Jahrgangsfinals und die Siegerehrung zum Blockende in einem Schritt an. Vorbelegt mit Zweifelderball 7/8, Volleyball 9/10 und Tischtennis 9/10 (Mensa).
 - Neu: Jahrgangsfinale beim Schulpokal (z. B. Sieger J7 gegen Sieger J8). Wird in „Spielplan bearbeiten“ als eigener Wettbewerb mit Platzhalter-Spiel angelegt; ein Klick trägt die Tabellenersten ein, sobald beide Wettbewerbe fertig sind. Neue Spalte `competitions.final_source_ids`.
 - Konfliktprüfung: Spielt eine Klasse zur selben Zeit in einer anderen Sportart (Volleyball und Tischtennis parallel), ist das nur noch ein Hinweis statt ein Fehler. Gleiche Sportart und doppelt belegte Felder bleiben Fehler.

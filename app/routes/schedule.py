@@ -115,6 +115,7 @@ def create_router(
     calculate_table: Callable,
     get_teams_for_competition: Callable,
     calculate_sixkampf_station_rotation: Callable,
+    calculate_event_overall_ranking: Callable = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -728,6 +729,7 @@ def create_router(
             messages = fill_jahrgangsfinale(
                 conn, competition_id, calculate_table,
                 confirm_overwrite=confirm_overwrite == "1",
+                calculate_event_overall_ranking=calculate_event_overall_ranking,
             )
             if messages:
                 conn.rollback()

@@ -119,14 +119,42 @@ def _open_games(conn, competition_id: int) -> int:
     ).fetchone()["n"]
 
 
+def _schulpokal_jahrgang_winner(conn, source, calculate_event_overall_ranking):
+    """Beim Schulpokal gibt es einen Sieger je Jahrgang aus allen
+    Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis), siehe
+    calculate_event_overall_ranking. Liefert (team_id, meldung)."""
+    competitions = conn.execute(
+        """
+        SELECT id, name FROM competitions
+        WHERE event_id = ? AND jahrgang = ?
+          AND (final_source_ids IS NULL OR final_source_ids = '')
+        """,
+        (source["event_id"], source["jahrgang"]),
+    ).fetchall()
+    for competition in competitions:
+        open_games = _open_games(conn, competition["id"])
+        if open_games:
+            return None, f'In "{competition["name"]}" sind noch {open_games} Spiele offen.'
+    label = f"Gesamtwertung Jahrgang {source['jahrgang']}"
+    for group in calculate_event_overall_ranking(source["event_id"]):
+        if group["year_group"] == label and group["rows"]:
+            winner = group["rows"][0]
+            if winner.get("total_points"):
+                return winner["team_id"], None
+    return None, f"Für Jahrgang {source['jahrgang']} gibt es noch keine Ergebnisse."
+
+
 def fill_jahrgangsfinale(
     conn,
     final_competition_id: int,
     calculate_table: Callable,
     confirm_overwrite: bool = False,
+    calculate_event_overall_ranking: Optional[Callable] = None,
 ):
-    """Traegt die Tabellenersten der Quell-Wettbewerbe ins Finale ein.
-    Gibt eine Liste mit Meldungen zurueck; leer heisst erfolgreich."""
+    """Traegt die Sieger der Quell-Wettbewerbe ins Finale ein: beim
+    Schulpokal den Jahrgangssieger (alle Wettbewerbe des Jahrgangs), sonst
+    den Tabellenersten. Gibt eine Liste mit Meldungen zurueck; leer heisst
+    erfolgreich."""
     final = conn.execute(
         "SELECT * FROM competitions WHERE id = ?", (final_competition_id,)
     ).fetchone()
@@ -147,10 +175,28 @@ def fill_jahrgangsfinale(
     if final_slot["status"] != "geplant" and not confirm_overwrite:
         return ["Das Finale läuft schon oder ist beendet und wurde nicht verändert."]
 
+    event = conn.execute(
+        "SELECT event_type FROM events WHERE id = ?", (final["event_id"],)
+    ).fetchone()
+    use_jahrgang_winner = (
+        calculate_event_overall_ranking is not None
+        and event is not None and event["event_type"] == "Schulpokal"
+    )
+
     winners = []
     for source_id in source_ids:
-        source = conn.execute("SELECT name FROM competitions WHERE id = ?", (source_id,)).fetchone()
-        source_name = source["name"] if source else "Wettbewerb"
+        source = conn.execute("SELECT * FROM competitions WHERE id = ?", (source_id,)).fetchone()
+        if source is None:
+            return ["Einer der Wettbewerbe wurde nicht gefunden."]
+        if use_jahrgang_winner:
+            team_id, message = _schulpokal_jahrgang_winner(
+                conn, source, calculate_event_overall_ranking
+            )
+            if message:
+                return [message]
+            winners.append(team_id)
+            continue
+        source_name = source["name"]
         open_games = _open_games(conn, source_id)
         if open_games:
             return [f'In "{source_name}" sind noch {open_games} Spiele offen.']

@@ -221,3 +221,96 @@ class SchulpokalVorlageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SchulpokalJahrgangssiegerTests(unittest.TestCase):
+    """Beim Schulpokal gibt es einen Sieger je Jahrgang aus allen Wettbewerben
+    des Jahrgangs (Volleyball + Tischtennis); das Jahrgangsfinale zaehlt dort
+    nicht mit und wird mit diesen Jahrgangssiegern besetzt."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "schulpokal-sieger-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+        init_db()
+        with get_conn() as conn:
+            self.teams = {}
+            for jahrgang in (9, 10):
+                for letter in "abc":
+                    name = f"{jahrgang}{letter}"
+                    self.teams[name] = conn.execute(
+                        "INSERT INTO teams (name, jahrgang, active) VALUES (?, ?, 1)", (name, jahrgang)
+                    ).lastrowid
+            conn.commit()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def _play(self, competition_id, results):
+        with get_conn() as conn:
+            for index, (team_a, team_b, score_a, score_b) in enumerate(results):
+                conn.execute(
+                    """
+                    INSERT INTO slots (competition_id, startzeit, slot_typ, phase,
+                                       team_a_id, team_b_id, score_a, score_b, status)
+                    VALUES (?, ?, 'Spiel', 'Gruppenphase', ?, ?, ?, ?, 'beendet')
+                    """,
+                    (competition_id, f"11:{10 + index:02d}", self.teams[team_a],
+                     self.teams[team_b], score_a, score_b),
+                )
+            conn.commit()
+
+    def test_one_winner_per_jahrgang_and_final_with_jahrgang_winners(self):
+        from app.main import app as fastapi_app, calculate_event_overall_ranking
+
+        bloecke = [
+            dict(DEFAULT_SCHULPOKAL_BLOECKE[1]),
+            dict(DEFAULT_SCHULPOKAL_BLOECKE[2]),
+        ]
+        with TestClient(fastapi_app) as client:
+            client.post("/assistent/vorlage/schulpokal", data=_form(bloecke=bloecke))
+            with get_conn() as conn:
+                ids = {row["name"]: row["id"] for row in conn.execute("SELECT id, name FROM competitions")}
+                event_id = conn.execute("SELECT id FROM events").fetchone()["id"]
+            # Volleyball gewinnt jeweils "a", Tischtennis jeweils "b":
+            # zusammen liegt "b" vorne (2. + 1. Platz gegen 1. + 3. Platz).
+            for jahrgang in (9, 10):
+                a, b, c = (f"{jahrgang}{letter}" for letter in "abc")
+                self._play(ids[f"Volleyball Jahrgang {jahrgang}"], [(a, b, 2, 0), (a, c, 2, 0), (b, c, 2, 1)])
+                self._play(ids[f"Tischtennis Jahrgang {jahrgang}"], [(b, a, 4, 2), (b, c, 4, 2), (c, a, 4, 2)])
+
+            ranking = calculate_event_overall_ranking(event_id)
+            self.assertEqual(
+                [group["year_group"] for group in ranking],
+                ["Gesamtwertung Jahrgang 9", "Gesamtwertung Jahrgang 10"],
+            )
+            for group, jahrgang in zip(ranking, (9, 10)):
+                self.assertEqual(group["rows"][0]["team"], f"{jahrgang}b")
+                self.assertEqual(
+                    {competition["name"] for competition in group["competitions"]},
+                    {f"Volleyball Jahrgang {jahrgang}", f"Tischtennis Jahrgang {jahrgang}"},
+                )
+
+            final_id = ids["Volleyball Jahrgangsfinale 9/10"]
+            response = client.post(
+                f"/competition/{final_id}/jahrgangsfinale/besetzen", follow_redirects=False
+            )
+            self.assertIn("finale_ok=besetzt", response.headers["location"])
+
+            with get_conn() as conn:
+                conn.execute("UPDATE events SET siegerehrung_public = 1 WHERE id = ?", (event_id,))
+                conn.commit()
+            page = client.get(f"/siegerehrung/{event_id}")
+            self.assertIn("Gesamtwertung Jahrgang 10", page.text)
+            self.assertNotIn("GOST", page.text)
+            csv_export = client.get(f"/tabellen/csv?event_id={event_id}&jahrgang=10")
+            self.assertIn("Gesamtwertung Jahrgang 10", csv_export.text)
+            self.assertNotIn("Gesamtwertung Jahrgang 9", csv_export.text)
+
+        with get_conn() as conn:
+            slot = conn.execute(
+                "SELECT team_a_id, team_b_id FROM slots WHERE competition_id = ?", (final_id,)
+            ).fetchone()
+        self.assertEqual((slot["team_a_id"], slot["team_b_id"]), (self.teams["9b"], self.teams["10b"]))

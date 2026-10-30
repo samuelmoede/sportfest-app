@@ -486,7 +486,15 @@ def collect_tabellen_view_data(
     include_overall = selected_event_id is not None and selected_competition_id is None
     if include_overall:
         overall_ranking = calculate_event_overall_ranking(selected_event_id)
-        if selected_jahrgang is not None:
+        exact_group = f"Gesamtwertung Jahrgang {selected_jahrgang}"
+        if selected_jahrgang is not None and any(
+            group["year_group"] == exact_group for group in overall_ranking
+        ):
+            # Schulpokal: Wertung je einzelnem Jahrgang, auch Jahrgang 10.
+            overall_ranking = [
+                group for group in overall_ranking if group["year_group"] == exact_group
+            ]
+        elif selected_jahrgang is not None:
             year_group_filter = classify_yeargang(selected_jahrgang)
             if year_group_filter == "Oberstufe":
                 overall_ranking = [
@@ -1509,18 +1517,35 @@ def format_duration(start_time: str, end_time: str):
 
 def calculate_event_overall_ranking(event_id: int):
     with get_conn() as conn:
+        event = conn.execute("SELECT event_type FROM events WHERE id = ?", (event_id,)).fetchone()
         competitions = conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()
 
+    # Schulpokal: ein Sieger je Jahrgang (auch Jahrgang 10, nicht GOST), aus
+    # allen Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis).
+    # Das Jahrgangsfinale (Sieger J7 gegen Sieger J8) findet erst nach der
+    # Siegerehrung statt und zaehlt nicht in die Jahrgangswertung.
+    is_schulpokal_event = event is not None and event["event_type"] == "Schulpokal"
+    if is_schulpokal_event:
+        competitions = [
+            competition for competition in competitions
+            if not (competition["final_source_ids"] or "").strip()
+        ]
+
+    def year_group_of(jahrgang):
+        if is_schulpokal_event:
+            return f"Jahrgang {jahrgang}" if jahrgang not in (None, "", "mixed") else None
+        return classify_yeargang(jahrgang)
+
     if not competitions:
         return []
 
     grouped_competitions = {}
     for competition in competitions:
-        year_group = classify_yeargang(competition["jahrgang"])
+        year_group = year_group_of(competition["jahrgang"])
         if year_group is None:
             continue
         grouped_competitions.setdefault(year_group, []).append({
@@ -1669,7 +1694,7 @@ def calculate_event_overall_ranking(event_id: int):
     year_groups = {}
 
     for row in overall.values():
-        year_group = classify_yeargang(row["jahrgang"])
+        year_group = year_group_of(row["jahrgang"])
         if year_group is None:
             continue
         year_groups.setdefault(year_group, []).append(row)
@@ -1681,6 +1706,13 @@ def calculate_event_overall_ranking(event_id: int):
         "Jahrgang 9": "Gesamtwertung Jahrgang 9",
         "Oberstufe": "Gesamtwertung GOST",
     }
+    if is_schulpokal_event:
+        def schulpokal_group_key(group):
+            value = group.removeprefix("Jahrgang ")
+            return jahrgang_sort_key(int(value) if value.isdigit() else value)
+
+        ordered_groups = sorted(year_groups, key=schulpokal_group_key)
+        display_year_groups = {group: f"Gesamtwertung {group}" for group in ordered_groups}
     result = []
     for year_group in ordered_groups:
         rows = year_groups.get(year_group)
@@ -3049,6 +3081,7 @@ def tabellen_csv_export(
 
 app.include_router(create_schedule_router(
     app_now_db_timestamp=app_now_db_timestamp,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
     app_today=lambda: app_now().date(),
     parse_competition_id=parse_competition_id,
     parse_jahrgang_filter=parse_jahrgang_filter,
