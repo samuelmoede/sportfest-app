@@ -10,7 +10,10 @@ if str(ROOT_DIR) not in sys.path:
 
 import app.database as database
 from app.database import get_conn, init_db
-from app.services.schedule_time_service import find_overlapping_competitions
+from app.services.schedule_time_service import (
+    find_overlapping_competitions,
+    suggest_game_duration,
+)
 
 
 class FindOverlappingCompetitionsTests(unittest.TestCase):
@@ -100,6 +103,46 @@ class FindOverlappingCompetitionsTests(unittest.TestCase):
             conn.commit()
         conflicts = self._conflicts("Sportplatz", "Halle 2", "09:30", "10:30")
         self.assertEqual(conflicts, [])
+
+
+
+class SuggestGameDurationTests(unittest.TestCase):
+    """Spielzeit-Vorschlag aus der verfuegbaren Zeit (Schulpokal 2026)."""
+
+    @staticmethod
+    def _slots(*starts):
+        return [{"slot_typ": "Spiel", "startzeit": start} for start in starts]
+
+    def test_ten_rounds_until_planned_end(self):
+        # Zweifelderball J7/J8: 08:00-10:40, 10 Runden, 3 min Wechsel.
+        starts = [f"{8 + (i * 16) // 60:02d}:{(i * 16) % 60:02d}" for i in range(10)]
+        competition = {"end_time": "10:40", "game_duration_minutes": 7, "changeover_duration_minutes": 3}
+        result = suggest_game_duration(self._slots(*starts), competition)
+        self.assertEqual(result["rounds"], 10)
+        self.assertEqual(result["available_minutes"], 160)
+        # 10 * g + 9 * 3 <= 160 -> g = 13
+        self.assertEqual(result["game_duration_minutes"], 13)
+        self.assertEqual(result["current_game_duration_minutes"], 7)
+
+    def test_parallel_games_count_as_one_round(self):
+        competition = {"end_time": "09:00", "changeover_duration_minutes": 0}
+        result = suggest_game_duration(self._slots("08:00", "08:00", "08:00", "08:10"), competition)
+        self.assertEqual(result["rounds"], 2)
+        self.assertEqual(result["game_duration_minutes"], 30)
+
+    def test_without_end_time_there_is_no_suggestion(self):
+        result = suggest_game_duration(self._slots("08:00", "08:10"), {})
+        self.assertIsNone(result["game_duration_minutes"])
+        self.assertIsNone(result["planned_end"])
+
+    def test_too_little_time_gives_no_suggestion(self):
+        competition = {"end_time": "08:05", "changeover_duration_minutes": 3}
+        result = suggest_game_duration(self._slots("08:00", "08:10", "08:20"), competition)
+        self.assertIsNone(result["game_duration_minutes"])
+        self.assertEqual(result["planned_end"], "08:05")
+
+    def test_breaks_are_ignored(self):
+        self.assertIsNone(suggest_game_duration([{"slot_typ": "Pause", "startzeit": "08:00"}], {}))
 
 
 if __name__ == "__main__":

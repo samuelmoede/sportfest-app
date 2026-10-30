@@ -145,6 +145,37 @@ class WizardRouteTests(unittest.TestCase):
         self.assertEqual(competition["points_first_place"], 3)
         self.assertEqual(competition["name"], "Völkerball Jahrgang 7")
 
+    def test_create_competition_stores_location_and_time_window(self):
+        from app.main import app as fastapi_app
+        with get_conn() as conn:
+            for name in ("9a", "9b"):
+                conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES (?, 9, 1)", (name,))
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            event_id = self._create_event(client)
+            page = client.get(f"/assistent/{event_id}")
+            self.assertIn('name="location"', page.text)
+            self.assertIn('name="end_time"', page.text)
+            client.post(
+                f"/assistent/{event_id}/wettbewerb/anlegen",
+                data={
+                    "sportart": "Tischtennis",
+                    "jahrgang": "9",
+                    "competition_type": "Schulpokal",
+                    "location": "Mensa",
+                    "start_time": "11:10",
+                    "end_time": "13:40",
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT * FROM competitions WHERE event_id = ?", (event_id,)
+            ).fetchone()
+        self.assertEqual(competition["location"], "Mensa")
+        self.assertEqual(competition["start_time"], "11:10")
+        self.assertEqual(competition["end_time"], "13:40")
+
     def test_create_competition_with_too_few_teams_is_rejected(self):
         from app.main import app as fastapi_app
         with get_conn() as conn:

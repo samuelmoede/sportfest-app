@@ -10,6 +10,11 @@
     <a class="button secondary" href="/events/{{ event.id }}">Zur Veranstaltungsseite</a>
 </header>
 
+{% if vorlage_hinweis %}
+<section class="panel">
+    <p class="muted">Aus der Vorlage angelegt. Hinweis: {{ vorlage_hinweis }}</p>
+</section>
+{% endif %}
 {% if error == "team_count" %}
 <section class="panel">
     <p class="muted">Für diesen Jahrgang gibt es nicht mindestens zwei aktive Teams - Wettbewerb wurde nicht angelegt.</p>
@@ -249,6 +254,18 @@
             </div>
         </details>
 
+        <label>Ort</label>
+        <select name="location">
+            <option value="">Keine Angabe (Turnhalle)</option>
+            {% for loc in court_locations %}
+            <option value="{{ loc }}">{{ loc }}</option>
+            {% endfor %}
+        </select>
+        <label>Startzeit (optional)</label>
+        <input type="time" name="start_time" value="">
+        <label>Endzeit (optional)</label>
+        <input type="time" name="end_time" value="">
+        <p class="muted field-hint">Mit Endzeit schlägt der Plan-Generator eine passende Spielzeit vor.</p>
         <label>Wettbewerbstyp</label>
         <select name="competition_type" id="assistent-competition-type">
             {% for type in competition_types %}

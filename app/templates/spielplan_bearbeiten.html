@@ -297,6 +297,13 @@
 </section>
 {% endif %}
 
+{% if slot_hinweis %}
+<section class="ko-box">
+    <strong>Gespeichert, bitte prüfen:</strong>
+    <p class="muted">{{ slot_hinweis }}</p>
+</section>
+{% endif %}
+
 {% if ko_error_message %}
 <section class="ko-box correction-blocked-banner">
     <strong>{{ ko_error_message }}</strong>
@@ -364,6 +371,59 @@
 </section>
 {% endif %}
 
+{% if jahrgangsfinale is not none or jahrgangsfinale_partners %}
+<section class="ko-box" id="jahrgangsfinale">
+    <h2>Jahrgangsfinale</h2>
+    {% if finale_hinweis %}
+    <p class="validation-error">{{ finale_hinweis }}</p>
+    {% elif finale_ok == "angelegt" %}
+    <p class="muted">Das Finale ist angelegt. Sobald beide Wettbewerbe fertig sind, hier die Sieger eintragen lassen.</p>
+    {% elif finale_ok == "besetzt" %}
+    <p class="muted">Die Sieger sind eingetragen.</p>
+    {% endif %}
+
+    {% if jahrgangsfinale is not none %}
+        <p>
+            <strong>{{ jahrgangsfinale.name }}</strong>
+            {% if jahrgangsfinale.start_time %}um {{ jahrgangsfinale.start_time }}{% endif %}:
+            Sieger {{ jahrgangsfinale_sources | map(attribute="name") | join(" gegen Sieger ") }}.
+        </p>
+        <div class="ko-actions">
+            {% if selected_competition_id != jahrgangsfinale.id %}
+            <a class="button secondary" href="/spielplan-bearbeiten?competition_id={{ jahrgangsfinale.id }}#jahrgangsfinale">Zum Finale</a>
+            {% endif %}
+            <form method="post" action="/competition/{{ jahrgangsfinale.id }}/jahrgangsfinale/besetzen"
+                  onsubmit="return confirm('Die Tabellenersten beider Wettbewerbe ins Finale eintragen?');">
+                <button class="green" type="submit">Sieger ins Finale eintragen</button>
+            </form>
+        </div>
+    {% else %}
+        <p class="muted">
+            Die Sieger zweier Schulpokal-Wettbewerbe spielen im Anschluss gegeneinander (z. B. Sieger J7 gegen Sieger J8).
+            Das Finale wird als eigener Wettbewerb mit einem Platzhalter-Spiel angelegt.
+        </p>
+        <form method="post" action="/competition/{{ selected_competition_id }}/jahrgangsfinale/anlegen" class="generator-grid">
+            <label>Gegen den Sieger von</label>
+            <select name="partner_competition_id" required>
+                {% for partner in jahrgangsfinale_partners %}
+                <option value="{{ partner.id }}">{{ partner.name }}</option>
+                {% endfor %}
+            </select>
+            <label>Uhrzeit</label>
+            <input type="time" name="startzeit" required>
+            <label>Feld</label>
+            <select name="court_id">
+                <option value="">Kein Feld</option>
+                {% for court in courts %}
+                <option value="{{ court.id }}">{{ court.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="green" type="submit">Jahrgangsfinale anlegen</button>
+        </form>
+    {% endif %}
+</section>
+{% endif %}
+
 {% if ko_advance is not none %}
 <section class="ko-box">
     <h2>Nächste KO-Runde automatisch besetzen</h2>
@@ -426,7 +486,7 @@
         <div class="court-checkboxes">
             {% for partner in schulpokal_partner_competitions %}
             <label>
-                <input type="checkbox" name="partner_competition_ids" value="{{ partner.id }}" {% if partner.id in selected_generator_competition_ids %}checked{% endif %}>
+                <input type="checkbox" name="partner_competition_ids" value="{{ partner.id }}" {% if partner.id in selected_generator_competition_ids or (not selected_generator_competition_ids and partner.sportart == selected_competition.sportart) %}checked{% endif %}>
                 {{ partner.name }}
             </label>
             {% else %}
@@ -457,8 +517,9 @@
         <label>Turniermodus</label>
         <strong>{{ schulpokal_modes[mode_key].label if mode_key in schulpokal_modes else mode_key }}</strong>
         <p class="muted generator-hint">
-            Jeder gegen jeden - Spiele pro Team ergeben sich automatisch aus der
-            Teamzahl je Wettbewerb, keine Halbfinal-/Finalrunde.
+            Spiele pro Team ergeben sich automatisch aus der Teamzahl je Wettbewerb
+            (bei Hin- und Rückrunde doppelt), keine Halbfinal-/Finalrunde. Für
+            "Sieger gegen Sieger" unten ein Jahrgangsfinale anlegen.
         </p>
 
         <button class="green" type="submit">Vorschlag erstellen</button>
@@ -610,6 +671,41 @@
             </li>
             {% endfor %}
         </ul>
+    </div>
+    {% endif %}
+
+    {% set duration_suggestion = plan_end_time_forecast.duration_suggestion if plan_end_time_forecast else None %}
+    {% if proposed_slots and duration_suggestion %}
+    <div class="validation-box duration-suggestion">
+        <strong>Vorschlag Spielzeit</strong>
+        {% if duration_suggestion.game_duration_minutes %}
+        <p>
+            {{ duration_suggestion.rounds }} Runden von {{ duration_suggestion.first_start }} bis {{ duration_suggestion.planned_end }}
+            ({{ duration_suggestion.available_minutes }} min): Mit
+            <strong>{{ duration_suggestion.game_duration_minutes }} min Spielzeit</strong> und
+            {{ duration_suggestion.changeover_duration_minutes }} min Wechselzeit ist das letzte Spiel rechtzeitig fertig.
+            {% if duration_suggestion.game_duration_minutes == duration_suggestion.current_game_duration_minutes %}
+            Die eingestellte Spielzeit passt bereits.
+            {% endif %}
+        </p>
+        {% if duration_suggestion.game_duration_minutes != duration_suggestion.current_game_duration_minutes %}
+        <form method="post" action="/competition/{{ selected_competition_id }}/update-timing" class="timing-edit-form">
+            <input type="hidden" name="game_duration_minutes" value="{{ duration_suggestion.game_duration_minutes }}">
+            <input type="hidden" name="changeover_duration_minutes" value="{{ duration_suggestion.changeover_duration_minutes }}">
+            {% for partner_id in (selected_generator_competition_ids or []) %}
+            {% if partner_id != selected_competition_id %}
+            <input type="hidden" name="partner_competition_ids" value="{{ partner_id }}">
+            {% endif %}
+            {% endfor %}
+            <button class="secondary" type="submit">{{ duration_suggestion.game_duration_minutes }} min übernehmen</button>
+            <span class="muted">Danach den Vorschlag neu erzeugen.</span>
+        </form>
+        {% endif %}
+        {% elif duration_suggestion.planned_end %}
+        <p>Bis {{ duration_suggestion.planned_end }} reicht die Zeit für {{ duration_suggestion.rounds }} Runden nicht, auch nicht mit 1 min Spielzeit. Weniger Teams, mehr Felder oder eine spätere Endzeit wählen.</p>
+        {% else %}
+        <p class="muted">Trag beim Wettbewerb eine Endzeit ein, dann schlägt die App hier eine passende Spielzeit für die {{ duration_suggestion.rounds }} Runden vor.</p>
+        {% endif %}
     </div>
     {% endif %}
 

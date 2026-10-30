@@ -10,6 +10,10 @@ Slots speichern nur eine Uhrzeit, kein Datum. Verglichen werden deshalb nur
 Wettbewerbe am selben Tag (eigenes Datum, sonst Datum der Veranstaltung).
 Fehlt einer Seite das Datum, ist der Tag unbekannt - eine Ueberschneidung
 wird dann nur als Hinweis gemeldet, nicht als Fehler.
+
+Spielt eine Klasse gleichzeitig in einer anderen Sportart (z.B. Volleyball in
+der Halle und Tischtennis in der Mensa beim Schulpokal), stellt sie dafuer
+in der Regel verschiedene Spieler. Das ist deshalb nur ein Hinweis.
 """
 import re
 
@@ -59,6 +63,18 @@ def _interval(slot, competitions):
 
 def _overlaps(a, b):
     return a[0] < b[1] and b[0] < a[1]
+
+
+def _sportart_key(competition):
+    if competition is None:
+        return ""
+    return str(competition["sportart"] or "").strip().casefold()
+
+
+def _different_sport(competition, other_competition):
+    a = _sportart_key(competition)
+    b = _sportart_key(other_competition)
+    return bool(a) and bool(b) and a != b
 
 
 def _load_context(conn):
@@ -125,6 +141,7 @@ def find_existing_schedule_conflicts(conn, proposed_slots):
 
     errors = []
     hints = []
+    sport_hints = []
     seen = set()
 
     for slot in proposed_games:
@@ -154,6 +171,14 @@ def find_existing_schedule_conflicts(conn, proposed_slots):
                 if key in seen:
                     continue
                 seen.add(key)
+                if _different_sport(competition, other_competition):
+                    sport_hints.append(
+                        f'{team_names.get(team_id, "Team")} spielt um {slot["startzeit"]} '
+                        f'zugleich {other_competition["sportart"]} in "{other_competition["name"]}" '
+                        f'({existing["startzeit"]}). Andere Sportart, daher nur ein Hinweis: '
+                        "bitte prüfen, ob die Klasse genug Spieler für beide hat."
+                    )
+                    continue
                 target.append(
                     f'{team_names.get(team_id, "Team")} spielt um {slot["startzeit"]} '
                     f'bereits in "{other_competition["name"]}" ({existing["startzeit"]}).'
@@ -178,6 +203,8 @@ def find_existing_schedule_conflicts(conn, proposed_slots):
             ),
         }
         warnings.extend(hint_warnings)
+    if sport_hints:
+        warnings.extend(_limit(sport_hints, "warning"))
 
     if own_existing:
         warnings.append({
@@ -199,6 +226,7 @@ def find_internal_conflicts(conn, proposed_slots):
     competitions, _, team_names, court_names = _load_context(conn)
     games = [slot for slot in proposed_slots if slot.get("slot_typ") == "Spiel"]
     messages = []
+    sport_hints = []
 
     for slot in games:
         team_a = _to_int(slot.get("team_a_id"))
@@ -221,7 +249,17 @@ def find_internal_conflicts(conn, proposed_slots):
                 team_id for team_id in (_to_int(other.get("team_a_id")), _to_int(other.get("team_b_id")))
                 if team_id is not None
             }
+            different_sport = _different_sport(
+                competitions.get(_to_int(slot.get("competition_id"))),
+                competitions.get(_to_int(other.get("competition_id"))),
+            )
             for team_id in teams & other_teams:
+                if different_sport:
+                    sport_hints.append(
+                        f'{team_names.get(team_id, "Ein Team")} spielt um {slot["startzeit"]} '
+                        "gleichzeitig in zwei Sportarten (nur ein Hinweis)."
+                    )
+                    continue
                 messages.append(
                     f'{team_names.get(team_id, "Ein Team")} ist um {slot["startzeit"]} '
                     "gleichzeitig für mehrere Spiele eingeplant."
@@ -232,4 +270,4 @@ def find_internal_conflicts(conn, proposed_slots):
                     f'{court_names.get(court_id, "Ein Feld")} ist um {slot["startzeit"]} doppelt belegt.'
                 )
 
-    return _limit(messages, "error")
+    return _limit(messages, "error") + _limit(sport_hints, "warning")

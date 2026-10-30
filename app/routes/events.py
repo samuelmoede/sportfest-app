@@ -19,7 +19,7 @@ from app.services.event_status_service import (
 from app.web import templates
 
 
-EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
+EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Schulpokal", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
 
 

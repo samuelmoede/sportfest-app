@@ -1,4 +1,5 @@
 from typing import Callable, List
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
@@ -22,6 +23,10 @@ from app.services.schedule_location_service import (
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
+)
+from app.services.schulpokal_vorlage_service import (
+    DEFAULT_SCHULPOKAL_BLOECKE,
+    create_schulpokal_from_template,
 )
 from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.web import templates
@@ -53,9 +58,13 @@ def create_router(
     def assistent_start(request: Request):
         error = request.query_params.get("error", "").strip()
         qs_error = request.query_params.get("qs_error", "").strip()
+        vorlage_fehler = request.query_params.get("vorlage_fehler", "").strip()
         with get_conn() as conn:
             events = fetch_events_with_competition_counts(conn, include_archived=False)
         context = {
+            "schulpokal_bloecke": DEFAULT_SCHULPOKAL_BLOECKE,
+            "court_locations": COMPETITION_LOCATIONS,
+            "vorlage_fehler": vorlage_fehler,
             "events": events,
             "event_types": EVENT_TYPES,
             "default_event_type": DEFAULT_WIZARD_EVENT_TYPE,
@@ -95,6 +104,52 @@ def create_router(
             conn.commit()
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)
+
+    @router.post("/assistent/vorlage/schulpokal")
+    def assistent_vorlage_schulpokal(
+        name: str = Form(""),
+        event_date: str = Form(""),
+        block_sportart: List[str] = Form([]),
+        block_jahrgaenge: List[str] = Form([]),
+        block_location: List[str] = Form([]),
+        block_start_time: List[str] = Form([]),
+        block_end_time: List[str] = Form([]),
+        block_finale_time: List[str] = Form([]),
+        siegerehrung: str = Form(""),
+    ):
+        """Vorlage Schulpokal (ROADMAP Phase 7): Veranstaltung samt aller
+        Wettbewerbe und Jahrgangsfinals in einem Schritt anlegen."""
+        def value(values, index):
+            return values[index] if index < len(values) else ""
+
+        bloecke = [
+            {
+                "sportart": block_sportart[i],
+                "jahrgaenge": value(block_jahrgaenge, i),
+                "location": value(block_location, i),
+                "start_time": value(block_start_time, i),
+                "end_time": value(block_end_time, i),
+                "finale_time": value(block_finale_time, i),
+                "siegerehrung": siegerehrung == "1",
+            }
+            for i in range(len(block_sportart))
+        ]
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                event_id, hinweise = create_schulpokal_from_template(
+                    conn, name=name, event_date=event_date, bloecke=bloecke
+                )
+            except ValueError as error:
+                conn.rollback()
+                return RedirectResponse(
+                    "/assistent?" + urlencode({"vorlage_fehler": str(error)}), status_code=303
+                )
+            conn.commit()
+        target = f"/assistent/{event_id}"
+        if hinweise:
+            target += "?" + urlencode({"vorlage_hinweis": " ".join(hinweise)})
+        return RedirectResponse(target, status_code=303)
 
     @router.post("/assistent/team/anlegen")
     def assistent_create_team_quickstart(
@@ -144,6 +199,7 @@ def create_router(
     @router.get("/assistent/{event_id}")
     def assistent_event(request: Request, event_id: int):
         error = request.query_params.get("error", "").strip()
+        vorlage_hinweis = request.query_params.get("vorlage_hinweis", "").strip()
         with get_conn() as conn:
             event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
             if event is None:
@@ -194,6 +250,7 @@ def create_router(
             context={
                 "event": event,
                 "error": error,
+                "vorlage_hinweis": vorlage_hinweis,
                 "has_teams": bool(teams),
                 "has_courts": bool(courts),
                 "teams_by_jahrgang": teams_by_jahrgang,
@@ -279,9 +336,18 @@ def create_router(
         changeover_duration_minutes: int = Form(DEFAULT_CHANGEOVER_DURATION_MINUTES),
         team_ids: List[str] = Form([]),
         team_selection_active: str = Form(""),
+        location: str = Form(""),
+        start_time: str = Form(""),
+        end_time: str = Form(""),
     ):
         sportart_value = sportart.strip()
         jahrgang_value = normalize_jahrgang(jahrgang)
+        # Ort und Zeitfenster wie auf /wettbewerbe (Schulpokal: Tischtennis
+        # in der Mensa, Volleyball 11:10-13:40). Ein leerer Ort bleibt NULL
+        # und gilt wie bisher als Turnhalle.
+        location_value = normalize_competition_location(location)
+        start_time_value = start_time.strip() or None
+        end_time_value = end_time.strip() or None
 
         if (
             not sportart_value
@@ -344,14 +410,16 @@ def create_router(
                     name, sportart, jahrgang, status, points_win, points_draw,
                     points_loss, points_first_place, event_id, competition_type,
                     tournament_mode, game_duration_minutes, changeover_duration_minutes,
-                    punkterunde_grosses_finale, punkterunde_kleines_finale
-                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+                    punkterunde_grosses_finale, punkterunde_kleines_finale,
+                    location, start_time, end_time
+                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     competition_name, sportart_value, jahrgang_value, team_count,
                     event_id, competition_type, tournament_mode_value,
                     game_duration_minutes, changeover_duration_minutes,
                     punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
+                    location_value, start_time_value, end_time_value,
                 ),
             )
             new_competition_id = cursor.lastrowid

@@ -52,6 +52,12 @@ from app.services.schedule_time_service import (
 from app.services.results_filter_service import build_results_redirect_url
 from app.services.settings_service import get_beamer_refresh_seconds
 from app.services.ko_phase_service import get_ko_error_message
+from app.services.jahrgangsfinale_service import (
+    create_jahrgangsfinale,
+    fill_jahrgangsfinale,
+    find_jahrgangsfinale,
+    parse_final_source_ids,
+)
 from app.services.schedule_conflict_service import (
     find_existing_schedule_conflicts,
     find_internal_conflicts,
@@ -159,6 +165,9 @@ def create_router(
         overwrite_warning=None,
         ko_error=None,
         plan_error=None,
+        finale_hinweis=None,
+        finale_ok=None,
+        slot_hinweis=None,
     ):
         proposed_slots = proposed_slots or []
         plan_warnings = plan_warnings or []
@@ -336,7 +345,46 @@ def create_router(
                     "action": action,
                 }
 
+        # Jahrgangsfinale (Schulpokal): fuer einen Schulpokal-Wettbewerb das
+        # bereits angelegte Finale bzw. die moeglichen Partner, fuer das
+        # Finale selbst seine beiden Quell-Wettbewerbe.
+        jahrgangsfinale = None
+        jahrgangsfinale_partners = []
+        jahrgangsfinale_sources = []
+        if selected_competition is not None:
+            with get_conn() as conn:
+                if parse_final_source_ids(selected_competition["final_source_ids"]):
+                    jahrgangsfinale = selected_competition
+                elif is_schulpokal:
+                    jahrgangsfinale = find_jahrgangsfinale(conn, selected_competition_id)
+                    if jahrgangsfinale is None:
+                        jahrgangsfinale_partners = [
+                            competition for competition in competitions
+                            if competition["competition_type"] == "Schulpokal"
+                            and competition["id"] != selected_competition_id
+                            and competition["event_id"] == selected_competition["event_id"]
+                            and find_jahrgangsfinale(conn, competition["id"]) is None
+                        ]
+                        # Gleiche Sportart zuerst (Zweifelderball J7 zu J8).
+                        jahrgangsfinale_partners.sort(
+                            key=lambda competition: competition["sportart"] != selected_competition["sportart"]
+                        )
+                if jahrgangsfinale is not None:
+                    jahrgangsfinale_sources = [
+                        row for row in (
+                            conn.execute("SELECT * FROM competitions WHERE id = ?", (source_id,)).fetchone()
+                            for source_id in parse_final_source_ids(jahrgangsfinale["final_source_ids"])
+                        )
+                        if row is not None
+                    ]
+
         return {
+            "jahrgangsfinale": jahrgangsfinale,
+            "jahrgangsfinale_partners": jahrgangsfinale_partners,
+            "jahrgangsfinale_sources": jahrgangsfinale_sources,
+            "finale_hinweis": finale_hinweis,
+            "finale_ok": finale_ok,
+            "slot_hinweis": slot_hinweis,
             "groups": groups,
             "competitions": competitions,
             "courts": courts,
@@ -599,6 +647,9 @@ def create_router(
         overwrite_warning: str = "",
         ko_error: str = "",
         plan_error: str = "",
+        finale_hinweis: str = "",
+        finale_ok: str = "",
+        slot_hinweis: str = "",
     ):
         selected_competition_id = parse_competition_id(competition_id)
         # Wie /spielplan: archivierte Veranstaltungen sind auch im Editor
@@ -617,24 +668,100 @@ def create_router(
             overwrite_warning=overwrite_warning,
             ko_error=ko_error,
             plan_error=plan_error,
+            finale_hinweis=finale_hinweis or None,
+            finale_ok=finale_ok or None,
+            slot_hinweis=slot_hinweis or None,
         )
+
+    def _manual_slot_redirect(conn, competition_id, slot_values):
+        """Manuell angelegte/geaenderte Spiele werden nicht blockiert, aber
+        gegen den Spielplan anderer Wettbewerbe geprueft; Treffer erscheinen
+        als Hinweis im Editor (z.B. ein Finale auf einem noch belegten Feld)."""
+        params = {"competition_id": competition_id}
+        if slot_values.get("slot_typ") == "Spiel":
+            messages = [
+                warning["message"]
+                for warning in find_existing_schedule_conflicts(conn, [slot_values])
+                if not warning["message"].startswith("Für diesen Wettbewerb")
+            ]
+            if messages:
+                params["slot_hinweis"] = " ".join(messages)
+        return RedirectResponse(f"/spielplan-bearbeiten?{urlencode(params)}", status_code=303)
+
+    def _finale_redirect(competition_id, **params):
+        query = urlencode({"competition_id": competition_id, **params})
+        return RedirectResponse(f"/spielplan-bearbeiten?{query}", status_code=303)
+
+    @router.post("/competition/{competition_id}/jahrgangsfinale/anlegen")
+    def jahrgangsfinale_anlegen(
+        competition_id: int,
+        partner_competition_id: int = Form(...),
+        startzeit: str = Form(...),
+        court_id: str = Form(""),
+    ):
+        """Legt das Spiel "Sieger J7 gegen Sieger J8" als eigenen Wettbewerb
+        mit einem Platzhalter-Finale an (siehe jahrgangsfinale_service)."""
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                final_id = create_jahrgangsfinale(
+                    conn,
+                    [competition_id, partner_competition_id],
+                    startzeit,
+                    int(court_id) if court_id.strip().isdigit() else None,
+                )
+            except ValueError as error:
+                conn.rollback()
+                return _finale_redirect(competition_id, finale_hinweis=str(error))
+            conn.commit()
+        return _finale_redirect(final_id, finale_ok="angelegt")
+
+    @router.post("/competition/{competition_id}/jahrgangsfinale/besetzen")
+    def jahrgangsfinale_besetzen(
+        competition_id: int,
+        request: Request,
+        confirm_overwrite: str = Form("0"),
+        results_return_to: str = Form(""),
+    ):
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            messages = fill_jahrgangsfinale(
+                conn, competition_id, calculate_table,
+                confirm_overwrite=confirm_overwrite == "1",
+            )
+            if messages:
+                conn.rollback()
+            else:
+                conn.commit()
+        if results_return_to:
+            return RedirectResponse(
+                _phase_generation_redirect_target(competition_id, results_return_to),
+                status_code=303,
+            )
+        if messages:
+            return _finale_redirect(competition_id, finale_hinweis=messages[0])
+        return _finale_redirect(competition_id, finale_ok="besetzt")
 
     @router.post("/competition/{competition_id}/update-timing")
     def update_competition_timing(
         competition_id: int,
         game_duration_minutes: int = Form(...),
         changeover_duration_minutes: int = Form(...),
+        partner_competition_ids: List[int] = Form(default=[]),
     ):
         # Gleiche Validierung wie /competition/{id}/update in
         # app/routes/competitions.py, nur eben ohne den Umweg ueber
-        # /wettbewerbe - siehe Issue #76.
+        # /wettbewerbe - siehe Issue #76. Partner-Wettbewerbe (abwechselnder
+        # Schulpokal-Plan) bekommen dieselben Zeiten, weil der Generator die
+        # Zeiten des ersten Wettbewerbs fuer alle verwendet.
         if game_duration_minutes >= 1 and changeover_duration_minutes >= 0:
             with get_conn() as conn:
-                conn.execute("""
-                    UPDATE competitions
-                    SET game_duration_minutes = ?, changeover_duration_minutes = ?
-                    WHERE id = ?
-                """, (game_duration_minutes, changeover_duration_minutes, competition_id))
+                for target_id in dict.fromkeys([competition_id, *partner_competition_ids]):
+                    conn.execute("""
+                        UPDATE competitions
+                        SET game_duration_minutes = ?, changeover_duration_minutes = ?
+                        WHERE id = ?
+                    """, (game_duration_minutes, changeover_duration_minutes, target_id))
                 conn.commit()
         return RedirectResponse(
             f"/spielplan-bearbeiten?competition_id={competition_id}",
@@ -814,7 +941,9 @@ def create_router(
                             """, (c["jahrgang"],)).fetchall()
 
                 plan_warnings.extend(
-                    validate_schulpokal_plan(proposed_slots, expected_teams_by_competition)
+                    validate_schulpokal_plan(
+                        proposed_slots, expected_teams_by_competition, tournament_mode
+                    )
                 )
                 plan_warnings.extend(_existing_schedule_conflicts(proposed_slots))
                 plan_timing = get_competition_timing(primary_competition)
@@ -1486,6 +1615,10 @@ def create_router(
             if competition is not None and not schedule_planning_available(competition):
                 return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
             court_value = get_allowed_court_id(conn, competition, court_id)
+            slot_values = {
+                "competition_id": competition_id, "startzeit": startzeit, "slot_typ": slot_typ,
+                "court_id": court_value, "team_a_id": team_a_value, "team_b_id": team_b_value,
+            }
             conn.execute("""
                 INSERT INTO slots (
                     competition_id, court_id, startzeit, slot_typ, phase, gruppe,
@@ -1504,8 +1637,7 @@ def create_router(
                 note or None,
             ))
             conn.commit()
-
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+            return _manual_slot_redirect(conn, competition_id, slot_values)
 
     @router.post("/slot/{slot_id}/update")
     def update_slot(
@@ -1537,6 +1669,13 @@ def create_router(
             if status == "geplant":
                 started_at_value = None
 
+            court_value = get_allowed_court_id(conn, competition, court_id)
+            slot_values = {
+                "competition_id": competition_id, "startzeit": startzeit, "slot_typ": slot_typ,
+                "court_id": court_value,
+                "team_a_id": int(team_a_id) if team_a_id else None,
+                "team_b_id": int(team_b_id) if team_b_id else None,
+            }
             conn.execute("""
                 UPDATE slots
                 SET competition_id = ?,
@@ -1553,7 +1692,7 @@ def create_router(
                 WHERE id = ?
             """, (
                 competition_id,
-                get_allowed_court_id(conn, competition, court_id),
+                court_value,
                 startzeit,
                 slot_typ,
                 phase,
@@ -1566,8 +1705,7 @@ def create_router(
                 slot_id,
             ))
             conn.commit()
-
-        return RedirectResponse(f"/spielplan-bearbeiten?competition_id={competition_id}", status_code=303)
+            return _manual_slot_redirect(conn, competition_id, slot_values)
 
     @router.post("/slot/{slot_id}/delete")
     def delete_slot(slot_id: int):

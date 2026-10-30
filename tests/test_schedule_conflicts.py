@@ -47,14 +47,14 @@ class ConflictTestCase(unittest.TestCase):
         self._db_path_patcher.stop()
         self._tmpdir.cleanup()
 
-    def _competition(self, competition_id, date="2026-06-01", status="geplant"):
+    def _competition(self, competition_id, date="2026-06-01", status="geplant", sportart="Fußball"):
         with get_conn() as conn:
             conn.execute("""
                 INSERT INTO competitions
                     (id, name, sportart, jahrgang, competition_type, status,
                      competition_date, game_duration_minutes, changeover_duration_minutes)
-                VALUES (?, ?, 'Fußball', 5, 'Turnier', ?, ?, 10, 2)
-            """, (competition_id, f"Wettbewerb {competition_id}", status, date))
+                VALUES (?, ?, ?, 5, 'Turnier', ?, ?, 10, 2)
+            """, (competition_id, f"Wettbewerb {competition_id}", sportart, status, date))
             conn.commit()
 
     def _existing(self, competition_id, startzeit, team_a, team_b, court_id=None):
@@ -91,6 +91,31 @@ class ExistingScheduleConflictTests(ConflictTestCase):
         self.assertEqual([w["level"] for w in warnings], ["error"])
         self.assertIn("5a", warnings[0]["message"])
         self.assertIn("Wettbewerb 1", warnings[0]["message"])
+
+    def test_team_playing_other_sport_at_same_time_is_only_a_hint(self):
+        # Schulpokal: Volleyball in der Halle und Tischtennis in der Mensa
+        # mit denselben Klassen zur selben Zeit.
+        self._competition(1, sportart="Volleyball")
+        self._competition(2, sportart="Tischtennis")
+        self._existing(1, "10:00", "5a", "5b")
+        warnings = self._check([self._proposed("10:05", "5a", "5c")])
+        self.assertEqual([w["level"] for w in warnings], ["warning"])
+        self.assertIn("Andere Sportart", warnings[0]["message"])
+        self.assertIn("Volleyball", warnings[0]["message"])
+
+    def test_same_sport_with_different_spelling_stays_an_error(self):
+        self._competition(1, sportart="Volleyball")
+        self._competition(2, sportart=" volleyball ")
+        self._existing(1, "10:00", "5a", "5b")
+        warnings = self._check([self._proposed("10:05", "5a", "5c")])
+        self.assertEqual([w["level"] for w in warnings], ["error"])
+
+    def test_same_court_with_other_sport_stays_an_error(self):
+        self._competition(1, sportart="Volleyball")
+        self._competition(2, sportart="Tischtennis")
+        self._existing(1, "10:00", "5a", "5b", court_id=self.court_1)
+        warnings = self._check([self._proposed("10:00", "5c", "5d", court_id=self.court_1)])
+        self.assertEqual([w["level"] for w in warnings], ["error"])
 
     def test_same_court_at_same_time_is_an_error(self):
         self._competition(1)
@@ -149,6 +174,17 @@ class InternalConflictTests(ConflictTestCase):
         self.assertTrue(any("gegen sich selbst" in m for m in messages))
         self.assertTrue(any("5b" in m and "gleichzeitig" in m for m in messages))
         self.assertTrue(any("doppelt belegt" in m for m in messages))
+
+    def test_same_team_in_two_sports_inside_plan_is_only_a_hint(self):
+        self._competition(1, sportart="Volleyball")
+        self._competition(2, sportart="Tischtennis")
+        proposed = [
+            self._proposed("10:00", "5a", "5b", court_id=self.court_1, competition_id=1),
+            self._proposed("10:00", "5a", "5c", court_id=self.court_2, competition_id=2),
+        ]
+        with get_conn() as conn:
+            warnings = find_internal_conflicts(conn, proposed)
+        self.assertEqual([w["level"] for w in warnings], ["warning"])
 
 
 class ApplyRouteTests(ConflictTestCase):
@@ -209,6 +245,17 @@ class ApplyRouteTests(ConflictTestCase):
         self._existing(1, "10:00", "5a", "5b")
         with TestClient(fastapi_app) as client:
             response = self._apply(client, [self._proposed("10:15", "5a", "5c")])
+        self.assertNotIn("plan_error", response.headers["location"])
+        self.assertEqual(self._count(2), 1)
+
+    def test_plan_with_other_sport_at_same_time_is_saved(self):
+        from app.main import app as fastapi_app
+
+        self._competition(1, sportart="Volleyball")
+        self._competition(2, sportart="Tischtennis")
+        self._existing(1, "10:00", "5a", "5b")
+        with TestClient(fastapi_app) as client:
+            response = self._apply(client, [self._proposed("10:00", "5a", "5c")])
         self.assertNotIn("plan_error", response.headers["location"])
         self.assertEqual(self._count(2), 1)
 
