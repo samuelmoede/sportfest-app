@@ -624,17 +624,21 @@ def create_router(
         competition_id: int,
         game_duration_minutes: int = Form(...),
         changeover_duration_minutes: int = Form(...),
+        partner_competition_ids: List[int] = Form(default=[]),
     ):
         # Gleiche Validierung wie /competition/{id}/update in
         # app/routes/competitions.py, nur eben ohne den Umweg ueber
-        # /wettbewerbe - siehe Issue #76.
+        # /wettbewerbe - siehe Issue #76. Partner-Wettbewerbe (abwechselnder
+        # Schulpokal-Plan) bekommen dieselben Zeiten, weil der Generator die
+        # Zeiten des ersten Wettbewerbs fuer alle verwendet.
         if game_duration_minutes >= 1 and changeover_duration_minutes >= 0:
             with get_conn() as conn:
-                conn.execute("""
-                    UPDATE competitions
-                    SET game_duration_minutes = ?, changeover_duration_minutes = ?
-                    WHERE id = ?
-                """, (game_duration_minutes, changeover_duration_minutes, competition_id))
+                for target_id in dict.fromkeys([competition_id, *partner_competition_ids]):
+                    conn.execute("""
+                        UPDATE competitions
+                        SET game_duration_minutes = ?, changeover_duration_minutes = ?
+                        WHERE id = ?
+                    """, (game_duration_minutes, changeover_duration_minutes, target_id))
                 conn.commit()
         return RedirectResponse(
             f"/spielplan-bearbeiten?competition_id={competition_id}",

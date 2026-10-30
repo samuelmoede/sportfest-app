@@ -60,6 +60,45 @@ def get_game_end_time(startzeit: str, game_duration_minutes: int):
     return (start + timedelta(minutes=game_duration_minutes)).strftime("%H:%M")
 
 
+def suggest_game_duration(slots, competition):
+    """Schlaegt eine Spielzeit vor, mit der alle Runden eines Vorschlags
+    zwischen dem ersten Anpfiff und der geplanten Endzeit des Wettbewerbs
+    fertig werden. Die Wechselzeit bleibt wie eingestellt; eine Runde ist
+    eine Startzeit (beim Schulpokal ist das jeweils ein Jahrgang).
+
+    Mit n Runden, Spielzeit g und Wechselzeit c endet das letzte Spiel nach
+    (n - 1) * (g + c) + g = n * g + (n - 1) * c Minuten."""
+    starts = sorted({
+        start for start in (
+            parse_slot_time(_get_value(slot, "startzeit"))
+            for slot in slots
+            if _get_value(slot, "slot_typ") == "Spiel"
+        )
+        if start is not None
+    })
+    if not starts:
+        return None
+    timing = get_competition_timing(competition)
+    planned_end = parse_slot_time(_get_value(competition, "end_time"))
+    result = {
+        "rounds": len(starts),
+        "first_start": starts[0].strftime("%H:%M"),
+        "planned_end": planned_end.strftime("%H:%M") if planned_end else None,
+        "changeover_duration_minutes": timing["changeover_duration_minutes"],
+        "current_game_duration_minutes": timing["game_duration_minutes"],
+        "game_duration_minutes": None,
+    }
+    if planned_end is None or planned_end <= starts[0]:
+        return result
+    available = int((planned_end - starts[0]).total_seconds() // 60)
+    rounds = len(starts)
+    game = (available - (rounds - 1) * timing["changeover_duration_minutes"]) // rounds
+    result["available_minutes"] = available
+    if game >= 1:
+        result["game_duration_minutes"] = game
+    return result
+
+
 def build_end_time_forecast(slots, competition):
     if competition is None or _get_value(competition, "competition_type") not in ("Turnier", "Schulpokal"):
         return None
@@ -110,6 +149,7 @@ def build_end_time_forecast(slots, competition):
         parse_slot_time(entry["projected_end"]) for entry in courts
     )
     return {
+        "duration_suggestion": suggest_game_duration(slots, competition),
         "courts": courts,
         "overall_end": overall_end.strftime("%H:%M"),
         "planned_end": planned_end.strftime("%H:%M") if planned_end else None,

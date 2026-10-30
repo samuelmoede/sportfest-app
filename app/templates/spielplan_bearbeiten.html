@@ -613,6 +613,41 @@
     </div>
     {% endif %}
 
+    {% set duration_suggestion = plan_end_time_forecast.duration_suggestion if plan_end_time_forecast else None %}
+    {% if proposed_slots and duration_suggestion %}
+    <div class="validation-box duration-suggestion">
+        <strong>Vorschlag Spielzeit</strong>
+        {% if duration_suggestion.game_duration_minutes %}
+        <p>
+            {{ duration_suggestion.rounds }} Runden von {{ duration_suggestion.first_start }} bis {{ duration_suggestion.planned_end }}
+            ({{ duration_suggestion.available_minutes }} min): Mit
+            <strong>{{ duration_suggestion.game_duration_minutes }} min Spielzeit</strong> und
+            {{ duration_suggestion.changeover_duration_minutes }} min Wechselzeit ist das letzte Spiel rechtzeitig fertig.
+            {% if duration_suggestion.game_duration_minutes == duration_suggestion.current_game_duration_minutes %}
+            Die eingestellte Spielzeit passt bereits.
+            {% endif %}
+        </p>
+        {% if duration_suggestion.game_duration_minutes != duration_suggestion.current_game_duration_minutes %}
+        <form method="post" action="/competition/{{ selected_competition_id }}/update-timing" class="timing-edit-form">
+            <input type="hidden" name="game_duration_minutes" value="{{ duration_suggestion.game_duration_minutes }}">
+            <input type="hidden" name="changeover_duration_minutes" value="{{ duration_suggestion.changeover_duration_minutes }}">
+            {% for partner_id in (selected_generator_competition_ids or []) %}
+            {% if partner_id != selected_competition_id %}
+            <input type="hidden" name="partner_competition_ids" value="{{ partner_id }}">
+            {% endif %}
+            {% endfor %}
+            <button class="secondary" type="submit">{{ duration_suggestion.game_duration_minutes }} min übernehmen</button>
+            <span class="muted">Danach den Vorschlag neu erzeugen.</span>
+        </form>
+        {% endif %}
+        {% elif duration_suggestion.planned_end %}
+        <p>Bis {{ duration_suggestion.planned_end }} reicht die Zeit für {{ duration_suggestion.rounds }} Runden nicht, auch nicht mit 1 min Spielzeit. Weniger Teams, mehr Felder oder eine spätere Endzeit wählen.</p>
+        {% else %}
+        <p class="muted">Trag beim Wettbewerb eine Endzeit ein, dann schlägt die App hier eine passende Spielzeit für die {{ duration_suggestion.rounds }} Runden vor.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if proposed_slots %}
     <form method="post" action="/plan-generator/apply" class="preview-table">
         <h3>Vorschau</h3>
