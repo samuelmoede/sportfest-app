@@ -339,6 +339,105 @@ class QuickstartRouteTests(unittest.TestCase):
             count = conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"]
         self.assertEqual(count, 0)
 
+    def _court_ids(self):
+        with get_conn() as conn:
+            return [
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM courts WHERE name IN ('Feld 1', 'Feld 2') ORDER BY name"
+                ).fetchall()
+            ]
+
+    def _add_existing_game(self, court_id, startzeit="10:00"):
+        """Ein bereits gespeichertes Spiel eines anderen Wettbewerbs auf Feld 1."""
+        with get_conn() as conn:
+            cursor = conn.execute(
+                "INSERT INTO competitions (name, sportart, jahrgang, competition_type) "
+                "VALUES ('Fussball 8', 'Fussball', 8, 'Turnier')"
+            )
+            conn.execute(
+                "INSERT INTO slots (competition_id, court_id, startzeit, slot_typ, phase, "
+                "team_a_id, team_b_id, status) VALUES (?, ?, ?, 'Spiel', 'Gruppenphase', ?, ?, 'geplant')",
+                (cursor.lastrowid, court_id, startzeit, self.team_ids[0], self.team_ids[1]),
+            )
+            conn.commit()
+
+    def _post_quickstart(self, client, **extra):
+        data = {
+            "name": "Konflikt-Turnier",
+            "team_ids": [str(tid) for tid in self.team_ids],
+            "court_ids": [str(cid) for cid in self._court_ids()],
+            "startzeit": "10:00",
+        }
+        data.update(extra)
+        return client.post("/turnier-schnellstart", data=data, follow_redirects=False)
+
+    def test_post_with_overlap_shows_conflicts_and_creates_nothing(self):
+        """Wie beim Uebernehmen im Plan-Generator (#145) wird gegen den
+        bestehenden Spielplan geprueft. Der Schnellstart hat kein Datum,
+        Ueberschneidungen sind deshalb Hinweise, die bestaetigt werden muessen."""
+        from app.main import app as fastapi_app
+        self._add_existing_game(self._court_ids()[0])
+
+        with TestClient(fastapi_app) as client:
+            response = self._post_quickstart(client)
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Mögliche Überschneidungen", response.text)
+        self.assertIn("Feld 1", response.text)
+        self.assertIn("Trotzdem anlegen", response.text)
+        self.assertIn('name="confirm_conflicts" value="1"', response.text)
+        with get_conn() as conn:
+            self.assertIsNone(conn.execute(
+                "SELECT id FROM competitions WHERE name = 'Konflikt-Turnier'"
+            ).fetchone())
+            self.assertEqual(
+                conn.execute("SELECT COUNT(*) AS n FROM competition_teams").fetchone()["n"], 0
+            )
+            self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM slots").fetchone()["n"], 1)
+
+    def test_post_with_confirmed_overlap_creates_plan(self):
+        from app.main import app as fastapi_app
+        self._add_existing_game(self._court_ids()[0])
+
+        with TestClient(fastapi_app) as client:
+            response = self._post_quickstart(client, confirm_conflicts="1")
+
+        self.assertEqual(response.status_code, 303)
+        with get_conn() as conn:
+            competition = conn.execute(
+                "SELECT id FROM competitions WHERE name = 'Konflikt-Turnier'"
+            ).fetchone()
+            self.assertIsNotNone(competition)
+            self.assertGreater(conn.execute(
+                "SELECT COUNT(*) AS n FROM slots WHERE competition_id = ?", (competition["id"],)
+            ).fetchone()["n"], 0)
+
+    def test_post_with_internal_conflict_is_blocked_even_when_confirmed(self):
+        """Fehler (hier: Plan in sich doppelt belegt) blockieren immer."""
+        from app.main import app as fastapi_app
+        broken_plan = [
+            {"competition_id": None, "court_id": self._court_ids()[0], "startzeit": "10:00",
+             "slot_typ": "Spiel", "phase": "Gruppenphase", "gruppe": "",
+             "team_a_id": self.team_ids[0], "team_b_id": self.team_ids[1], "note": ""},
+            {"competition_id": None, "court_id": self._court_ids()[0], "startzeit": "10:00",
+             "slot_typ": "Spiel", "phase": "Gruppenphase", "gruppe": "",
+             "team_a_id": self.team_ids[2], "team_b_id": self.team_ids[3], "note": ""},
+        ]
+
+        def fake_generate(competition_id, **kwargs):
+            return [dict(slot, competition_id=competition_id) for slot in broken_plan]
+
+        with patch("app.routes.quickstart.generate_group_plan", side_effect=fake_generate):
+            with TestClient(fastapi_app) as client:
+                response = self._post_quickstart(client, confirm_conflicts="1")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("doppelt belegt", response.text)
+        self.assertNotIn("Trotzdem anlegen", response.text)
+        with get_conn() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM competitions").fetchone()["n"], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM slots").fetchone()["n"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

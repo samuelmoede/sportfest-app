@@ -72,6 +72,7 @@ def init_db(db_path=None):
             punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0,
             punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
             competition_date TEXT,
+            final_source_ids TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -209,6 +210,21 @@ def init_db(db_path=None):
 
         CREATE INDEX IF NOT EXISTS idx_user_sessions_open
             ON user_sessions (ended_at, last_seen_at);
+
+        -- Manuelle Korrekturen fuer den Urkunden-Generator (nur fuer den
+        -- Druck, die Wertung in Tabellen/Gesamtwertung bleibt unveraendert).
+        CREATE TABLE IF NOT EXISTS urkunden_anpassungen (
+            event_id INTEGER NOT NULL,
+            eintrag_key TEXT NOT NULL,
+            platz INTEGER,
+            urkundentyp TEXT,
+            name TEXT,
+            leistung TEXT,
+            ausgeblendet INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT,
+            PRIMARY KEY (event_id, eintrag_key),
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
         """)
 
         columns = [
@@ -422,6 +438,12 @@ def init_db(db_path=None):
         # der Startseite auftaucht.
         if "competition_date" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN competition_date TEXT")
+
+        # Jahrgangsfinale beim Schulpokal (Sieger J7 gegen Sieger J8): ids der
+        # beiden Quell-Wettbewerbe, kommagetrennt (siehe
+        # app/services/jahrgangsfinale_service.py).
+        if "final_source_ids" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN final_source_ids TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

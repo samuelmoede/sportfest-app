@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Turnierplanung</p>
+        <h1>Turnier-Schnellstart: Überschneidungen gefunden</h1>
+        <p>Das Turnier wurde noch nicht angelegt.</p>
+    </div>
+</header>
+
+<section class="panel">
+    {% if errors %}
+    <h2>Konflikte</h2>
+    <p>Diese Überschneidungen verhindern das Anlegen. Bitte andere Felder oder eine andere Startzeit wählen.</p>
+    <ul>
+        {% for message in errors %}
+        <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if hints %}
+    <h2>Mögliche Überschneidungen</h2>
+    <p class="muted">
+        Der Schnellstart legt Turniere ohne Datum an. Ob die folgenden Wettbewerbe am selben Tag
+        stattfinden, ist deshalb nicht sicher.
+    </p>
+    <ul>
+        {% for message in hints %}
+        <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a class="button secondary" href="/turnier-schnellstart">Zurück und anpassen</a>
+        {% if hints and not errors %}
+        <form method="post" action="/turnier-schnellstart">
+            <input type="hidden" name="name" value="{{ form.name }}">
+            <input type="hidden" name="sportart" value="{{ form.sportart }}">
+            {% for team_id in form.team_ids %}
+            <input type="hidden" name="team_ids" value="{{ team_id }}">
+            {% endfor %}
+            {% for court_id in form.court_ids %}
+            <input type="hidden" name="court_ids" value="{{ court_id }}">
+            {% endfor %}
+            <input type="hidden" name="startzeit" value="{{ form.startzeit }}">
+            <input type="hidden" name="tournament_mode" value="{{ form.tournament_mode }}">
+            <input type="hidden" name="punkterunde_grosses_finale" value="{{ form.punkterunde_grosses_finale }}">
+            <input type="hidden" name="punkterunde_kleines_finale" value="{{ form.punkterunde_kleines_finale }}">
+            <input type="hidden" name="game_duration_minutes" value="{{ form.game_duration_minutes }}">
+            <input type="hidden" name="changeover_duration_minutes" value="{{ form.changeover_duration_minutes }}">
+            <input type="hidden" name="confirm_conflicts" value="1">
+            <button class="green" type="submit">Trotzdem anlegen</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

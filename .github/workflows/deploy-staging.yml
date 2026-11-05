@@ -24,6 +24,10 @@ jobs:
             git reset --hard origin/develop
           fi
 
+      # --force-recreate: VERSION, CHANGELOG.md usw. sind als Einzeldateien
+      # gemountet. git reset ersetzt sie durch neue Dateien, ein weiterlaufender
+      # Container saehe sonst die alten (z.B. Release 1.1 nur mit VERSION-
+      # Aenderung, Image unveraendert -> Container wurde nicht neu erstellt).
       - name: Staging-Container neu bauen und starten
         working-directory: ${{ env.DEPLOY_DIR }}
-        run: docker compose -f docker-compose.dev.yml up -d --build
+        run: docker compose -f docker-compose.dev.yml up -d --build --force-recreate

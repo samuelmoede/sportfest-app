@@ -88,6 +88,48 @@
         <button class="green" type="submit">Veranstaltung anlegen und weiter</button>
     </form>
 </section>
+<section class="panel" id="vorlage-schulpokal">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Vorlage</p>
+            <h2>Schulpokal in einem Schritt anlegen</h2>
+        </div>
+        <span class="section-icon" aria-hidden="true">🏆</span>
+    </div>
+    <p>
+        Legt die Veranstaltung mit allen Wettbewerben an: je Sportart und Jahrgang ein Schulpokal-Wettbewerb
+        mit Ort und Zeitfenster, dazu das Jahrgangsfinale (Sieger gegen Sieger) und die Siegerehrung zum Blockende.
+        Den Spielplan erzeugst du danach je Block im Plan-Generator, der auch die passende Spielzeit vorschlägt.
+        Eine Zeile ohne Sportart wird übersprungen.
+    </p>
+    {% if vorlage_fehler %}
+    <p class="validation-error">{{ vorlage_fehler }}</p>
+    {% endif %}
+    <form method="post" action="/assistent/vorlage/schulpokal" class="admin-form">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="z. B. Schulpokal 2026" required>
+        <label>Datum</label>
+        <input type="date" name="event_date">
+        {% for block in schulpokal_bloecke %}
+        <label style="align-self: start; padding-top: 6px;">Block {{ loop.index }}</label>
+        <div class="court-checkboxes">
+            <input type="text" name="block_sportart" value="{{ block.sportart }}" placeholder="Sportart" aria-label="Sportart Block {{ loop.index }}">
+            <input type="text" name="block_jahrgaenge" value="{{ block.jahrgaenge }}" placeholder="Jahrgänge, z. B. 7, 8" aria-label="Jahrgänge Block {{ loop.index }}">
+            <select name="block_location" aria-label="Ort Block {{ loop.index }}">
+                {% for loc in court_locations %}
+                <option value="{{ loc }}" {% if loc == block.location %}selected{% endif %}>{{ loc }}</option>
+                {% endfor %}
+            </select>
+            <span>von <input type="time" name="block_start_time" value="{{ block.start_time }}" aria-label="Start Block {{ loop.index }}"></span>
+            <span>bis <input type="time" name="block_end_time" value="{{ block.end_time }}" aria-label="Ende Block {{ loop.index }}"></span>
+            <span>Finale <input type="time" name="block_finale_time" value="{{ block.finale_time }}" aria-label="Finale Block {{ loop.index }}"></span>
+        </div>
+        {% endfor %}
+        <label>Siegerehrung</label>
+        <label><input type="checkbox" name="siegerehrung" value="1" checked> Zum Ende jedes Blocks in den Spielplan eintragen</label>
+        <button class="green" type="submit">Schulpokal anlegen</button>
+    </form>
+</section>
 
 <section class="panel">
     <div class="section-heading">

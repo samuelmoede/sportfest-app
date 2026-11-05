@@ -223,6 +223,10 @@ class EventOverallAndTournamentTests(unittest.TestCase):
         conn.row_factory = sqlite3.Row
         conn.executescript(
             """
+            CREATE TABLE events (
+                id INTEGER PRIMARY KEY,
+                event_type TEXT
+            );
             CREATE TABLE competitions (
                 id INTEGER PRIMARY KEY,
                 event_id INTEGER,

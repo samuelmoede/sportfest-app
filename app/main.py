@@ -11,7 +11,7 @@ import time
 from typing import Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -22,6 +22,7 @@ from app.routes.events import create_router as create_events_router
 from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
+from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
@@ -42,6 +43,8 @@ from app.services.event_status_service import (
     normalize_event_statuses,
     resolve_selected_event_id,
 )
+from app.services.csrf_service import UNSAFE_METHODS as CSRF_UNSAFE_METHODS, is_request_origin_allowed
+from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
@@ -135,6 +138,7 @@ AREA_ACCESS_RULES = (
     ("/teams", "admin"),
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
+    ("/urkunden", "tournament_lead"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
@@ -161,7 +165,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table)$"
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table|advance-ko-round)$"
         ),
         "referee",
     ),
@@ -212,8 +216,34 @@ class UserActivityMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class CsrfOriginMiddleware(BaseHTTPMiddleware):
+    """Lehnt schreibende Anfragen fremder Herkunft ab (siehe
+    app/services/csrf_service.py). Nur bei aktiver Sicherheit, damit der
+    deaktivierte Modus unveraendert rueckwaertskompatibel bleibt."""
+
+    async def dispatch(self, request: Request, call_next):
+        if (
+            request.method.upper() in CSRF_UNSAFE_METHODS
+            and is_security_enabled()
+            and not is_request_origin_allowed(request.method, request.headers)
+        ):
+            logging.getLogger(__name__).warning(
+                "CSRF-Schutz: %s %s abgelehnt (Origin=%r, Referer=%r, Host=%r). "
+                "Hinter einem Proxy ggf. SPORTFEST_TRUSTED_ORIGINS setzen.",
+                request.method, request.url.path,
+                request.headers.get("origin"), request.headers.get("referer"),
+                request.headers.get("host"),
+            )
+            return PlainTextResponse(
+                "Anfrage abgelehnt: Sie stammt nicht von dieser Sportfest-App (CSRF-Schutz).",
+                status_code=403,
+            )
+        return await call_next(request)
+
+
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
+app.add_middleware(CsrfOriginMiddleware)
 app.add_middleware(UserActivityMiddleware)
 app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
@@ -456,7 +486,15 @@ def collect_tabellen_view_data(
     include_overall = selected_event_id is not None and selected_competition_id is None
     if include_overall:
         overall_ranking = calculate_event_overall_ranking(selected_event_id)
-        if selected_jahrgang is not None:
+        exact_group = f"Gesamtwertung Jahrgang {selected_jahrgang}"
+        if selected_jahrgang is not None and any(
+            group["year_group"] == exact_group for group in overall_ranking
+        ):
+            # Schulpokal: Wertung je einzelnem Jahrgang, auch Jahrgang 10.
+            overall_ranking = [
+                group for group in overall_ranking if group["year_group"] == exact_group
+            ]
+        elif selected_jahrgang is not None:
             year_group_filter = classify_yeargang(selected_jahrgang)
             if year_group_filter == "Oberstufe":
                 overall_ranking = [
@@ -1479,18 +1517,35 @@ def format_duration(start_time: str, end_time: str):
 
 def calculate_event_overall_ranking(event_id: int):
     with get_conn() as conn:
+        event = conn.execute("SELECT event_type FROM events WHERE id = ?", (event_id,)).fetchone()
         competitions = conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()
 
+    # Schulpokal: ein Sieger je Jahrgang (auch Jahrgang 10, nicht GOST), aus
+    # allen Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis).
+    # Das Jahrgangsfinale (Sieger J7 gegen Sieger J8) findet erst nach der
+    # Siegerehrung statt und zaehlt nicht in die Jahrgangswertung.
+    is_schulpokal_event = event is not None and event["event_type"] == "Schulpokal"
+    if is_schulpokal_event:
+        competitions = [
+            competition for competition in competitions
+            if not (competition["final_source_ids"] or "").strip()
+        ]
+
+    def year_group_of(jahrgang):
+        if is_schulpokal_event:
+            return f"Jahrgang {jahrgang}" if jahrgang not in (None, "", "mixed") else None
+        return classify_yeargang(jahrgang)
+
     if not competitions:
         return []
 
     grouped_competitions = {}
     for competition in competitions:
-        year_group = classify_yeargang(competition["jahrgang"])
+        year_group = year_group_of(competition["jahrgang"])
         if year_group is None:
             continue
         grouped_competitions.setdefault(year_group, []).append({
@@ -1639,7 +1694,7 @@ def calculate_event_overall_ranking(event_id: int):
     year_groups = {}
 
     for row in overall.values():
-        year_group = classify_yeargang(row["jahrgang"])
+        year_group = year_group_of(row["jahrgang"])
         if year_group is None:
             continue
         year_groups.setdefault(year_group, []).append(row)
@@ -1651,6 +1706,13 @@ def calculate_event_overall_ranking(event_id: int):
         "Jahrgang 9": "Gesamtwertung Jahrgang 9",
         "Oberstufe": "Gesamtwertung GOST",
     }
+    if is_schulpokal_event:
+        def schulpokal_group_key(group):
+            value = group.removeprefix("Jahrgang ")
+            return jahrgang_sort_key(int(value) if value.isdigit() else value)
+
+        ordered_groups = sorted(year_groups, key=schulpokal_group_key)
+        display_year_groups = {group: f"Gesamtwertung {group}" for group in ordered_groups}
     result = []
     for year_group in ordered_groups:
         rows = year_groups.get(year_group)
@@ -1696,6 +1758,41 @@ def calculate_event_overall_ranking(event_id: int):
         })
 
     return result
+
+
+def calculate_sixkampf_competition_ranking(competition):
+    """Sechskampf-Wertung eines Wettbewerbs wie in der Gesamtwertung (nur
+    Klassen mit Ergebnissen). Gibt (disciplines, ranking) zurueck; genutzt
+    vom Urkunden-Generator."""
+    with get_conn() as conn:
+        competition_teams = get_teams_for_competition(
+            conn, competition["id"], competition["jahrgang"]
+        )
+        disciplines = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE competition_id = ?
+            ORDER BY sort_order, id
+        """, (competition["id"],)).fetchall()
+        result_rows = conn.execute(
+            "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
+            (competition["id"],)
+        ).fetchall()
+        competition_teams = include_teams_with_existing_sixkampf_results(
+            conn, competition["id"], competition_teams
+        )
+
+    if not result_rows:
+        return disciplines, []
+
+    ranking, _, _ = calculate_sixkampf_team_ranking(
+        competition_teams,
+        disciplines,
+        result_rows,
+        competition["points_first_place"],
+        require_result_entry=True,
+        placement_points=get_competition_placement_points(competition, len(competition_teams)),
+    )
+    return disciplines, ranking
 
 
 def calculate_group_table(competition_id: int, gruppe: str):
@@ -2152,6 +2249,7 @@ def ergebnisse(
     phase_ready_competition_id: str = "",
     overwrite_warning: str = "",
     correction_blocked: str = "",
+    ko_error: str = "",
     nur_aktive: str = "",
 ):
     nur_aktive_enabled = nur_aktive == "1"
@@ -2463,6 +2561,13 @@ def ergebnisse(
             "overwrite_warning_prompt": overwrite_warning_prompt,
             "overwrite_warning_dismiss_url": overwrite_warning_dismiss_url,
             "correction_blocked": correction_blocked == "1",
+            "ko_error_message": get_ko_error_message(ko_error),
+            # Dauerhafter Besetzen-Button (ROADMAP Phase 4.7) - nicht doppelt
+            # neben dem einmaligen Banner direkt nach Abschluss der Phase.
+            "next_phase_action": (
+                None if phase_ready_prompt or overwrite_warning_prompt
+                else get_next_phase_action(selected_competition)
+            ),
         }
     )
 
@@ -2976,6 +3081,7 @@ def tabellen_csv_export(
 
 app.include_router(create_schedule_router(
     app_now_db_timestamp=app_now_db_timestamp,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
     app_today=lambda: app_now().date(),
     parse_competition_id=parse_competition_id,
     parse_jahrgang_filter=parse_jahrgang_filter,
@@ -3012,6 +3118,14 @@ app.include_router(create_events_router(
     get_competition_timing=get_competition_timing,
     get_unique_competition_name=get_unique_competition_name,
     copy_competition_disciplines=copy_competition_disciplines,
+))
+
+
+app.include_router(create_urkunden_router(
+    app_now_db_timestamp=app_now_db_timestamp,
+    calculate_tournament_points=calculate_tournament_points,
+    calculate_sixkampf_competition_ranking=calculate_sixkampf_competition_ranking,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
 ))
 
 
