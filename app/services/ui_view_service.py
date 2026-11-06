@@ -276,6 +276,26 @@ def _clock_minutes(minutes):
     return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
+PROGRAMM_ZEILE_MINUTEN = 11
+
+
+def _add_programm_entry(target, column, label, kind, start, end):
+    target.append({
+        "is_programm": True,
+        "kind": kind,
+        "competition_id": None,
+        "name": label,
+        "sportart": "",
+        "location": "",
+        "column": column,
+        "start_minutes": start,
+        "end_minutes": max(end, start + 1),
+        "display_time": (
+            f"{_clock_minutes(start)}–{_clock_minutes(end)}" if end > start + 1 else _clock_minutes(start)
+        ),
+    })
+
+
 def split_block_segments(start_minutes, end_minutes, segments):
     """Loest Programmpunkte am Anfang und Ende eines Blocks (Eroeffnung,
     Siegerehrung) sowie alles nach dem Block (Siegerehrung, Jahrgangsfinale)
@@ -336,7 +356,6 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
             if event_id is not None:
                 shared_by_event[event_id].append(slot)
     programm_entries = []
-    programm_keys = set()
     finals_by_source = defaultdict(list)
     for competition in competitions:
         for part in str(competition.get("final_source_ids") or "").split(","):
@@ -408,7 +427,12 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
                 block_start, block_end, segments
             )
             entry = entries[-1]
-            entry["segments"] = {"inside": inside, "after": []}
+            # Die Spiele fuellen den Block ohnehin, nur K.-o.-Runden und
+            # Programmpunkte mittendrin (Pause) werden markiert.
+            entry["segments"] = {
+                "inside": [item for item in inside if item["kind"] != "spiele"],
+                "after": [],
+            }
             if (display_start, display_end) != (block_start, block_end):
                 # Drag & Drop verschiebt weiter das Zeitfenster des
                 # Wettbewerbs, angezeigt wird nur der Spiele-Teil.
@@ -418,34 +442,43 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
                 entry["end_minutes"] = display_end
                 entry["display_time"] = f"{_clock_minutes(display_start)}–{_clock_minutes(display_end)}"
             for item in separate:
-                key = (column, item["label"], item["start"], item["end"])
-                if key in programm_keys:
-                    continue
-                programm_keys.add(key)
-                programm_entries.append({
-                    "is_programm": True,
-                    "kind": item["kind"],
-                    "competition_id": None,
-                    "name": item["label"],
-                    "sportart": "",
-                    "location": "",
-                    "column": column,
-                    "start_minutes": item["start"],
-                    "end_minutes": max(item["end"], item["start"] + 1),
-                    "display_time": (
-                        f"{_clock_minutes(item['start'])}–{_clock_minutes(item['end'])}"
-                        if item["end"] > item["start"] + 1 else _clock_minutes(item["start"])
-                    ),
-                })
+                _add_programm_entry(programm_entries, column, item["label"], item["kind"], item["start"], item["end"])
             entries[-1]["verspaetung"] = block_verspaetung(
                 slots_by_competition.get(competition_id, []) + final_slots, delay_now
             )
+
+    # Programmpunkte der Veranstaltung (z.B. die gemeinsame Eroeffnung)
+    # erscheinen in jeder Spalte, fuer deren Jahrgang sie gelten, auch wenn
+    # dort zu der Zeit kein Wettbewerb laeuft.
+    column_jahrgaenge = defaultdict(set)
+    for competition in competitions:
+        column_jahrgaenge[competition_column(competition)].add(str(competition.get("jahrgang") or ""))
+    for column in columns:
+        if column not in column_jahrgaenge:
+            continue
+        for punkt in programmpunkte or []:
+            start = _slot_minutes(punkt.get("start_time"))
+            end = _slot_minutes(punkt.get("end_time"))
+            if start is None or end is None or end <= start:
+                continue
+            if any(applies_to_jahrgang(punkt, jahrgang) for jahrgang in column_jahrgaenge[column]):
+                label = (punkt.get("titel") or "").strip() or "Programmpunkt"
+                _add_programm_entry(programm_entries, column, label, "programm", start, end)
+
+    # Gleicher Programmpunkt mehrfach (aus mehreren Bloecken einer Spalte
+    # oder als Programmpunkt und alter Slot): nur einmal, mit der laengsten
+    # Dauer.
+    unique = {}
+    for item in programm_entries:
+        key = (item["column"], item["name"], item["start_minutes"])
+        if key not in unique or item["end_minutes"] > unique[key]["end_minutes"]:
+            unique[key] = item
 
     # Direkt aufeinander folgende Programmpunkte einer Spalte (Siegerehrung
     # 10:40, Jahrgangsfinale 10:45) werden ein Block mit mehreren Zeilen,
     # sonst waeren die wenigen Minuten zu schmal fuer die Beschriftung.
     merged = []
-    for item in sorted(programm_entries, key=lambda e: (e["column"], e["start_minutes"], e["end_minutes"])):
+    for item in sorted(unique.values(), key=lambda e: (e["column"], e["start_minutes"], e["end_minutes"])):
         line = {"time": item["display_time"], "name": item["name"], "kind": item["kind"]}
         previous = merged[-1] if merged else None
         if (
@@ -460,12 +493,17 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
     for item in merged:
         if any(line["kind"] == "programm" for line in item["lines"]):
             item["kind"] = "programm"
+        # Jede Zeile braucht etwa 10 Minuten Hoehe im Plan (siehe
+        # min-height im Template), damit unten nichts abgeschnitten wird.
+        item["extent_end_minutes"] = max(
+            item["end_minutes"], item["start_minutes"] + PROGRAMM_ZEILE_MINUTEN * len(item["lines"]) + 2
+        )
     entries.extend(merged)
     if not entries:
         return None
 
     timeline_start = (min(e["start_minutes"] for e in entries) // 30) * 30
-    raw_end = max(e["end_minutes"] for e in entries)
+    raw_end = max(e.get("extent_end_minutes", e["end_minutes"]) for e in entries)
     timeline_end = -(-raw_end // 30) * 30
     total_minutes = max(timeline_end - timeline_start, 30)
 

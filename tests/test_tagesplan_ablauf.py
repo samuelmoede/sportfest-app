@@ -111,7 +111,9 @@ class TagesplanBlockPageTests(unittest.TestCase):
         self.assertIn(f'data-href="/spielplan?competition_id={self.competition_id}"', page.text)
         # Eroeffnung als eigener Block vor dem Spielblock, ohne Spielanzahl
         self.assertIn('title="08:00–08:15 Eröffnung"', page.text)
-        self.assertIn("08:15 Spiele<", page.text)
+        # Spielblock ab dem ersten Spiel, ohne eigene Zeile "Spiele"
+        self.assertIn("08:15–10:40", page.text)
+        self.assertNotIn("08:15 Spiele", page.text)
         self.assertNotIn("Spiele (", page.text)
 
     def test_editor_offers_opening_slot_type(self):

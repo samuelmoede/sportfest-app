@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Tagesplan: Der Spielblock ist einheitlich eingefärbt, ohne eigene Zeile „Spiele“. Programmpunkte (z. B. die Eröffnung) erscheinen in allen Spalten der betroffenen Jahrgänge, auch ohne Wettbewerb zu der Zeit. Doppelte Einträge (alter Siegerehrungs-Slot und Programmpunkt) werden nur einmal gezeigt, der Plan wird unten nicht mehr abgeschnitten.
 - Tagesplan: Eröffnung, Siegerehrung und Jahrgangsfinale stehen als eigene Blöcke vor bzw. nach dem Spielblock (direkt aufeinanderfolgende in einem Block), der Spielblock zeigt nur noch die Spiele. Spielanzahl und „danach“ entfallen. Ziehen verschiebt weiter das ganze Zeitfenster des Wettbewerbs.
 - Neu: Zeitplan aufholen (Turnierleitung). Über die Verspätung im Tagesplan-Block, „Spielplan bearbeiten“ oder den Runden-Timer erreichbar. Spielzeit (auch in 30-Sekunden-Schritten) und Wechselzeit kürzen; die Vorschau zeigt sofort das neue Ende des Blocks und ob die Siegerehrung bzw. das geplante Ende wieder erreicht wird. „Übernehmen“ taktet alle noch nicht gestarteten Spiele des Blocks neu (alle Jahrgänge, die sich die Felder teilen), der Timer läuft mit der neuen Spielzeit. Neue Spalte `competitions.game_duration_seconds`.
 - Neu: Durchsage an alle. Die Turnierleitung schickt einen Hinweis (z. B. „Spielzeit ab sofort 6 statt 7 Minuten“, beim Zeitplan aufholen vorausgefüllt), der auf allen offenen Seiten der App und am Beamer erscheint und stehen bleibt, bis man „Verstanden“ tippt. Neue Tabelle `durchsagen`.
