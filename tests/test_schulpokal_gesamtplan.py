@@ -308,6 +308,18 @@ class SchulpokalGesamtplanTests(unittest.TestCase):
         self.assertEqual(maedchen["teilmannschaft"], "Mädchen")
         self.assertEqual(maedchen["points_win"], 1)
 
+    def test_day_schedule_has_own_column_for_year_10(self):
+        """Tagesplan beim Schulpokal: Jahrgang 10 bekommt eine eigene Spalte
+        statt unter Oberstufe/GOST zu landen."""
+        from app.main import get_day_schedule_for_event
+        schedule = get_day_schedule_for_event(self.event_id)
+        labels = [column["label"] for column in schedule["timeline"]["columns"]]
+        self.assertIn("Jahrgang 10", labels)
+        self.assertNotIn("Oberstufe", labels)
+        page = self.client.get(f"/events/{self.event_id}")
+        self.assertIn("JG 10", page.text)
+        self.assertNotIn("OBERSTUFE", page.text.upper().split("TAGESPLAN", 1)[-1])
+
     def test_overall_ranking_sums_game_points_like_the_sportfachschaft(self):
         """9a gewinnt Volleyball (2 Punkte) und ein Tischtennisspiel der
         Jungen (1 Punkt), 9b gewinnt ein Tischtennisspiel der Maedchen."""

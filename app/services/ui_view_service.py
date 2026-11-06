@@ -50,6 +50,16 @@ def classify_yeargang(value):
     return None
 
 
+def competition_column(competition):
+    """Spalte im Tagesplan: beim Schulpokal setzt get_day_schedule_for_event
+    year_column (Jahrgang 10 bleibt Jahrgang 10 statt Oberstufe), sonst
+    classify_yeargang."""
+    if isinstance(competition, dict) and competition.get("year_column"):
+        return competition["year_column"]
+    jahrgang = competition.get("jahrgang") if hasattr(competition, "get") else competition["jahrgang"]
+    return classify_yeargang(jahrgang)
+
+
 def _group_label(groups):
     values = sorted({
         str(group).strip()
@@ -119,7 +129,7 @@ def build_day_timeline(columns, competitions, now=None):
         end = parse_slot_time(competition.get("end_time"))
         if start is None or end is None or end <= start:
             continue
-        column = classify_yeargang(competition.get("jahrgang"))
+        column = competition_column(competition)
         if column not in columns:
             continue
         entries.append({
@@ -278,7 +288,7 @@ def enrich_day_schedule_view(schedule, competitions, now=None):
             ),
             "sportart": competition.get("sportart") or "",
             "year_group": _year_group_label(competition.get("jahrgang")),
-            "column": classify_yeargang(competition.get("jahrgang")),
+            "column": competition_column(competition),
             "group": _group_label(groups_by_competition[competition_id]),
             "location": _location_label(competition),
             "display_time": display_time,

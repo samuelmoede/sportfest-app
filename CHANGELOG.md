@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Fix: Tagesplan beim Schulpokal zeigt Jahrgang 10 in einer eigenen Spalte statt unter „Oberstufe“.
 - Neu: Schulpokal auf einmal planen. Im Assistenten plant „Ganzen Schulpokal planen“ alle Blöcke (z. B. Zweifelderball, Volleyball, Tischtennis) in einem Schritt. Je Block wählbar: Jahrgänge abwechselnd oder gleichzeitig, Anzahl Felder bzw. Platten, Start-, Spiel- und Wechselzeit (mit Spielzeit-Vorschlag aus dem Zeitfenster). Die Vorschau zeigt je Block den Plan nach Uhrzeit und Feld samt Konfliktprüfung; „Alles übernehmen“ ersetzt ungespielte Gruppenspiele, Blöcke mit gestarteten oder beendeten Spielen bleiben unangetastet.
 - Neu: Getrennte Wertung innerhalb einer Klasse, z. B. Tischtennis Jungen und Mädchen. Je Teilmannschaft entsteht ein eigener Wettbewerb mit denselben Klassen-Teams (Vorlage und Assistent, Feld „Getrennt nach“), Extra-Teams sind nicht nötig. Jungen und Mädchen derselben Klasse dürfen gleichzeitig spielen; Volleyball und Tischtennis gleichzeitig bleibt ein Hinweis. Neue Spalte `competitions.teilmannschaft`.
 - Schulpokal: Die Gesamtwertung je Jahrgang summiert jetzt die Spielpunkte aller Wettbewerbe (z. B. Volleyball 2/1/0, Tischtennis Jungen und Mädchen je 1 Punkt pro Sieg) statt Platzierungspunkten. Punkte für Sieg und Unentschieden lassen sich in Vorlage und Assistent setzen (Schulpokal-Standard 2/1, Tischtennis in der Vorlage 1/0).
