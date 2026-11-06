@@ -438,7 +438,7 @@ class RundenTimerTests(unittest.TestCase):
         self.assertEqual(timer["running"]["slot_ids"], [1])
         self.assertEqual(timer["running"]["planned_seconds"], 600)
         self.assertIsNone(timer["running"]["stopped_at"])
-        self.assertEqual(timer["next"], {"startzeit": "11:45", "slot_ids": [2], "count": 1})
+        self.assertEqual(timer["next"], {"startzeit": "11:45", "slot_ids": [2], "count": 1, "competition_id": None})
 
     def test_start_all_simultaneous_games_and_stop_timer(self):
         page = self.client.get("/ergebnisse?ort=Mensa")

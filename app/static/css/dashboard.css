@@ -821,6 +821,7 @@
 
 /* Verspaetung im Tagesplan-Block (nur Admin/Turnierleitung) */
 .day-timeline-delay {
+    cursor: pointer;
     display: inline-block;
     align-self: flex-start;
     max-width: 100%;

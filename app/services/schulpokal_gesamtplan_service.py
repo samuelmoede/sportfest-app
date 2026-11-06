@@ -329,7 +329,7 @@ def apply_gesamtplan(conn, event_id, settings):
             conn.execute(
                 """
                 UPDATE competitions
-                SET game_duration_minutes = ?, changeover_duration_minutes = ?, start_time = ?
+                SET game_duration_seconds = NULL, game_duration_minutes = ?, changeover_duration_minutes = ?, start_time = ?
                 WHERE id = ?
                 """,
                 (

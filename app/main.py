@@ -25,6 +25,7 @@ from app.routes.teams import create_router as create_teams_router
 from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
+from app.routes.zeitplan import create_router as create_zeitplan_router
 from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
@@ -142,6 +143,7 @@ AREA_ACCESS_RULES = (
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
     ("/urkunden", "tournament_lead"),
+    ("/zeitplan-aufholen", "tournament_lead"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
@@ -189,6 +191,7 @@ ACTION_ACCESS_RULES = (
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
     (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
+    (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
 
@@ -3165,6 +3168,10 @@ app.include_router(create_events_router(
 ))
 
 
+app.include_router(create_zeitplan_router(
+    app_now=app_now,
+    app_now_db_timestamp=app_now_db_timestamp,
+))
 app.include_router(create_urkunden_router(
     app_now_db_timestamp=app_now_db_timestamp,
     calculate_tournament_points=calculate_tournament_points,

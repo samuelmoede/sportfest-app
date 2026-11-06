@@ -778,7 +778,7 @@ def create_router(
                 for target_id in dict.fromkeys([competition_id, *partner_competition_ids]):
                     conn.execute("""
                         UPDATE competitions
-                        SET game_duration_minutes = ?, changeover_duration_minutes = ?
+                        SET game_duration_seconds = NULL, game_duration_minutes = ?, changeover_duration_minutes = ?
                         WHERE id = ?
                     """, (game_duration_minutes, changeover_duration_minutes, target_id))
                 conn.commit()

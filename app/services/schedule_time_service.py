@@ -46,18 +46,34 @@ def get_competition_timing(competition):
     changeover_duration_minutes = read_minutes(
         "changeover_duration_minutes", DEFAULT_CHANGEOVER_DURATION_MINUTES, 0
     )
+    # Spielzeit auf die Sekunde (Zeitplan aufholen, z.B. 6:30); sonst die
+    # ganzen Minuten.
+    try:
+        game_duration_seconds = int(_get_value(competition, "game_duration_seconds", None))
+    except (TypeError, ValueError):
+        game_duration_seconds = None
+    if game_duration_seconds is None or game_duration_seconds < 30:
+        game_duration_seconds = game_duration_minutes * 60
     return {
         "game_duration_minutes": game_duration_minutes,
+        "game_duration_seconds": game_duration_seconds,
         "changeover_duration_minutes": changeover_duration_minutes,
         "slot_interval_minutes": game_duration_minutes + changeover_duration_minutes,
     }
 
 
-def get_game_end_time(startzeit: str, game_duration_minutes: int):
+def format_duration_seconds(seconds):
+    """390 -> '6:30', 420 -> '7'."""
+    minutes, rest = divmod(int(seconds), 60)
+    return f"{minutes}:{rest:02d}" if rest else str(minutes)
+
+
+def get_game_end_time(startzeit: str, game_duration_minutes: int, game_duration_seconds=None):
     start = parse_slot_time(startzeit)
     if start is None:
         return None
-    return (start + timedelta(minutes=game_duration_minutes)).strftime("%H:%M")
+    seconds = game_duration_seconds if game_duration_seconds else game_duration_minutes * 60
+    return (start + timedelta(seconds=seconds)).strftime("%H:%M")
 
 
 def suggest_game_duration(slots, competition):

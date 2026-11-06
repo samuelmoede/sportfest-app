@@ -74,6 +74,7 @@ def init_db(db_path=None):
             competition_date TEXT,
             final_source_ids TEXT,
             teilmannschaft TEXT,
+            game_duration_seconds INTEGER,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -165,6 +166,14 @@ def init_db(db_path=None):
             end_time TEXT NOT NULL,
             jahrgaenge TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS durchsagen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT,
+            active INTEGER NOT NULL DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS settings (
@@ -471,6 +480,11 @@ def init_db(db_path=None):
         # schedule_conflict_service).
         if "teilmannschaft" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN teilmannschaft TEXT")
+
+        # Spielzeit auf die Sekunde (z.B. 6:30 beim Zeitplan aufholen);
+        # NULL heisst game_duration_minutes gilt.
+        if "game_duration_seconds" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN game_duration_seconds INTEGER")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

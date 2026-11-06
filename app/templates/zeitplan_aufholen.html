@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+{% set v = vorschlag %}
+{% set first = v.competitions[0] %}
+<style>
+    .aufholen-grid { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; }
+    .aufholen-grid input[type="number"] { width: 5em; }
+    .aufholen-quick { display: flex; gap: 8px; flex-wrap: wrap; }
+    .aufholen-vergleich { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .aufholen-karte { border: 1px solid var(--line, rgba(127, 127, 127, 0.25)); border-radius: 12px; padding: 12px 14px; }
+    .aufholen-karte strong.zeit { display: block; font-size: 1.6rem; }
+    .aufholen-ok { color: var(--green, #168a50); font-weight: 700; }
+    .aufholen-spaet { color: var(--red); font-weight: 700; }
+    .aufholen-durchsage textarea { width: 100%; min-height: 4em; }
+</style>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Turnierleitung · {{ first.sportart }}{% if first.location %} · {{ first.location }}{% endif %}</p>
+        <h1>Zeitplan aufholen</h1>
+        <p>
+            {% for c in v.competitions %}{{ c.name }}{% if not loop.last %} · {% endif %}{% endfor %}<br>
+            Spiel- und Wechselzeit kürzen und sofort sehen, ob der Block wieder im Plan ist.
+            Übernehmen taktet alle noch nicht gestarteten Spiele neu.
+        </p>
+    </div>
+    <a class="button secondary" href="/spielplan-bearbeiten?competition_id={{ v.competition_id }}">Spielplan bearbeiten</a>
+</header>
+
+{% if gespeichert is not none %}
+<section class="panel"><p class="aufholen-ok">Übernommen: {{ gespeichert }} Spiele neu getaktet{% if gesendet %}, Durchsage gesendet{% endif %}.</p></section>
+{% endif %}
+{% if fehler %}<section class="panel"><p class="aufholen-spaet">{{ fehler }}</p></section>{% endif %}
+{% for message in v.fehler %}<section class="panel"><p class="aufholen-spaet">{{ message }}</p></section>{% endfor %}
+
+<section class="panel">
+    <form method="get" action="/zeitplan-aufholen" id="aufholen-form" class="aufholen-grid">
+        <input type="hidden" name="competition_id" value="{{ v.competition_id }}">
+        <label>Spielzeit
+            <span>
+                <input type="number" min="1" name="spielzeit_min" value="{{ v.neu_spielzeit // 60 }}"> Min.
+                <select name="spielzeit_sek">
+                    <option value="0" {% if v.neu_spielzeit % 60 == 0 %}selected{% endif %}>00</option>
+                    <option value="30" {% if v.neu_spielzeit % 60 == 30 %}selected{% endif %}>30</option>
+                </select> Sek.
+            </span>
+        </label>
+        <div class="aufholen-quick">
+            <button type="button" class="secondary" data-spielzeit-delta="-30">−30 Sek.</button>
+            <button type="button" class="secondary" data-spielzeit-delta="-60">−1 Min.</button>
+            <button type="button" class="secondary" data-spielzeit-reset="{{ v.alt_spielzeit }}">wie bisher ({{ v.alt_spielzeit_label }} Min.)</button>
+        </div>
+        <label>Wechselzeit <input type="number" min="0" name="wechselzeit" value="{{ v.neu_wechselzeit }}"> Min.</label>
+        <label>Nächste Runde
+            <input type="time" name="naechste_runde" value="{{ request.query_params.get('naechste_runde', '') }}">
+        </label>
+        <button type="submit">Neu berechnen</button>
+    </form>
+    <p class="muted">
+        Bisher {{ v.alt_spielzeit_label }} Min. Spielzeit und {{ v.alt_wechselzeit }} Min. Wechselzeit.
+        „Nächste Runde“ leer lassen: dann {% if v.laeuft %}nach der laufenden Runde{% else %}frühestens jetzt bzw. zur geplanten Zeit{% endif %}{% if v.naechste_runde %} ({{ v.naechste_runde }}){% endif %}.
+    </p>
+</section>
+
+{% if not v.rounds %}
+<section class="panel"><p class="muted">In diesem Block gibt es keine geplanten Spiele mehr.</p></section>
+{% else %}
+<section class="panel">
+    <div class="aufholen-vergleich">
+        <div class="aufholen-karte">
+            <span class="muted">Laut Plan endet das letzte Spiel um</span>
+            <strong class="zeit">{{ v.ende_plan }}</strong>
+        </div>
+        <div class="aufholen-karte">
+            <span class="muted">Ohne Änderung</span>
+            <strong class="zeit">{{ v.ende_ohne }}</strong>
+            {% if v.ziel %}
+            {% if v.puffer_ohne >= 0 %}<span class="aufholen-ok">pünktlich zur {{ v.ziel.label }} ({{ v.ziel.time }}), {{ v.puffer_ohne }} Min. Luft</span>
+            {% else %}<span class="aufholen-spaet">{{ -v.puffer_ohne }} Min. zu spät für {{ v.ziel.label }} ({{ v.ziel.time }})</span>{% endif %}
+            {% endif %}
+        </div>
+        <div class="aufholen-karte">
+            <span class="muted">Mit {{ v.neu_spielzeit_label }} Min. Spielzeit und {{ v.neu_wechselzeit }} Min. Wechselzeit</span>
+            <strong class="zeit">{{ v.ende_neu }}</strong>
+            {% if v.ziel %}
+            {% if v.puffer_neu >= 0 %}<span class="aufholen-ok">wieder im Plan: {{ v.ziel.label }} um {{ v.ziel.time }}, {{ v.puffer_neu }} Min. Luft</span>
+            {% else %}<span class="aufholen-spaet">noch {{ -v.puffer_neu }} Min. zu spät für {{ v.ziel.label }} ({{ v.ziel.time }})</span>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <table class="team-table">
+        <thead><tr><th>Runde bisher</th><th>neu</th><th>Spiele</th></tr></thead>
+        <tbody>
+            {% for item in v.rounds %}
+            <tr><td>{{ item.alt }}</td><td><strong>{{ item.neu }}</strong></td><td>{{ item.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="panel aufholen-durchsage">
+    <form method="post" action="/zeitplan-aufholen/uebernehmen"
+          onsubmit="return confirm('Neue Zeiten für {{ v.rounds|length }} Runden übernehmen?');">
+        <input type="hidden" name="competition_id" value="{{ v.competition_id }}">
+        <input type="hidden" name="spielzeit_min" value="{{ v.neu_spielzeit // 60 }}">
+        <input type="hidden" name="spielzeit_sek" value="{{ v.neu_spielzeit % 60 }}">
+        <input type="hidden" name="wechselzeit" value="{{ v.neu_wechselzeit }}">
+        <input type="hidden" name="naechste_runde" value="{{ v.naechste_runde }}">
+        <label><input type="checkbox" name="durchsage_senden" value="1" checked> Durchsage an alle senden</label>
+        <textarea name="durchsage_text" maxlength="500">{{ durchsage_vorschlag }}</textarea>
+        <p class="muted">Erscheint auf allen offenen Seiten der App und am Beamer und bleibt stehen, bis man „Verstanden“ tippt.</p>
+        <button class="green" type="submit">Übernehmen</button>
+    </form>
+</section>
+{% endif %}
+
+<section class="panel aufholen-durchsage">
+    <h2>Durchsage</h2>
+    {% if durchsage %}
+    <p>Aktuell seit {{ durchsage.created_at[11:16] }} Uhr: <strong>{{ durchsage.text }}</strong></p>
+    <form method="post" action="/durchsage/{{ durchsage.id }}/beenden">
+        <input type="hidden" name="zurueck" value="/zeitplan-aufholen?competition_id={{ v.competition_id }}">
+        <button class="secondary" type="submit">Durchsage beenden</button>
+    </form>
+    {% else %}
+    <p class="muted">Keine aktive Durchsage.</p>
+    {% endif %}
+    <form method="post" action="/durchsage/senden">
+        <input type="hidden" name="zurueck" value="/zeitplan-aufholen?competition_id={{ v.competition_id }}&gesendet=1">
+        <textarea name="text" maxlength="500" required placeholder="z. B. Siegerehrung verschiebt sich um 5 Minuten."></textarea>
+        <button type="submit">Nur Durchsage senden</button>
+    </form>
+</section>
+
+<script>
+(() => {
+    const form = document.getElementById("aufholen-form");
+    if (!form) return;
+    const minuten = form.querySelector("[name=spielzeit_min]");
+    const sekunden = form.querySelector("[name=spielzeit_sek]");
+    const setSeconds = (total) => {
+        total = Math.max(60, total);
+        minuten.value = Math.floor(total / 60);
+        sekunden.value = total % 60 >= 30 ? "30" : "0";
+        form.submit();
+    };
+    form.querySelectorAll("[data-spielzeit-delta]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const current = Number(minuten.value || 0) * 60 + Number(sekunden.value || 0);
+            setSeconds(current + Number(button.dataset.spielzeitDelta));
+        });
+    });
+    form.querySelectorAll("[data-spielzeit-reset]").forEach((button) => {
+        button.addEventListener("click", () => setSeconds(Number(button.dataset.spielzeitReset)));
+    });
+    form.querySelectorAll("input, select").forEach((field) => {
+        field.addEventListener("change", () => form.submit());
+    });
+})();
+</script>
+{% endblock %}

@@ -538,6 +538,10 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         {% endif %}
     </div>
     <div class="round-timer-actions">
+        {% set aufhol_competition = (round_timer.running or round_timer.next).competition_id %}
+        {% if aufhol_competition and can_access_role(request, "tournament_lead") %}
+        <a class="button secondary" href="/zeitplan-aufholen?competition_id={{ aufhol_competition }}">Zeitplan aufholen</a>
+        {% endif %}
         {% if round_timer.running and not round_timer.running.stopped_at %}
         <form method="post" action="/slots/runde/timer-stoppen">
             {% for slot_id in round_timer.running.slot_ids %}<input type="hidden" name="slot_ids" value="{{ slot_id }}">{% endfor %}
