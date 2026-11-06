@@ -116,14 +116,127 @@ def _timeline_status(start_minutes, end_minutes, now_minutes):
     return "planned"
 
 
-def build_day_timeline(columns, competitions, now=None):
+# Programmpunkte, die im Tagesplan als eigener Abschnitt eines Blocks
+# erscheinen (Slottypen im Spielplan-Editor).
+PROGRAMM_SLOT_TYPEN = ("Eröffnung", "Siegerehrung", "Pause")
+KO_PHASEN = ("Halbfinale", "Spiel um Platz 3", "Kleines Finale", "Platzierung", "Finale")
+
+
+def _slot_minutes(value):
+    parsed = parse_slot_time(value)
+    return parsed.hour * 60 + parsed.minute if parsed else None
+
+
+def build_block_segments(start_minutes, end_minutes, slots, final_slots=()):
+    """Unterteilt einen Tagesplan-Block in seinen Ablauf: Programmpunkte
+    (Eroeffnung, Siegerehrung, Pause), die Spiele der Gruppenphase und
+    K.-o.-Spiele bzw. das Jahrgangsfinale. Jeder Abschnitt bekommt Lage und
+    Hoehe in Prozent des Blocks; Abschnitte ab dem Blockende (z.B.
+    Siegerehrung direkt danach) kommen in "after" und werden unter dem
+    Ablauf als Zeile gezeigt."""
+    raw = []
+    games = [
+        slot for slot in slots
+        if slot.get("slot_typ") == "Spiel" and _slot_minutes(slot.get("startzeit")) is not None
+    ]
+
+    def game_span(game_slots):
+        starts = [_slot_minutes(slot.get("startzeit")) for slot in game_slots]
+        ends = [
+            _slot_minutes(slot.get("game_end_time")) or _slot_minutes(slot.get("startzeit"))
+            for slot in game_slots
+        ]
+        return min(starts), max(ends)
+
+    group_games = [slot for slot in games if slot.get("phase") not in KO_PHASEN]
+    if group_games:
+        start, end = game_span(group_games)
+        raw.append({"kind": "spiele", "label": f"Spiele ({len(group_games)})", "start": start, "end": end})
+    for phase in KO_PHASEN:
+        phase_games = [slot for slot in games if slot.get("phase") == phase]
+        if phase_games:
+            start, end = game_span(phase_games)
+            raw.append({"kind": "ko", "label": phase, "start": start, "end": end})
+    if final_slots:
+        finals = [slot for slot in final_slots if _slot_minutes(slot.get("startzeit")) is not None]
+        if finals:
+            start, end = game_span(finals)
+            raw.append({"kind": "ko", "label": "Jahrgangsfinale", "start": start, "end": end})
+
+    programm = sorted(
+        (
+            slot for slot in slots
+            if slot.get("slot_typ") in PROGRAMM_SLOT_TYPEN
+            and _slot_minutes(slot.get("startzeit")) is not None
+        ),
+        key=lambda slot: _slot_minutes(slot.get("startzeit")),
+    )
+    seen = set()
+    for slot in programm:
+        start = _slot_minutes(slot.get("startzeit"))
+        key = (slot.get("slot_typ"), start)
+        if key in seen:
+            continue
+        seen.add(key)
+        # Ein Programmpunkt dauert bis zum naechsten Abschnitt, hoechstens
+        # bis zum Blockende; ohne Folgeabschnitt 5 Minuten.
+        following = [
+            item["start"] for item in raw if item["start"] > start
+        ] + [
+            _slot_minutes(other.get("startzeit")) for other in programm
+            if (_slot_minutes(other.get("startzeit")) or 0) > start
+        ]
+        end = min(following) if following else start + 5
+        if start < end_minutes:
+            end = min(end, end_minutes)
+        label = slot.get("slot_typ")
+        note = (slot.get("note") or "").strip()
+        if note and note != label:
+            label = f"{label}: {note}"
+        raw.append({"kind": "programm", "label": label, "start": start, "end": max(end, start + 1)})
+
+    raw.sort(key=lambda item: (item["start"], item["end"]))
+    length = max(end_minutes - start_minutes, 1)
+    inside, after = [], []
+    for item in raw:
+        item["time"] = f"{item['start'] // 60:02d}:{item['start'] % 60:02d}"
+        if item["start"] >= end_minutes or item["end"] <= start_minutes:
+            after.append(item)
+            continue
+        top = max(item["start"], start_minutes)
+        bottom = min(item["end"], end_minutes)
+        item["top_percent"] = (top - start_minutes) / length * 100
+        item["height_percent"] = max((bottom - top) / length * 100, 0)
+        inside.append(item)
+    return {"inside": inside, "after": after}
+
+
+def build_day_timeline(columns, competitions, now=None, slots=None):
     """Zeitproportionale Kalenderansicht fuer den Dashboard-Tagesplan:
     pro Jahrgangs-Spalte eine Liste absolut positionierter Bloecke (top/
     height in Prozent der gemeinsamen Zeitspanne), plus Halbstunden-Marken
     fuer die linke Achse. Ueberlappende Wettbewerbe in derselben Spalte
     (aktuell nicht der Fall, aber moeglich) werden nebeneinander in Spuren
-    aufgeteilt statt sich zu ueberdecken."""
+    aufgeteilt statt sich zu ueberdecken. Mit slots bekommt jeder Block
+    seinen Ablauf als Abschnitte (siehe build_block_segments)."""
     entries = []
+    slots_by_competition = defaultdict(list)
+    for slot in slots or []:
+        slots_by_competition[slot.get("competition_id")].append(slot)
+    # Jahrgangsfinale (eigener Wettbewerb ohne Jahrgangsspalte) erscheint im
+    # Block seiner beiden Quell-Wettbewerbe.
+    event_by_competition = {competition.get("id"): competition.get("event_id") for competition in competitions}
+    shared_by_event = defaultdict(list)
+    for slot in slots or []:
+        if slot.get("slot_typ") in ("Eröffnung", "Siegerehrung"):
+            event_id = event_by_competition.get(slot.get("competition_id"))
+            if event_id is not None:
+                shared_by_event[event_id].append(slot)
+    finals_by_source = defaultdict(list)
+    for competition in competitions:
+        for part in str(competition.get("final_source_ids") or "").split(","):
+            if part.strip().isdigit():
+                finals_by_source[int(part.strip())].append(competition.get("id"))
     for competition in competitions:
         start = parse_slot_time(competition.get("start_time"))
         end = parse_slot_time(competition.get("end_time"))
@@ -148,6 +261,28 @@ def build_day_timeline(columns, competitions, now=None):
                 competition.get("start_time"), competition.get("end_time")
             ),
         })
+        if slots is not None:
+            competition_id = competition.get("id")
+            block_start = entries[-1]["start_minutes"]
+            block_end = entries[-1]["end_minutes"]
+            # Eroeffnung und Siegerehrung gelten fuer alle Bloecke der
+            # Veranstaltung, die zu dieser Zeit laufen oder enden (z.B. eine
+            # gemeinsame Siegerehrung fuer Volleyball und Tischtennis).
+            shared = [
+                slot for slot in shared_by_event.get(competition.get("event_id"), [])
+                if slot.get("competition_id") != competition_id
+                and block_start <= (_slot_minutes(slot.get("startzeit")) or -1) <= block_end
+            ]
+            entries[-1]["segments"] = build_block_segments(
+                block_start,
+                block_end,
+                slots_by_competition.get(competition_id, []) + shared,
+                [
+                    slot for final_id in finals_by_source.get(competition_id, [])
+                    for slot in slots_by_competition.get(final_id, [])
+                    if slot.get("slot_typ") == "Spiel"
+                ],
+            )
 
     if not entries:
         return None
@@ -365,7 +500,7 @@ def enrich_day_schedule_view(schedule, competitions, now=None):
         }
     view_schedule["now_marker"] = marker
     view_schedule["timeline"] = build_day_timeline(
-        schedule.get("columns", []), competitions, now=now
+        schedule.get("columns", []), competitions, now=now, slots=slots
     )
     return view_schedule
 

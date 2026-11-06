@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Tagesplan: Ein Klick auf einen Block öffnet wieder den Spielplan (Ziehen verschiebt weiter), das kleine Pfeil-Symbol entfällt. Blöcke in voller Spaltenbreite zeigen ihren Ablauf: Eröffnung, Spiele, K.-o.-Runden und Jahrgangsfinale zeitgerecht im Block, Siegerehrung und Finale direkt danach darunter. Neuer Slottyp „Eröffnung“ im Spielplan-Editor; Eröffnung und Siegerehrung gelten für alle Blöcke der Veranstaltung zu dieser Zeit.
 - Fix: Tagesplan beim Schulpokal zeigt Jahrgang 10 in einer eigenen Spalte statt unter „Oberstufe“.
 - Neu: Schulpokal auf einmal planen. Im Assistenten plant „Ganzen Schulpokal planen“ alle Blöcke (z. B. Zweifelderball, Volleyball, Tischtennis) in einem Schritt. Je Block wählbar: Jahrgänge abwechselnd oder gleichzeitig, Anzahl Felder bzw. Platten, Start-, Spiel- und Wechselzeit (mit Spielzeit-Vorschlag aus dem Zeitfenster). Die Vorschau zeigt je Block den Plan nach Uhrzeit und Feld samt Konfliktprüfung; „Alles übernehmen“ ersetzt ungespielte Gruppenspiele, Blöcke mit gestarteten oder beendeten Spielen bleiben unangetastet.
 - Neu: Getrennte Wertung innerhalb einer Klasse, z. B. Tischtennis Jungen und Mädchen. Je Teilmannschaft entsteht ein eigener Wettbewerb mit denselben Klassen-Teams (Vorlage und Assistent, Feld „Getrennt nach“), Extra-Teams sind nicht nötig. Jungen und Mädchen derselben Klasse dürfen gleichzeitig spielen; Volleyball und Tischtennis gleichzeitig bleibt ein Hinweis. Neue Spalte `competitions.teilmannschaft`.
