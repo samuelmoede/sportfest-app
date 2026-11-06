@@ -37,7 +37,7 @@ class BuildBlockSegmentsTests(unittest.TestCase):
         segments = build_block_segments(8 * 60, 10 * 60 + 40, slots, [_slot("10:45", end="10:52")])
         inside = [(s["time"], s["label"]) for s in segments["inside"]]
         after = [(s["time"], s["label"]) for s in segments["after"]]
-        self.assertEqual(inside, [("08:00", "Eröffnung"), ("08:10", "Spiele (2)")])
+        self.assertEqual(inside, [("08:00", "Eröffnung"), ("08:10", "Spiele")])
         self.assertEqual(after, [("10:40", "Siegerehrung"), ("10:45", "Jahrgangsfinale")])
         opening, games = segments["inside"]
         self.assertEqual(opening["top_percent"], 0)
@@ -52,7 +52,7 @@ class BuildBlockSegmentsTests(unittest.TestCase):
             _slot("10:30", phase="Finale", end="10:40"),
         ]
         labels = [s["label"] for s in build_block_segments(9 * 60, 11 * 60, slots)["inside"]]
-        self.assertEqual(labels, ["Spiele (1)", "Halbfinale", "Finale"])
+        self.assertEqual(labels, ["Spiele", "Halbfinale", "Finale"])
 
 
 class TagesplanBlockPageTests(unittest.TestCase):
@@ -109,8 +109,10 @@ class TagesplanBlockPageTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertNotIn("day-timeline-block-link", page.text)
         self.assertIn(f'data-href="/spielplan?competition_id={self.competition_id}"', page.text)
-        self.assertIn("08:00 Eröffnung", page.text)
-        self.assertIn("08:15 Spiele (1)", page.text)
+        # Eroeffnung als eigener Block vor dem Spielblock, ohne Spielanzahl
+        self.assertIn('title="08:00–08:15 Eröffnung"', page.text)
+        self.assertIn("08:15 Spiele<", page.text)
+        self.assertNotIn("Spiele (", page.text)
 
     def test_editor_offers_opening_slot_type(self):
         from app.main import app as fastapi_app

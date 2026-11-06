@@ -22,13 +22,6 @@
         <span>{{ segment.time }} {{ segment.label }}</span>
     </div>
     {% endfor %}
-    {% if segments.after %}
-    <div class="day-timeline-segments-after">
-        {% for segment in segments.after %}
-        <span class="segment-{{ segment.kind }}">danach {{ segment.time }} {{ segment.label }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
 </div>
 {% else %}
 <strong>{{ item.name }}</strong>
@@ -84,7 +77,16 @@
                     <div class="day-timeline-gridline" style="top: {{ mark.top_percent }}%;"></div>
                     {% endfor %}
                     {% for item in col["items"] %}
-                    {% if day_schedule_editable|default(false) and item.competition_id %}
+                    {% if item.is_programm %}
+                    {# Eroeffnung, Siegerehrung, Jahrgangsfinale: eigener Block neben dem Spielblock #}
+                    <div class="day-timeline-block day-timeline-programm segment-{{ item.kind }} status-{{ item.status_key|default('planned') }}"
+                         style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; min-height: {{ item.lines|length * 14 + 2 }}px; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
+                         title="{% for line in item.lines %}{{ line.time }} {{ line.name }}{% if not loop.last %} · {% endif %}{% endfor %}">
+                        {% for line in item.lines %}
+                        <span class="segment-{{ line.kind }}"><time>{{ line.time }}</time> <strong>{{ line.name }}</strong></span>
+                        {% endfor %}
+                    </div>
+                    {% elif day_schedule_editable|default(false) and item.competition_id %}
                     <div class="day-timeline-block status-{{ item.status_key|default('planned') }} is-editable"
                          style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                          data-grobplan-block
@@ -92,8 +94,10 @@
                          role="link" tabindex="0" title="Klicken: Spielplan öffnen · Ziehen: verschieben"
                          aria-label="Spielplan für {{ item.name }} öffnen"
                          data-competition-id="{{ item.competition_id }}"
-                         data-start-minutes="{{ item.start_minutes }}"
-                         data-end-minutes="{{ item.end_minutes }}">
+                         data-start-minutes="{{ item.block_start_minutes|default(item.start_minutes) }}"
+                         data-end-minutes="{{ item.block_end_minutes|default(item.end_minutes) }}"
+                         data-offset-start="{{ item.start_minutes - item.block_start_minutes|default(item.start_minutes) }}"
+                         data-offset-end="{{ item.block_end_minutes|default(item.end_minutes) - item.end_minutes }}">
                         <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
                         {{ render_block_content(item, editable=true, show_delay=show_day_delay) }}
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
@@ -262,7 +266,14 @@
         var originStart = Number(block.dataset.startMinutes);
         var originEnd = Number(block.dataset.endMinutes);
 
+        // Abgeloeste Eroeffnung/Siegerehrung: angezeigt wird nur der
+        // Spiele-Teil, verschoben wird das ganze Zeitfenster.
+        var offsetStart = Number(block.dataset.offsetStart) || 0;
+        var offsetEnd = Number(block.dataset.offsetEnd) || 0;
+
         function applyPreview(newStart, newEnd) {
+            newStart += offsetStart;
+            newEnd -= offsetEnd;
             block.style.top = ((newStart - timelineStart) / totalMinutes * 100) + "%";
             block.style.height = ((newEnd - newStart) / totalMinutes * 100) + "%";
             var timeEl = block.querySelector("[data-grobplan-time]");

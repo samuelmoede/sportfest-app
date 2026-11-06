@@ -23,7 +23,7 @@ from app.services.programmpunkte_service import (
 )
 from datetime import datetime
 
-from app.services.ui_view_service import block_verspaetung, build_block_segments
+from app.services.ui_view_service import block_verspaetung, build_block_segments, split_block_segments
 
 
 class _DbTestCase(unittest.TestCase):
@@ -92,10 +92,29 @@ class ProgrammpunktSegmentTests(unittest.TestCase):
         segments = build_block_segments(8 * 60, 10 * 60 + 40, slots, (), punkte)
         self.assertEqual(
             [(s["time"], s["label"]) for s in segments["inside"]],
-            [("08:00–08:10", "Eröffnung"), ("08:15", "Spiele (1)")],
+            [("08:00–08:10", "Eröffnung"), ("08:15", "Spiele")],
         )
         self.assertAlmostEqual(segments["inside"][0]["height_percent"], 10 / 160 * 100)
         self.assertEqual([(s["time"], s["label"]) for s in segments["after"]], [("10:40–10:55", "Siegerehrung")])
+
+
+class SplitBlockTests(unittest.TestCase):
+    def test_opening_and_ceremony_become_own_blocks(self):
+        slots = [
+            {"startzeit": "08:10", "slot_typ": "Spiel", "phase": "Gruppenphase", "game_end_time": "08:17"},
+            {"startzeit": "10:20", "slot_typ": "Spiel", "phase": "Gruppenphase", "game_end_time": "10:27"},
+        ]
+        punkte = [
+            {"titel": "Eröffnung", "start_time": "08:00", "end_time": "08:10"},
+            {"titel": "Pause", "start_time": "09:00", "end_time": "09:10"},
+            {"titel": "Siegerehrung", "start_time": "10:30", "end_time": "10:40"},
+        ]
+        segments = build_block_segments(8 * 60, 10 * 60 + 40, slots, (), punkte)
+        start, end, inside, separate = split_block_segments(8 * 60, 10 * 60 + 40, segments)
+        self.assertEqual((start, end), (8 * 60 + 10, 10 * 60 + 30))
+        self.assertEqual([s["label"] for s in inside], ["Spiele", "Pause"])
+        self.assertEqual(inside[0]["top_percent"], 0)
+        self.assertEqual([s["label"] for s in separate], ["Eröffnung", "Siegerehrung"])
 
 
 class ProgrammpunktRouteTests(_DbTestCase):
@@ -114,14 +133,13 @@ class ProgrammpunktRouteTests(_DbTestCase):
             page = client.get(f"/events/{self.event_id}")
             self.assertIn("Jahrgang 7 + 8", page.text)
             self.assertIn('name="jahrgaenge" value="9"', page.text)
-            # Block Jahrgang 7: Eroeffnung im Block, Siegerehrung danach
-            self.assertIn("08:00–08:10 Eröffnung", page.text)
-            self.assertIn("danach 10:40–10:55 Siegerehrung", page.text)
             # Block Jahrgang 9 (11:10) bekommt keins von beiden: Eroeffnung
             # liegt vor dem Block, Siegerehrung gilt nur fuer 7 und 8.
-            self.assertEqual(page.text.count("danach 10:40–10:55 Siegerehrung"), 2)
-            # Eroeffnung je Block als title und Beschriftung, nur Jahrgang 7 und 8
-            self.assertEqual(page.text.count("08:00–08:10 Eröffnung"), 4)
+            # Eroeffnung und Siegerehrung als eigene Bloecke in den Spalten
+            # Jahrgang 7 und 8, ohne "danach"
+            self.assertEqual(page.text.count('title="10:40–10:55 Siegerehrung"'), 2)
+            self.assertEqual(page.text.count('title="08:00–08:10 Eröffnung"'), 2)
+            self.assertNotIn("danach", page.text)
             with get_conn() as conn:
                 pid = list_programmpunkte(conn, self.event_id)[0]["id"]
             client.post(f"/events/{self.event_id}/programmpunkt/{pid}/loeschen")
