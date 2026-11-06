@@ -25,6 +25,8 @@ from app.routes.teams import create_router as create_teams_router
 from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
+from app.routes.assistent import create_router as create_assistent_router
+from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
 from app.routes.zeitplan import create_router as create_zeitplan_router
 from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
@@ -1205,6 +1207,9 @@ def _resolve_points_tied_group(rows_group, slots, competition):
 
 def sort_table_rows(rows, slots, competition):
     rows.sort(key=lambda r: (-r["pkt"], r["team"].lower()))
+    # Im Assistenten (Expertenmodus) gewaehlte Reihenfolge der
+    # Gleichstandsregeln; ohne Eintrag bleibt alles wie bisher.
+    tiebreak_order = competition_tiebreak_order(competition)
 
     i = 0
     while i < len(rows):
@@ -1212,7 +1217,11 @@ def sort_table_rows(rows, slots, competition):
         while j + 1 < len(rows) and rows[j + 1]["pkt"] == rows[i]["pkt"]:
             j += 1
 
-        if j > i:
+        if j > i and tiebreak_order:
+            rows[i:j + 1] = resolve_with_order(
+                rows[i:j + 1], slots, competition, tiebreak_order, _mini_league_stats
+            )
+        elif j > i:
             rows[i:j + 1] = _resolve_points_tied_group(rows[i:j + 1], slots, competition)
         else:
             rows[i]["tie_note"] = None
@@ -3141,6 +3150,9 @@ app.include_router(create_schedule_router(
 app.include_router(create_quickstart_router(
     app_now_display_time=app_now_display_time,
 ))
+# Neuer Einrichtungsassistent vor dem bisherigen Assistenten, damit
+# /assistent/vorlagen usw. nicht als /assistent/{event_id} gelesen werden.
+app.include_router(create_assistent_router())
 app.include_router(create_wizard_router(
     app_now_display_time=app_now_display_time,
 ))

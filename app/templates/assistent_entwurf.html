@@ -1,0 +1,737 @@
+{% extends "base.html" %}
+{% block extra_head %}
+<style>
+    .wiz-steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; counter-reset: wizstep; }
+    .wiz-steps li { counter-increment: wizstep; }
+    .wiz-steps a, .wiz-steps button {
+        display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface-soft); color: var(--text);
+        font: inherit; font-size: 0.85rem; text-decoration: none; cursor: pointer;
+    }
+    .wiz-steps a::before, .wiz-steps button::before { content: counter(wizstep); font-weight: 800; color: var(--muted); }
+    .wiz-steps .is-current { background: var(--blue, #2563eb); border-color: var(--blue, #2563eb); color: #fff; }
+    .wiz-steps .is-current::before { color: #fff; }
+    .wiz-modus { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; }
+    .wiz-modus label { padding: 4px 12px; border-radius: 999px; cursor: pointer; font-size: 0.85rem; }
+    .wiz-modus input { position: absolute; opacity: 0; pointer-events: none; }
+    .wiz-modus input:checked + span { font-weight: 800; }
+    .wiz-modus label:has(input:checked) { background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--border); }
+    .wiz-modus input:focus-visible + span { outline: 2px solid var(--blue, #2563eb); outline-offset: 2px; }
+    .wiz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 16px; align-items: end; }
+    .wiz-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+    .wiz-chips { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+    .wiz-chips label { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-soft); }
+    .wiz-chips label.is-missing { border-style: dashed; color: var(--muted); }
+    .wiz-matrix-wrap { overflow-x: auto; }
+    .wiz-matrix { border-collapse: collapse; min-width: 100%; }
+    .wiz-matrix th, .wiz-matrix td { border: 1px solid var(--border); padding: 6px 10px; text-align: center; }
+    .wiz-matrix th:first-child, .wiz-matrix td:first-child { text-align: left; white-space: nowrap; }
+    .wiz-matrix input[type="checkbox"] { width: 20px; height: 20px; }
+    .wiz-matrix .wiz-remove { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 1rem; }
+    .wiz-wb-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+    .wiz-wb-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; }
+    .wiz-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: var(--surface-soft); border: 1px solid var(--border); }
+    .wiz-badge.is-merged { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
+    .wiz-badge.is-show { background: #ede9fe; border-color: #8b5cf6; color: #4c1d95; }
+    .wiz-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 10px 0; background: var(--surface); }
+    .wiz-card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .wiz-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .wiz-table th, .wiz-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    .wiz-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 16px; }
+    .wiz-inline { display: inline; }
+    .wiz-erweitert > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; margin: 6px 0; }
+    .wiz-pruefung { border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); margin-bottom: 14px; }
+    .wiz-pruefung.is-ok { border-color: #16a34a; background: rgba(22, 163, 74, 0.08); }
+    .wiz-pruefung.is-blocked { border-color: #dc2626; background: rgba(220, 38, 38, 0.06); }
+    .wiz-pruefung.is-open { border-color: #f59e0b; background: rgba(245, 158, 11, 0.08); }
+    .wiz-hinweise { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+    .wiz-hinweis { border: 1px solid var(--border); border-left-width: 4px; border-radius: 8px; padding: 8px 10px; background: var(--surface); }
+    .wiz-hinweis.stufe-blockierend { border-left-color: #dc2626; }
+    .wiz-hinweis.stufe-warnung { border-left-color: #f59e0b; }
+    .wiz-hinweis.stufe-info { border-left-color: #60a5fa; }
+    .wiz-hinweis.is-confirmed { opacity: 0.8; }
+    .wiz-hinweis p { margin: 4px 0; font-size: 0.88rem; }
+    .wiz-hinweis form { display: inline; }
+    .wiz-hinweis .wiz-vorschlaege { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .wiz-hinweis button { font-size: 0.8rem; padding: 4px 10px; }
+    .wiz-carousel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .wiz-carousel-head h3 { margin: 0; flex: 1 1 auto; }
+    .wiz-arrow { font-size: 1.2rem; min-width: 44px; min-height: 40px; }
+    .wiz-plan-scroll { max-height: 60vh; overflow: auto; }
+    .wiz-timeline-block { cursor: pointer; text-align: left; font: inherit; align-items: stretch; }
+    .wiz-timeline-block span { text-align: left; }
+    .wiz-timeline-block.is-selected { box-shadow: 0 0 0 2px var(--blue, #2563eb); }
+    dialog.wiz-dialog { border: 1px solid var(--border); border-radius: 14px; padding: 16px; max-width: 560px; width: calc(100% - 32px); background: var(--surface); color: var(--text); }
+    dialog.wiz-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+    .wiz-tb-list { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; }
+    .wiz-tb-list li { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; }
+    .wiz-tb-list li span { flex: 1 1 auto; }
+    .wiz-tb-list button { padding: 2px 8px; min-width: 32px; }
+    .wiz-summary dt { font-weight: 700; margin-top: 8px; }
+    .wiz-summary dd { margin: 2px 0 0; }
+    .panel .section-heading { flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 640px) {
+        .wiz-modus label { padding: 4px 8px; font-size: 0.8rem; }
+        .wiz-grid { grid-template-columns: 1fr; }
+        .wiz-table { font-size: 0.82rem; }
+        .wiz-actions { flex-direction: column; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+{% set form_schritte = ["abgleich", "grunddaten", "sportarten", "orte", "zeitplan", "wertung"] %}
+{% set hat_form = schritt in form_schritte %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Einrichtungsassistent{% if daten.vorlage %} · Vorlage {{ daten.vorlage.name }}{% endif %}{% if daten.ziel and daten.ziel.startswith("vorlage:") %} · Vorlage bearbeiten{% endif %}</p>
+        <h1>{{ entwurf.titel }}</h1>
+        <p class="muted">Entwurf – noch nichts ist angelegt. Alles wird automatisch gespeichert und lässt sich später über „Entwurf fortsetzen“ wieder öffnen.</p>
+    </div>
+</header>
+
+<nav aria-label="Fortschritt">
+    <ol class="wiz-steps">
+        {% if daten.abgleich %}
+        <li>{% if hat_form %}<button type="submit" form="schritt-form" name="ziel" value="abgleich" class="{% if schritt == 'abgleich' %}is-current{% endif %}">Abgleich</button>{% else %}<a href="/assistent/entwurf/{{ entwurf.id }}/abgleich">Abgleich</a>{% endif %}</li>
+        {% endif %}
+        {% for key, label in schritte %}
+        <li>
+            {% if hat_form %}
+            <button type="submit" form="schritt-form" name="ziel" value="{{ key }}" class="{% if key == schritt %}is-current{% endif %}" {% if key == schritt %}aria-current="step"{% endif %}>{{ label }}</button>
+            {% else %}
+            <a href="/assistent/entwurf/{{ entwurf.id }}/{{ key }}" class="{% if key == schritt %}is-current{% endif %}" {% if key == schritt %}aria-current="step"{% endif %}>{{ label }}</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</nav>
+
+{% if fehler %}<p class="validation-error" role="alert">{{ fehler }}</p>{% endif %}
+{% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+
+{% macro modus_schalter(form_id) %}
+<div class="wiz-modus" role="radiogroup" aria-label="Bedienmodus">
+    <label><input type="radio" name="modus" value="schnell" form="{{ form_id }}" {% if not experte %}checked{% endif %} data-autosubmit><span>Schnellplanung</span></label>
+    <label><input type="radio" name="modus" value="experte" form="{{ form_id }}" {% if experte %}checked{% endif %} data-autosubmit><span>Expertenmodus</span></label>
+</div>
+{% endmacro %}
+
+{# ====================================================================== #}
+{% if schritt == "abgleich" %}
+<section class="panel">
+    <h2>Vorlage abgleichen</h2>
+    <p class="muted">Kurz prüfen, was heute gilt. Zeiten, Puffer, Turniermodi und Wertung kommen aus der Vorlage und bleiben änderbar.</p>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/abgleich">
+        <div class="wiz-grid">
+            <label>Name der Veranstaltung<input type="text" name="name" value="{{ daten.grunddaten.name }}" placeholder="z. B. Schulpokal 2026"></label>
+            <label>Datum<input type="date" name="datum" value="{{ daten.grunddaten.datum }}" required></label>
+        </div>
+        <h3>Teilnehmende Jahrgänge</h3>
+        <div class="wiz-chips">
+            {% for jahrgang in verfuegbare_jahrgaenge %}
+            {% set klassen = teams_by_jahrgang.get(jahrgang, []) %}
+            {% set fehlt = not klassen %}
+            <label class="{% if fehlt %}is-missing{% endif %}">
+                <input type="checkbox" name="jahrgaenge" value="{{ jahrgang }}" {% if jahrgang in daten.jahrgaenge and not fehlt %}checked{% endif %}>
+                Jahrgang {{ jahrgang }} {% if fehlt %}– keine aktiven Klassen{% else %}({{ klassen|length }} Klassen){% endif %}
+            </label>
+            {% endfor %}
+        </div>
+        {% if daten.abgleich.fehlende_jahrgaenge %}
+        <p class="validation-error">Aus der Vorlage fehlen heute Klassen für Jahrgang {{ daten.abgleich.fehlende_jahrgaenge|join(", ") }}. Bitte in den Grunddaten Klassen ergänzen oder den Jahrgang weglassen.</p>
+        {% endif %}
+        <h3>Sportarten</h3>
+        <div class="wiz-chips">
+            {% for sportart in daten.sportarten %}
+            <label><input type="checkbox" name="sportarten" value="{{ sportart }}" checked> {{ sportart }}</label>
+            {% endfor %}
+        </div>
+        <h3>Orte</h3>
+        <div class="wiz-chips">
+            {% for ort in orte %}
+            <input type="hidden" name="ort_gesendet_{{ ort.name }}" value="1">
+            <label class="{% if not ort.hat_aktive_felder %}is-missing{% endif %}">
+                <input type="checkbox" name="ort_aktiv_{{ ort.name }}" value="1" {% if ort.aktiv %}checked{% endif %} {% if not ort.hat_aktive_felder %}disabled{% endif %}>
+                {{ ort.name }} aktiv
+                {% if ort.hat_aktive_felder %}<span class="muted">({{ ort.courts|selectattr("active")|map(attribute="name")|join(", ") }})</span>{% else %}<span class="muted">– keine aktiven Felder</span>{% endif %}
+            </label>
+            {% endfor %}
+        </div>
+        {% if daten.abgleich.inaktive_orte %}
+        <p class="validation-error">In der Vorlage genutzt, heute ohne aktive Felder: {{ daten.abgleich.inaktive_orte|join(", ") }}. Der Assistent fragt bei den betroffenen Wettbewerben nach einem Ersatzort.</p>
+        {% endif %}
+        {% for ort, namen in daten.abgleich.fehlende_felder.items() %}
+        <p class="validation-error">{{ ort }}: Felder aus der Vorlage nicht gefunden: {{ namen|join(", ") }}.</p>
+        {% endfor %}
+        <div class="wiz-actions">
+            <a class="button secondary" href="/assistent">Abbrechen</a>
+            <button class="green" type="submit" name="ziel" value="grunddaten">Abgleich bestätigen und weiter</button>
+        </div>
+    </form>
+</section>
+
+{# ====================================================================== #}
+{% elif schritt == "grunddaten" %}
+<section class="panel">
+    <div class="section-heading"><h2>Grunddaten</h2>{{ modus_schalter("schritt-form") }}</div>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/grunddaten">
+        <div class="wiz-grid">
+            <label>Name der Veranstaltung<input type="text" name="name" value="{{ daten.grunddaten.name }}" placeholder="z. B. Sportfest 2026" required></label>
+            <label>Datum<input type="date" name="datum" value="{{ daten.grunddaten.datum }}"></label>
+            <label>Art
+                <select name="event_type">
+                    {% for type in event_types %}<option value="{{ type }}" {% if type == daten.grunddaten.event_type %}selected{% endif %}>{{ type }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>Beginn (grob)<input type="time" name="start" value="{{ daten.grunddaten.start }}"></label>
+            <label>Ende (grob)<input type="time" name="ende" value="{{ daten.grunddaten.ende }}"></label>
+        </div>
+        <h3>Teilnehmende Jahrgänge</h3>
+        <input type="hidden" name="jahrgaenge_gesendet" value="1">
+        {% if not verfuegbare_jahrgaenge %}<p class="muted">Noch keine Klassen angelegt – unten direkt ergänzen.</p>{% endif %}
+        <div class="wiz-chips">
+            {% for jahrgang in verfuegbare_jahrgaenge %}
+            {% set klassen = teams_by_jahrgang.get(jahrgang, []) %}
+            <label class="{% if not klassen %}is-missing{% endif %}">
+                <input type="checkbox" name="jahrgaenge" value="{{ jahrgang }}" {% if jahrgang in daten.jahrgaenge %}checked{% endif %}>
+                Jahrgang {{ jahrgang }} <span class="muted">({{ klassen|length }})</span>
+            </label>
+            {% endfor %}
+        </div>
+        <details class="wiz-erweitert" {% if experte %}open{% endif %}>
+            <summary>Einzelne Klassen abwählen</summary>
+            <input type="hidden" name="teams_gesendet" value="1">
+            {% for jahrgang in verfuegbare_jahrgaenge %}
+            {% if jahrgang in daten.jahrgaenge %}
+            <div class="wiz-chips" style="margin: 6px 0;">
+                <strong style="min-width: 110px;">Jahrgang {{ jahrgang }}</strong>
+                {% for team in teams_by_jahrgang.get(jahrgang, []) %}
+                <input type="hidden" name="teams_gezeigt" value="{{ team.id }}">
+                <label><input type="checkbox" name="teams_aktiv" value="{{ team.id }}" {% if team.id not in daten.teams_abgewaehlt %}checked{% endif %}> {{ team.name }}</label>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </details>
+        <div class="wiz-actions">
+            <a class="button secondary" href="/assistent">Zur Startseite</a>
+            <button class="green" type="submit" name="ziel" value="weiter">Weiter zu Sportarten</button>
+        </div>
+    </form>
+    <details class="wiz-erweitert">
+        <summary>+ Fehlende Klasse ergänzen</summary>
+        <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/grunddaten" class="wiz-grid">
+            <input type="hidden" name="aktion" value="team_anlegen">
+            <label>Klassenname<input type="text" name="team_name" placeholder="z. B. 7d" required></label>
+            <label>Jahrgang<input type="text" name="team_jahrgang" placeholder="z. B. 7" required></label>
+            <button class="green" type="submit">Klasse anlegen</button>
+        </form>
+    </details>
+</section>
+
+{# ====================================================================== #}
+{% elif schritt == "sportarten" %}
+{% set jahrgaenge = daten.jahrgaenge %}
+<section class="panel">
+    <div class="section-heading"><h2>Jahrgänge × Sportarten</h2>{{ modus_schalter("schritt-form") }}</div>
+    <p class="muted">Häkchen = dieser Jahrgang spielt diese Sportart. Darunter entstehen die Wettbewerbe.</p>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/sportarten">
+        <input type="hidden" name="sportart_anzahl" value="{{ daten.sportarten|length }}">
+        {% if not jahrgaenge %}
+        <p class="validation-error">Bitte zuerst in den Grunddaten Jahrgänge auswählen.</p>
+        {% endif %}
+        <div class="wiz-matrix-wrap">
+            <table class="wiz-matrix" id="wiz-matrix">
+                <thead>
+                    <tr>
+                        <th scope="col">Jahrgang</th>
+                        {% for sportart in daten.sportarten %}
+                        <th scope="col">
+                            <input type="hidden" name="sportart_{{ loop.index0 }}" value="{{ sportart }}">
+                            {{ sportart }}
+                            <button type="submit" class="wiz-remove" name="sportart_entfernen" value="{{ sportart }}" aria-label="{{ sportart }} entfernen" title="Sportart entfernen">×</button>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for jahrgang in jahrgaenge %}
+                    <tr>
+                        <th scope="row">Jahrgang {{ jahrgang }} <span class="muted">({{ teams_by_jahrgang.get(jahrgang, [])|length }})</span></th>
+                        {% for sportart in daten.sportarten %}
+                        <td>
+                            <input type="checkbox" name="matrix_{{ loop.index0 }}" value="{{ jahrgang }}"
+                                   data-sportart="{{ sportart }}" data-jahrgang="{{ jahrgang }}"
+                                   aria-label="{{ sportart }} für Jahrgang {{ jahrgang }}"
+                                   {% if jahrgang in (daten.matrix.get(sportart) or []) %}checked{% endif %}>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="wiz-grid" style="margin-top: 10px;">
+            <label>Sportart hinzufügen<input type="text" name="neue_sportart" list="sportart-vorschlaege" placeholder="z. B. Volleyball"></label>
+            <button type="submit" name="ziel" value="bleiben" data-default-submit>Hinzufügen</button>
+        </div>
+        <datalist id="sportart-vorschlaege">
+            {% for s in ["Fußball", "Volleyball", "Basketball", "Handball", "Zweifelderball", "Tischtennis", "Badminton", "Völkerball", "Brennball", "Unihockey", "Sechskampf"] %}<option value="{{ s }}">{% endfor %}
+        </datalist>
+
+        <h3 style="margin-top: 18px;">Daraus entstehen diese Wettbewerbe</h3>
+        <p class="muted">Getrennte Wettbewerbe: Begegnungen und Sieger je Jahrgang – auch wenn sie dieselbe Halle nutzen. Zum jahrgangsübergreifenden Spiel mit einem gemeinsamen Sieger mehrere derselben Sportart auswählen und „Zusammenlegen“.</p>
+        <ul class="wiz-wb-list" id="wiz-wb-list" aria-live="polite">
+            {% for wb in wettbewerbe %}
+            <li>
+                {% if not wb.zusammengelegt %}<input type="checkbox" name="auswahl" value="{{ wb.key }}" aria-label="{{ wb.name }} auswählen">{% endif %}
+                <strong>{{ wb.sportart }} – Jahrgang {{ wb.jahrgaenge|join(" + ") }}</strong>
+                <span class="muted">{{ wb.teams|length }} Klassen</span>
+                {% if wb.zusammengelegt %}
+                <span class="wiz-badge is-merged">zusammengelegt · ein gemeinsamer Sieger</span>
+                <button type="submit" name="aktion" value="trennen:{{ wb.key }}">Trennen</button>
+                {% endif %}
+            </li>
+            {% else %}
+            <li class="muted">Noch keine – oben Häkchen setzen.</li>
+            {% endfor %}
+        </ul>
+        <button type="submit" name="aktion" value="zusammenlegen">Auswahl zusammenlegen</button>
+        <div class="wiz-actions">
+            <button type="submit" name="ziel" value="zurueck" class="secondary">Zurück</button>
+            <button class="green" type="submit" name="ziel" value="weiter">Weiter zu Orten</button>
+        </div>
+    </form>
+</section>
+<script type="application/json" id="wiz-matrix-data">{{ {"merges": daten.zusammenlegungen}|tojson }}</script>
+
+{# ====================================================================== #}
+{% elif schritt == "orte" %}
+<section class="panel">
+    <div class="section-heading"><h2>Orte und Felder</h2>{{ modus_schalter("schritt-form") }}</div>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/orte">
+        <div class="wiz-grid" style="align-items: start;">
+            {% for ort in orte %}
+            <fieldset class="wiz-card">
+                <legend><strong>{{ ort.name }}</strong></legend>
+                <input type="hidden" name="ort_gesendet_{{ ort.name }}" value="1">
+                <label><input type="checkbox" name="ort_aktiv_{{ ort.name }}" value="1" {% if ort.aktiv_gewaehlt %}checked{% endif %}> Ort nutzen</label>
+                {% if not ort.hat_aktive_felder %}<p class="muted">Keine aktiven Felder.</p>{% endif %}
+                <div class="wiz-chips" style="margin-top: 6px;">
+                    {% for court in ort.courts %}
+                    <label class="{% if not court.active %}is-missing{% endif %}">
+                        <input type="checkbox" name="ort_felder_{{ ort.name }}" value="{{ court.id }}" {% if court.id in ort.felder %}checked{% endif %} {% if not court.active %}disabled{% endif %}>
+                        {{ court.name }}{% if not court.active %} (inaktiv){% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+            {% endfor %}
+        </div>
+
+        <h3>Wo spielt welcher Wettbewerb?</h3>
+        <input type="hidden" name="wb_anzahl" value="{{ wettbewerbe|length }}">
+        <div class="table-scroll">
+        <table class="wiz-table">
+            <thead><tr><th>Wettbewerb</th><th>Ort</th><th>Details</th></tr></thead>
+            <tbody>
+            {% for wb in wettbewerbe %}
+            {% set i = loop.index0 %}
+            <tr>
+                <td><input type="hidden" name="wb_key_{{ i }}" value="{{ wb.key }}"><strong>{{ wb.name }}</strong><br><span class="muted">{{ wb.teams|length }} Klassen</span></td>
+                <td>
+                    <select name="wb_ort_{{ i }}" aria-label="Ort für {{ wb.name }}">
+                        {% for ort in alle_orte %}<option value="{{ ort }}" {% if ort == wb.einstellungen.ort %}selected{% endif %}>{{ ort }}</option>{% endfor %}
+                    </select>
+                </td>
+                <td>
+                    <details class="wiz-erweitert" {% if experte %}open{% endif %}>
+                        <summary>Erweiterte Einstellungen</summary>
+                        <input type="hidden" name="wb_erweitert_{{ i }}" value="1">
+                        <div class="wiz-grid">
+                            <label>Art
+                                <select name="wb_art_{{ i }}">{% for art in wettbewerb_arten %}<option value="{{ art }}" {% if art == wb.einstellungen.art %}selected{% endif %}>{{ art }}</option>{% endfor %}</select>
+                            </label>
+                            <label>Getrennt nach (optional)<input type="text" name="wb_teile_{{ i }}" value="{{ wb.einstellungen.teilmannschaften }}" placeholder="z. B. Jungen, Mädchen"></label>
+                            <label>Disziplinen (nur Sechskampf)<input type="text" name="wb_disziplinen_{{ i }}" value="{{ wb.einstellungen.disziplinen }}" placeholder="z. B. Weitsprung, Sprint"></label>
+                        </div>
+                        <p class="muted" style="margin: 6px 0 2px;">Nur diese Felder nutzen (leer = alle Felder des Ortes):</p>
+                        <div class="wiz-chips">
+                            {% for court in stamm.courts if court.ort == wb.einstellungen.ort and court.active %}
+                            <label><input type="checkbox" name="wb_felder_{{ i }}" value="{{ court.id }}" {% if court.id in (wb.einstellungen.felder or []) %}checked{% endif %}> {{ court.name }}</label>
+                            {% endfor %}
+                        </div>
+                    </details>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="muted">Noch keine Wettbewerbe – bitte bei Sportarten Häkchen setzen.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="wiz-actions">
+            <button type="submit" name="ziel" value="zurueck" class="secondary">Zurück</button>
+            <button class="green" type="submit" name="ziel" value="weiter">Weiter zum Zeitplan</button>
+        </div>
+    </form>
+    <details class="wiz-erweitert">
+        <summary>+ Feld ergänzen</summary>
+        <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/orte" class="wiz-grid">
+            <input type="hidden" name="aktion" value="feld_anlegen">
+            <label>Name<input type="text" name="feld_name" placeholder="z. B. Feld 4" required></label>
+            <label>Ort<select name="feld_ort">{% for ort in alle_orte %}<option value="{{ ort }}">{{ ort }}</option>{% endfor %}</select></label>
+            <button class="green" type="submit">Feld anlegen</button>
+        </form>
+    </details>
+</section>
+
+{# ====================================================================== #}
+{% elif schritt == "zeitplan" %}
+<section class="panel">
+    <div class="section-heading"><h2>Zeitblöcke</h2>{{ modus_schalter("schritt-form") }}</div>
+    <p class="muted">Wenige Blöcke mit Ort und Zeitraum, Wettbewerbe per Häkchen zuordnen. Getrennte Wettbewerbe in einem Block teilen sich die Felder, spielen aber nicht gegeneinander.</p>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/zeitplan">
+        <input type="hidden" name="bloecke_gesendet" value="1">
+        <input type="hidden" name="punkte_gesendet" value="1">
+        <input type="hidden" name="shows_gesendet" value="1">
+        {% for block in daten.zeitbloecke %}
+        {% set bid = block.id %}
+        <fieldset class="wiz-card" id="block-{{ bid }}">
+            <legend><strong>Zeitblock {{ loop.index }}</strong></legend>
+            <input type="hidden" name="block_id" value="{{ bid }}">
+            <div class="wiz-grid">
+                <label>Ort<select name="block_ort_{{ bid }}">{% for ort in alle_orte %}<option value="{{ ort }}" {% if ort == block.ort %}selected{% endif %}>{{ ort }}</option>{% endfor %}</select></label>
+                <label>von<input type="time" name="block_start_{{ bid }}" value="{{ block.start }}"></label>
+                <label>bis<input type="time" name="block_ende_{{ bid }}" value="{{ block.ende }}"></label>
+                <label>Reihenfolge<select name="block_ablauf_{{ bid }}">{% for key, label in ablaeufe.items() %}<option value="{{ key }}" {% if key == block.ablauf %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+            </div>
+            <p class="muted" style="margin: 8px 0 4px;">Wettbewerbe in diesem Block:</p>
+            <div class="wiz-chips">
+                {% for wb in wettbewerbe %}
+                {% if wb.einstellungen.ort == block.ort or wb.key in block.wettbewerbe %}
+                <label class="{% if wb.einstellungen.ort != block.ort %}is-missing{% endif %}">
+                    <input type="checkbox" name="block_wb_{{ bid }}" value="{{ wb.key }}" {% if wb.key in block.wettbewerbe %}checked{% endif %}>
+                    {{ wb.name }}{% if wb.einstellungen.ort != block.ort %} ({{ wb.einstellungen.ort }}){% endif %}
+                </label>
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% set ergebnis = plan.block_ergebnisse.get(bid) if plan else none %}
+            {% if ergebnis and ergebnis.ende_min %}<p class="muted" style="margin: 6px 0 0;">Letztes Spiel endet voraussichtlich um <strong>{{ "%02d:%02d"|format(ergebnis.ende_min // 60, ergebnis.ende_min % 60) }}</strong>.</p>{% endif %}
+            <details class="wiz-erweitert" {% if experte %}open{% endif %}>
+                <summary>Erweiterte Einstellungen</summary>
+                <div class="wiz-grid">
+                    <label>Spielzeit (Min.)<input type="number" min="1" name="block_spielzeit_{{ bid }}" value="{{ block.spielzeit }}"></label>
+                    <label>Wechselzeit (Min.)<input type="number" min="0" name="block_wechselzeit_{{ bid }}" value="{{ block.wechselzeit }}"></label>
+                </div>
+            </details>
+            <button type="submit" name="aktion" value="block_loeschen:{{ bid }}" class="secondary">Block entfernen</button>
+        </fieldset>
+        {% endfor %}
+        <div class="wiz-grid">
+            <label>Neuer Zeitblock am Ort<select name="neuer_block_ort">{% for ort in alle_orte %}<option value="{{ ort }}">{{ ort }}</option>{% endfor %}</select></label>
+            <button type="submit" name="aktion" value="block_neu">+ Zeitblock</button>
+        </div>
+
+        <h3 style="margin-top: 18px;">Feste Programmpunkte</h3>
+        <p class="muted">Eröffnung, Pausen, Puffer und Siegerehrung. Während dieser Zeit werden für die angehakten Jahrgänge (keiner = alle) keine Spiele geplant; Puffer werden nie gekürzt.</p>
+        {% for punkt in daten.programmpunkte %}
+        {% set pid = punkt.id %}
+        <div class="wiz-card">
+            <input type="hidden" name="pp_id" value="{{ pid }}">
+            <div class="wiz-grid">
+                <label>Art<select name="pp_art_{{ pid }}">{% for key, label in programm_arten.items() %}<option value="{{ key }}" {% if key == punkt.art %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+                <label>Bezeichnung<input type="text" name="pp_titel_{{ pid }}" value="{{ punkt.titel }}"></label>
+                <label>von<input type="time" name="pp_start_{{ pid }}" value="{{ punkt.start }}"></label>
+                <label>bis<input type="time" name="pp_ende_{{ pid }}" value="{{ punkt.ende }}"></label>
+            </div>
+            <div class="wiz-chips" style="margin-top: 6px;">
+                {% for jahrgang in daten.jahrgaenge %}
+                <label><input type="checkbox" name="pp_jg_{{ pid }}" value="{{ jahrgang }}" {% if jahrgang in (punkt.jahrgaenge or []) %}checked{% endif %}> J{{ jahrgang }}</label>
+                {% endfor %}
+                <button type="submit" name="aktion" value="punkt_loeschen:{{ pid }}" class="secondary">Entfernen</button>
+            </div>
+        </div>
+        {% endfor %}
+        <div class="wiz-grid">
+            <label>Neuer Programmpunkt<select name="neuer_punkt_art">{% for key, label in programm_arten.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+            <button type="submit" name="aktion" value="punkt_neu">+ Programmpunkt</button>
+        </div>
+
+        <h3 style="margin-top: 18px;">Showspiele <span class="wiz-badge is-show">ohne Wertung</span></h3>
+        <p class="muted">Z. B. Sieger Jahrgang 7 gegen Sieger Jahrgang 8 nach der Siegerehrung. Zählt nicht für die Jahrgangswertung.</p>
+        {% for show in daten.showspiele %}
+        {% set sid = show.id %}
+        <div class="wiz-card">
+            <input type="hidden" name="show_id" value="{{ sid }}">
+            <div class="wiz-grid">
+                <label>Sieger aus<select name="show_a_{{ sid }}"><option value="">–</option>{% for wb in wettbewerbe %}<option value="{{ wb.key }}" {% if wb.key == show.wettbewerb_a %}selected{% endif %}>{{ wb.name }}</option>{% endfor %}</select></label>
+                <label>gegen Sieger aus<select name="show_b_{{ sid }}"><option value="">–</option>{% for wb in wettbewerbe %}<option value="{{ wb.key }}" {% if wb.key == show.wettbewerb_b %}selected{% endif %}>{{ wb.name }}</option>{% endfor %}</select></label>
+                <label>Beginn<input type="time" name="show_start_{{ sid }}" value="{{ show.start }}"></label>
+                <button type="submit" name="aktion" value="show_loeschen:{{ sid }}" class="secondary">Entfernen</button>
+            </div>
+        </div>
+        {% endfor %}
+        <button type="submit" name="aktion" value="show_neu">+ Showspiel</button>
+
+        <h3 style="margin-top: 18px;">Turniermodus</h3>
+        <input type="hidden" name="wb_anzahl" value="{{ wettbewerbe|length }}">
+        <ul class="wiz-wb-list">
+            {% for wb in wettbewerbe %}
+            {% set i = loop.index0 %}
+            {% set pwb = plan_wbs.get(wb.key) %}
+            <li>
+                <input type="hidden" name="wb_key_{{ i }}" value="{{ wb.key }}">
+                <strong>{{ wb.name }}</strong>
+                <span class="wiz-badge">{{ modus_label(wb) }}{% if wb.einstellungen.modus_quelle == "vorlage" %} · aus Vorlage{% endif %}</span>
+                {% if pwb and pwb.modus_begruendung %}<span class="muted">{{ pwb.modus_begruendung }}</span>{% endif %}
+                <details class="wiz-erweitert" {% if experte %}open{% endif %} style="flex-basis: 100%;">
+                    <summary>Ändern</summary>
+                    <div class="wiz-grid">
+                        <label>Turniermodus
+                            <select name="wb_modus_{{ i }}">
+                                <option value="" {% if not wb.einstellungen.modus %}selected{% endif %}>automatisch (Vorschlag)</option>
+                                {% for key, label in modi.items() %}
+                                {% if key != "hin_rueckrunde" or ist_schulpokal or wb.einstellungen.modus == key %}
+                                <option value="{{ key }}" {% if key == wb.einstellungen.modus %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>Spiele je Team (Gruppenphase)<input type="number" min="1" name="wb_spt_{{ i }}" value="{{ wb.einstellungen.spiele_pro_team or 2 }}"></label>
+                    </div>
+                </details>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if plan %}
+        <p class="muted">Plan geprüft: {{ plan.anzahl.blockierend }} blockierend, {{ plan.anzahl.warnung }} Warnungen, {{ plan.anzahl.info }} Infos – Details in der Vorschau.</p>
+        {% endif %}
+        <div class="wiz-actions">
+            <button type="submit" name="ziel" value="zurueck" class="secondary">Zurück</button>
+            <button class="green" type="submit" name="ziel" value="weiter">Weiter zur Vorschau</button>
+        </div>
+    </form>
+</section>
+
+{# ====================================================================== #}
+{% elif schritt == "vorschau" %}
+{% include "partials/assistent_vorschau.html" %}
+
+{# ====================================================================== #}
+{% elif schritt == "wertung" %}
+<section class="panel">
+    <div class="section-heading"><h2>Wertung</h2>{{ modus_schalter("schritt-form") }}</div>
+    <p>
+        {% if ist_schulpokal %}
+        Schulpokal: ein Sieger je Jahrgang. Die Spielpunkte aller Wettbewerbe eines Jahrgangs werden addiert, alle Sportarten zählen gleich.
+        {% else %}
+        Gesamtwertung je Jahrgangsgruppe (Jahrgang 5–9 einzeln, ab 10 Oberstufe): Summe der Platzierungspunkte aller Wettbewerbe, alle Sportarten gleich gewichtet. Bei Gleichstand entscheidet die Platzierungsbilanz.
+        {% endif %}
+        Showspiele zählen nie.
+    </p>
+    <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/wertung">
+        <input type="hidden" name="wb_anzahl" value="{{ wettbewerbe|length }}">
+        <div class="table-scroll">
+        <table class="wiz-table">
+            <thead><tr><th>Wettbewerb</th><th>Sieger</th><th>Zählt für</th><th>Einstellungen</th></tr></thead>
+            <tbody>
+            {% for wb in wettbewerbe %}
+            {% set i = loop.index0 %}
+            <tr>
+                <td><input type="hidden" name="wb_key_{{ i }}" value="{{ wb.key }}"><strong>{{ wb.name }}</strong></td>
+                <td>{% if wb.zusammengelegt %}ein gemeinsamer Sieger (J{{ wb.jahrgaenge|join("+") }}){% else %}eigener Sieger{% endif %}</td>
+                <td>{{ wertung_text(wb) }}</td>
+                <td>
+                    {% if wb.einstellungen.art != "Sechskampf" %}
+                    <p class="muted" style="margin: 0;">Sieg {{ wb.einstellungen.punkte_sieg }} · Unentschieden {{ wb.einstellungen.punkte_unentschieden }} · Gleichstand: {{ describe_tiebreak_order(wb.einstellungen.tiebreak)|join(" → ") }}</p>
+                    <details class="wiz-erweitert" {% if experte %}open{% endif %}>
+                        <summary>Erweiterte Einstellungen</summary>
+                        <div class="wiz-grid">
+                            <label>Punkte Sieg<input type="number" min="0" name="wb_sieg_{{ i }}" value="{{ wb.einstellungen.punkte_sieg }}"></label>
+                            <label>Punkte Unentschieden<input type="number" min="0" name="wb_remis_{{ i }}" value="{{ wb.einstellungen.punkte_unentschieden }}"></label>
+                        </div>
+                        <p class="muted" style="margin: 6px 0 2px;">Bei Punktgleichheit entscheidet (Reihenfolge mit ↑ ↓):</p>
+                        {% set order = parse_tiebreak_order(wb.einstellungen.tiebreak) or default_tiebreak %}
+                        <input type="hidden" name="wb_tb_{{ i }}" value="{{ order|join(',') }}" data-tb-input>
+                        <ol class="wiz-tb-list" data-tb-list>
+                            {% for key in order %}
+                            <li data-key="{{ key }}"><span>{{ tiebreak_kriterien[key] }}</span>
+                                <button type="button" data-tb-move="-1" aria-label="{{ tiebreak_kriterien[key] }} nach oben">↑</button>
+                                <button type="button" data-tb-move="1" aria-label="{{ tiebreak_kriterien[key] }} nach unten">↓</button>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                    </details>
+                    {% else %}
+                    <span class="muted">Platzierung je Disziplin</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% for show in (plan.showspiele if plan else []) %}
+            <tr><td><strong>Showspiel {{ show.start or "" }}</strong></td><td>{{ show.namen|join(" gegen ") }}</td><td><span class="wiz-badge is-show">ohne Wertung</span></td><td></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="wiz-actions">
+            <button type="submit" name="ziel" value="zurueck" class="secondary">Zurück</button>
+            <button class="green" type="submit" name="ziel" value="weiter">Weiter zum Abschluss</button>
+        </div>
+    </form>
+</section>
+
+{# ====================================================================== #}
+{% elif schritt == "abschluss" %}
+{% set vorlage_modus = daten.ziel and daten.ziel.startswith("vorlage:") %}
+<section class="panel">
+    <h2>Zusammenfassung</h2>
+    <dl class="wiz-summary">
+        <dt>Veranstaltung</dt><dd>{{ daten.grunddaten.name or "– Name fehlt –" }} · {{ daten.grunddaten.event_type }} · {{ daten.grunddaten.datum or "Datum offen" }}</dd>
+        <dt>Jahrgänge</dt><dd>{{ daten.jahrgaenge|join(", ") or "–" }}</dd>
+        <dt>Wettbewerbe ({{ plan.eintraege|length }})</dt>
+        <dd>{% for e in plan.eintraege %}{{ e.name }} ({{ e.wettbewerb.einstellungen.ort }}, {{ modi.get(e.modus, e.wettbewerb.einstellungen.art) }}){% if not loop.last %}; {% endif %}{% endfor %}</dd>
+        <dt>Zeitblöcke</dt>
+        <dd>{% for b in plan.bloecke %}{{ b.ort }} {{ b.start }}–{{ b.ende }}{% if not loop.last %}; {% endif %}{% endfor %}</dd>
+        <dt>Programmpunkte</dt>
+        <dd>{% for p in plan.programmpunkte %}{{ p.titel }} {{ "%02d:%02d"|format(p.start // 60, p.start % 60) }}{% if not loop.last %}; {% endif %}{% else %}–{% endfor %}</dd>
+        <dt>Spiele</dt><dd>{{ plan.slots|length }} (davon {{ plan.showspiele|selectattr("gueltig")|list|length }} Showspiele ohne Wertung)</dd>
+        <dt>Wertung</dt><dd>{% if ist_schulpokal %}Ein Sieger je Jahrgang (Summe der Spielpunkte){% else %}Platzierungspunkte je Jahrgangsgruppe{% endif %}; alle Sportarten gleich gewichtet.</dd>
+        <dt>Hinweise</dt>
+        <dd>{{ plan.anzahl.blockierend }} blockierend, {{ plan.anzahl.warnung }} Warnungen ({{ plan.hinweise|selectattr("bestaetigt")|list|length }} bewusst zugelassen), {{ plan.anzahl.info }} Infos.
+            {% for h in plan.hinweise if h.bestaetigt %}<br>✔ Zugelassen: {{ h.titel }}{% endfor %}</dd>
+    </dl>
+    {% if not plan.uebernahme_moeglich and not vorlage_modus %}
+    <p class="validation-error">Noch nicht übernehmbar: {% for h in plan.blockierend %}{{ h.titel }}{% if not loop.last %}; {% endif %}{% endfor %}{% if plan.offene_warnungen %}{% if plan.blockierend %}; {% endif %}{{ plan.offene_warnungen|length }} Warnung(en) noch nicht bestätigt{% endif %}. <a href="/assistent/entwurf/{{ entwurf.id }}/vorschau">Zur Vorschau</a></p>
+    {% endif %}
+    <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/uebernehmen">
+        <input type="hidden" name="version" value="{{ entwurf.version }}">
+        {% if vorlage_modus %}
+        <button class="green" type="submit">Vorlage speichern</button>
+        {% else %}
+        <div class="wiz-grid">
+            <label style="flex-direction: row; align-items: center; color: inherit;"><input type="checkbox" name="als_vorlage" value="1"> Zusätzlich als Vorlage speichern</label>
+            <label>Name der Vorlage<input type="text" name="vorlage_name" placeholder="z. B. Schulpokal Standard"></label>
+        </div>
+        <div class="wiz-actions">
+            <a class="button secondary" href="/assistent/entwurf/{{ entwurf.id }}/wertung">Zurück</a>
+            <button class="green" type="submit" {% if not plan.uebernahme_moeglich %}disabled aria-disabled="true"{% endif %}>Veranstaltung erstellen</button>
+        </div>
+        {% endif %}
+    </form>
+    <details class="wiz-erweitert" style="margin-top: 18px;">
+        <summary>Entwurf verwerfen</summary>
+        <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/loeschen">
+            <label><input type="checkbox" name="bestaetigt" value="1" required> Ja, diesen Entwurf endgültig löschen</label>
+            <button type="submit" class="secondary">Verwerfen</button>
+        </form>
+    </details>
+</section>
+{% endif %}
+
+<script>
+(function () {
+    // Bedienmodus umschalten: speichert den Schritt (nichts geht verloren).
+    document.querySelectorAll("[data-autosubmit]").forEach(function (input) {
+        input.addEventListener("change", function () {
+            var form = document.getElementById(input.getAttribute("form"));
+            if (!form) return;
+            var ziel = document.createElement("input");
+            ziel.type = "hidden"; ziel.name = "ziel"; ziel.value = "bleiben";
+            form.appendChild(ziel);
+            form.requestSubmit ? form.requestSubmit() : form.submit();
+        });
+    });
+
+    // Enter in einem Feld speichert nur (statt des ersten Knopfs, z. B. eines
+    // Schritts in der Fortschrittsanzeige oder "Sportart entfernen").
+    var schrittForm = document.getElementById("schritt-form");
+    if (schrittForm) {
+        schrittForm.addEventListener("keydown", function (event) {
+            var target = event.target;
+            if (event.key !== "Enter" || !target.matches("input:not([type=checkbox]):not([type=radio])")) return;
+            event.preventDefault();
+            var standard = schrittForm.querySelector("[data-default-submit]");
+            if (standard) { standard.click(); return; }
+            var ziel = document.createElement("input");
+            ziel.type = "hidden"; ziel.name = "ziel"; ziel.value = "bleiben";
+            schrittForm.appendChild(ziel);
+            schrittForm.submit();
+        });
+    }
+
+    // Matrix: Liste der Wettbewerbe live aktualisieren.
+    var matrix = document.getElementById("wiz-matrix");
+    var list = document.getElementById("wiz-wb-list");
+    var dataEl = document.getElementById("wiz-matrix-data");
+    if (matrix && list && dataEl) {
+        var data = JSON.parse(dataEl.textContent);
+        function render() {
+            var bySport = {};
+            matrix.querySelectorAll("input[type=checkbox][data-sportart]").forEach(function (cb) {
+                bySport[cb.dataset.sportart] = bySport[cb.dataset.sportart] || [];
+                if (cb.checked) bySport[cb.dataset.sportart].push(cb.dataset.jahrgang);
+            });
+            var items = [];
+            Object.keys(bySport).forEach(function (sport) {
+                var rest = bySport[sport].slice();
+                (data.merges || []).forEach(function (m) {
+                    if (m.sportart !== sport) return;
+                    var members = m.jahrgaenge.filter(function (j) { return rest.indexOf(j) >= 0; });
+                    if (members.length >= 2) {
+                        items.push({sport: sport, jahrgaenge: members, merged: true});
+                        rest = rest.filter(function (j) { return members.indexOf(j) < 0; });
+                    }
+                });
+                rest.forEach(function (j) { items.push({sport: sport, jahrgaenge: [j], merged: false}); });
+            });
+            var existing = {};
+            list.querySelectorAll("li[data-server]").forEach(function (li) { existing[li.dataset.key] = li; });
+            list.innerHTML = "";
+            if (!items.length) {
+                var empty = document.createElement("li"); empty.className = "muted"; empty.textContent = "Noch keine – oben Häkchen setzen.";
+                list.appendChild(empty);
+            }
+            items.forEach(function (item) {
+                var key = item.sport + "|" + item.jahrgaenge.join("+");
+                var li = document.createElement("li");
+                if (!item.merged) {
+                    var cb = document.createElement("input"); cb.type = "checkbox"; cb.name = "auswahl"; cb.value = key;
+                    cb.setAttribute("aria-label", item.sport + " Jahrgang " + item.jahrgaenge.join(" + ") + " auswählen");
+                    li.appendChild(cb);
+                }
+                var strong = document.createElement("strong");
+                strong.textContent = item.sport + " – Jahrgang " + item.jahrgaenge.join(" + ");
+                li.appendChild(strong);
+                if (item.merged) {
+                    var badge = document.createElement("span"); badge.className = "wiz-badge is-merged";
+                    badge.textContent = "zusammengelegt · ein gemeinsamer Sieger";
+                    li.appendChild(badge);
+                    var btn = document.createElement("button"); btn.type = "submit"; btn.name = "aktion"; btn.value = "trennen:" + key; btn.textContent = "Trennen";
+                    li.appendChild(btn);
+                }
+                list.appendChild(li);
+            });
+        }
+        matrix.addEventListener("change", render);
+    }
+
+    // Gleichstandsregeln mit Pfeilen sortieren.
+    document.querySelectorAll("[data-tb-list]").forEach(function (ol) {
+        var input = ol.parentElement.querySelector("[data-tb-input]");
+        ol.addEventListener("click", function (event) {
+            var button = event.target.closest("[data-tb-move]");
+            if (!button) return;
+            var li = button.closest("li");
+            var dir = Number(button.dataset.tbMove);
+            if (dir < 0 && li.previousElementSibling) ol.insertBefore(li, li.previousElementSibling);
+            if (dir > 0 && li.nextElementSibling) ol.insertBefore(li.nextElementSibling, li);
+            input.value = Array.prototype.map.call(ol.children, function (x) { return x.dataset.key; }).join(",");
+            button.focus();
+        });
+    });
+})();
+</script>
+{% endblock %}

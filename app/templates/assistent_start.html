@@ -8,6 +8,28 @@
         flex-wrap: wrap;
     }
 
+    .assistent-kacheln {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+    }
+
+    .assistent-kachel {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        background: var(--surface-soft);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .assistent-kachel h2 { margin: 0; font-size: 1.1rem; }
+    .assistent-kachel-form { display: flex; flex-direction: column; gap: 8px; }
+    .assistent-entwurf-liste { margin: 0; padding-left: 18px; }
+    .assistent-sekundaer { margin: 12px 0 0; }
+    .assistent-weitere { margin: 28px 0 8px; font-size: 1.05rem; }
+
     .court-checkboxes label {
         background: var(--surface-soft);
         border: 1px solid var(--border);
@@ -21,19 +43,61 @@
 <header class="page-header">
     <div>
         <p class="eyebrow">Geführte Einrichtung</p>
-        <h1>Wettbewerbs-Assistent</h1>
-        <p>
-            Führt Schritt für Schritt durch das Aufsetzen einer Veranstaltung: Stammdaten prüfen,
-            Wettbewerbe anlegen und den Spielplan erzeugen - ohne dass man vorher alle
-            Einstellungen im System kennen muss.
-        </p>
+        <h1>Einrichtungsassistent</h1>
+        <p>Veranstaltung oder Wettbewerb sicher anlegen, ohne das System im Detail zu kennen.
+        Erst nach deiner Bestätigung wird etwas angelegt.</p>
     </div>
 </header>
+
+<section class="panel assistent-einstieg" id="einstieg">
+    {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+    {% if einstieg_fehler %}<p class="validation-error">{{ einstieg_fehler }}</p>{% endif %}
+    <div class="assistent-kacheln">
+        <article class="assistent-kachel">
+            <h2>🆕 Neue Veranstaltung</h2>
+            <p class="muted">Schritt für Schritt: Klassen, Sportarten, Orte, Zeiten.</p>
+            <form method="post" action="/assistent/entwurf/neu">
+                <button class="green" type="submit">Neu planen</button>
+            </form>
+        </article>
+        <article class="assistent-kachel">
+            <h2>📋 Aus Vorlage starten</h2>
+            <form method="post" action="/assistent/entwurf/aus-vorlage" class="assistent-kachel-form">
+                <label for="vorlage-auswahl" class="muted">Vorlage</label>
+                <select name="vorlage" id="vorlage-auswahl">
+                    {% for vorlage in vorlagen.system %}
+                    <option value="{{ vorlage.key }}">{{ vorlage.name }}</option>
+                    {% endfor %}
+                    {% for vorlage in vorlagen.eigene %}
+                    <option value="vorlage:{{ vorlage.id }}">{{ vorlage.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="green" type="submit">Mit Vorlage starten</button>
+            </form>
+        </article>
+        <article class="assistent-kachel" id="entwuerfe">
+            <h2>⏯ Entwurf fortsetzen</h2>
+            {% if entwuerfe %}
+            <ul class="assistent-entwurf-liste">
+                {% for entwurf in entwuerfe %}
+                <li><a href="/assistent/entwurf/{{ entwurf.id }}">{{ entwurf.titel }}</a>
+                    <span class="muted">· {{ entwurf.updated_at[:16] }}</span></li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="muted">Keine offenen Entwürfe.</p>
+            {% endif %}
+        </article>
+    </div>
+    <p class="assistent-sekundaer"><a href="/assistent/vorlagen">Vorlagen verwalten</a></p>
+</section>
+
+<h2 class="assistent-weitere">Weitere Wege</h2>
 
 <section class="panel">
     <div class="section-heading">
         <div>
-            <p class="eyebrow">Schritt 1</p>
+            <p class="eyebrow">Bestehende Veranstaltung</p>
             <h2>Veranstaltung wählen oder anlegen</h2>
         </div>
         <span class="section-icon" aria-hidden="true">🧭</span>

@@ -9,6 +9,7 @@ from app.routes.competitions import COMPETITION_TYPES, _normalize_tournament_mod
 from app.routes.events import EVENT_TYPES
 from app.routes.quickstart import build_quickstart_context
 from app.routes.teams import normalize_jahrgang
+from app.services.assistent_entwurf_service import liste_vorlagen, offene_entwuerfe
 from app.services.event_status_service import fetch_events_with_competition_counts
 from app.utils.formatting import jahrgang_sort_key
 from app.services.schedule_generator_service import (
@@ -70,7 +71,15 @@ def create_router(
         vorlage_fehler = request.query_params.get("vorlage_fehler", "").strip()
         with get_conn() as conn:
             events = fetch_events_with_competition_counts(conn, include_archived=False)
+            # Neuer Einrichtungsassistent: offene Entwuerfe und Vorlagen
+            # fuer die drei Einstiege oben auf der Startseite.
+            entwuerfe = offene_entwuerfe(conn)
+            vorlagen = liste_vorlagen(conn)
         context = {
+            "entwuerfe": entwuerfe,
+            "vorlagen": vorlagen,
+            "meldung": request.query_params.get("meldung", "").strip(),
+            "einstieg_fehler": request.query_params.get("einstieg_fehler", "").strip(),
             "schulpokal_bloecke": DEFAULT_SCHULPOKAL_BLOECKE,
             "court_locations": COMPETITION_LOCATIONS,
             "vorlage_fehler": vorlage_fehler,
