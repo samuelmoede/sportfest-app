@@ -49,14 +49,13 @@ def _minute_click_position(width: float, height: float, value: int) -> dict:
 
 
 def _quickstart_time_field(page):
-    """Die Assistent-Startseite hat mehrere Uhrzeitfelder (Schnellstart und
-    Vorlage Schulpokal); jedes bekommt seinen eigenen Picker. Die Tests
-    nutzen das Startzeit-Feld des Schnellstarts."""
+    """Startzeit-Feld des Turnier-Schnellstarts (/turnier-schnellstart); jedes
+    Uhrzeitfeld bekommt seinen eigenen Picker."""
     return page.locator('.time-field-wrap:has(input[name="startzeit"])')
 
 
 def test_time_picker_dial_click_updates_native_input_value(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+    page.goto(f"{live_server_url}/turnier-schnellstart")
 
     time_input = page.locator('input[name="startzeit"]')
     expect(time_input).to_be_visible()
@@ -86,7 +85,7 @@ def test_time_picker_dial_click_updates_native_input_value(live_server_url, page
 
 
 def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+    page.goto(f"{live_server_url}/turnier-schnellstart")
 
     time_input = page.locator('input[name="startzeit"]')
     expect(time_input).to_be_visible()
@@ -114,7 +113,7 @@ def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
 
 
 def test_time_picker_panel_closes_on_escape(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+    page.goto(f"{live_server_url}/turnier-schnellstart")
 
     field = _quickstart_time_field(page)
     field.locator(".time-picker-toggle").click()
@@ -138,7 +137,7 @@ def test_time_picker_panel_contains_all_content(live_server_url, page, viewport_
     "Fertig"-Button ragten sichtbar ueber die abgerundete Kante der
     .time-picker-panel-Karte hinaus, statt vollstaendig darin zu bleiben."""
     page.set_viewport_size({"width": viewport_width, "height": 900})
-    page.goto(f"{live_server_url}/assistent")
+    page.goto(f"{live_server_url}/turnier-schnellstart")
 
     field = _quickstart_time_field(page)
     field.locator(".time-picker-toggle").click()
