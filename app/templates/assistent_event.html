@@ -15,6 +15,12 @@
     <p class="muted">Aus der Vorlage angelegt. Hinweis: {{ vorlage_hinweis }}</p>
 </section>
 {% endif %}
+{% if gesamtplan_ok %}
+<section class="panel">
+    <p><strong>Gesamtplan übernommen: {{ gesamtplan_ok }} Spiele.</strong>
+    <a href="/spielplan?event_id={{ event.id }}">Zum Spielplan</a>, einzelne Spiele lassen sich im Spielplan-Editor weiter anpassen.</p>
+</section>
+{% endif %}
 {% if error == "team_count" %}
 <section class="panel">
     <p class="muted">Für diesen Jahrgang gibt es nicht mindestens zwei aktive Teams - Wettbewerb wurde nicht angelegt.</p>
@@ -154,6 +160,17 @@
             {% endfor %}
         </tbody>
     </table>
+    {% if schulpokal_competition_count %}
+    <div class="validation-box" id="schulpokal-gesamtplan-hinweis">
+        <strong>Schulpokal: alles auf einmal planen</strong>
+        <p class="muted">
+            Plant alle Blöcke (z. B. Zweifelderball, Volleyball, Tischtennis) in einem Schritt. Du wählst je Block,
+            ob sich die Jahrgänge abwechseln oder gleichzeitig spielen und wie viele Felder bzw. Platten genutzt werden,
+            und prüfst danach den Vorschlag.
+        </p>
+        <a class="button primary" href="/assistent/{{ event.id }}/schulpokal-plan">Ganzen Schulpokal planen</a>
+    </div>
+    {% endif %}
     <p class="muted">
         Hinweis zum Spielplan-Generator: Für eine Gruppenphase mit Halbfinale "Spiele pro Team" auf die Gruppengröße setzen;
         für ein reines "Jeder gegen jeden" mit direktem Finale (wie im <a href="/turnier-schnellstart">Turnier-Schnellstart</a>)
@@ -288,6 +305,21 @@
             <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
             <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
         </div>
+
+        <label>Getrennt nach (optional)</label>
+        <input type="text" name="teilmannschaften" placeholder="z. B. Jungen, Mädchen">
+        <p class="muted field-hint">
+            Legt je Teilmannschaft einen eigenen Wettbewerb mit denselben Klassen an (Tischtennis: Jungen gegen Jungen,
+            Mädchen gegen Mädchen, beide bringen Punkte). Extra-Teams braucht es nicht.
+        </p>
+
+        <label>Punkte Sieg / Unentschieden</label>
+        <span>
+            <input type="number" min="0" name="points_win" placeholder="3" style="width: 5em;" aria-label="Punkte Sieg">
+            /
+            <input type="number" min="0" name="points_draw" placeholder="1" style="width: 5em;" aria-label="Punkte Unentschieden">
+        </span>
+        <p class="muted field-hint">Leer: Schulpokal 2 / 1, sonst 3 / 1. Tischtennis beim Schulpokal: 1 / 0.</p>
 
         <label id="assistent-timing-label-game" style="display:none;">Spielzeit (Min.)</label>
         <input id="assistent-timing-game" style="display:none;" type="number" name="game_duration_minutes"

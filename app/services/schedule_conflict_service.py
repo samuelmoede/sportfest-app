@@ -14,6 +14,8 @@ wird dann nur als Hinweis gemeldet, nicht als Fehler.
 Spielt eine Klasse gleichzeitig in einer anderen Sportart (z.B. Volleyball in
 der Halle und Tischtennis in der Mensa beim Schulpokal), stellt sie dafuer
 in der Regel verschiedene Spieler. Das ist deshalb nur ein Hinweis.
+Getrennte Teilmannschaften derselben Sportart (Jungen/Maedchen beim
+Tischtennis) sind gar kein Konflikt.
 """
 import re
 
@@ -57,7 +59,11 @@ def _interval(slot, competitions):
     competition = competitions.get(_to_int(slot["competition_id"]))
     if start is None or competition is None:
         return None
-    duration = get_competition_timing(competition)["game_duration_minutes"]
+    # Ein Vorschlag kann eine eigene Spielzeit mitbringen (Gesamtplan des
+    # Schulpokals: Spielzeit wird erst beim Uebernehmen gespeichert).
+    duration = _to_int(slot.get("game_duration_minutes")) if isinstance(slot, dict) else None
+    if not duration:
+        duration = get_competition_timing(competition)["game_duration_minutes"]
     return start, start + duration
 
 
@@ -74,6 +80,20 @@ def _sportart_key(competition):
 def _different_sport(competition, other_competition):
     a = _sportart_key(competition)
     b = _sportart_key(other_competition)
+    return bool(a) and bool(b) and a != b
+
+
+def _teilmannschaft_key(competition):
+    if competition is None or "teilmannschaft" not in competition.keys():
+        return ""
+    return str(competition["teilmannschaft"] or "").strip().casefold()
+
+
+def _different_teilmannschaft(competition, other_competition):
+    """Jungen und Maedchen einer Klasse (z.B. Tischtennis beim Schulpokal)
+    sind verschiedene Spieler und duerfen gleichzeitig spielen."""
+    a = _teilmannschaft_key(competition)
+    b = _teilmannschaft_key(other_competition)
     return bool(a) and bool(b) and a != b
 
 
@@ -171,6 +191,8 @@ def find_existing_schedule_conflicts(conn, proposed_slots):
                 if key in seen:
                     continue
                 seen.add(key)
+                if _different_teilmannschaft(competition, other_competition):
+                    continue
                 if _different_sport(competition, other_competition):
                     sport_hints.append(
                         f'{team_names.get(team_id, "Team")} spielt um {slot["startzeit"]} '
@@ -249,11 +271,13 @@ def find_internal_conflicts(conn, proposed_slots):
                 team_id for team_id in (_to_int(other.get("team_a_id")), _to_int(other.get("team_b_id")))
                 if team_id is not None
             }
-            different_sport = _different_sport(
-                competitions.get(_to_int(slot.get("competition_id"))),
-                competitions.get(_to_int(other.get("competition_id"))),
-            )
+            slot_competition = competitions.get(_to_int(slot.get("competition_id")))
+            other_competition = competitions.get(_to_int(other.get("competition_id")))
+            different_sport = _different_sport(slot_competition, other_competition)
+            different_teilmannschaft = _different_teilmannschaft(slot_competition, other_competition)
             for team_id in teams & other_teams:
+                if different_teilmannschaft:
+                    continue
                 if different_sport:
                     sport_hints.append(
                         f'{team_names.get(team_id, "Ein Team")} spielt um {slot["startzeit"]} '

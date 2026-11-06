@@ -73,6 +73,7 @@ def init_db(db_path=None):
             punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
             competition_date TEXT,
             final_source_ids TEXT,
+            teilmannschaft TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -146,6 +147,7 @@ def init_db(db_path=None):
 
             status TEXT NOT NULL DEFAULT 'geplant',
             note TEXT,
+            timer_stopped_at TEXT,
             FOREIGN KEY (competition_id) REFERENCES competitions(id),
             FOREIGN KEY (court_id) REFERENCES courts(id),
             FOREIGN KEY (team_a_id) REFERENCES teams(id),
@@ -248,6 +250,11 @@ def init_db(db_path=None):
 
         if "finished_at" not in columns:
             conn.execute("ALTER TABLE slots ADD COLUMN finished_at TEXT")
+
+        # Runden-Timer in der Ergebniseingabe: Zeitpunkt, an dem der Timer
+        # angehalten wurde (das Spiel selbst laeuft weiter, bis es beendet wird).
+        if "timer_stopped_at" not in columns:
+            conn.execute("ALTER TABLE slots ADD COLUMN timer_stopped_at TEXT")
 
         court_columns = {
             row["name"]
@@ -444,6 +451,13 @@ def init_db(db_path=None):
         # app/services/jahrgangsfinale_service.py).
         if "final_source_ids" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN final_source_ids TEXT")
+
+        # Schulpokal-Tischtennis: Jungen und Maedchen einer Klasse spielen
+        # zeitgleich in eigenen Wettbewerben mit denselben Klassen-Teams. Bei
+        # verschiedener Teilmannschaft ist das kein Konflikt (siehe
+        # schedule_conflict_service).
+        if "teilmannschaft" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN teilmannschaft TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

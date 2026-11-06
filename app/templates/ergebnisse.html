@@ -519,6 +519,53 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </p>
 </section>
 {% endif %}
+{% if round_timer and (round_timer.running or round_timer.next) %}
+<section class="panel round-timer-panel" id="runden-timer">
+    <div class="round-timer-head">
+        <div>
+            <p class="eyebrow">Runden-Timer{% if selected_ort %} · {{ selected_ort }}{% endif %}</p>
+            {% if round_timer.running %}
+            <h2>Runde {{ round_timer.running.startzeit }} · {{ round_timer.running.count }} Spiele</h2>
+            {% else %}
+            <h2>Nächste Runde {{ round_timer.next.startzeit }}</h2>
+            {% endif %}
+        </div>
+        {% if round_timer.running %}
+        <div class="round-timer-display"
+             data-started-at="{{ round_timer.running.started_at }}"
+             data-planned-duration="{{ round_timer.running.planned_seconds or '' }}"
+             data-stopped-at="{{ round_timer.running.stopped_at or '' }}">--:--</div>
+        {% endif %}
+    </div>
+    <div class="round-timer-actions">
+        {% if round_timer.running and not round_timer.running.stopped_at %}
+        <form method="post" action="/slots/runde/timer-stoppen">
+            {% for slot_id in round_timer.running.slot_ids %}<input type="hidden" name="slot_ids" value="{{ slot_id }}">{% endfor %}
+            <button class="danger" type="submit">Timer stoppen</button>
+        </form>
+        {% endif %}
+        {% if round_timer.next %}
+        <form method="post" action="/slots/runde/starten"
+              onsubmit="return confirm('Alle {{ round_timer.next.count }} Spiele um {{ round_timer.next.startzeit }} jetzt gleichzeitig starten?');">
+            {% for slot_id in round_timer.next.slot_ids %}<input type="hidden" name="slot_ids" value="{{ slot_id }}">{% endfor %}
+            <button class="green" type="submit">Alle {{ round_timer.next.count }} Spiele um {{ round_timer.next.startzeit }} gleichzeitig starten</button>
+        </form>
+        {% endif %}
+    </div>
+    <p class="muted">
+        Gilt für die unten angezeigten Spiele{% if not selected_ort %} (für die Mensa oben den Ort wählen){% endif %}.
+        Ergebnisse werden weiter je Spiel gespeichert und beendet.
+    </p>
+</section>
+<style>
+    .round-timer-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .round-timer-display { font-size: clamp(2.5rem, 8vw, 5rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .round-timer-display.near-end { color: var(--amber); }
+    .round-timer-display.overrun, .round-timer-display.stopped { color: var(--red); }
+    .round-timer-display small { display: block; font-size: 1rem; font-weight: 600; text-align: right; }
+    .round-timer-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+</style>
+{% endif %}
 <section class="panel" id="results-section">
     <h2>Spiele</h2>
     {% if result_columns %}
@@ -556,7 +603,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     </span>
                     {% endif %}
                     {% if s.started_at and s.status == 'läuft' %}
-                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}" data-stopped-at="{{ s.timer_stopped_at or '' }}">00:00</span>
                     {% elif s.started_at %}
                     <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
                     {% endif %}
@@ -915,9 +962,16 @@ function updateResultTimers() {
         const started = parseTimestamp(startedAt);
         if (Number.isNaN(started.getTime())) return;
 
-        const seconds = Math.max(0, Math.floor((now - started) / 1000));
+        const stoppedAt = el.dataset.stoppedAt ? parseTimestamp(el.dataset.stoppedAt) : null;
+        const reference = stoppedAt && !Number.isNaN(stoppedAt.getTime()) ? stoppedAt : now;
+        const seconds = Math.max(0, Math.floor((reference - started) / 1000));
         const planned = Number(el.dataset.plannedDuration || 0);
         const runtime = formatDuration(seconds);
+        if (reference === stoppedAt) {
+            el.classList.remove('on-time', 'near-end', 'overrun');
+            el.textContent = `Timer gestoppt · Laufzeit ${runtime}`;
+            return;
+        }
 
         el.classList.remove('on-time', 'near-end', 'overrun');
         if (planned > 0) {
@@ -938,8 +992,38 @@ function updateResultTimers() {
     });
 }
 
+function updateRoundTimer() {
+    const el = document.querySelector('.round-timer-display');
+    if (!el || !el.dataset.startedAt) return;
+    const started = parseTimestamp(el.dataset.startedAt);
+    if (Number.isNaN(started.getTime())) return;
+    const stoppedAt = el.dataset.stoppedAt ? parseTimestamp(el.dataset.stoppedAt) : null;
+    const stopped = stoppedAt && !Number.isNaN(stoppedAt.getTime());
+    const seconds = Math.max(0, Math.floor(((stopped ? stoppedAt : new Date()) - started) / 1000));
+    const planned = Number(el.dataset.plannedDuration || 0);
+    const clock = value => {
+        const abs = Math.max(0, Math.floor(value));
+        return `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    };
+    el.classList.remove('near-end', 'overrun', 'stopped');
+    if (stopped) {
+        el.classList.add('stopped');
+        el.innerHTML = `${clock(planned > 0 ? Math.max(0, planned - seconds) : seconds)}<small>Timer gestoppt</small>`;
+    } else if (planned > 0 && seconds >= planned) {
+        el.classList.add('overrun');
+        el.innerHTML = `00:00<small>Zeit abgelaufen · +${clock(seconds - planned)}</small>`;
+    } else if (planned > 0) {
+        if (planned - seconds <= 60) el.classList.add('near-end');
+        el.innerHTML = `${clock(planned - seconds)}<small>Restzeit</small>`;
+    } else {
+        el.innerHTML = `${clock(seconds)}<small>Laufzeit</small>`;
+    }
+}
+
 updateResultTimers();
+updateRoundTimer();
 setInterval(updateResultTimers, 1000);
+setInterval(updateRoundTimer, 1000);
 
 function attachStartHandler(form) {
     form.addEventListener('submit', async event => {
