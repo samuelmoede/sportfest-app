@@ -70,6 +70,7 @@ from app.services.sixkampf_service import (
 )
 from app.services.ui_view_service import (
     classify_yeargang,
+    competition_column,
     enrich_beamer_view,
     enrich_day_schedule_view,
 )
@@ -697,7 +698,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         {
             column
             for column in (
-                classify_yeargang(get_field(competition, "jahrgang"))
+                competition_column(competition)
                 for competition in competitions
             )
             if column is not None
@@ -727,7 +728,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         if not start or not end or end <= start:
             continue
 
-        yeargang = classify_yeargang(get_field(competition, "jahrgang"))
+        yeargang = competition_column(competition)
         if yeargang is None:
             continue
 
@@ -833,7 +834,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
 def get_day_schedule_for_event(event_id: int):
     with get_conn() as conn:
         event = conn.execute(
-            "SELECT event_date, status FROM events WHERE id = ?", (event_id,)
+            "SELECT event_date, status, event_type FROM events WHERE id = ?", (event_id,)
         ).fetchone()
         competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
@@ -841,6 +842,13 @@ def get_day_schedule_for_event(event_id: int):
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
+    # Schulpokal: eine Spalte je Jahrgang, auch Jahrgang 10 (nicht Oberstufe),
+    # passend zur Gesamtwertung je Jahrgang.
+    if event is not None and event["event_type"] == "Schulpokal":
+        for competition in competitions:
+            jahrgang = competition.get("jahrgang")
+            if jahrgang not in (None, "", "mixed"):
+                competition["year_column"] = f"Jahrgang {jahrgang}"
     schedule = build_day_schedule(
         competitions,
         event["event_date"] if event is not None else None,
