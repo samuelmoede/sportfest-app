@@ -826,17 +826,14 @@
     max-width: 100%;
     overflow: hidden;
     margin-bottom: 2px;
-    padding: 0 6px;
-    border-radius: 999px;
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    line-height: 1.5;
+    line-height: 1.4;
     white-space: nowrap;
     text-overflow: ellipsis;
-    background: rgba(34, 160, 90, 0.9);
-    color: #fff;
+    color: var(--green, #1f8a4c);
 }
 
 .day-timeline-delay.is-late {
-    background: var(--red);
+    color: var(--red);
 }
