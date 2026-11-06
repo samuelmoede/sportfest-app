@@ -154,7 +154,7 @@ def build_block_segments(start_minutes, end_minutes, slots, final_slots=(), prog
     group_games = [slot for slot in games if slot.get("phase") not in KO_PHASEN]
     if group_games:
         start, end = game_span(group_games)
-        raw.append({"kind": "spiele", "label": f"Spiele ({len(group_games)})", "start": start, "end": end})
+        raw.append({"kind": "spiele", "label": "Spiele", "start": start, "end": end})
     for phase in KO_PHASEN:
         phase_games = [slot for slot in games if slot.get("phase") == phase]
         if phase_games:
@@ -272,6 +272,44 @@ def block_verspaetung(slots, now):
     return max(max(delays), 0)
 
 
+def _clock_minutes(minutes):
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def split_block_segments(start_minutes, end_minutes, segments):
+    """Loest Programmpunkte am Anfang und Ende eines Blocks (Eroeffnung,
+    Siegerehrung) sowie alles nach dem Block (Siegerehrung, Jahrgangsfinale)
+    als eigene Bloecke heraus. Der Hauptblock zeigt dann nur noch die Spiele
+    (und Programmpunkte mittendrin, z.B. eine Pause).
+
+    Gibt (display_start, display_end, inside, separate) zurueck; inside hat
+    Lage und Hoehe neu in Prozent des verkuerzten Blocks."""
+    display_start, display_end = start_minutes, end_minutes
+    inside = list(segments.get("inside", []))
+    separate = list(segments.get("after", []))
+    changed = True
+    while changed:
+        changed = False
+        for item in [i for i in inside if i["kind"] == "programm"]:
+            if item["start"] <= display_start < item["end"] and item["end"] < display_end:
+                display_start = item["end"]
+            elif item["start"] < display_end <= item["end"] and item["start"] > display_start:
+                display_end = item["start"]
+            else:
+                continue
+            inside.remove(item)
+            separate.append(item)
+            changed = True
+    length = max(display_end - display_start, 1)
+    for item in inside:
+        top = max(item["start"], display_start)
+        bottom = min(item["end"], display_end)
+        item["top_percent"] = (top - display_start) / length * 100
+        item["height_percent"] = max((bottom - top) / length * 100, 0)
+    separate.sort(key=lambda item: (item["start"], item["end"]))
+    return display_start, display_end, inside, separate
+
+
 def build_day_timeline(columns, competitions, now=None, slots=None, programmpunkte=None,
                        delay_now=None):
     """Zeitproportionale Kalenderansicht fuer den Dashboard-Tagesplan:
@@ -297,6 +335,8 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
             event_id = event_by_competition.get(slot.get("competition_id"))
             if event_id is not None:
                 shared_by_event[event_id].append(slot)
+    programm_entries = []
+    programm_keys = set()
     finals_by_source = defaultdict(list)
     for competition in competitions:
         for part in str(competition.get("final_source_ids") or "").split(","):
@@ -357,17 +397,70 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
                 if applies_to_jahrgang(punkt, competition.get("jahrgang") or "")
                 and block_start <= (_slot_minutes(punkt.get("start_time")) or -1) <= window_end
             ]
-            entries[-1]["segments"] = build_block_segments(
+            segments = build_block_segments(
                 block_start,
                 block_end,
                 slots_by_competition.get(competition_id, []) + shared,
                 final_slots,
                 block_punkte,
             )
+            display_start, display_end, inside, separate = split_block_segments(
+                block_start, block_end, segments
+            )
+            entry = entries[-1]
+            entry["segments"] = {"inside": inside, "after": []}
+            if (display_start, display_end) != (block_start, block_end):
+                # Drag & Drop verschiebt weiter das Zeitfenster des
+                # Wettbewerbs, angezeigt wird nur der Spiele-Teil.
+                entry["block_start_minutes"] = block_start
+                entry["block_end_minutes"] = block_end
+                entry["start_minutes"] = display_start
+                entry["end_minutes"] = display_end
+                entry["display_time"] = f"{_clock_minutes(display_start)}–{_clock_minutes(display_end)}"
+            for item in separate:
+                key = (column, item["label"], item["start"], item["end"])
+                if key in programm_keys:
+                    continue
+                programm_keys.add(key)
+                programm_entries.append({
+                    "is_programm": True,
+                    "kind": item["kind"],
+                    "competition_id": None,
+                    "name": item["label"],
+                    "sportart": "",
+                    "location": "",
+                    "column": column,
+                    "start_minutes": item["start"],
+                    "end_minutes": max(item["end"], item["start"] + 1),
+                    "display_time": (
+                        f"{_clock_minutes(item['start'])}–{_clock_minutes(item['end'])}"
+                        if item["end"] > item["start"] + 1 else _clock_minutes(item["start"])
+                    ),
+                })
             entries[-1]["verspaetung"] = block_verspaetung(
                 slots_by_competition.get(competition_id, []) + final_slots, delay_now
             )
 
+    # Direkt aufeinander folgende Programmpunkte einer Spalte (Siegerehrung
+    # 10:40, Jahrgangsfinale 10:45) werden ein Block mit mehreren Zeilen,
+    # sonst waeren die wenigen Minuten zu schmal fuer die Beschriftung.
+    merged = []
+    for item in sorted(programm_entries, key=lambda e: (e["column"], e["start_minutes"], e["end_minutes"])):
+        line = {"time": item["display_time"], "name": item["name"], "kind": item["kind"]}
+        previous = merged[-1] if merged else None
+        if (
+            previous is not None and previous["column"] == item["column"]
+            and item["start_minutes"] <= previous["end_minutes"] + 1
+        ):
+            previous["end_minutes"] = max(previous["end_minutes"], item["end_minutes"])
+            previous["lines"].append(line)
+            continue
+        item["lines"] = [line]
+        merged.append(item)
+    for item in merged:
+        if any(line["kind"] == "programm" for line in item["lines"]):
+            item["kind"] = "programm"
+    entries.extend(merged)
     if not entries:
         return None
 

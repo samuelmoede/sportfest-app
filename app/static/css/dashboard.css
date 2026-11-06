@@ -485,17 +485,38 @@
     background: rgba(147, 51, 234, 0.12);
 }
 
-.day-timeline-segments-after {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 2px;
-    display: flex;
-    flex-direction: column;
+/* Eroeffnung, Siegerehrung, Jahrgangsfinale als eigener kleiner Block */
+.day-timeline-block.day-timeline-programm {
+    justify-content: flex-start;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    z-index: 2;
     font-size: 0.66rem;
+    line-height: 14px;
+    cursor: default;
+}
+
+.day-timeline-block.day-timeline-programm span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-block.day-timeline-programm time {
+    margin: 0;
     font-weight: 700;
-    line-height: 1.15;
-    z-index: 1;
+}
+
+.day-timeline-block.day-timeline-programm.segment-programm {
+    background: rgba(217, 119, 6, 0.14);
+    border-left-color: #d97706;
+}
+
+.day-timeline-block.day-timeline-programm.segment-ko {
+    background: rgba(147, 51, 234, 0.12);
+    border-left-color: #9333ea;
 }
 
 .day-timeline-resize-handle {
