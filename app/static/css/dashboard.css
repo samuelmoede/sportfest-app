@@ -779,3 +779,64 @@
     margin-left: auto;
     color: var(--muted);
 }
+
+/* Programmpunkte (Eroeffnung, Siegerehrung ...) am Tagesplan der Veranstaltung */
+.programmpunkte {
+    margin-top: 18px;
+    border-top: 1px solid var(--line, rgba(127, 127, 127, 0.25));
+    padding-top: 14px;
+}
+
+.programmpunkt-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: flex-end;
+    margin-top: 10px;
+}
+
+.programmpunkt-jahrgaenge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.programmpunkt-jahrgaenge label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.programmpunkt-jahrgaenge input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.programmpunkt-fehler {
+    color: var(--red);
+}
+
+/* Verspaetung im Tagesplan-Block (nur Admin/Turnierleitung) */
+.day-timeline-delay {
+    display: inline-block;
+    align-self: flex-start;
+    max-width: 100%;
+    overflow: hidden;
+    margin-bottom: 2px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: rgba(34, 160, 90, 0.9);
+    color: #fff;
+}
+
+.day-timeline-delay.is-late {
+    background: var(--red);
+}

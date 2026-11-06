@@ -154,6 +154,19 @@ def init_db(db_path=None):
             FOREIGN KEY (team_b_id) REFERENCES teams(id)
         );
 
+        -- Programmpunkte einer Veranstaltung fuer den Tagesplan (Eroeffnung,
+        -- Siegerehrung, Pause ...) mit Dauer und optional nur fuer bestimmte
+        -- Jahrgaenge ("7,8"; leer = alle), siehe programmpunkte_service.
+        CREATE TABLE IF NOT EXISTS event_programmpunkte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            titel TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            jahrgaenge TEXT,
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT

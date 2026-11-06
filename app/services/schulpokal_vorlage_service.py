@@ -10,6 +10,7 @@ danach wie gewohnt im Plan-Generator (abwechselnd, mit Spielzeit-Vorschlag
 aus dem Zeitfenster)."""
 from app.routes.teams import normalize_jahrgang
 from app.services.jahrgangsfinale_service import create_jahrgangsfinale
+from app.services.programmpunkte_service import create_programmpunkt
 from app.services.schedule_generator_service import DEFAULT_SCHULPOKAL_MODE
 from app.services.schedule_location_service import (
     DEFAULT_COMPETITION_LOCATION,
@@ -21,6 +22,14 @@ from app.services.schedule_time_service import (
 )
 
 SCHULPOKAL_EVENT_TYPE = "Schulpokal"
+SIEGEREHRUNG_DAUER_MINUTEN = 15
+
+
+def _add_minutes(clock, minutes):
+    hours, mins = (int(part) for part in clock.split(":")[:2])
+    total = (hours * 60 + mins + minutes) % (24 * 60)
+    return f"{total // 60:02d}:{total % 60:02d}"
+
 
 # Ablauf des Schulpokals laut Ausschreibung der Sportfachschaft.
 DEFAULT_SCHULPOKAL_BLOECKE = (
@@ -124,7 +133,7 @@ def create_schulpokal_from_template(conn, *, name, event_date, bloecke):
     ).lastrowid
 
     hinweise = []
-    siegerehrung_times = set()
+    siegerehrungen = {}
     for block in bloecke:
         sportart = (block.get("sportart") or "").strip()
         if not sportart:
@@ -136,6 +145,7 @@ def create_schulpokal_from_template(conn, *, name, event_date, bloecke):
         start_time = (block.get("start_time") or "").strip() or None
         end_time = (block.get("end_time") or "").strip() or None
         competition_ids = []
+        created_jahrgaenge = []
         teilmannschaften = parse_teilmannschaften(block.get("teilmannschaften")) or [None]
         points_win, points_draw = parse_points(block.get("points_win"), block.get("points_draw"))
         for jahrgang in parse_jahrgaenge(block.get("jahrgaenge")):
@@ -148,6 +158,7 @@ def create_schulpokal_from_template(conn, *, name, event_date, bloecke):
                     f"{sportart} Jahrgang {jahrgang}: weniger als zwei aktive Klassen, nicht angelegt."
                 )
                 continue
+            created_jahrgaenge.append(str(jahrgang))
             for teilmannschaft in teilmannschaften:
                 label = f"{sportart} {teilmannschaft}" if teilmannschaft else sportart
                 competition_ids.append(conn.execute(
@@ -176,20 +187,25 @@ def create_schulpokal_from_template(conn, *, name, event_date, bloecke):
                 f"{sportart}: Ein Jahrgangsfinale braucht genau zwei Jahrgänge, es wurde keins angelegt."
             )
 
-        # Siegerehrung zum Ende des Blocks, als Programmpunkt im Spielplan des
-        # ersten Wettbewerbs (ohne Feld). Parallele Bloecke mit gleichem Ende
+        # Siegerehrung als Programmpunkt der Veranstaltung direkt nach dem
+        # Block, bis zum Jahrgangsfinale (das nicht mehr in die Wertung
+        # eingeht) bzw. 15 Minuten. Parallele Bloecke mit gleichem Ende
         # (Volleyball und Tischtennis) teilen sich eine Siegerehrung.
-        if (
-            end_time and competition_ids and block.get("siegerehrung", True)
-            and end_time not in siegerehrung_times
-        ):
-            siegerehrung_times.add(end_time)
-            conn.execute(
-                """
-                INSERT INTO slots (competition_id, startzeit, slot_typ, phase, status, note)
-                VALUES (?, ?, 'Siegerehrung', 'Siegerehrung', 'geplant', ?)
-                """,
-                (competition_ids[0], end_time, "Siegerehrung"),
-            )
+        if end_time and competition_ids and block.get("siegerehrung", True):
+            ceremony = siegerehrungen.setdefault(end_time, {"jahrgaenge": [], "finale": []})
+            for jahrgang in created_jahrgaenge:
+                if jahrgang not in ceremony["jahrgaenge"]:
+                    ceremony["jahrgaenge"].append(jahrgang)
+            if finale_time and len(competition_ids) == 2 and teilmannschaften == [None]:
+                ceremony["finale"].append(finale_time)
+
+    for end_time, ceremony in siegerehrungen.items():
+        start = _add_minutes(end_time, 0)
+        finals = sorted(time for time in ceremony["finale"] if _add_minutes(time, 0) > start)
+        create_programmpunkt(
+            conn, event_id, "Siegerehrung", start,
+            finals[0] if finals else _add_minutes(start, SIEGEREHRUNG_DAUER_MINUTEN),
+            ceremony["jahrgaenge"],
+        )
 
     return event_id, hinweise

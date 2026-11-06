@@ -1,5 +1,12 @@
-{% macro render_block_content(item, editable=false) %}
+{# Verspaetung im Block nur fuer Admin und Turnierleitung #}
+{% set show_day_delay = can_access_role(request, "tournament_lead") %}
+{% macro render_block_content(item, editable=false, show_delay=false) %}
 {% set segments = item.segments if item.segments is defined else none %}
+{% if show_delay and item.verspaetung is defined and item.verspaetung is not none %}
+<span class="day-timeline-delay{% if item.verspaetung >= 5 %} is-late{% endif %}" title="Verspätung gegenüber dem geplanten Spielplan">
+    {% if item.verspaetung > 0 %}+{{ item.verspaetung }} Min.{% else %}im Plan{% endif %}
+</span>
+{% endif %}
 {# Ablauf nur in Bloecken mit voller Spaltenbreite, schmale Spuren sind dafuer zu eng. #}
 {% if segments and (segments.inside or segments.after) and (item.lane_width_percent|default(100)) >= 99 %}
 <div class="day-timeline-block-head">
@@ -87,14 +94,14 @@
                          data-start-minutes="{{ item.start_minutes }}"
                          data-end-minutes="{{ item.end_minutes }}">
                         <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
-                        {{ render_block_content(item, editable=true) }}
+                        {{ render_block_content(item, editable=true, show_delay=show_day_delay) }}
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
                     </div>
                     {% else %}
                     <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
-                        {{ render_block_content(item) }}
+                        {{ render_block_content(item, show_delay=show_day_delay) }}
                     </a>
                     {% endif %}
                     {% endfor %}

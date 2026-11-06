@@ -13,6 +13,7 @@ bestehen. Vorhandene, noch ungespielte Gruppenspiele der Block-Wettbewerbe
 werden dabei ersetzt; sind schon Spiele gestartet oder beendet, bleibt der
 Block unangetastet und es gibt eine Meldung."""
 from app.services.jahrgangsfinale_service import parse_final_source_ids
+from app.services.programmpunkte_service import applies_to_jahrgang, list_programmpunkte
 from app.services.schedule_conflict_service import (
     find_existing_schedule_conflicts,
     find_internal_conflicts,
@@ -75,6 +76,7 @@ def load_bloecke(conn, event_id):
         (event_id,),
     ).fetchall()
     courts = conn.execute("SELECT * FROM courts WHERE active = 1").fetchall()
+    programmpunkte = list_programmpunkte(conn, event_id)
 
     bloecke = {}
     for competition in competitions:
@@ -121,6 +123,15 @@ def load_bloecke(conn, event_id):
             """,
             competition_ids,
         ).fetchone()
+        start_time = min(starts, key=_minutes) if starts else "08:00"
+        # Beginnt der Block mit einem Programmpunkt (z.B. Eroeffnung 08:00
+        # bis 08:10), starten die Spiele erst danach.
+        opening = [
+            punkt for punkt in programmpunkte
+            if punkt["start_time"] == _minutes_to_clock(_minutes(start_time))
+            and any(applies_to_jahrgang(punkt, c["jahrgang"] or "") for c in block_competitions)
+        ]
+        games_start = max((punkt["end_time"] for punkt in opening), key=_minutes, default=None)
         result.append({
             "key": min(competition_ids),
             "sportart": block["sportart"],
@@ -128,7 +139,9 @@ def load_bloecke(conn, event_id):
             "competitions": [dict(c) for c in block_competitions],
             "entries": entries,
             "courts": [dict(court) for court in block_courts],
-            "start_time": min(starts, key=_minutes) if starts else "08:00",
+            "start_time": start_time,
+            "games_start": games_start or start_time,
+            "start_nach": ", ".join(punkt["titel"] for punkt in opening),
             "end_time": max(ends, key=_minutes) if ends else "",
             "game_duration_minutes": timing["game_duration_minutes"],
             "changeover_duration_minutes": timing["changeover_duration_minutes"],
@@ -168,7 +181,7 @@ def read_settings(form, bloecke):
             "planen": form.get(f"planen_{key}") is not None if form.get("gesendet") else True,
             "anzahl_felder": number("anzahl_felder", len(block["courts"]), 1),
             "ablauf": value("ablauf", block["default_ablauf"]),
-            "startzeit": value("startzeit", block["start_time"]),
+            "startzeit": value("startzeit", block.get("games_start") or block["start_time"]),
             "spielzeit": number("spielzeit", block["game_duration_minutes"], 1),
             "wechselzeit": number("wechselzeit", block["changeover_duration_minutes"], 0),
         }

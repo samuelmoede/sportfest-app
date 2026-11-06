@@ -68,6 +68,7 @@ from app.services.sixkampf_service import (
     calculate_sixkampf_station_rotation,
     calculate_sixkampf_team_ranking,
 )
+from app.services.programmpunkte_service import list_programmpunkte
 from app.services.ui_view_service import (
     classify_yeargang,
     competition_column,
@@ -187,6 +188,7 @@ ACTION_ACCESS_RULES = (
         "admin",
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
+    (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
 )
 
 
@@ -842,6 +844,7 @@ def get_day_schedule_for_event(event_id: int):
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
+        programmpunkte = list_programmpunkte(conn, event_id)
     # Schulpokal: eine Spalte je Jahrgang, auch Jahrgang 10 (nicht Oberstufe),
     # passend zur Gesamtwertung je Jahrgang.
     if event is not None and event["event_type"] == "Schulpokal":
@@ -858,6 +861,7 @@ def get_day_schedule_for_event(event_id: int):
         schedule,
         competitions,
         now=app_now(),
+        programmpunkte=programmpunkte,
     )
 
 
