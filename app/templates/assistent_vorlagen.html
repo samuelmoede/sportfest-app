@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Einrichtungsassistent</p>
+        <h1>Vorlagen verwalten</h1>
+        <p class="muted">Eine Vorlage speichert Ablauf und Regeln (Sportarten, Jahrgänge, Orte, Zeitblöcke, Modi, Wertung) – keine Klassen. Veranstaltungen aus einer Vorlage ändern die Vorlage nicht.</p>
+    </div>
+</header>
+<section class="panel">
+    {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+    {% if fehler %}<p class="validation-error" role="alert">{{ fehler }}</p>{% endif %}
+    <h2>Systemvorlagen</h2>
+    <ul>
+        {% for vorlage in vorlagen.system %}
+        <li><strong>{{ vorlage.name }}</strong>
+            <form method="post" action="/assistent/vorlagen/kopieren" style="display: inline;">
+                <input type="hidden" name="vorlage" value="{{ vorlage.key }}">
+                <input type="text" name="name" placeholder="Name der Kopie" aria-label="Name der Kopie">
+                <button type="submit">Als eigene Vorlage kopieren</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    <h2>Eigene Vorlagen</h2>
+    {% if vorlagen.eigene %}
+    <div class="table-scroll">
+    <table class="schedule-table">
+        <thead><tr><th>Name</th><th>Geändert</th><th>Aktionen</th></tr></thead>
+        <tbody>
+        {% for vorlage in vorlagen.eigene %}
+        <tr>
+            <td>
+                <form method="post" action="/assistent/vorlagen/{{ vorlage.id }}/umbenennen" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <input type="text" name="name" value="{{ vorlage.name }}" aria-label="Name der Vorlage" required>
+                    <button type="submit">Umbenennen</button>
+                </form>
+            </td>
+            <td>{{ vorlage.updated_at[:16] }}</td>
+            <td style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <form method="post" action="/assistent/vorlagen/{{ vorlage.id }}/bearbeiten"><button type="submit">Bearbeiten</button></form>
+                <form method="post" action="/assistent/vorlagen/kopieren">
+                    <input type="hidden" name="vorlage" value="vorlage:{{ vorlage.id }}">
+                    <button type="submit">Kopieren</button>
+                </form>
+                <form method="post" action="/assistent/vorlagen/{{ vorlage.id }}/loeschen">
+                    <label><input type="checkbox" name="bestaetigt" value="1" required> wirklich löschen</label>
+                    <button type="submit" class="secondary">Löschen</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="muted">Noch keine eigenen Vorlagen. Beim Abschluss eines Entwurfs oder unten aus einer bestehenden Veranstaltung anlegen.</p>
+    {% endif %}
+    <h2>Aus bestehender Veranstaltung</h2>
+    {% if events %}
+    <form method="post" id="aus-veranstaltung" class="admin-form" action="/assistent/vorlagen/aus-veranstaltung">
+        <label for="vorlage-event">Veranstaltung</label>
+        <select name="event_id" id="vorlage-event">
+            {% for event in events %}<option value="{{ event.id }}">{{ event.name }}{% if event.event_date %} ({{ event.event_date }}){% endif %}</option>{% endfor %}
+        </select>
+        <label for="vorlage-event-name">Name der Vorlage</label>
+        <input type="text" name="name" id="vorlage-event-name" placeholder="z. B. Schulpokal Standard">
+        <button type="submit" class="green">Als Vorlage speichern</button>
+    </form>
+    {% else %}
+    <p class="muted">Keine Veranstaltungen vorhanden.</p>
+    {% endif %}
+    <p><a class="button secondary" href="/assistent">Zum Assistenten</a></p>
+</section>
+{% endblock %}

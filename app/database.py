@@ -75,6 +75,7 @@ def init_db(db_path=None):
             final_source_ids TEXT,
             teilmannschaft TEXT,
             game_duration_seconds INTEGER,
+            tiebreak_order TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -248,6 +249,32 @@ def init_db(db_path=None):
             updated_at TEXT,
             PRIMARY KEY (event_id, eintrag_key),
             FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        -- Neuer Einrichtungsassistent: Entwuerfe sind reine Planungsdaten
+        -- (JSON in daten), es entstehen dabei keine Wettbewerbe oder Spiele.
+        -- Erst "Veranstaltung erstellen" legt alles in einer Transaktion an
+        -- (status 'uebernommen', event_id), siehe assistent_entwurf_service.
+        CREATE TABLE IF NOT EXISTS assistent_entwuerfe (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titel TEXT NOT NULL,
+            daten TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'offen',
+            version INTEGER NOT NULL DEFAULT 1,
+            event_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        -- Eigene Vorlagen des Assistenten (Parameter und Regeln ohne
+        -- konkrete Team-/Feld-ids, siehe vorlage_aus_daten).
+        CREATE TABLE IF NOT EXISTS assistent_vorlagen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            daten TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         );
         """)
 
@@ -485,6 +512,12 @@ def init_db(db_path=None):
         # NULL heisst game_duration_minutes gilt.
         if "game_duration_seconds" not in competition_columns:
             conn.execute("ALTER TABLE competitions ADD COLUMN game_duration_seconds INTEGER")
+
+        # Reihenfolge der Gleichstandsregeln nach den Punkten, z.B.
+        # "tordifferenz,tore,direkter_vergleich" (siehe tiebreak_service).
+        # NULL heisst: bisherige Standardreihenfolge, unveraendert.
+        if "tiebreak_order" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN tiebreak_order TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

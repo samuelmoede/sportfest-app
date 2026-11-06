@@ -34,6 +34,10 @@
     <div class="hero-actions">
         {% if can_manage_event %}
         <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
+        <form method="post" action="/assistent/vorlagen/aus-veranstaltung/{{ event.id }}" style="display: inline;">
+            <input type="hidden" name="name" value="Vorlage {{ event.name }}">
+            <button class="secondary" type="submit">Als Vorlage speichern</button>
+        </form>
         {% endif %}
         <a class="button primary" href="/spielplan">Spielplan öffnen</a>
     </div>
