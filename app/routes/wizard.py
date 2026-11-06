@@ -24,9 +24,18 @@ from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
 )
+from app.services.schulpokal_gesamtplan_service import (
+    ABLAEUFE,
+    apply_gesamtplan,
+    build_gesamtplan,
+    load_bloecke,
+    read_settings,
+)
 from app.services.schulpokal_vorlage_service import (
     DEFAULT_SCHULPOKAL_BLOECKE,
     create_schulpokal_from_template,
+    parse_points,
+    parse_teilmannschaften,
 )
 from app.services.tournament_modes import DEFAULT_TURNIER_MODE, TURNIER_MODES
 from app.web import templates
@@ -115,6 +124,9 @@ def create_router(
         block_start_time: List[str] = Form([]),
         block_end_time: List[str] = Form([]),
         block_finale_time: List[str] = Form([]),
+        block_teilmannschaften: List[str] = Form([]),
+        block_points_win: List[str] = Form([]),
+        block_points_draw: List[str] = Form([]),
         siegerehrung: str = Form(""),
     ):
         """Vorlage Schulpokal (ROADMAP Phase 7): Veranstaltung samt aller
@@ -130,6 +142,9 @@ def create_router(
                 "start_time": value(block_start_time, i),
                 "end_time": value(block_end_time, i),
                 "finale_time": value(block_finale_time, i),
+                "teilmannschaften": value(block_teilmannschaften, i),
+                "points_win": value(block_points_win, i),
+                "points_draw": value(block_points_draw, i),
                 "siegerehrung": siegerehrung == "1",
             }
             for i in range(len(block_sportart))
@@ -200,6 +215,7 @@ def create_router(
     def assistent_event(request: Request, event_id: int):
         error = request.query_params.get("error", "").strip()
         vorlage_hinweis = request.query_params.get("vorlage_hinweis", "").strip()
+        gesamtplan_ok = request.query_params.get("gesamtplan_ok", "").strip()
         with get_conn() as conn:
             event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
             if event is None:
@@ -251,11 +267,15 @@ def create_router(
                 "event": event,
                 "error": error,
                 "vorlage_hinweis": vorlage_hinweis,
+                "gesamtplan_ok": gesamtplan_ok if gesamtplan_ok.isdigit() else "",
                 "has_teams": bool(teams),
                 "has_courts": bool(courts),
                 "teams_by_jahrgang": teams_by_jahrgang,
                 "jahrgang_options": jahrgang_options,
                 "competitions": [dict(c) for c in competitions],
+                "schulpokal_competition_count": sum(
+                    1 for c in competitions if c["competition_type"] == "Schulpokal"
+                ),
                 "competition_types": COMPETITION_TYPES,
                 "schulpokal_modes": SCHULPOKAL_MODES,
                 "default_schulpokal_mode": DEFAULT_SCHULPOKAL_MODE,
@@ -267,6 +287,60 @@ def create_router(
                 "default_game_duration_minutes": DEFAULT_GAME_DURATION_MINUTES,
                 "default_changeover_duration_minutes": DEFAULT_CHANGEOVER_DURATION_MINUTES,
             },
+        )
+
+    def render_gesamtplan(request, event_id, settings=None, preview=False, fehler=None):
+        with get_conn() as conn:
+            event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
+            if event is None:
+                return RedirectResponse("/assistent", status_code=303)
+            plan = build_gesamtplan(conn, event_id, settings) if preview else {
+                "bloecke": load_bloecke(conn, event_id), "slots": [], "warnings": [], "ok": False,
+            }
+        if not preview:
+            plan["bloecke"] = [
+                dict(block, settings=read_settings({}, [block])[block["key"]])
+                for block in plan["bloecke"]
+            ]
+        return templates.TemplateResponse(
+            request=request,
+            name="assistent_schulpokal_plan.html",
+            context={
+                "event": event,
+                "plan": plan,
+                "preview": preview,
+                "ablaeufe": ABLAEUFE,
+                "fehler": fehler or [],
+            },
+        )
+
+    @router.get("/assistent/{event_id}/schulpokal-plan")
+    def assistent_schulpokal_plan(request: Request, event_id: int):
+        """Gesamtplan Schulpokal: alle Bloecke auf einmal planen."""
+        return render_gesamtplan(request, event_id)
+
+    @router.post("/assistent/{event_id}/schulpokal-plan/vorschau")
+    async def assistent_schulpokal_plan_vorschau(request: Request, event_id: int):
+        form = await request.form()
+        with get_conn() as conn:
+            settings = read_settings(form, load_bloecke(conn, event_id))
+        return render_gesamtplan(request, event_id, settings, preview=True)
+
+    @router.post("/assistent/{event_id}/schulpokal-plan/uebernehmen")
+    async def assistent_schulpokal_plan_uebernehmen(request: Request, event_id: int):
+        form = await request.form()
+        with get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            settings = read_settings(form, load_bloecke(conn, event_id))
+            count, fehler = apply_gesamtplan(conn, event_id, settings)
+            if fehler:
+                conn.rollback()
+            else:
+                conn.commit()
+        if fehler:
+            return render_gesamtplan(request, event_id, settings, preview=True, fehler=fehler)
+        return RedirectResponse(
+            f"/assistent/{event_id}?gesamtplan_ok={count}", status_code=303
         )
 
     @router.post("/assistent/{event_id}/team/anlegen")
@@ -339,8 +413,18 @@ def create_router(
         location: str = Form(""),
         start_time: str = Form(""),
         end_time: str = Form(""),
+        teilmannschaften: str = Form(""),
+        points_win: str = Form(""),
+        points_draw: str = Form(""),
     ):
         sportart_value = sportart.strip()
+        # Getrennte Wertung innerhalb der Klasse (Schulpokal-Tischtennis:
+        # "Jungen, Maedchen"): je Teilmannschaft ein eigener Wettbewerb mit
+        # denselben Klassen-Teams, keine Extra-Teams noetig.
+        teilmannschaft_values = parse_teilmannschaften(teilmannschaften) or [None]
+        points_win_value, points_draw_value = parse_points(
+            points_win, points_draw, competition_type
+        )
         jahrgang_value = normalize_jahrgang(jahrgang)
         # Ort und Zeitfenster wie auf /wettbewerbe (Schulpokal: Tischtennis
         # in der Mensa, Volleyball 11:10-13:40). Ein leerer Ort bleibt NULL
@@ -401,33 +485,40 @@ def create_router(
             punkterunde_grosses_finale_value = 1 if punkterunde_grosses_finale == "1" else 0
             punkterunde_kleines_finale_value = 1 if punkterunde_kleines_finale == "1" else 0
 
-            base_name = name.strip() or f"{sportart_value} Jahrgang {jahrgang_value}"
-            competition_name = _unique_competition_name(conn, base_name)
+            for teilmannschaft in teilmannschaft_values:
+                if name.strip():
+                    base_name = name.strip() + (f" {teilmannschaft}" if teilmannschaft else "")
+                elif teilmannschaft:
+                    base_name = f"{sportart_value} {teilmannschaft} Jahrgang {jahrgang_value}"
+                else:
+                    base_name = f"{sportart_value} Jahrgang {jahrgang_value}"
+                competition_name = _unique_competition_name(conn, base_name)
 
-            cursor = conn.execute(
-                """
-                INSERT INTO competitions (
-                    name, sportart, jahrgang, status, points_win, points_draw,
-                    points_loss, points_first_place, event_id, competition_type,
-                    tournament_mode, game_duration_minutes, changeover_duration_minutes,
-                    punkterunde_grosses_finale, punkterunde_kleines_finale,
-                    location, start_time, end_time
-                ) VALUES (?, ?, ?, 'geplant', 3, 1, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    competition_name, sportart_value, jahrgang_value, team_count,
-                    event_id, competition_type, tournament_mode_value,
-                    game_duration_minutes, changeover_duration_minutes,
-                    punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
-                    location_value, start_time_value, end_time_value,
-                ),
-            )
-            new_competition_id = cursor.lastrowid
-            for team_id in explicit_team_ids:
-                conn.execute(
-                    "INSERT OR IGNORE INTO competition_teams (competition_id, team_id) VALUES (?, ?)",
-                    (new_competition_id, team_id),
+                cursor = conn.execute(
+                    """
+                    INSERT INTO competitions (
+                        name, sportart, jahrgang, status, points_win, points_draw,
+                        points_loss, points_first_place, event_id, competition_type,
+                        tournament_mode, game_duration_minutes, changeover_duration_minutes,
+                        punkterunde_grosses_finale, punkterunde_kleines_finale,
+                        location, start_time, end_time, teilmannschaft
+                    ) VALUES (?, ?, ?, 'geplant', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        competition_name, sportart_value, jahrgang_value,
+                        points_win_value, points_draw_value, team_count,
+                        event_id, competition_type, tournament_mode_value,
+                        game_duration_minutes, changeover_duration_minutes,
+                        punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
+                        location_value, start_time_value, end_time_value, teilmannschaft,
+                    ),
                 )
+                new_competition_id = cursor.lastrowid
+                for team_id in explicit_team_ids:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO competition_teams (competition_id, team_id) VALUES (?, ?)",
+                        (new_competition_id, team_id),
+                    )
             conn.commit()
 
         return RedirectResponse(f"/assistent/{event_id}", status_code=303)

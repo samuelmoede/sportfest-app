@@ -99,7 +99,9 @@
     <p>
         Legt die Veranstaltung mit allen Wettbewerben an: je Sportart und Jahrgang ein Schulpokal-Wettbewerb
         mit Ort und Zeitfenster, dazu das Jahrgangsfinale (Sieger gegen Sieger) und die Siegerehrung zum Blockende.
-        Den Spielplan erzeugst du danach je Block im Plan-Generator, der auch die passende Spielzeit vorschlägt.
+        "Getrennt nach" (z. B. Jungen, Mädchen beim Tischtennis) legt je Teilmannschaft einen eigenen Wettbewerb
+        mit denselben Klassen an, Extra-Teams braucht es nicht. Den Spielplan für alle Blöcke erzeugst du danach
+        im Assistenten mit "Ganzen Schulpokal planen".
         Eine Zeile ohne Sportart wird übersprungen.
     </p>
     {% if vorlage_fehler %}
@@ -123,6 +125,9 @@
             <span>von <input type="time" name="block_start_time" value="{{ block.start_time }}" aria-label="Start Block {{ loop.index }}"></span>
             <span>bis <input type="time" name="block_end_time" value="{{ block.end_time }}" aria-label="Ende Block {{ loop.index }}"></span>
             <span>Finale <input type="time" name="block_finale_time" value="{{ block.finale_time }}" aria-label="Finale Block {{ loop.index }}"></span>
+            <input type="text" name="block_teilmannschaften" value="{{ block.teilmannschaften }}" placeholder="getrennt nach, z. B. Jungen, Mädchen" aria-label="Getrennte Wertung Block {{ loop.index }}">
+            <span>Sieg <input type="number" min="0" name="block_points_win" value="{{ block.points_win }}" style="width: 4em;" aria-label="Punkte Sieg Block {{ loop.index }}"> Pkt.</span>
+            <span>Unentschieden <input type="number" min="0" name="block_points_draw" value="{{ block.points_draw }}" style="width: 4em;" aria-label="Punkte Unentschieden Block {{ loop.index }}"> Pkt.</span>
         </div>
         {% endfor %}
         <label>Siegerehrung</label>

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .gesamtplan-validation-error { color: var(--red); }
+    .gesamtplan-validation-warning { color: var(--amber); }
+    .gesamtplan-block-settings { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+    .gesamtplan-block-settings input[type="number"] { width: 5em; }
+    .gesamtplan-grid-scroll { overflow-x: auto; }
+    .gesamtplan-grid td, .gesamtplan-grid th { white-space: nowrap; text-align: center; }
+    .gesamtplan-grid .gesamtplan-competition { display: block; font-size: 0.8em; opacity: 0.75; }
+</style>
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Wettbewerbs-Assistent · {{ event.name }}</p>
+        <h1>Ganzen Schulpokal planen</h1>
+        <p>Alle Blöcke auf einmal planen, danach den Vorschlag prüfen und übernehmen.</p>
+    </div>
+    <a class="button secondary" href="/assistent/{{ event.id }}">Zurück zum Assistenten</a>
+</header>
+
+{% if fehler %}
+<section class="panel validation-box has-errors">
+    <strong>Nicht übernommen:</strong>
+    <ul>
+        {% for message in fehler %}<li class="gesamtplan-validation-error">{{ message }}</li>{% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+{% if not plan.bloecke %}
+<section class="panel">
+    <p class="muted">
+        Diese Veranstaltung hat noch keine Schulpokal-Wettbewerbe mit Spielfeldern.
+        Lege sie im <a href="/assistent/{{ event.id }}">Assistenten</a> an (Wettbewerbstyp Schulpokal).
+    </p>
+</section>
+{% else %}
+<form method="post" action="/assistent/{{ event.id }}/schulpokal-plan/vorschau">
+    <input type="hidden" name="gesendet" value="1">
+    {% for block in plan.bloecke %}
+    {% set s = block.settings %}
+    <section class="panel" id="block-{{ block.key }}">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">{{ block.location }}</p>
+                <h2>{{ block.sportart }}</h2>
+            </div>
+            <label><input type="checkbox" name="planen_{{ block.key }}" value="1" {% if s.planen %}checked{% endif %}> planen</label>
+        </div>
+        <p class="muted">
+            {% for entry in block.entries %}{{ entry.competition_name }} ({{ entry.team_names|length }} Klassen){% if not loop.last %} · {% endif %}{% endfor %}
+            {% if block.end_time %}<br>Zeitfenster laut Wettbewerb: {{ block.start_time }} bis {{ block.end_time }}{% endif %}
+            {% if block.existing_games %}<br>Bisher {{ block.existing_games }} Gruppenspiele gespeichert, sie werden beim Übernehmen ersetzt.{% endif %}
+        </p>
+        <div class="gesamtplan-block-settings">
+            <label>Ablauf
+                <select name="ablauf_{{ block.key }}">
+                    {% for key, label in ablaeufe.items() %}
+                    <option value="{{ key }}" {% if s.ablauf == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Felder/Platten
+                <input type="number" min="1" max="{{ block.courts|length }}" name="anzahl_felder_{{ block.key }}" value="{{ s.anzahl_felder }}">
+                von {{ block.courts|length }}
+            </label>
+            <label>Start <input type="time" name="startzeit_{{ block.key }}" value="{{ s.startzeit }}"></label>
+            <label>Spielzeit <input type="number" min="1" name="spielzeit_{{ block.key }}" value="{{ s.spielzeit }}"> Min.</label>
+            <label>Wechselzeit <input type="number" min="0" name="wechselzeit_{{ block.key }}" value="{{ s.wechselzeit }}"> Min.</label>
+        </div>
+        <p class="muted">
+            Klassen eines Jahrgangs spielen nur gegeneinander. Getrennte Wertungen eines Jahrgangs
+            (z. B. Tischtennis Jungen und Mädchen) spielen immer gleichzeitig auf eigenen Platten.
+        </p>
+
+        {% if preview and s.planen %}
+            {% for message in block.fehler %}<p class="gesamtplan-validation-error"><strong>Fehler:</strong> {{ message }}</p>{% endfor %}
+            {% for message in block.hinweise %}<p class="gesamtplan-validation-warning"><strong>Hinweis:</strong> {{ message }}</p>{% endfor %}
+            {% if block.slots %}
+            <p>
+                <strong>{{ block.slots|length }} Spiele</strong>, {{ block.steps }} Zeitschritte,
+                letztes Spiel endet um <strong>{{ block.planned_end }}</strong>.
+                {% if block.spielzeit_vorschlag %}
+                Vorschlag für das Zeitfenster bis {{ block.end_time }}: <strong>{{ block.spielzeit_vorschlag }} Min.</strong> Spielzeit.
+                {% endif %}
+            </p>
+            <div class="gesamtplan-grid-scroll">
+            <table class="team-table gesamtplan-grid">
+                <thead>
+                    <tr>
+                        <th>Uhrzeit</th>
+                        {% for court in block.used_courts %}<th>{{ court.name }}</th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for time in block.times %}
+                    <tr>
+                        <th>{{ time }}</th>
+                        {% for court in block.used_courts %}
+                        {% set cell = block.slots | selectattr("startzeit", "equalto", time) | selectattr("court_id", "equalto", court.id) | first %}
+                        <td>
+                            {% if cell %}
+                            {{ cell.team_a }} : {{ cell.team_b }}
+                            <span class="gesamtplan-competition">{{ cell.competition_name }}</span>
+                            {% else %}<span class="muted">–</span>{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endif %}
+        {% endif %}
+    </section>
+    {% endfor %}
+
+    {% if preview %}
+    <section class="panel validation-box{% if not plan.ok %} has-errors{% endif %}">
+        <strong>Prüfung</strong>
+        {% if plan.warnings %}
+        <ul>
+            {% for warning in plan.warnings %}
+            <li class="{% if warning.level == 'error' %}gesamtplan-validation-error{% else %}gesamtplan-validation-warning{% endif %}">
+                <strong>{% if warning.level == "error" %}Fehler{% else %}Hinweis{% endif %}:</strong> {{ warning.message }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% elif plan.ok %}
+        <p>Keine Konflikte gefunden.</p>
+        {% endif %}
+        {% if not plan.ok %}
+        <p class="gesamtplan-validation-error"><strong>So kann der Plan nicht übernommen werden.</strong> Einstellungen anpassen und neu berechnen.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="panel">
+        <button class="{% if preview %}secondary{% else %}green{% endif %}" type="submit">
+            {% if preview %}Neu berechnen{% else %}Vorschlag für alle Blöcke erstellen{% endif %}
+        </button>
+        {% if preview and plan.ok %}
+        <button class="green" type="submit" formaction="/assistent/{{ event.id }}/schulpokal-plan/uebernehmen"
+                onclick="return confirm('Gesamtplan übernehmen? Bisher geplante, ungespielte Gruppenspiele dieser Blöcke werden ersetzt.');">
+            Alles übernehmen
+        </button>
+        {% endif %}
+    </section>
+</form>
+{% endif %}
+{% endblock %}

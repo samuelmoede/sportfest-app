@@ -566,6 +566,116 @@ def generate_schulpokal_plan(
     return proposed_slots
 
 
+def _split_courts(court_ids, needs):
+    """Teilt die Felder auf zeitgleich spielende Wettbewerbe auf: jeder bekommt
+    mindestens ein Feld, weitere Felder gehen an den Wettbewerb mit dem
+    groessten Bedarf je Feld (Bedarf = Spiele pro Runde). Die Felder bleiben
+    zusammenhaengend (Platte 1-3, 4-6, ...)."""
+    if len(court_ids) < len(needs):
+        return None
+    alloc = [1] * len(needs)
+    remaining = len(court_ids) - len(needs)
+    while remaining > 0:
+        candidates = [
+            (needs[i] / alloc[i], -i) for i in range(len(needs)) if alloc[i] < needs[i]
+        ]
+        if not candidates:
+            break
+        _, neg_index = max(candidates)
+        alloc[-neg_index] += 1
+        remaining -= 1
+    chunks = []
+    position = 0
+    for count in alloc:
+        chunks.append(list(court_ids[position:position + count]))
+        position += count
+    return chunks
+
+
+def plan_schulpokal_block(
+    entries,
+    court_ids,
+    startzeit_minutes: int,
+    slot_interval_minutes: int,
+    gleichzeitig: bool = False,
+    tournament_mode: str = DEFAULT_SCHULPOKAL_MODE,
+):
+    """Verplant einen Block des Schulpokals (eine Sportart an einem Ort).
+
+    entries: je Wettbewerb ein dict mit competition_id, competition_name,
+    jahrgang, team_names und team_ids (Name -> id).
+
+    Wettbewerbe desselben Jahrgangs (z.B. Tischtennis Jungen und Maedchen)
+    spielen immer zeitgleich, die Felder werden unter ihnen aufgeteilt.
+    Verschiedene Jahrgaenge wechseln sich ab (gleichzeitig=False: Runde J9,
+    Runde J10, Runde J9, ...) oder spielen zeitgleich auf getrennten Feldern
+    (gleichzeitig=True).
+
+    Gibt (slots, anzahl_zeitschritte) zurueck; Uhrzeiten als HH:MM. Wirft
+    ValueError, wenn es weniger Felder als zeitgleiche Wettbewerbe gibt."""
+    mode = SCHULPOKAL_MODES.get(tournament_mode) or SCHULPOKAL_MODES[DEFAULT_SCHULPOKAL_MODE]
+    entries = [entry for entry in entries if len(entry["team_names"]) >= 2]
+    if not entries or not court_ids:
+        return [], 0
+
+    if gleichzeitig:
+        takt_gruppen = [entries]
+    else:
+        by_jahrgang = {}
+        for entry in entries:
+            by_jahrgang.setdefault(str(entry["jahrgang"]), []).append(entry)
+        takt_gruppen = list(by_jahrgang.values())
+
+    for gruppe in takt_gruppen:
+        chunks = _split_courts(
+            list(court_ids), [len(entry["team_names"]) // 2 for entry in gruppe]
+        )
+        if chunks is None:
+            raise ValueError(
+                f"Zu wenige Felder: {len(gruppe)} Wettbewerbe sollen gleichzeitig spielen, "
+                f"es gibt aber nur {len(court_ids)} Felder."
+            )
+        for entry, chunk in zip(gruppe, chunks):
+            entry["rounds"] = _schedule_pairings_into_rounds(
+                mode["build_pairings"](entry["team_names"]), entry["team_names"], chunk
+            )
+
+    slots = []
+    current = startzeit_minutes
+    steps = 0
+    pointers = [0] * len(takt_gruppen)
+    while any(
+        pointers[g] < max(len(entry["rounds"]) for entry in gruppe)
+        for g, gruppe in enumerate(takt_gruppen)
+    ):
+        for g, gruppe in enumerate(takt_gruppen):
+            if pointers[g] >= max(len(entry["rounds"]) for entry in gruppe):
+                continue
+            time_value = _minutes_to_clock(current)
+            for entry in gruppe:
+                if pointers[g] >= len(entry["rounds"]):
+                    continue
+                for court_id, team_a, team_b, gruppe_name in entry["rounds"][pointers[g]]:
+                    slots.append({
+                        "competition_id": entry["competition_id"],
+                        "competition_name": entry["competition_name"],
+                        "startzeit": time_value,
+                        "slot_typ": "Spiel",
+                        "court_id": court_id,
+                        "phase": "Gruppenphase",
+                        "gruppe": gruppe_name,
+                        "team_a_id": entry["team_ids"][team_a],
+                        "team_b_id": entry["team_ids"][team_b],
+                        "team_a": team_a,
+                        "team_b": team_b,
+                        "note": "",
+                    })
+            pointers[g] += 1
+            current += slot_interval_minutes
+            steps += 1
+    return slots, steps
+
+
 def validate_schulpokal_plan(
     proposed_slots,
     expected_teams_by_competition,
