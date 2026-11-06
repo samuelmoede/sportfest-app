@@ -133,18 +133,34 @@ class ProgrammpunktRouteTests(_DbTestCase):
             page = client.get(f"/events/{self.event_id}")
             self.assertIn("Jahrgang 7 + 8", page.text)
             self.assertIn('name="jahrgaenge" value="9"', page.text)
-            # Block Jahrgang 9 (11:10) bekommt keins von beiden: Eroeffnung
-            # liegt vor dem Block, Siegerehrung gilt nur fuer 7 und 8.
             # Eroeffnung und Siegerehrung als eigene Bloecke in den Spalten
             # Jahrgang 7 und 8, ohne "danach"
             self.assertEqual(page.text.count('title="10:40–10:55 Siegerehrung"'), 2)
-            self.assertEqual(page.text.count('title="08:00–08:10 Eröffnung"'), 2)
+            # Eroeffnung fuer alle Jahrgaenge auch in Spalte 9, obwohl dort
+            # erst um 11:10 gespielt wird
+            self.assertEqual(page.text.count('title="08:00–08:10 Eröffnung"'), 3)
             self.assertNotIn("danach", page.text)
             with get_conn() as conn:
                 pid = list_programmpunkte(conn, self.event_id)[0]["id"]
             client.post(f"/events/{self.event_id}/programmpunkt/{pid}/loeschen")
             with get_conn() as conn:
                 self.assertEqual(len(list_programmpunkte(conn, self.event_id)), 1)
+
+    def test_old_ceremony_slot_and_programmpunkt_show_once(self):
+        with get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO slots (competition_id, startzeit, slot_typ, phase, status, note)
+                VALUES (?, '10:40', 'Siegerehrung', 'Siegerehrung', 'geplant', 'Siegerehrung')
+                """,
+                (self.competition_ids[7],),
+            )
+            create_programmpunkt(conn, self.event_id, "Siegerehrung", "10:40", "10:50", ["7", "8"])
+            conn.commit()
+        with self._client() as client:
+            page = client.get(f"/events/{self.event_id}")
+        self.assertEqual(page.text.count('title="10:40–10:50 Siegerehrung"'), 2)
+        self.assertNotIn("10:40–10:45 Siegerehrung", page.text)
 
     def test_invalid_times_show_error(self):
         with self._client() as client:
