@@ -42,7 +42,11 @@ class WizardRouteTests(unittest.TestCase):
         self.assertTrue(location.startswith("/assistent/"))
         return int(location.rsplit("/", 1)[-1])
 
-    def test_start_page_lists_events_and_form(self):
+    def test_start_page_shows_only_new_entry_points(self):
+        """Die Startseite zeigt nur noch die Einstiege des neuen
+        Einrichtungsassistenten; die alten Formulare (Veranstaltung waehlen/
+        anlegen, Vorlage Schulpokal, Turnier-Schnellstart) sind dort raus.
+        Ihre Routen bleiben erreichbar."""
         from app.main import app as fastapi_app
         with get_conn() as conn:
             conn.execute(
@@ -53,8 +57,11 @@ class WizardRouteTests(unittest.TestCase):
         with TestClient(fastapi_app) as client:
             response = client.get("/assistent")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Bestehende Veranstaltung", response.text)
-        self.assertIn("Neue Veranstaltung anlegen", response.text)
+        for label in ("Neue Veranstaltung", "Aus Vorlage starten", "Entwurf fortsetzen", "Vorlagen verwalten"):
+            self.assertIn(label, response.text)
+        for alt in ("Weitere Wege", "Neue Veranstaltung anlegen", 'action="/assistent/veranstaltung/anlegen"',
+                    'action="/assistent/vorlage/schulpokal"', 'action="/turnier-schnellstart"'):
+            self.assertNotIn(alt, response.text)
 
     def test_create_event_redirects_into_wizard(self):
         from app.main import app as fastapi_app
@@ -756,10 +763,10 @@ class WizardRouteTests(unittest.TestCase):
 
 
 class WizardQuickstartIntegrationTests(unittest.TestCase):
-    """Issue #83: der Turnier-Schnellstart (/turnier-schnellstart) ist kein
-    eigener Nav-Eintrag mehr, sondern wird direkt eingebettet auf der
-    /assistent-Startseite angeboten (Formular postet weiterhin an die
-    unveraenderte /turnier-schnellstart-Route, siehe test_quickstart_route.py)."""
+    """Issue #83: Inline-Anlage von Teams und Feldern fuer den
+    Turnier-Schnellstart. Das eingebettete Schnellstart-Formular ist seit dem
+    neuen Einrichtungsassistenten nicht mehr auf der /assistent-Startseite;
+    /turnier-schnellstart selbst bleibt (siehe test_quickstart_route.py)."""
 
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -771,60 +778,6 @@ class WizardQuickstartIntegrationTests(unittest.TestCase):
     def tearDown(self):
         self._db_path_patcher.stop()
         self._tmpdir.cleanup()
-
-    def test_start_page_embeds_quickstart_form_with_teams_and_courts(self):
-        from app.main import app as fastapi_app
-        with get_conn() as conn:
-            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7a', 7, 1)")
-            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7b', 7, 1)")
-            # Der Schnellstart filtert Felder auf DEFAULT_COMPETITION_LOCATION
-            # ("Turnhalle"); die von init_db() geseedeten Standardfelder
-            # (Rasenplatz, Kaefig) liegen am Ort "Fussballplatz" und zaehlen
-            # hier nicht - ohne ein aktives Turnhalle-Feld bliebe courts leer.
-            conn.execute(
-                "INSERT INTO courts (name, location, active) VALUES ('Feld 1', 'Turnhalle', 1)"
-            )
-            conn.commit()
-        with TestClient(fastapi_app) as client:
-            response = client.get("/assistent")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('action="/turnier-schnellstart"', response.text)
-        self.assertIn("7a", response.text)
-        self.assertIn("Feld 1", response.text)
-
-    def test_start_page_shows_hint_when_no_teams(self):
-        from app.main import app as fastapi_app
-        with TestClient(fastapi_app) as client:
-            response = client.get("/assistent")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Es sind keine aktiven Teams angelegt", response.text)
-        self.assertNotIn('action="/turnier-schnellstart"', response.text)
-
-    def test_start_page_offers_inline_team_creation_when_no_teams(self):
-        """Issue #107: statt auf /teams zu verweisen, bietet der
-        Schnellstart-Bereich dieselbe Inline-Team-Anlage wie der
-        Wettbewerbs-Assistent selbst."""
-        from app.main import app as fastapi_app
-        with TestClient(fastapi_app) as client:
-            response = client.get("/assistent")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('action="/assistent/team/anlegen"', response.text)
-        self.assertNotIn("Lege zuerst unter", response.text)
-
-    def test_start_page_offers_inline_court_creation_when_no_courts(self):
-        from app.main import app as fastapi_app
-        with get_conn() as conn:
-            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7a', 7, 1)")
-            conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('7b', 7, 1)")
-            # Standardfelder liegen am Ort "Fussballplatz", der Schnellstart
-            # filtert auf DEFAULT_COMPETITION_LOCATION ("Turnhalle") - ohne
-            # aktives Turnhalle-Feld bleibt courts also leer.
-            conn.commit()
-        with TestClient(fastapi_app) as client:
-            response = client.get("/assistent")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('action="/assistent/spielfeld/anlegen"', response.text)
-        self.assertNotIn("Lege zuerst unter", response.text)
 
     def test_quickstart_inline_team_creation(self):
         from app.main import app as fastapi_app

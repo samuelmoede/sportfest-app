@@ -43,9 +43,12 @@ Wichtige Entscheidungen:
   noch Klassen. Ein Start aus einer Vorlage erzwingt den Abgleich von Datum,
   Klassen, Sportarten und Orten; fehlende Jahrgänge, inaktive Orte und nicht
   mehr vorhandene Felder werden dort gemeldet statt stillschweigend ersetzt.
-- **Alte Wege bleiben:** Die bisherigen Formulare der Assistent-Startseite
-  (Veranstaltung anlegen, Vorlage Schulpokal, Turnier-Schnellstart) und alle
-  alten Routen bleiben unter „Weitere Wege“ erhalten.
+- **Alte Wege aus der Übersicht entfernt:** Die bisherigen Formulare der
+  Assistent-Startseite (Veranstaltung wählen/anlegen, Vorlage Schulpokal,
+  Turnier-Schnellstart) sind dort raus (Samuel, 2026-11-06: „verwirrt nur“).
+  Die alten Routen (`/assistent/{event_id}`, `/assistent/vorlage/schulpokal`,
+  `/turnier-schnellstart`) funktionieren weiter, sind aber nicht mehr von der
+  Startseite verlinkt.
 
 ## Migration
 
