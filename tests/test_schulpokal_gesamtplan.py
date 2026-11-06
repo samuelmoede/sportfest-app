@@ -168,6 +168,22 @@ class SchulpokalGesamtplanTests(unittest.TestCase):
         with get_conn() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) AS n FROM teams").fetchone()["n"], 25)
 
+    def test_games_start_after_opening(self):
+        from app.services.programmpunkte_service import create_programmpunkt
+        from app.services.schulpokal_gesamtplan_service import build_gesamtplan, load_bloecke
+        with get_conn() as conn:
+            create_programmpunkt(conn, self.event_id, "Eröffnung", "08:00", "08:10", ["7", "8"])
+            conn.commit()
+            bloecke = load_bloecke(conn, self.event_id)
+            zweifelderball = next(b for b in bloecke if b["sportart"] == "Zweifelderball")
+            self.assertEqual(zweifelderball["games_start"], "08:10")
+            self.assertEqual(zweifelderball["start_nach"], "Eröffnung")
+            volleyball = next(b for b in bloecke if b["sportart"] == "Volleyball")
+            self.assertEqual(volleyball["games_start"], "11:10")
+            plan = build_gesamtplan(conn, self.event_id)
+        block = next(b for b in plan["bloecke"] if b["sportart"] == "Zweifelderball")
+        self.assertEqual(min(slot["startzeit"] for slot in block["slots"]), "08:10")
+
     def test_assistant_offers_whole_plan_button(self):
         page = self.client.get(f"/assistent/{self.event_id}")
         self.assertIn(f"/assistent/{self.event_id}/schulpokal-plan", page.text)
@@ -422,7 +438,7 @@ class RundenTimerTests(unittest.TestCase):
         self.assertEqual(timer["running"]["slot_ids"], [1])
         self.assertEqual(timer["running"]["planned_seconds"], 600)
         self.assertIsNone(timer["running"]["stopped_at"])
-        self.assertEqual(timer["next"], {"startzeit": "11:45", "slot_ids": [2], "count": 1})
+        self.assertEqual(timer["next"], {"startzeit": "11:45", "slot_ids": [2], "count": 1, "competition_id": None})
 
     def test_start_all_simultaneous_games_and_stop_timer(self):
         page = self.client.get("/ergebnisse?ort=Mensa")

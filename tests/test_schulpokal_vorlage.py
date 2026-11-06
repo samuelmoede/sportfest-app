@@ -99,7 +99,8 @@ class SchulpokalVorlageTests(unittest.TestCase):
                 )
             }
             ceremonies = conn.execute(
-                "SELECT startzeit FROM slots WHERE slot_typ = 'Siegerehrung' ORDER BY startzeit"
+                "SELECT titel, start_time, end_time, jahrgaenge FROM event_programmpunkte "
+                "ORDER BY start_time"
             ).fetchall()
             finals = conn.execute(
                 "SELECT c.name, s.startzeit FROM competitions c JOIN slots s ON s.competition_id = c.id "
@@ -117,8 +118,12 @@ class SchulpokalVorlageTests(unittest.TestCase):
             [(row["name"], row["startzeit"]) for row in finals],
             [("Zweifelderball Jahrgangsfinale 7/8", "10:45"), ("Volleyball Jahrgangsfinale 9/10", "13:50")],
         )
-        # Volleyball und Tischtennis enden gleichzeitig: eine Siegerehrung.
-        self.assertEqual([row["startzeit"] for row in ceremonies], ["10:40", "13:40"])
+        # Siegerehrung vom Blockende bis zum Jahrgangsfinale. Volleyball und
+        # Tischtennis enden gleichzeitig: eine gemeinsame fuer 9 und 10.
+        self.assertEqual(
+            [tuple(row) for row in ceremonies],
+            [("Siegerehrung", "10:40", "10:45", "7,8"), ("Siegerehrung", "13:40", "13:50", "9,10")],
+        )
 
     def test_missing_jahrgang_is_skipped_with_hint(self):
         bloecke = [dict(DEFAULT_SCHULPOKAL_BLOECKE[0], jahrgaenge="7, 11")]

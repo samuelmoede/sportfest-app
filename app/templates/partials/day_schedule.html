@@ -1,5 +1,13 @@
-{% macro render_block_content(item, editable=false) %}
+{# Verspaetung im Block nur fuer Admin und Turnierleitung #}
+{% set show_day_delay = can_access_role(request, "tournament_lead") %}
+{% macro render_block_content(item, editable=false, show_delay=false) %}
 {% set segments = item.segments if item.segments is defined else none %}
+{% if show_delay and item.verspaetung is defined and item.verspaetung is not none %}
+<span class="day-timeline-delay{% if item.verspaetung >= 5 %} is-late{% endif %}" title="Verspätung gegenüber dem geplanten Spielplan · Klicken: Zeitplan aufholen"
+      data-aufholen-href="/zeitplan-aufholen?competition_id={{ item.competition_id }}" role="link" tabindex="0">
+    {% if item.verspaetung > 0 %}+{{ item.verspaetung }} Min.{% else %}im Plan{% endif %}
+</span>
+{% endif %}
 {# Ablauf nur in Bloecken mit voller Spaltenbreite, schmale Spuren sind dafuer zu eng. #}
 {% if segments and (segments.inside or segments.after) and (item.lane_width_percent|default(100)) >= 99 %}
 <div class="day-timeline-block-head">
@@ -87,14 +95,14 @@
                          data-start-minutes="{{ item.start_minutes }}"
                          data-end-minutes="{{ item.end_minutes }}">
                         <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
-                        {{ render_block_content(item, editable=true) }}
+                        {{ render_block_content(item, editable=true, show_delay=show_day_delay) }}
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
                     </div>
                     {% else %}
                     <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
-                        {{ render_block_content(item) }}
+                        {{ render_block_content(item, show_delay=show_day_delay) }}
                     </a>
                     {% endif %}
                     {% endfor %}
@@ -333,7 +341,7 @@
         });
 
         block.addEventListener("pointerdown", function (event) {
-            if (event.target.closest("a")) {
+            if (event.target.closest("a, [data-aufholen-href]")) {
                 return;
             }
             var handle = event.target.closest("[data-grobplan-handle]");
@@ -370,4 +378,21 @@
         }
     }
 })();
+</script>
+<script>
+// Verspaetung im Block: Klick oeffnet "Zeitplan aufholen" statt des Spielplans.
+document.addEventListener("click", function (event) {
+    var badge = event.target.closest && event.target.closest("[data-aufholen-href]");
+    if (!badge) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.href = badge.dataset.aufholenHref;
+}, true);
+document.addEventListener("keydown", function (event) {
+    var badge = event.target.closest && event.target.closest("[data-aufholen-href]");
+    if (!badge || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.href = badge.dataset.aufholenHref;
+}, true);
 </script>

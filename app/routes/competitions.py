@@ -427,7 +427,7 @@ def create_router(
                 SET name = ?, sportart = ?, jahrgang = ?, status = ?,
                     points_win = ?, points_draw = ?, points_loss = ?,
                     points_first_place = ?, placement_points = ?, event_id = ?, competition_type = ?,
-                    tournament_mode = ?, game_duration_minutes = ?, changeover_duration_minutes = ?,
+                    tournament_mode = ?, game_duration_seconds = NULL, game_duration_minutes = ?, changeover_duration_minutes = ?,
                     start_time = ?, end_time = ?, location = ?, location_subarea = NULL,
                     competition_date = ?,
                     punkterunde_grosses_finale = ?, punkterunde_kleines_finale = ?

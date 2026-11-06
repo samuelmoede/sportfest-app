@@ -42,6 +42,7 @@ def build_round_timer(slots):
             "stopped_at": min(stopped) if len(stopped) == len(group) else None,
             "slot_ids": [slot["id"] for slot in group],
             "count": len(group),
+            "competition_id": group[0].get("competition_id"),
         }
 
     planned = [slot for slot in slots if _game(slot) and slot.get("status") == "geplant"]
@@ -53,6 +54,7 @@ def build_round_timer(slots):
             "startzeit": startzeit,
             "slot_ids": [slot["id"] for slot in group],
             "count": len(group),
+            "competition_id": group[0].get("competition_id"),
         }
 
     return {"running": running, "next": next_round}

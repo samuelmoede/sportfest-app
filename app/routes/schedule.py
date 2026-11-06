@@ -228,6 +228,22 @@ def create_router(
             else None
         )
 
+        # Slots ohne Feld (z.B. Eroeffnung/Siegerehrung) tauchen im Raster
+        # nicht auf und waeren sonst weder sichtbar noch loeschbar.
+        courtless_slots = []
+        if selected_competition_id is not None:
+            with get_conn() as conn:
+                courtless_slots = [
+                    dict(row) for row in conn.execute(
+                        """
+                        SELECT * FROM slots
+                        WHERE competition_id = ? AND court_id IS NULL
+                        ORDER BY startzeit, id
+                        """,
+                        (selected_competition_id,),
+                    ).fetchall()
+                ]
+
         if selected_competition is not None:
             groups = filter_groups_for_competition(groups, selected_competition)
             courts = filter_courts_for_competition(all_courts, selected_competition)
@@ -387,6 +403,7 @@ def create_router(
             "finale_ok": finale_ok,
             "slot_hinweis": slot_hinweis,
             "groups": groups,
+            "courtless_slots": courtless_slots,
             "competitions": competitions,
             "courts": courts,
             "teams": teams,
@@ -761,7 +778,7 @@ def create_router(
                 for target_id in dict.fromkeys([competition_id, *partner_competition_ids]):
                     conn.execute("""
                         UPDATE competitions
-                        SET game_duration_minutes = ?, changeover_duration_minutes = ?
+                        SET game_duration_seconds = NULL, game_duration_minutes = ?, changeover_duration_minutes = ?
                         WHERE id = ?
                     """, (game_duration_minutes, changeover_duration_minutes, target_id))
                 conn.commit()
@@ -1712,9 +1729,15 @@ def create_router(
     @router.post("/slot/{slot_id}/delete")
     def delete_slot(slot_id: int):
         with get_conn() as conn:
+            row = conn.execute("SELECT competition_id FROM slots WHERE id = ?", (slot_id,)).fetchone()
             conn.execute("DELETE FROM slots WHERE id = ?", (slot_id,))
             conn.commit()
 
+        # Zurueck zum Spielplan desselben Wettbewerbs statt zur leeren Auswahl.
+        if row is not None and row["competition_id"] is not None:
+            return RedirectResponse(
+                f"/spielplan-bearbeiten?competition_id={row['competition_id']}", status_code=303
+            )
         return RedirectResponse("/spielplan-bearbeiten", status_code=303)
 
     @router.post("/slots/delete")

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from app.services.schedule_grid_service import get_all_slots
 from app.services.schedule_time_service import parse_slot_time
+from app.services.programmpunkte_service import applies_to_jahrgang
 
 
 STATUS_PRESENTATION = {
@@ -127,13 +128,15 @@ def _slot_minutes(value):
     return parsed.hour * 60 + parsed.minute if parsed else None
 
 
-def build_block_segments(start_minutes, end_minutes, slots, final_slots=()):
+def build_block_segments(start_minutes, end_minutes, slots, final_slots=(), programmpunkte=()):
     """Unterteilt einen Tagesplan-Block in seinen Ablauf: Programmpunkte
     (Eroeffnung, Siegerehrung, Pause), die Spiele der Gruppenphase und
     K.-o.-Spiele bzw. das Jahrgangsfinale. Jeder Abschnitt bekommt Lage und
     Hoehe in Prozent des Blocks; Abschnitte ab dem Blockende (z.B.
     Siegerehrung direkt danach) kommen in "after" und werden unter dem
-    Ablauf als Zeile gezeigt."""
+    Ablauf als Zeile gezeigt. programmpunkte sind Programmpunkte der
+    Veranstaltung mit eigener Dauer (titel, start_time, end_time, siehe
+    programmpunkte_service)."""
     raw = []
     games = [
         slot for slot in slots
@@ -172,6 +175,17 @@ def build_block_segments(start_minutes, end_minutes, slots, final_slots=()):
         key=lambda slot: _slot_minutes(slot.get("startzeit")),
     )
     seen = set()
+    for punkt in programmpunkte:
+        start = _slot_minutes(punkt.get("start_time"))
+        end = _slot_minutes(punkt.get("end_time"))
+        if start is None or end is None or end <= start:
+            continue
+        label = (punkt.get("titel") or "").strip() or "Programmpunkt"
+        seen.add((label, start))
+        raw.append({
+            "kind": "programm", "label": label, "start": start, "end": end,
+            "time_range": True,
+        })
     for slot in programm:
         start = _slot_minutes(slot.get("startzeit"))
         key = (slot.get("slot_typ"), start)
@@ -200,6 +214,8 @@ def build_block_segments(start_minutes, end_minutes, slots, final_slots=()):
     inside, after = [], []
     for item in raw:
         item["time"] = f"{item['start'] // 60:02d}:{item['start'] % 60:02d}"
+        if item.pop("time_range", False):
+            item["time"] += f"–{item['end'] // 60:02d}:{item['end'] % 60:02d}"
         if item["start"] >= end_minutes or item["end"] <= start_minutes:
             after.append(item)
             continue
@@ -211,14 +227,63 @@ def build_block_segments(start_minutes, end_minutes, slots, final_slots=()):
     return {"inside": inside, "after": after}
 
 
-def build_day_timeline(columns, competitions, now=None, slots=None):
+def _timestamp_minutes(value):
+    """'2026-11-06 08:17:30' (started_at) -> Minuten seit Mitternacht."""
+    text = str(value or "").strip()
+    if " " in text:
+        text = text.split(" ", 1)[1]
+    elif "T" in text:
+        text = text.split("T", 1)[1]
+    return _slot_minutes(text[:5])
+
+
+def block_verspaetung(slots, now):
+    """Aktuelle Verspaetung eines Blocks in Minuten (0 = im Plan) fuer die
+    Anzeige bei Admin und Turnierleitung: wie viel spaeter das zuletzt
+    gestartete Spiel begonnen hat als geplant, bzw. wie lange das naechste
+    geplante Spiel schon ueberfaellig ist. None, wenn der Block noch nicht
+    begonnen hat oder alle Spiele beendet sind."""
+    if now is None:
+        return None
+    games = [
+        slot for slot in slots
+        if slot.get("slot_typ") == "Spiel" and _slot_minutes(slot.get("startzeit")) is not None
+    ]
+    planned = [slot for slot in games if slot.get("status") == "geplant"]
+    if not games or not planned and all(slot.get("status") == "beendet" for slot in games):
+        return None
+    now_minutes = now.hour * 60 + now.minute
+    delays = []
+    started = [
+        slot for slot in games
+        if slot.get("status") in ("läuft", "beendet") and _timestamp_minutes(slot.get("started_at")) is not None
+    ]
+    if started:
+        last = max(started, key=lambda slot: _slot_minutes(slot.get("startzeit")))
+        delays.append(_timestamp_minutes(last.get("started_at")) - _slot_minutes(last.get("startzeit")))
+    if planned:
+        next_start = min(_slot_minutes(slot.get("startzeit")) for slot in planned)
+        if now_minutes > next_start:
+            delays.append(now_minutes - next_start)
+        elif not started:
+            return None
+    if not delays:
+        return None
+    return max(max(delays), 0)
+
+
+def build_day_timeline(columns, competitions, now=None, slots=None, programmpunkte=None,
+                       delay_now=None):
     """Zeitproportionale Kalenderansicht fuer den Dashboard-Tagesplan:
     pro Jahrgangs-Spalte eine Liste absolut positionierter Bloecke (top/
     height in Prozent der gemeinsamen Zeitspanne), plus Halbstunden-Marken
     fuer die linke Achse. Ueberlappende Wettbewerbe in derselben Spalte
     (aktuell nicht der Fall, aber moeglich) werden nebeneinander in Spuren
     aufgeteilt statt sich zu ueberdecken. Mit slots bekommt jeder Block
-    seinen Ablauf als Abschnitte (siehe build_block_segments)."""
+    seinen Ablauf als Abschnitte (siehe build_block_segments), dazu die
+    Programmpunkte der Veranstaltung fuer seinen Jahrgang. Mit delay_now
+    (nur am Veranstaltungstag) bekommt er seine Verspaetung
+    (block_verspaetung)."""
     entries = []
     slots_by_competition = defaultdict(list)
     for slot in slots or []:
@@ -273,15 +338,34 @@ def build_day_timeline(columns, competitions, now=None, slots=None):
                 if slot.get("competition_id") != competition_id
                 and block_start <= (_slot_minutes(slot.get("startzeit")) or -1) <= block_end
             ]
+            final_slots = [
+                slot for final_id in finals_by_source.get(competition_id, [])
+                for slot in slots_by_competition.get(final_id, [])
+                if slot.get("slot_typ") == "Spiel"
+            ]
+            # Programmpunkte gehoeren zum Block, wenn sie fuer seinen
+            # Jahrgang gelten und waehrend des Blocks oder kurz danach
+            # (bis 30 Minuten nach Block bzw. Jahrgangsfinale) beginnen.
+            window_end = max(
+                [block_end] + [
+                    _slot_minutes(slot.get("game_end_time")) or _slot_minutes(slot.get("startzeit")) or 0
+                    for slot in final_slots
+                ]
+            ) + 30
+            block_punkte = [
+                punkt for punkt in programmpunkte or []
+                if applies_to_jahrgang(punkt, competition.get("jahrgang") or "")
+                and block_start <= (_slot_minutes(punkt.get("start_time")) or -1) <= window_end
+            ]
             entries[-1]["segments"] = build_block_segments(
                 block_start,
                 block_end,
                 slots_by_competition.get(competition_id, []) + shared,
-                [
-                    slot for final_id in finals_by_source.get(competition_id, [])
-                    for slot in slots_by_competition.get(final_id, [])
-                    if slot.get("slot_typ") == "Spiel"
-                ],
+                final_slots,
+                block_punkte,
+            )
+            entries[-1]["verspaetung"] = block_verspaetung(
+                slots_by_competition.get(competition_id, []) + final_slots, delay_now
             )
 
     if not entries:
@@ -379,7 +463,7 @@ def build_day_timeline(columns, competitions, now=None, slots=None):
     }
 
 
-def enrich_day_schedule_view(schedule, competitions, now=None):
+def enrich_day_schedule_view(schedule, competitions, now=None, programmpunkte=None):
     """Add presentation-only cards and marker data to an existing day schedule."""
     view_schedule = dict(schedule)
     rows = [dict(row) for row in schedule.get("rows", [])]
@@ -500,7 +584,9 @@ def enrich_day_schedule_view(schedule, competitions, now=None):
         }
     view_schedule["now_marker"] = marker
     view_schedule["timeline"] = build_day_timeline(
-        schedule.get("columns", []), competitions, now=now, slots=slots
+        schedule.get("columns", []), competitions, now=now, slots=slots,
+        programmpunkte=programmpunkte,
+        delay_now=(now or datetime.now()) if schedule.get("event_state") == "today" else None,
     )
     return view_schedule
 

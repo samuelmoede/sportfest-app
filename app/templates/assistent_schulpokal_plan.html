@@ -50,6 +50,7 @@
         <p class="muted">
             {% for entry in block.entries %}{{ entry.competition_name }} ({{ entry.team_names|length }} Klassen){% if not loop.last %} · {% endif %}{% endfor %}
             {% if block.end_time %}<br>Zeitfenster laut Wettbewerb: {{ block.start_time }} bis {{ block.end_time }}{% endif %}
+            {% if block.start_nach %}<br>Die Spiele starten nach {{ block.start_nach }} um {{ block.games_start }}.{% endif %}
             {% if block.existing_games %}<br>Bisher {{ block.existing_games }} Gruppenspiele gespeichert, sie werden beim Übernehmen ersetzt.{% endif %}
         </p>
         <div class="gesamtplan-block-settings">
@@ -80,6 +81,7 @@
             <p>
                 <strong>{{ block.slots|length }} Spiele</strong>, {{ block.steps }} Zeitschritte,
                 letztes Spiel endet um <strong>{{ block.planned_end }}</strong>.
+                Die Siegerehrung danach legst du am <a href="/events/{{ event.id }}#programmpunkte">Tagesplan</a> fest.
                 {% if block.spielzeit_vorschlag %}
                 Vorschlag für das Zeitfenster bis {{ block.end_time }}: <strong>{{ block.spielzeit_vorschlag }} Min.</strong> Spielzeit.
                 {% endif %}
