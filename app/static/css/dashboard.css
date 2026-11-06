@@ -432,17 +432,70 @@
     box-shadow: 0 4px 14px rgba(23, 32, 51, 0.18);
 }
 
-.day-timeline-block-link {
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    color: var(--muted);
-    font-size: 0.75rem;
-    text-decoration: none;
+.day-timeline-block.is-editable:hover {
+    cursor: pointer;
 }
 
-.day-timeline-block-link:hover {
-    color: var(--blue);
+.day-timeline-block-head {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.day-timeline-block-head time {
+    margin-top: 0;
+}
+
+/* Ablauf im Block: Eroeffnung, Spiele, Siegerehrung ... zeitproportional. */
+.day-timeline-segments {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 4px -8px 0 -8px;
+}
+
+.day-timeline-segment {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    padding: 0 8px;
+    overflow: visible;
+    border-top: 1px dashed var(--border);
+    font-size: 0.66rem;
+    line-height: 1.1;
+}
+
+.day-timeline-segment span {
+    color: var(--text, inherit);
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-segment.segment-spiele {
+    background: rgba(96, 165, 250, 0.12);
+}
+
+.day-timeline-segment.segment-programm {
+    background: rgba(217, 119, 6, 0.14);
+}
+
+.day-timeline-segment.segment-ko {
+    background: rgba(147, 51, 234, 0.12);
+}
+
+.day-timeline-segments-after {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 2px;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1.15;
+    z-index: 1;
 }
 
 .day-timeline-resize-handle {

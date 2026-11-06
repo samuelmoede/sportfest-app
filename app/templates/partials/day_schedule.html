@@ -1,3 +1,35 @@
+{% macro render_block_content(item, editable=false) %}
+{% set segments = item.segments if item.segments is defined else none %}
+{# Ablauf nur in Bloecken mit voller Spaltenbreite, schmale Spuren sind dafuer zu eng. #}
+{% if segments and (segments.inside or segments.after) and (item.lane_width_percent|default(100)) >= 99 %}
+<div class="day-timeline-block-head">
+    <strong>{{ item.name }}</strong>
+    <span><time{% if editable %} data-grobplan-time{% endif %}>{{ item.display_time }}</time>{% if item.location %} · {{ item.location }}{% endif %}</span>
+</div>
+<div class="day-timeline-segments">
+    {% for segment in segments.inside %}
+    <div class="day-timeline-segment segment-{{ segment.kind }}"
+         style="top: {{ segment.top_percent }}%; height: {{ segment.height_percent }}%;"
+         title="{{ segment.time }} {{ segment.label }}">
+        <span>{{ segment.time }} {{ segment.label }}</span>
+    </div>
+    {% endfor %}
+    {% if segments.after %}
+    <div class="day-timeline-segments-after">
+        {% for segment in segments.after %}
+        <span class="segment-{{ segment.kind }}">danach {{ segment.time }} {{ segment.label }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<strong>{{ item.name }}</strong>
+{% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
+{% if item.location %}<span>{{ item.location }}</span>{% endif %}
+<time{% if editable %} data-grobplan-time{% endif %}>{{ item.display_time }}</time>
+{% endif %}
+{% endmacro %}
+
 {% macro render_now_marker(marker) %}
 <div class="day-now-marker" role="status" aria-label="{{ marker.label }}">
     <span aria-hidden="true"></span>
@@ -48,25 +80,21 @@
                     <div class="day-timeline-block status-{{ item.status_key|default('planned') }} is-editable"
                          style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                          data-grobplan-block
+                         data-href="/spielplan?competition_id={{ item.competition_id }}"
+                         role="link" tabindex="0" title="Klicken: Spielplan öffnen · Ziehen: verschieben"
+                         aria-label="Spielplan für {{ item.name }} öffnen"
                          data-competition-id="{{ item.competition_id }}"
                          data-start-minutes="{{ item.start_minutes }}"
                          data-end-minutes="{{ item.end_minutes }}">
                         <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
-                        <a class="day-timeline-block-link" href="/spielplan?competition_id={{ item.competition_id }}" title="Spielplan öffnen" aria-label="Spielplan für {{ item.name }} öffnen">↗</a>
-                        <strong>{{ item.name }}</strong>
-                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
-                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
-                        <time data-grobplan-time>{{ item.display_time }}</time>
+                        {{ render_block_content(item, editable=true) }}
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
                     </div>
                     {% else %}
                     <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
-                        <strong>{{ item.name }}</strong>
-                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
-                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
-                        <time>{{ item.display_time }}</time>
+                        {{ render_block_content(item) }}
                     </a>
                     {% endif %}
                     {% endfor %}
@@ -222,6 +250,7 @@
         var dragMode = null;
         var pointerId = null;
         var startY = 0;
+        var movedPixels = false;
         var originStart = Number(block.dataset.startMinutes);
         var originEnd = Number(block.dataset.endMinutes);
 
@@ -237,6 +266,9 @@
         function onPointerMove(event) {
             if (!dragMode) {
                 return;
+            }
+            if (Math.abs(event.clientY - startY) > 4) {
+                movedPixels = true;
             }
             var pxPerMinute = block.parentElement.clientHeight / totalMinutes;
             if (!pxPerMinute) {
@@ -281,6 +313,10 @@
             var newStart = Number(block.dataset.previewStart != null ? block.dataset.previewStart : originStart);
             var newEnd = Number(block.dataset.previewEnd != null ? block.dataset.previewEnd : originEnd);
             if (newStart === originStart && newEnd === originEnd) {
+                // Klick ohne Verschieben oeffnet den Spielplan des Blocks.
+                if (!movedPixels && block.dataset.href) {
+                    window.location.href = block.dataset.href;
+                }
                 return;
             }
             persistGrobplanBlock(block, newStart, newEnd).catch(function (error) {
@@ -288,6 +324,13 @@
                 window.location.reload();
             });
         }
+
+        block.addEventListener("keydown", function (event) {
+            if ((event.key === "Enter" || event.key === " ") && block.dataset.href) {
+                event.preventDefault();
+                window.location.href = block.dataset.href;
+            }
+        });
 
         block.addEventListener("pointerdown", function (event) {
             if (event.target.closest("a")) {
@@ -297,6 +340,7 @@
             dragMode = handle ? handle.dataset.grobplanHandle : "move";
             pointerId = event.pointerId;
             startY = event.clientY;
+            movedPixels = false;
             originStart = Number(block.dataset.startMinutes);
             originEnd = Number(block.dataset.endMinutes);
             block.setPointerCapture(pointerId);
