@@ -38,6 +38,7 @@ from app.services.schedule_generator_service import (
     _schedule_pairings_into_rounds,
     _split_courts,
 )
+from app.services.schedule_location_service import natural_sort_key
 from app.services.schedule_time_service import (
     DEFAULT_CHANGEOVER_DURATION_MINUTES,
     DEFAULT_GAME_DURATION_MINUTES,
@@ -639,6 +640,7 @@ def plane(conn, daten, stamm, belegung=None):
             (s for s in alle_slots if s["eintrag_id"] == eintrag["id"]),
             key=lambda s: (s["start_min"], s["court_name"]),
         )
+        eintrag["raster"] = baue_spielraster(eintrag, blocker)
     timeline = baue_tagesplan(daten, eintraege, alle_slots, showspiele, blocker)
     return {
         "wettbewerbe": wettbewerbe,
@@ -655,6 +657,52 @@ def plane(conn, daten, stamm, belegung=None):
         "timeline": timeline,
         "programmpunkte": blocker,
     }
+
+
+def baue_spielraster(eintrag, blocker):
+    """Zeitraster fuer die Spielplan-Vorschau eines Wettbewerbs (wie im
+    Spielplan-Editor): je Startzeit eine Zeile, je Feld eine Spalte, damit man
+    auf einen Blick sieht, wer gleichzeitig spielt. Programmpunkte/Puffer im
+    Zeitblock, die diesen Wettbewerb betreffen, erscheinen als eigene Zeile
+    ueber alle Spalten. Jede Zelle ist eine Liste, damit eine (eigentlich
+    blockierende) Doppelbelegung sichtbar bleibt statt verloren zu gehen."""
+    slots = eintrag.get("slots") or []
+    felder = {}
+    for slot in slots:
+        felder.setdefault(slot.get("court_id"), slot.get("court_name") or "ohne Feld")
+    spalten = sorted(felder.items(), key=lambda item: (item[0] is None, natural_sort_key(item[1])))
+    spalten_index = {court_id: i for i, (court_id, _) in enumerate(spalten)}
+
+    zeilen_by_start = {}
+    for slot in slots:
+        zeile = zeilen_by_start.setdefault(slot["start_min"], {
+            "start_min": slot["start_min"],
+            "zeit": f'{slot["startzeit"]}–{slot["endzeit"]}',
+            "zellen": [[] for _ in spalten],
+        })
+        zeile["zellen"][spalten_index[slot.get("court_id")]].append(slot)
+
+    block = eintrag.get("block") or {}
+    start, ende = block.get("start_min"), block.get("ende_min")
+    jahrgaenge = set(eintrag.get("jahrgaenge") or [])
+    punkte = []
+    for punkt in blocker or []:
+        if start is None or ende is None or not (start <= punkt["start"] < ende):
+            continue
+        if punkt["jahrgaenge"] and not (set(punkt["jahrgaenge"]) & jahrgaenge):
+            continue
+        punkte.append({
+            "start_min": punkt["start"],
+            "zeit": f'{uhr(punkt["start"])}–{uhr(punkt["ende"])}',
+            "punkt": punkt,
+        })
+
+    zeilen = sorted(zeilen_by_start.values(), key=lambda z: z["start_min"])
+    # Programmpunkte vor Spielen gleicher Startzeit (sort ist stabil)
+    zeilen = sorted(punkte + zeilen, key=lambda z: z["start_min"])
+    for nummer, zeile in enumerate((z for z in zeilen if "zellen" in z), start=1):
+        zeile["runde"] = nummer
+    return {"felder": [name for _, name in spalten], "zeilen": zeilen}
 
 
 def _disziplinen(einstellungen):
