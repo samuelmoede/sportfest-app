@@ -130,30 +130,28 @@
                 </tbody>
             </table>
             {% else %}
+            {% set raster = e.raster %}
             <div class="wiz-plan-scroll">
-            <table class="wiz-table">
-                <thead><tr><th>#</th><th>Zeit</th><th>Feld</th><th>Begegnung</th></tr></thead>
+            <table class="wiz-table wiz-raster" style="--wiz-raster-felder: {{ raster.felder|length or 1 }};">
+                <thead><tr><th class="wiz-raster-zeit" scope="col">Zeit</th>{% for feld in raster.felder %}<th scope="col">{{ feld }}</th>{% endfor %}</tr></thead>
                 <tbody>
-                {% set punkte = plan.programmpunkte %}
-                {% set ns = namespace(n=0) %}
-                {% set zeilen = [] %}
-                {% for s in e.slots %}{% set _ = zeilen.append({"min": s.start_min, "slot": s}) %}{% endfor %}
-                {% for p in punkte %}{% if p.start >= e.block.start_min and p.start < e.block.ende_min and (not p.jahrgaenge or (p.jahrgaenge|select("in", e.jahrgaenge)|list)) %}{% set _ = zeilen.append({"min": p.start, "punkt": p}) %}{% endif %}{% endfor %}
-                {% for z in zeilen|sort(attribute="min") %}
-                {% if z.slot %}
-                {% set s = z.slot %}{% set ns.n = ns.n + 1 %}
-                <tr>
-                    <td>{{ ns.n }}</td>
-                    <td>{{ s.startzeit }}–{{ s.endzeit }}</td>
-                    <td>{{ s.court_name }}</td>
-                    <td>{% if s.team_a %}{{ s.team_a }} – {{ s.team_b }}{% else %}<span class="muted">{{ s.note }}</span>{% endif %}{% if s.phase != "Gruppenphase" %} <span class="wiz-badge">{{ s.phase }}</span>{% endif %}</td>
-                </tr>
+                {% for z in raster.zeilen %}
+                {% if z.punkt %}
+                <tr class="wiz-raster-punkt"><th class="wiz-raster-zeit" scope="row">{{ z.zeit }}</th><td colspan="{{ raster.felder|length or 1 }}">{{ z.punkt.titel }}{% if z.punkt.art == "puffer" %} (Puffer){% endif %}</td></tr>
                 {% else %}
-                {% set p = z.punkt %}
-                <tr class="muted"><td></td><td>{{ "%02d:%02d"|format(p.start // 60, p.start % 60) }}–{{ "%02d:%02d"|format(p.ende // 60, p.ende % 60) }}</td><td></td><td>{{ p.titel }}{% if p.art == "puffer" %} (Puffer){% endif %}</td></tr>
+                <tr>
+                    <th class="wiz-raster-zeit" scope="row"><span class="wiz-raster-runde">{{ z.runde }}.</span> {{ z.zeit }}</th>
+                    {% for zelle in z.zellen %}
+                    <td class="{% if not zelle %}is-frei{% elif zelle|length > 1 %}is-doppelt{% endif %}">
+                        {% for s in zelle %}
+                        <div class="wiz-raster-spiel">{% if s.team_a %}{{ s.team_a }} – {{ s.team_b }}{% else %}<span class="muted">{{ s.note }}</span>{% endif %}{% if s.phase != "Gruppenphase" %} <span class="wiz-badge">{{ s.phase }}</span>{% endif %}</div>
+                        {% else %}<span class="muted" aria-label="frei">–</span>{% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
                 {% endif %}
                 {% else %}
-                <tr><td colspan="4" class="muted">Keine Spiele geplant – siehe Hinweise oben.</td></tr>
+                <tr><td colspan="{{ (raster.felder|length) + 1 }}" class="muted">Keine Spiele geplant – siehe Hinweise oben.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

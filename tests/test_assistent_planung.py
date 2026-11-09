@@ -17,7 +17,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import app.database as database
 from app.services import assistent_entwurf_service as es
-from app.services.assistent_planung_service import plane, takte_block
+from app.services.assistent_planung_service import baue_spielraster, plane, takte_block
 
 
 def _lege_stammdaten_an(conn):
@@ -234,6 +234,48 @@ class AssistentPlanungTests(unittest.TestCase):
         self.assertTrue(vorlage["wettbewerbe"]["Volleyball|9"]["felder_namen"])
         wieder = es.entwurf_aus_vorlage(vorlage, self.stamm, "eigen", "Test")
         self.assertEqual(wieder["wettbewerbe"]["Volleyball|9"]["felder"], [self.stamm["courts"][0]["id"]])
+
+    # Spielplan-Vorschau als Zeitraster (Zeit x Feld) ------------------------
+
+    def test_spielraster_zeigt_gleichzeitige_spiele_in_einer_zeile(self):
+        def slot(start, court_id, name, a, b):
+            return {"start_min": start, "startzeit": f"{start // 60:02d}:{start % 60:02d}",
+                    "endzeit": f"{(start + 7) // 60:02d}:{(start + 7) % 60:02d}",
+                    "court_id": court_id, "court_name": name, "team_a": a, "team_b": b,
+                    "phase": "Gruppenphase"}
+
+        eintrag = {
+            "jahrgaenge": ["10"],
+            "block": {"start_min": 670, "ende_min": 820},
+            "slots": [
+                slot(670, 10, "Platte 10", "10a", "10f"),
+                slot(670, 2, "Platte 2", "10b", "10e"),
+                slot(680, 10, "Platte 10", "10a", "10e"),
+            ],
+        }
+        blocker = [
+            {"start": 675, "ende": 680, "jahrgaenge": ["10"], "titel": "Pause", "art": "puffer"},
+            {"start": 675, "ende": 680, "jahrgaenge": ["7"], "titel": "Nur JG 7", "art": "sonstiges"},
+            {"start": 900, "ende": 910, "jahrgaenge": [], "titel": "Ausserhalb", "art": "sonstiges"},
+        ]
+        raster = baue_spielraster(eintrag, blocker)
+        # Felder natuerlich sortiert: Platte 2 vor Platte 10
+        self.assertEqual(raster["felder"], ["Platte 2", "Platte 10"])
+        self.assertEqual([z["zeit"] for z in raster["zeilen"]], ["11:10–11:17", "11:15–11:20", "11:20–11:27"])
+        erste = raster["zeilen"][0]
+        self.assertEqual(erste["runde"], 1)
+        self.assertEqual([[s["team_a"] for s in zelle] for zelle in erste["zellen"]], [["10b"], ["10a"]])
+        self.assertEqual(raster["zeilen"][1]["punkt"]["titel"], "Pause")
+        dritte = raster["zeilen"][2]
+        self.assertEqual(dritte["runde"], 2)
+        self.assertEqual(dritte["zellen"][0], [])
+
+    def test_plan_liefert_raster_je_turnierwettbewerb(self):
+        plan = self._plane(self._freie_daten())
+        for eintrag in plan["eintraege"]:
+            raster = eintrag["raster"]
+            anzahl = sum(len(zelle) for z in raster["zeilen"] if "zellen" in z for zelle in z["zellen"])
+            self.assertEqual(anzahl, len(eintrag["slots"]))
 
 
 if __name__ == "__main__":
