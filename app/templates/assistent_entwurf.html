@@ -58,6 +58,18 @@
     .wiz-carousel-head h3 { margin: 0; flex: 1 1 auto; }
     .wiz-arrow { font-size: 1.2rem; min-width: 44px; min-height: 40px; }
     .wiz-plan-scroll { max-height: 60vh; overflow: auto; }
+    .wiz-raster { min-width: calc(7rem + var(--wiz-raster-felder, 1) * 7.5rem); }
+    .wiz-raster thead th { position: sticky; top: 0; z-index: 2; background: var(--surface, #fff); text-align: center; }
+    .wiz-raster .wiz-raster-zeit { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); white-space: nowrap; text-align: left; font-variant-numeric: tabular-nums; }
+    .wiz-raster thead .wiz-raster-zeit { z-index: 3; }
+    .wiz-raster tbody th { text-transform: none; letter-spacing: normal; font-size: inherit; font-weight: 600; color: inherit; }
+    .wiz-raster td { text-align: center; border-left: 1px solid var(--border); }
+    .wiz-raster td.is-frei { background: rgba(127, 127, 127, 0.06); }
+    .wiz-raster td.is-doppelt { background: rgba(220, 38, 38, 0.12); }
+    .wiz-raster-spiel { white-space: nowrap; }
+    .wiz-raster-spiel + .wiz-raster-spiel { margin-top: 4px; }
+    .wiz-raster-runde { color: var(--muted, #64748b); font-size: 0.8em; }
+    .wiz-raster-punkt td, .wiz-raster-punkt th { font-style: italic; color: var(--muted, #64748b); }
     .wiz-timeline-block { cursor: pointer; text-align: left; font: inherit; align-items: stretch; }
     .wiz-timeline-block span { text-align: left; }
     .wiz-timeline-block.is-selected { box-shadow: 0 0 0 2px var(--blue, #2563eb); }
