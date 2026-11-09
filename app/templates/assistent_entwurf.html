@@ -22,6 +22,14 @@
     .wiz-chips { display: flex; flex-wrap: wrap; gap: 6px 10px; }
     .wiz-chips label { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-soft); }
     .wiz-chips label.is-missing { border-style: dashed; color: var(--muted); }
+    /* Checkbox-Labels: Häkchen links neben dem Text, nicht darüber (überschreibt .wiz-grid label). */
+    .wiz-grid .wiz-chips label, .wiz-grid label.wiz-check { flex-direction: row; align-items: center; white-space: nowrap; }
+    .wiz-check { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+    .wiz-chips input[type="checkbox"], .wiz-check input[type="checkbox"] {
+        flex: 0 0 auto; width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0;
+    }
+    /* Ort abgewählt: Felder bleiben gemerkt, wirken aber sichtbar inaktiv. */
+    .wiz-card:has(.wiz-ort-schalter input:not(:checked)) .wiz-chips { opacity: 0.45; }
     .wiz-matrix-wrap { overflow-x: auto; }
     .wiz-matrix { border-collapse: collapse; min-width: 100%; }
     .wiz-matrix th, .wiz-matrix td { border: 1px solid var(--border); padding: 6px 10px; text-align: center; }
@@ -327,7 +335,7 @@
             <fieldset class="wiz-card">
                 <legend><strong>{{ ort.name }}</strong></legend>
                 <input type="hidden" name="ort_gesendet_{{ ort.name }}" value="1">
-                <label><input type="checkbox" name="ort_aktiv_{{ ort.name }}" value="1" {% if ort.aktiv_gewaehlt %}checked{% endif %}> Ort nutzen</label>
+                <label class="wiz-check wiz-ort-schalter"><input type="checkbox" name="ort_aktiv_{{ ort.name }}" value="1" {% if ort.aktiv_gewaehlt %}checked{% endif %}> Ort nutzen</label>
                 {% if not ort.hat_aktive_felder %}<p class="muted">Keine aktiven Felder.</p>{% endif %}
                 <div class="wiz-chips" style="margin-top: 6px;">
                     {% for court in ort.courts %}

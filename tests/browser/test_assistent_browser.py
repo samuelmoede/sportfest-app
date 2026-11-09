@@ -74,3 +74,23 @@ def test_vorschau_mobil_ohne_horizontales_scrollen(live_server_url, entwurf_id, 
         page.goto(f"{live_server_url}/assistent/entwurf/{entwurf_id}/{schritt}")
         breite = page.evaluate("() => document.documentElement.scrollWidth")
         assert breite <= 375 + 1, f"{schritt}: Seite ist {breite}px breit"
+
+
+def test_orte_checkboxen_inline_und_kompakt(live_server_url, entwurf_id, page):
+    """Schritt Orte: "Ort nutzen" und die Feld-Chips haben ein normales,
+    kleines Haekchen links neben dem Text (nicht riesig/darueber), und ein
+    abgewaehlter Ort blendet seine Felder sichtbar ab."""
+    page.goto(f"{live_server_url}/assistent/entwurf/{entwurf_id}/orte")
+    karte = page.locator("fieldset.wiz-card").first
+    for label in (karte.locator("label.wiz-ort-schalter"), karte.locator(".wiz-chips label").first):
+        box = label.locator("input[type=checkbox]").bounding_box()
+        assert box["width"] <= 20 and box["height"] <= 20, box
+        richtung = label.evaluate("el => getComputedStyle(el).flexDirection")
+        assert richtung == "row"
+        # Haekchen und Text in einer Zeile: Label kaum hoeher als eine Textzeile.
+        assert label.bounding_box()["height"] < 40, label.bounding_box()
+
+    chips = karte.locator(".wiz-chips")
+    assert chips.evaluate("el => getComputedStyle(el).opacity") == "1"
+    karte.locator("label.wiz-ort-schalter input").uncheck()
+    assert float(chips.evaluate("el => getComputedStyle(el).opacity")) < 1
