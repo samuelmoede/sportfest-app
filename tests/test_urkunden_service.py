@@ -336,8 +336,7 @@ class PdfTests(unittest.TestCase):
             dict(basis, recipient_name="Ein sehr, sehr langer Name " * 6, platz=5, urkundentyp=URKUNDE_EHREN),
             dict(basis, recipient_name="7c", platz=None, urkundentyp=URKUNDE_TEILNEHMER),
         ]
-        layout = {"schulname": "Schule", "ort": "Köln", "unterschrift_links": "Sportlehrer:in",
-                  "unterschrift_rechts": "Schulleitung"}
+        layout = {"schulname": "Schule", "ort": "Köln", "unterschrift_links": "Sportlehrer:in"}
         pdf = erzeuge_urkunden_pdf(eintraege, layout)
         self.assertTrue(pdf.startswith(b"%PDF"))
         self.assertEqual(pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page "), 3)
@@ -352,6 +351,24 @@ class PdfTests(unittest.TestCase):
             self.assertEqual(image.format, "PNG")
             self.assertEqual(image.width, 420)
             self.assertAlmostEqual(image.height / image.width, 297 / 210, places=2)
+
+    def test_keine_unterschrift_schulleitung(self):
+        from app.services.urkunden_service import LAYOUT_DEFAULTS
+        from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf
+
+        self.assertNotIn("unterschrift_rechts", LAYOUT_DEFAULTS)
+        self.assertNotIn("Schulleitung", LAYOUT_DEFAULTS.values())
+        # Ein alter gespeicherter Wert fuer rechts wird ignoriert.
+        layout = {"unterschrift_links": "Sportlehrer:in", "unterschrift_rechts": "Schulleitung"}
+        pdf = erzeuge_urkunden_pdf([{"recipient_name": "7a", "platz": 1, "urkundentyp": URKUNDE_SIEGER}], layout)
+        import pypdfium2
+        doc = pypdfium2.PdfDocument(pdf)
+        try:
+            text = doc[0].get_textpage().get_text_range()
+        finally:
+            doc.close()
+        self.assertIn("Sportlehrer:in", text)
+        self.assertNotIn("Schulleitung", text)
 
     def test_leeres_pdf_hat_hinweisseite(self):
         from app.services.urkunden_pdf_service import erzeuge_urkunden_pdf
