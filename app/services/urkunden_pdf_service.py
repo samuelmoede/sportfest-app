@@ -170,21 +170,19 @@ def _zeichne_urkunde(pdf, eintrag, layout, logo_bytes):
     if ort_datum:
         _zentrierte_zeile(pdf, 228, ort_datum, 12, farbe=FARBE_TEXT)
 
+    # Eine Unterschriftszeile, mittig unter Ort/Datum (die Unterschrift der
+    # Schulleitung entfaellt).
     linie_y = 262
-    breite = 65
-    links_x = CONTENT_MARGIN
-    rechts_x = PAGE_WIDTH - CONTENT_MARGIN - breite
+    breite = 80
+    x = (PAGE_WIDTH - breite) / 2
+    label = layout.get("unterschrift_links", "") or ""
     pdf.set_draw_color(*FARBE_GRAU)
     pdf.set_line_width(0.3)
-    for x, label in (
-        (links_x, layout.get("unterschrift_links", "")),
-        (rechts_x, layout.get("unterschrift_rechts", "")),
-    ):
-        pdf.line(x, linie_y, x + breite, linie_y)
-        size = passe_schriftgroesse(pdf, label or "", breite, 10, 7, style="")
-        pdf.set_text_color(*FARBE_GRAU)
-        pdf.set_xy(x, linie_y + 1.5)
-        pdf.cell(breite, _pt_to_mm(size) * 1.3, label or "", align="C")
+    pdf.line(x, linie_y, x + breite, linie_y)
+    size = passe_schriftgroesse(pdf, label, breite, 10, 7, style="")
+    pdf.set_text_color(*FARBE_GRAU)
+    pdf.set_xy(x, linie_y + 1.5)
+    pdf.cell(breite, _pt_to_mm(size) * 1.3, label, align="C")
 
 
 def pdf_seite_als_png(pdf_bytes: bytes, seite: int = 0, breite_px: int = 900) -> bytes:
