@@ -33,7 +33,10 @@
     </div>
     <div class="hero-actions">
         {% if can_manage_event %}
-        <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
+        <form method="post" action="/assistent/entwurf/bearbeiten/{{ event.id }}" style="display: inline;">
+            <button class="green" type="submit" title="Wettbewerbe, Klassen, Zeiten und Spielplan im Assistenten ändern">Plan ändern</button>
+        </form>
+        <a class="button secondary" href="/events/{{ event.id }}/edit">Name &amp; Beschreibung</a>
         <form method="post" action="/assistent/vorlagen/aus-veranstaltung/{{ event.id }}" style="display: inline;">
             <input type="hidden" name="name" value="Vorlage {{ event.name }}">
             <button class="secondary" type="submit">Als Vorlage speichern</button>

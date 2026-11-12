@@ -57,7 +57,7 @@ class WizardRouteTests(unittest.TestCase):
         with TestClient(fastapi_app) as client:
             response = client.get("/assistent")
         self.assertEqual(response.status_code, 200)
-        for label in ("Neue Veranstaltung", "Aus Vorlage starten", "Entwurf fortsetzen", "Vorlagen verwalten"):
+        for label in ("Neue Veranstaltung", "Bestehende Veranstaltung ändern", "Vorlagen verwalten"):
             self.assertIn(label, response.text)
         for alt in ("Weitere Wege", "Neue Veranstaltung anlegen", 'action="/assistent/veranstaltung/anlegen"',
                     'action="/assistent/vorlage/schulpokal"', 'action="/turnier-schnellstart"'):

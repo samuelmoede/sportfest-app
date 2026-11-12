@@ -75,8 +75,17 @@ def create_router(
             # fuer die drei Einstiege oben auf der Startseite.
             entwuerfe = offene_entwuerfe(conn)
             vorlagen = liste_vorlagen(conn)
+            # Bearbeiten-Entwürfe stehen bei ihrer Veranstaltung („Weiter
+            # ändern“), die übrigen unter „Entwurf fortsetzen“.
+            bearbeiten_entwuerfe = {}
+            for entwurf in entwuerfe:
+                if entwurf["bestand_event_id"]:
+                    bearbeiten_entwuerfe.setdefault(entwurf["bestand_event_id"], entwurf["id"])
+            neue_entwuerfe = [e for e in entwuerfe if not e["bestand_event_id"]]
         context = {
             "entwuerfe": entwuerfe,
+            "neue_entwuerfe": neue_entwuerfe,
+            "bearbeiten_entwuerfe": bearbeiten_entwuerfe,
             "vorlagen": vorlagen,
             "meldung": request.query_params.get("meldung", "").strip(),
             "einstieg_fehler": request.query_params.get("einstieg_fehler", "").strip(),

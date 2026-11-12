@@ -150,6 +150,52 @@ def create_router() -> APIRouter:
             conn.commit()
         return _redirect(_schritt_url(entwurf_id, "abgleich"))
 
+    @router.post("/assistent/entwurf/start")
+    def entwurf_start(start: str = Form("leer")):
+        """Kachel „Neue Veranstaltung“: ein Startpunkt für alles Neue –
+        leer, Vorlage oder wie eine frühere Veranstaltung."""
+        if start.startswith("event:"):
+            try:
+                event_id = int(start.partition(":")[2])
+            except ValueError:
+                return _redirect("/assistent", einstieg_fehler="Unbekannte Veranstaltung.")
+            return _vorjahr(event_id)
+        if start == "leer":
+            return entwurf_neu()
+        return entwurf_aus_vorlage(start)
+
+    def _vorjahr(event_id):
+        with get_conn() as conn:
+            try:
+                daten = es.entwurf_aus_vorjahr(conn, event_id, es.lade_stammdaten(conn))
+            except ValueError as error:
+                return _redirect("/assistent", einstieg_fehler=str(error))
+            entwurf_id = es.erstelle_entwurf(conn, daten)
+            conn.commit()
+        return _redirect(_schritt_url(entwurf_id, "abgleich"))
+
+    @router.post("/assistent/entwurf/bearbeiten/{event_id}")
+    def entwurf_bearbeiten(event_id: int):
+        """Bestehende Veranstaltung im Assistenten öffnen. Ein schon offener
+        Bearbeiten-Entwurf derselben Veranstaltung wird weiterverwendet."""
+        with get_conn() as conn:
+            entwurf_id = es.offener_entwurf_fuer(conn, event_id)
+            if entwurf_id is None:
+                try:
+                    daten = es.entwurf_aus_veranstaltung(conn, event_id, es.lade_stammdaten(conn))
+                except ValueError as error:
+                    return _redirect("/assistent", einstieg_fehler=str(error))
+                entwurf_id = es.erstelle_entwurf(conn, daten)
+                conn.commit()
+        return _redirect(f"/assistent/entwurf/{entwurf_id}")
+
+    @router.post("/assistent/entwurf/bestehend")
+    def entwurf_bestehend(event_id: int = Form(...), aktion: str = Form("vorjahr")):
+        """Ältere Formularform (PR #170): bearbeiten oder als Muster nutzen."""
+        if aktion == "bearbeiten":
+            return entwurf_bearbeiten(event_id)
+        return _vorjahr(event_id)
+
     @router.get("/assistent/vorlagen")
     def vorlagen(request: Request):
         with get_conn() as conn:
@@ -644,11 +690,25 @@ def create_router() -> APIRouter:
                 conn.commit()
                 return _redirect("/assistent/vorlagen", meldung="Vorlage gespeichert.")
             war_offen = entwurf["status"] == "offen"
-            event_id, fehler = es.uebernehmen(conn, entwurf_id, version, plane)
+            statistik = {}
+            event_id, fehler = es.uebernehmen(conn, entwurf_id, version, plane, statistik)
             if fehler:
                 conn.rollback()
                 return _redirect(_schritt_url(entwurf_id, "abschluss"), fehler=" ".join(fehler))
-            meldung = "Veranstaltung erstellt." if war_offen else "Die Veranstaltung wurde bereits erstellt."
+            bearbeiten = bool(es.bestand_event_id(entwurf["daten"]))
+            if bearbeiten:
+                meldung = "Änderungen übernommen." if war_offen else "Die Änderungen wurden bereits übernommen."
+                if war_offen and statistik:
+                    teile = [
+                        f"{statistik[key]} {text}" for key, text in (
+                            ("geaendert", "neu geplant"), ("neu", "neu angelegt"), ("geloescht", "gelöscht"),
+                            ("unveraendert", "unverändert"), ("gesperrt", "schon gespielt, nicht angefasst"),
+                        ) if statistik.get(key)
+                    ]
+                    if teile:
+                        meldung += " Wettbewerbe: " + ", ".join(teile) + "."
+            else:
+                meldung = "Veranstaltung erstellt." if war_offen else "Die Veranstaltung wurde bereits erstellt."
             if war_offen and als_vorlage == "1":
                 try:
                     stamm = es.lade_stammdaten(conn)

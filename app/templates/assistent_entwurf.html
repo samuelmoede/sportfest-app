@@ -105,7 +105,11 @@
     <div>
         <p class="eyebrow">Einrichtungsassistent{% if daten.vorlage %} · Vorlage {{ daten.vorlage.name }}{% endif %}{% if daten.ziel and daten.ziel.startswith("vorlage:") %} · Vorlage bearbeiten{% endif %}</p>
         <h1>{{ entwurf.titel }}</h1>
+        {% if daten.bestand %}
+        <p class="muted">Bestehende Veranstaltung bearbeiten – geändert wird erst mit „Änderungen übernehmen“. Blöcke, in denen schon gespielt wurde, bleiben unverändert.</p>
+        {% else %}
         <p class="muted">Entwurf – noch nichts ist angelegt. Alles wird automatisch gespeichert und lässt sich später über „Entwurf fortsetzen“ wieder öffnen.</p>
+        {% endif %}
     </div>
 </header>
 
@@ -619,6 +623,15 @@
         <dd>{% for p in plan.programmpunkte %}{{ p.titel }} {{ "%02d:%02d"|format(p.start // 60, p.start % 60) }}{% if not loop.last %}; {% endif %}{% else %}–{% endfor %}</dd>
         <dt>Spiele</dt><dd>{{ plan.slots|length }} (davon {{ plan.showspiele|selectattr("gueltig")|list|length }} Showspiele ohne Wertung)</dd>
         <dt>Wertung</dt><dd>{% if ist_schulpokal %}Ein Sieger je Jahrgang (Summe der Spielpunkte){% else %}Platzierungspunkte je Jahrgangsgruppe{% endif %}; alle Sportarten gleich gewichtet.</dd>
+        {% if plan.bestand %}
+        <dt>Änderungen</dt>
+        <dd>
+            {% if plan.bestand.neu %}Neu: {{ plan.bestand.neu|join(", ") }}<br>{% endif %}
+            {% if plan.bestand.entfernen_namen %}Wird gelöscht: {{ plan.bestand.entfernen_namen|join(", ") }}<br>{% endif %}
+            {% if plan.bestand.gesperrt_namen %}Bleibt unverändert (schon gespielt): {{ plan.bestand.gesperrt_namen|join(", ") }}<br>{% endif %}
+            Alle übrigen Wettbewerbe bekommen den neuen Spielplan; Programmpunkte werden ersetzt.
+        </dd>
+        {% endif %}
         <dt>Hinweise</dt>
         <dd>{{ plan.anzahl.blockierend }} blockierend, {{ plan.anzahl.warnung }} Warnungen ({{ plan.hinweise|selectattr("bestaetigt")|list|length }} bewusst zugelassen), {{ plan.anzahl.info }} Infos.
             {% for h in plan.hinweise if h.bestaetigt %}<br>✔ Zugelassen: {{ h.titel }}{% endfor %}</dd>
@@ -637,7 +650,7 @@
         </div>
         <div class="wiz-actions">
             <a class="button secondary" href="/assistent/entwurf/{{ entwurf.id }}/wertung">Zurück</a>
-            <button class="green" type="submit" {% if not plan.uebernahme_moeglich %}disabled aria-disabled="true"{% endif %}>Veranstaltung erstellen</button>
+            <button class="green" type="submit" {% if not plan.uebernahme_moeglich %}disabled aria-disabled="true"{% endif %}>{% if daten.bestand %}Änderungen übernehmen{% else %}Veranstaltung erstellen{% endif %}</button>
         </div>
         {% endif %}
     </form>
