@@ -715,6 +715,15 @@ def _disziplinen(einstellungen):
     return result
 
 
+TAGESENDE_MIN = 24 * 60
+
+
+def _ende_text(ende_min):
+    if ende_min >= TAGESENDE_MIN:
+        return "erst nach Mitternacht"
+    return f"um {uhr(ende_min)}"
+
+
 def _ueberzug_hinweis(block, eintraege, blocker, ergebnis):
     """Plan reicht ueber das Blockende: blockierend, mit Loesungsvorschlaegen.
     Nichts davon wird automatisch angewendet - auch nicht der Modus aus
@@ -736,10 +745,12 @@ def _ueberzug_hinweis(block, eintraege, blocker, ergebnis):
                 "werte": {"block": block["id"], "wechselzeit": 1},
             })
     neues_ende = -(-ergebnis["ende_min"] // 5) * 5
-    vorschlaege.append({
-        "label": f"Zeitblock bis {uhr(neues_ende)} verlängern", "aktion": "block_ende",
-        "werte": {"block": block["id"], "ende": uhr(neues_ende)},
-    })
+    if neues_ende < TAGESENDE_MIN:
+        # Ein Block über Mitternacht ist kein sinnvoller Vorschlag ("bis 29:00").
+        vorschlaege.append({
+            "label": f"Zeitblock bis {uhr(neues_ende)} verlängern", "aktion": "block_ende",
+            "werte": {"block": block["id"], "ende": uhr(neues_ende)},
+        })
     vorlage_modus = any(e["wettbewerb"].get("modus_quelle") == "vorlage" for e in eintraege)
     keys = sorted({e["wettbewerb"]["key"] for e in eintraege}, key=lambda k: -len(
         next(e for e in eintraege if e["wettbewerb"]["key"] == k)["team_names"]))
@@ -763,7 +774,7 @@ def _ueberzug_hinweis(block, eintraege, blocker, ergebnis):
     return _hinweis(
         "blockierend",
         f"{titel} ({block['ort']} {block['start']}–{block['ende']})",
-        f"Das letzte Spiel endet um {uhr(ergebnis['ende_min'])}. Programmpunkte und Puffer "
+        f"Das letzte Spiel endet {_ende_text(ergebnis['ende_min'])}. Programmpunkte und Puffer "
         "werden nicht gekürzt; der Turniermodus bleibt, bis du einen Vorschlag wählst.",
         kennung=f"ueberzug-{block['id']}", block=block["id"], vorschlaege=vorschlaege,
     )
