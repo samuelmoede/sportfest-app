@@ -80,7 +80,7 @@ class SchulpokalVorlageTests(unittest.TestCase):
         with self._client() as client:
             page = client.get("/assistent")
         # Die Vorlage Schulpokal wird ueber den neuen Einstieg
-        # „Aus Vorlage starten" angeboten.
+        # „Neue Veranstaltung" (Startpunkt Vorlage) angeboten.
         self.assertIn('value="system:schulpokal"', page.text)
 
     def test_template_creates_event_competitions_finals_and_ceremonies(self):

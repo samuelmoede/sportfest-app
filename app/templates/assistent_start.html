@@ -1,11 +1,21 @@
 {% extends "base.html" %}
 {% block extra_head %}
 <style>
-    .assistent-kacheln {
+    .assistent-wege {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         gap: 16px;
+        margin-bottom: 16px;
     }
+    .assistent-weg h2 { margin-top: 0; }
+    .assistent-liste { list-style: none; margin: 0; padding: 0; }
+    .assistent-liste li {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px;
+        padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .assistent-liste li:last-child { border-bottom: 0; }
+    .assistent-liste li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .assistent-liste form { margin: 0; flex-shrink: 0; }
 
     .assistent-kachel {
         border: 1px solid var(--border);
@@ -28,69 +38,77 @@
     <div>
         <p class="eyebrow">Geführte Einrichtung</p>
         <h1>Einrichtungsassistent</h1>
-        <p>Veranstaltung oder Wettbewerb sicher anlegen, ohne das System im Detail zu kennen.
-        Erst nach deiner Bestätigung wird etwas angelegt.</p>
+        <p>Veranstaltung planen oder ändern, ohne das System im Detail zu kennen.
+        Erst nach deiner Bestätigung wird etwas angelegt oder geändert.</p>
     </div>
 </header>
 
-<section class="panel assistent-einstieg" id="einstieg">
-    {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
-    {% if einstieg_fehler %}<p class="validation-error">{{ einstieg_fehler }}</p>{% endif %}
-    <div class="assistent-kacheln">
-        <article class="assistent-kachel">
-            <h2>🆕 Neue Veranstaltung</h2>
-            <p class="muted">Schritt für Schritt: Klassen, Sportarten, Orte, Zeiten.</p>
-            <form method="post" action="/assistent/entwurf/neu">
-                <button class="green" type="submit">Neu planen</button>
-            </form>
-        </article>
-        <article class="assistent-kachel">
-            <h2>📋 Aus Vorlage starten</h2>
-            <form method="post" action="/assistent/entwurf/aus-vorlage" class="assistent-kachel-form">
-                <label for="vorlage-auswahl" class="muted">Vorlage</label>
-                <select name="vorlage" id="vorlage-auswahl">
+{% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+{% if einstieg_fehler %}<p class="validation-error">{{ einstieg_fehler }}</p>{% endif %}
+
+<div class="assistent-wege" id="einstieg">
+    <section class="panel assistent-weg">
+        <h2>🆕 Neue Veranstaltung</h2>
+        <form method="post" action="/assistent/entwurf/start" class="assistent-kachel-form">
+            <label for="startpunkt">Startpunkt</label>
+            <select name="start" id="startpunkt">
+                <option value="leer">Leer beginnen</option>
+                <optgroup label="Vorlagen">
                     {% for vorlage in vorlagen.system %}
                     <option value="{{ vorlage.key }}">{{ vorlage.name }}</option>
                     {% endfor %}
                     {% for vorlage in vorlagen.eigene %}
                     <option value="vorlage:{{ vorlage.id }}">{{ vorlage.name }}</option>
                     {% endfor %}
-                </select>
-                <button class="green" type="submit">Mit Vorlage starten</button>
-            </form>
-        </article>
-        <article class="assistent-kachel" id="bestehende">
-            <h2>✏️ Bestehende Veranstaltung</h2>
-            {% if events %}
-            <form method="post" action="/assistent/entwurf/bestehend" class="assistent-kachel-form">
-                <label for="bestehende-auswahl" class="muted">Veranstaltung</label>
-                <select name="event_id" id="bestehende-auswahl">
+                </optgroup>
+                {% if events %}
+                <optgroup label="Wie eine frühere Veranstaltung">
                     {% for event in events %}
-                    <option value="{{ event.id }}">{{ event.name }}{% if event.event_date %} ({{ event.event_date }}){% endif %}</option>
+                    <option value="event:{{ event.id }}">{{ event.name }}{% if event.event_date %} ({{ event.event_date }}){% endif %}</option>
                     {% endfor %}
-                </select>
-                <button class="green" type="submit" name="aktion" value="vorjahr">Vorjahr übernehmen</button>
-                <button class="secondary" type="submit" name="aktion" value="bearbeiten">Im Assistenten bearbeiten</button>
-            </form>
-            <p class="muted">„Vorjahr übernehmen“ plant eine neue Veranstaltung nach diesem Muster, „Bearbeiten“ ändert die gewählte.</p>
-            {% else %}
-            <p class="muted">Noch keine Veranstaltungen.</p>
-            {% endif %}
-        </article>
-        <article class="assistent-kachel" id="entwuerfe">
-            <h2>⏯ Entwurf fortsetzen</h2>
-            {% if entwuerfe %}
-            <ul class="assistent-entwurf-liste">
-                {% for entwurf in entwuerfe %}
-                <li><a href="/assistent/entwurf/{{ entwurf.id }}">{{ entwurf.titel }}</a>
-                    <span class="muted">· {{ entwurf.updated_at[:16] }}</span></li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="muted">Keine offenen Entwürfe.</p>
-            {% endif %}
-        </article>
-    </div>
-    <p class="assistent-sekundaer"><a href="/assistent/vorlagen">Vorlagen verwalten</a></p>
+                </optgroup>
+                {% endif %}
+            </select>
+            <p class="muted">Mit Vorlage oder früherer Veranstaltung sind Sportarten, Orte und Zeiten schon eingetragen; Name, Datum und Klassen gleichst du im ersten Schritt ab.</p>
+            <button class="green" type="submit">Planen</button>
+        </form>
+        <p class="assistent-sekundaer"><a href="/assistent/vorlagen">Vorlagen verwalten</a></p>
+    </section>
+
+    <section class="panel assistent-weg" id="bestehende">
+        <h2>✏️ Bestehende Veranstaltung ändern</h2>
+        {% if events %}
+        <ul class="assistent-liste">
+            {% for event in events %}
+            <li>
+                <div>
+                    <strong>{{ event.name }}</strong>
+                    <span class="muted">{{ event.event_date or "Datum offen" }} · {{ event.competition_count }} Wettbewerbe</span>
+                </div>
+                <form method="post" action="/assistent/entwurf/bearbeiten/{{ event.id }}">
+                    <button class="secondary" type="submit">{% if event.id in bearbeiten_entwuerfe %}Weiter ändern{% else %}Plan ändern{% endif %}</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        <p class="muted">Bereits gespielte Zeitblöcke bleiben dabei unverändert.</p>
+        {% else %}
+        <p class="muted">Noch keine Veranstaltungen.</p>
+        {% endif %}
+    </section>
+</div>
+
+{% if neue_entwuerfe %}
+<section class="panel" id="entwuerfe">
+    <h2>⏯ Entwurf fortsetzen</h2>
+    <ul class="assistent-liste">
+        {% for entwurf in neue_entwuerfe %}
+        <li>
+            <div><a href="/assistent/entwurf/{{ entwurf.id }}">{{ entwurf.titel }}</a>
+                <span class="muted">zuletzt {{ entwurf.updated_at[:16]|replace("T", " ") }}</span></div>
+        </li>
+        {% endfor %}
+    </ul>
 </section>
+{% endif %}
 {% endblock %}

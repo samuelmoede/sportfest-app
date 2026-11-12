@@ -90,7 +90,7 @@ class AssistentRoutenTests(unittest.TestCase):
 
     def test_startseite_zeigt_drei_einstiege(self):
         text = self.client.get("/assistent").text
-        for label in ("Neue Veranstaltung", "Aus Vorlage starten", "Entwurf fortsetzen", "Vorlagen verwalten"):
+        for label in ("Neue Veranstaltung", "Bestehende Veranstaltung ändern", "Vorlagen verwalten"):
             self.assertIn(label, text)
 
     def test_schulpokal_aus_vorlage_bis_zur_veranstaltung(self):

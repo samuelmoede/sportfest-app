@@ -153,15 +153,21 @@ class AssistentBearbeitenTests(unittest.TestCase):
         self.assertFalse([h for h in plan["hinweise"] if h["id"].startswith("fremd-")],
                          [h["titel"] for h in plan["hinweise"] if h["id"].startswith("fremd-")])
         self.assertFalse([h for h in plan["hinweise"] if h["id"] == "name-doppelt"])
+        slot_ids_vorher = sorted(r["id"] for r in self._rows("SELECT id FROM slots"))
+        punkt_ids_vorher = sorted(r["id"] for r in self._rows("SELECT id FROM event_programmpunkte"))
         location = self._uebernehmen(entwurf_id)
-        self.assertIn("Änderungen übernommen", self.client.get(location).text)
+        seite = self.client.get(location).text
+        self.assertIn("Änderungen übernommen", seite)
+        self.assertIn("8 unverändert", seite)
+        # Unverändert heißt wirklich unverändert: gleiche Spiele, gleiche ids.
+        self.assertEqual(slot_ids_vorher, sorted(r["id"] for r in self._rows("SELECT id FROM slots")))
+        self.assertEqual(punkt_ids_vorher,
+                         sorted(r["id"] for r in self._rows("SELECT id FROM event_programmpunkte")))
         nachher = self._stand()
         self.assertEqual(vorher["events"], nachher["events"])
         self.assertEqual(vorher["spiele"], nachher["spiele"])
         self.assertEqual(vorher["programmpunkte"], nachher["programmpunkte"])
-        # Wettbewerbe bleiben dieselben Datensätze; Jahrgangsfinals werden neu angelegt.
-        normale = lambda stand: [c for c in stand["competitions"] if "Jahrgangsfinale" not in c[1]]
-        self.assertEqual(normale(vorher), normale(nachher))
+        self.assertEqual(vorher["competitions"], nachher["competitions"])
         self.assertEqual(self._count("SELECT COUNT(*) FROM competitions WHERE jahrgang = 'mixed'"), 2)
         for url in ("/", "/spielplan", "/tabellen", f"/events/{self.event_id}"):
             self.assertEqual(self.client.get(url).status_code, 200, url)
@@ -195,7 +201,8 @@ class AssistentBearbeitenTests(unittest.TestCase):
             WHERE c.sportart = 'Zweifelderball' AND c.jahrgang != 'mixed'
             """))
         vb_ids_vorher = {r["id"] for r in self._rows(
-            "SELECT s.id FROM slots s JOIN competitions c ON c.id = s.competition_id WHERE c.sportart = 'Volleyball'")}
+            "SELECT s.id FROM slots s JOIN competitions c ON c.id = s.competition_id "
+            "WHERE c.sportart = 'Volleyball' AND c.jahrgang != 'mixed'")}
 
         entwurf_id = self._bearbeiten()
         daten = self._entwurf(entwurf_id)["daten"]
@@ -220,7 +227,8 @@ class AssistentBearbeitenTests(unittest.TestCase):
         self.assertEqual(zwb_slots_vorher, zwb_slots_nachher)
         self.assertEqual(self._rows("SELECT status FROM slots WHERE id = ?", (erstes,))[0]["status"], "beendet")
         vb_ids_nachher = {r["id"] for r in self._rows(
-            "SELECT s.id FROM slots s JOIN competitions c ON c.id = s.competition_id WHERE c.sportart = 'Volleyball'")}
+            "SELECT s.id FROM slots s JOIN competitions c ON c.id = s.competition_id "
+            "WHERE c.sportart = 'Volleyball' AND c.jahrgang != 'mixed'")}
         self.assertTrue(vb_ids_nachher)
         self.assertFalse(vb_ids_vorher & vb_ids_nachher, "Volleyball sollte neu geplant sein")
         # Das Jahrgangsfinale 7/8 hängt am gesperrten Block und bleibt bestehen.
@@ -272,9 +280,35 @@ class AssistentBearbeitenTests(unittest.TestCase):
         # Kachel „Bearbeiten“ nutzt dieselbe Route wie die Veranstaltungsseite
         location = self._post("/assistent/entwurf/bestehend", {"event_id": str(self.event_id), "aktion": "bearbeiten"})
         self.assertEqual(int(location.split("/")[3]), self._bearbeiten())
-        self.assertIn("Bestehende Veranstaltung", self.client.get("/assistent").text)
+        start = self.client.get("/assistent").text
+        self.assertIn("Bestehende Veranstaltung ändern", start)
+        self.assertIn("Weiter ändern", start)  # offener Bearbeiten-Entwurf
+        self.assertIn(f'value="event:{self.event_id}"', start)
         self.assertIn(f"/assistent/entwurf/bearbeiten/{self.event_id}",
                       self.client.get(f"/events/{self.event_id}").text)
+
+
+    def test_startpunkt_auswahl(self):
+        location = self._post("/assistent/entwurf/start", {"start": "leer"})
+        self.assertTrue(location.endswith("/grunddaten"))
+        location = self._post("/assistent/entwurf/start", {"start": es.SYSTEM_VORLAGE_SCHULPOKAL})
+        self.assertTrue(location.endswith("/abgleich"))
+        location = self._post("/assistent/entwurf/start", {"start": f"event:{self.event_id}"})
+        self.assertTrue(location.endswith("/abgleich"))
+        daten = self._entwurf(int(location.split("/")[3]))["daten"]
+        self.assertEqual(daten["vorlage"]["quelle"], f"veranstaltung:{self.event_id}")
+        location = self._post("/assistent/entwurf/start", {"start": "event:999"})
+        self.assertIn("einstieg_fehler", location)
+        # Neue Entwürfe stehen unter „Entwurf fortsetzen“, Bearbeiten-Entwürfe nicht.
+        self._bearbeiten()
+        start = self.client.get("/assistent").text
+        fortsetzen = start.split('id="entwuerfe"', 1)[1]
+        self.assertNotIn("(bearbeiten)", fortsetzen)
+
+    def test_veranstaltungsseite_hat_plan_aendern(self):
+        seite = self.client.get(f"/events/{self.event_id}").text
+        self.assertIn("Plan ändern", seite)
+        self.assertIn("Name &amp; Beschreibung", seite)
 
 
 if __name__ == "__main__":
