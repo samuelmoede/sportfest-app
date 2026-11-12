@@ -26,6 +26,8 @@ from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
 from app.routes.assistent import create_router as create_assistent_router
 from app.services.navigation_service import build_navigation, nav_icon_svg
+from app.services.icon_service import icon_svg
+from markupsafe import Markup
 from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
 from app.routes.zeitplan import create_router as create_zeitplan_router
 from app.services.beamer_service import STANDARD_SEKUNDEN, baue_beamer_seiten
@@ -326,6 +328,7 @@ templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
 templates.env.globals["nav_icon_svg"] = nav_icon_svg
+templates.env.globals["icon"] = lambda name, css_class="icon": Markup(icon_svg(name, css_class))
 templates.env.globals["get_navigation"] = lambda request: build_navigation(
     request.url.path, lambda rolle: can_access_role(request, rolle)
 )

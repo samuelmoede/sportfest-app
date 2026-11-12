@@ -124,13 +124,13 @@
                     </article>
                 {% elif sixkampf_active %}
                     <div class="modern-beamer-empty">
-                        <span aria-hidden="true">○</span>
+                        <span aria-hidden="true">{{ icon("circle") }}</span>
                         <strong>Sechskampf-Stationen laufen</strong>
                         <p>Diese Ansicht zeigt nur Spielfeld-Wettbewerbe. Details gibt es im <a href="/spielplan">Spielplan</a>.</p>
                     </div>
                 {% else %}
                     <div class="modern-beamer-empty">
-                        <span aria-hidden="true">○</span>
+                        <span aria-hidden="true">{{ icon("circle") }}</span>
                         <strong>Kein aktuelles Spiel</strong>
                         <p>Sobald ein Wettbewerb läuft, erscheinen hier Begegnungen und Spielstände.</p>
                     </div>
@@ -144,7 +144,7 @@
                     <p>Zwischenstand</p>
                     <h2>Tabelle</h2>
                 </div>
-                <span aria-hidden="true">🏆</span>
+                <span aria-hidden="true">{{ icon("trophy") }}</span>
             </div>
 
             {% if table_rows %}

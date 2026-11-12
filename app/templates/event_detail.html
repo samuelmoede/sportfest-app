@@ -4,10 +4,10 @@
 {% set can_manage_event = can_access_role(request, "admin") %}
 <div class="siegerehrung-visibility-bar">
     <span class="siegerehrung-visibility-badge {% if event.siegerehrung_public %}is-public{% else %}is-private{% endif %}">
-        {% if event.siegerehrung_public %}🌐 Siegerehrung öffentlich{% else %}🔒 Siegerehrung privat{% endif %}
+        {% if event.siegerehrung_public %}{{ icon("globe") }} Siegerehrung öffentlich{% else %}{{ icon("lock") }} Siegerehrung privat{% endif %}
     </span>
     {% if event.siegerehrung_public %}
-    <a class="siegerehrung-public-link" href="/siegerehrung/{{ event.id }}" target="_blank">Öffentlicher Link öffnen ↗</a>
+    <a class="siegerehrung-public-link" href="/siegerehrung/{{ event.id }}" target="_blank">Öffentlicher Link öffnen {{ icon("external-link") }}</a>
     {% if can_manage_event %}
     <form method="post" action="/events/{{ event.id }}/siegerehrung-private">
         <button class="secondary" type="submit">Privat</button>
@@ -25,8 +25,8 @@
         <p class="eyebrow">Veranstaltung</p>
         <h1>{{ event.name }}</h1>
         <div class="hero-meta">
-            <span>🗓 {{ event.event_date or "Datum offen" }}</span>
-            <span>🏷 {{ event.event_type or "Sonstiges" }}</span>
+            <span>{{ icon("calendar") }} {{ event.event_date or "Datum offen" }}</span>
+            <span>{{ icon("tag") }} {{ event.event_type or "Sonstiges" }}</span>
             {{ ui.status_badge(event.status) }}
         </div>
         {% if event.description %}<p class="hero-description">{{ event.description }}</p>{% endif %}
@@ -80,7 +80,7 @@
             <p class="eyebrow">Ablauf</p>
             <h2>Tagesplan</h2>
         </div>
-        <span class="section-icon" aria-hidden="true">🕒</span>
+        <span class="section-icon" aria-hidden="true">{{ icon("clock") }}</span>
     </div>
     {% set day_schedule_compact = true %}
     {% set day_schedule_editable = can_manage_event %}
@@ -144,7 +144,7 @@
             <p class="eyebrow">Ergebnisse</p>
             <h2>Gesamtwertung</h2>
         </div>
-        <span class="section-icon" aria-hidden="true">🏅</span>
+        <span class="section-icon" aria-hidden="true">{{ icon("medal") }}</span>
     </div>
     {% include "partials/gesamtwertung.html" %}
 </section>

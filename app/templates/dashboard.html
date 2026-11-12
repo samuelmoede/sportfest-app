@@ -4,7 +4,7 @@
 <div class="dashboard-page">
     {% if dashboard_info_html %}
     <div class="dashboard-banner" role="status">
-        <span class="dashboard-banner-icon" aria-hidden="true">📣</span>
+        <span class="dashboard-banner-icon" aria-hidden="true">{{ icon("megaphone") }}</span>
         <div class="dashboard-banner-text">{{ dashboard_info_html|safe }}</div>
         <button type="button" class="dashboard-banner-close" aria-label="Hinweis schließen" onclick="this.closest('.dashboard-banner').remove()">&times;</button>
     </div>
@@ -16,8 +16,8 @@
             <h1>{{ next_event.name if next_event else "Sportfest-Dashboard" }}</h1>
             {% if next_event %}
             <div class="hero-meta">
-                <span>🗓 {{ next_event.event_date or "Datum offen" }}</span>
-                <span>🏆 {{ next_event.competition_count }} Wettbewerbe</span>
+                <span>{{ icon("calendar") }} {{ next_event.event_date or "Datum offen" }}</span>
+                <span>{{ icon("trophy") }} {{ next_event.competition_count }} Wettbewerbe</span>
                 {{ ui.status_badge(next_event.status) }}
             </div>
             {% if next_event.description %}
@@ -26,7 +26,7 @@
             <div class="hero-actions">
                 <a class="button primary" href="/events/{{ next_event.id }}">Veranstaltung öffnen</a>
                 {% if next_event.siegerehrung_public %}
-                <a class="button secondary" href="/siegerehrung/{{ next_event.id }}" target="_blank">🏆 Siegerehrung ansehen ↗</a>
+                <a class="button secondary" href="/siegerehrung/{{ next_event.id }}" target="_blank">{{ icon("trophy") }} Siegerehrung ansehen {{ icon("external-link") }}</a>
                 {% endif %}
             </div>
             {% else %}
@@ -52,7 +52,7 @@
             {% include "partials/day_schedule.html" %}
         {% else %}
         <div class="empty-state compact">
-            <span aria-hidden="true">🗓</span>
+            <span aria-hidden="true">{{ icon("calendar") }}</span>
             <div><strong>Kein Tagesplan verfügbar</strong><p>Es gibt keine aktive oder kommende Veranstaltung.</p></div>
         </div>
         {% endif %}
@@ -86,15 +86,15 @@
                             <strong>{{ s.team_b or "?" }}</strong>
                         </div>
                         <div class="competition-card-meta">
-                            <span>👥 Jahrgang {{ s.jahrgang }}</span>
-                            <span>🕒 {{ s.startzeit }}</span>
-                            <span>📍 {{ s.court_name or "Ohne Feld" }}</span>
+                            <span>{{ icon("users") }} Jahrgang {{ s.jahrgang }}</span>
+                            <span>{{ icon("clock") }} {{ s.startzeit }}</span>
+                            <span>{{ icon("map-pin") }} {{ s.court_name or "Ohne Feld" }}</span>
                         </div>
                     </div>
                 </article>
                 {% else %}
                 <div class="empty-state">
-                    <span aria-hidden="true">✓</span>
+                    <span aria-hidden="true">{{ icon("check") }}</span>
                     <div>
                         <strong>Momentan läuft kein Spiel</strong>
                         <p>Die nächsten geplanten Begegnungen stehen direkt daneben.</p>
@@ -129,14 +129,14 @@
                         <small>
                             {{ s.competition_name }}
                             {% if competition %} · Jahrgang {{ competition.jahrgang }}{% endif %}
-                            · 📍 {{ s.court_name or "Ohne Feld" }}
+                            · {{ icon("map-pin") }} {{ s.court_name or "Ohne Feld" }}
                         </small>
                     </div>
                     {{ ui.status_badge("gleich" if s.is_soon else "geplant") }}
                 </article>
                 {% else %}
                 <div class="empty-state compact">
-                    <span aria-hidden="true">✓</span>
+                    <span aria-hidden="true">{{ icon("check") }}</span>
                     <div>
                         <strong>Keine weiteren Slots geplant</strong>
                         <p>Der aktuelle Spielplan enthält keinen offenen Eintrag.</p>
@@ -154,7 +154,7 @@
                     <p class="eyebrow">Wertung</p>
                     <h2>Gesamtwertung</h2>
                 </div>
-                <span class="ranking-icon" aria-hidden="true">🏅</span>
+                <span class="ranking-icon" aria-hidden="true">{{ icon("medal") }}</span>
             </div>
             {% if next_event %}
             <p>Alle Turnier- und Sechskampfwertungen der Veranstaltung nach Jahrgang gebündelt.</p>
@@ -180,7 +180,7 @@
                 </a>
                 {% else %}
                 <div class="empty-state compact">
-                    <span aria-hidden="true">🗓</span>
+                    <span aria-hidden="true">{{ icon("calendar") }}</span>
                     <div><strong>Keine weiteren Termine</strong><p>Aktuell sind keine weiteren Veranstaltungen geplant.</p></div>
                 </div>
                 {% endfor %}

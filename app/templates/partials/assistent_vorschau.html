@@ -23,7 +23,7 @@
         <ul class="wiz-hinweise">
             {% for h in plan.hinweise %}
             <li class="wiz-hinweis stufe-{{ h.stufe }}{% if h.bestaetigt %} is-confirmed{% endif %}" id="hinweis-{{ h.id }}">
-                <strong>{% if h.stufe == "blockierend" %}⛔ Blockierend{% elif h.stufe == "warnung" %}{% if h.bestaetigt %}✔ Bewusst zugelassen{% else %}⚠ Warnung{% endif %}{% else %}ℹ Info{% endif %}:</strong>
+                <strong>{% if h.stufe == "blockierend" %}{{ icon("octagon-x") }} Blockierend{% elif h.stufe == "warnung" %}{% if h.bestaetigt %}{{ icon("circle-check") }} Bewusst zugelassen{% else %}{{ icon("triangle-alert") }} Warnung{% endif %}{% else %}{{ icon("info") }} Info{% endif %}:</strong>
                 {% if h.wb %}{% for e in eintraege if e.wettbewerb.key == h.wb %}{% if loop.first %}<a href="?wb={{ eintraege.index(e) }}#plan" data-goto="{{ eintraege.index(e) }}">{{ h.titel }}</a>{% endif %}{% else %}{{ h.titel }}{% endfor %}{% else %}{{ h.titel }}{% endif %}
                 {% if h.text %}<p>{{ h.text }}</p>{% endif %}
                 <div class="wiz-vorschlaege">
@@ -102,13 +102,13 @@
     {% if total %}
     <div class="wiz-carousel" data-carousel data-total="{{ total }}" data-aktiv="{{ aktiv }}">
         <div class="wiz-carousel-head">
-            <button type="button" class="wiz-arrow" data-carousel-prev aria-label="Vorheriger Wettbewerb">◀</button>
+            <button type="button" class="wiz-arrow" data-carousel-prev aria-label="Vorheriger Wettbewerb">{{ icon("chevron-left") }}</button>
             <label class="muted" for="wiz-wb-select">Wettbewerb</label>
             <select id="wiz-wb-select" data-carousel-select>
                 {% for e in eintraege %}<option value="{{ loop.index0 }}" {% if loop.index0 == aktiv %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
             </select>
             <span class="wiz-badge" data-carousel-pos aria-live="polite">{{ aktiv + 1 }} von {{ total }}</span>
-            <button type="button" class="wiz-arrow" data-carousel-next aria-label="Nächster Wettbewerb">▶</button>
+            <button type="button" class="wiz-arrow" data-carousel-next aria-label="Nächster Wettbewerb">{{ icon("chevron-right") }}</button>
         </div>
         {% for e in eintraege %}
         {% set i = loop.index0 %}
