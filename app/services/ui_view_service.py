@@ -279,6 +279,31 @@ def _clock_minutes(minutes):
 PROGRAMM_ZEILE_MINUTEN = 11
 
 
+SPORT_FARBEN = 6
+
+
+def assign_sport_colors(entries, columns=()):
+    """Gibt jedem Wettbewerbsblock im Tagesplan eine Farbnummer
+    (farbe 1..SPORT_FARBEN) nach seiner Sportart: gleiche Sportart, gleiche
+    Farbe ueber alle Jahrgaenge hinweg, verschiedene Sportarten
+    unterscheidbar. Vergeben wird in der Reihenfolge des Auftretens im Plan
+    (fruehester Block zuerst, bei gleicher Zeit die Spalte weiter links),
+    damit bis zu SPORT_FARBEN Sportarten nie dieselbe Farbe bekommen.
+    Programmpunkte (Eroeffnung, Siegerehrung, Finale) bekommen keine."""
+    column_order = {column: index for index, column in enumerate(columns)}
+    farben = {}
+    blocks = [entry for entry in entries if not entry.get("is_programm")]
+    for entry in sorted(
+        blocks,
+        key=lambda e: (e["start_minutes"], column_order.get(e.get("column"), len(column_order))),
+    ):
+        key = (entry.get("sportart") or entry.get("name") or "").strip().casefold()
+        if key not in farben:
+            farben[key] = len(farben) % SPORT_FARBEN + 1
+        entry["farbe"] = farben[key]
+    return farben
+
+
 def _add_programm_entry(target, column, label, kind, start, end):
     target.append({
         "is_programm": True,
@@ -501,6 +526,7 @@ def build_day_timeline(columns, competitions, now=None, slots=None, programmpunk
     entries.extend(merged)
     if not entries:
         return None
+    assign_sport_colors(entries, columns)
 
     timeline_start = (min(e["start_minutes"] for e in entries) // 30) * 30
     raw_end = max(e.get("extent_end_minutes", e["end_minutes"]) for e in entries)

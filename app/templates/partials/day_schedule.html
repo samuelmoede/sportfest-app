@@ -87,7 +87,7 @@
                         {% endfor %}
                     </div>
                     {% elif day_schedule_editable|default(false) and item.competition_id %}
-                    <div class="day-timeline-block status-{{ item.status_key|default('planned') }} is-editable"
+                    <div class="day-timeline-block status-{{ item.status_key|default('planned') }} sport-{{ item.farbe|default(0) }} is-editable"
                          style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                          data-grobplan-block
                          data-href="/spielplan?competition_id={{ item.competition_id }}"
@@ -103,7 +103,7 @@
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
                     </div>
                     {% else %}
-                    <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
+                    <a class="day-timeline-block status-{{ item.status_key|default('planned') }} sport-{{ item.farbe|default(0) }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
                         {{ render_block_content(item, show_delay=show_day_delay) }}
