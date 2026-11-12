@@ -147,7 +147,7 @@ richtige Feld/die richtige Station zu finden. Erste gesammelte Ideen, noch nicht
 [ ] globale Wertungseinstellungen
 [ ] Vorlage Bewegungsfest
 [x] Vorlage Schulpokal (2026-10-30): Bereich auf `/assistent`, siehe `app/services/schulpokal_vorlage_service.py`; dazu Jahrgangsfinale (`jahrgangsfinale_service.py`), Spielzeit-Vorschlag und Hinweis statt Fehler bei gleicher Klasse in anderer Sportart
-[x] Schulpokal-Gesamtplan (2026-11-06): alle Blöcke auf einmal planen (`schulpokal_gesamtplan_service.py`, `plan_schulpokal_block`), Teilmannschaften Jungen/Mädchen ohne Extra-Teams, Gesamtwertung aus Spielpunkten, Runden-Timer in der Ergebniseingabe (`runden_timer_service.py`)
+[x] Schulpokal-Gesamtplan (2026-11-06): alle Blöcke auf einmal planen (`schulpokal_gesamtplan_service.py`, `plan_schulpokal_block`), Teilmannschaften Jungen/Mädchen ohne Extra-Teams, Gesamtwertung aus Spielpunkten, Runden-Timer in der Ergebniseingabe (`runden_timer_service.py`). Gesamtplan 2026-11-12 entfernt, der Einrichtungsassistent plant den Schulpokal
 
 ## Phase 7.5 – Einrichtungsassistent und Turniertag (Herbst 2026)
 
@@ -165,7 +165,7 @@ Stand 2026-11-12: alles auf `develop` (DEV), DEV-Test durch Samuel und Release n
 
 Nächste Schritte für den Assistenten (Analyse 2026-11-12, erst nach DEV-Test):
 
-[ ] Konsolidieren: Es gibt drei Wege, einen Schulpokal anzulegen (neuer Assistent, `/assistent/vorlage/schulpokal` mit `schulpokal_vorlage_service.py`, „Ganzen Schulpokal planen“ mit `schulpokal_gesamtplan_service.py`) plus den Turnier-Schnellstart. Alte Routen auf den neuen Assistenten umleiten, nur noch `assistent_planung_service` plant
+[x] Konsolidieren (2026-11-12): Vorlage Schulpokal, „Ganzen Schulpokal planen“ (`schulpokal_gesamtplan_service.py`), der Assistent je Veranstaltung (`/assistent/{event_id}`) und der Turnier-Schnellstart sind entfernt. Alte Links leiten auf den neuen Assistenten bzw. die Veranstaltungsseite („Plan ändern“) um; es plant nur noch `assistent_planung_service`
 [x] Einstieg „Vorjahr übernehmen“: bestehende Veranstaltung → Abgleich → Vorschau in einem Zug (2026-11-12)
 [x] Bestehende Veranstaltung im Assistenten bearbeiten (2026-11-12, Entscheidung Samuel: Grundlage fürs Entfernen der alten Wege). Nur ungespielte Blöcke werden neu geplant
 [ ] Weniger Schritte: „Wertung“ in „Sportarten“ bzw. Expertenmodus verschieben

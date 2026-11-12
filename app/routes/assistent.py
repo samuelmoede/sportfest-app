@@ -1,8 +1,8 @@
 """Neuer Einrichtungsassistent (Entwurf -> Vorschau -> Uebernehmen).
 
 Alle Seiten liegen unter /assistent und damit im bestehenden Bereichsschutz
-fuer Admins. Der bisherige Assistent (/assistent/{event_id}, Schulpokal-
-Gesamtplan, Turnier-Schnellstart) bleibt unveraendert erreichbar."""
+fuer Admins. Die Startseite /assistent und die Weiterleitungen der
+frueheren Assistent-Wege liegen in app/routes/wizard.py."""
 import json
 from typing import List
 from urllib.parse import urlencode

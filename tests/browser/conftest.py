@@ -45,12 +45,11 @@ def chromium_available() -> bool:
         return False
 
 
-def _seed_quickstart_data():
-    """Mindestdaten fuer den Turnier-Schnellstart auf /turnier-schnellstart
-    (siehe app/routes/quickstart.py::build_quickstart_context): ohne
-    mindestens zwei aktive Teams und ein aktives Feld am Standard-Standort
-    ("Turnhalle") blendet die Seite das Schnellstart-Formular (inkl.
-    Zeitfeld) komplett aus und zeigt nur einen Hinweistext."""
+def _seed_basisdaten():
+    """Mindestdaten (zwei Klassen, ein Feld in der Turnhalle), damit die
+    Verwaltungsseiten nicht leer sind. Frueher Voraussetzung fuer den
+    inzwischen entfernten Turnier-Schnellstart; andere Browser-Tests legen
+    ihre Daten zusaetzlich selbst an."""
     import app.database as database
 
     with database.get_conn() as conn:
@@ -92,7 +91,7 @@ def live_server_url():
     else:
         raise RuntimeError("Live-Testserver ist nicht rechtzeitig gestartet")
 
-    _seed_quickstart_data()
+    _seed_basisdaten()
 
     yield base_url
 

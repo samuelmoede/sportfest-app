@@ -176,7 +176,7 @@ class RichDataRouteSmokeTests(unittest.TestCase):
             "/", "/login", "/ergebnisse", "/beamer",
             "/tabellen", "/tabellen?jahrgang=mixed", "/tabellen?jahrgang=9",
             "/tabellen/csv",
-            "/wettbewerbe", "/events", "/events/new", "/turnier-schnellstart",
+            "/wettbewerbe", "/events", "/events/new",
             "/spielplan", "/spielplan/aushang", "/spielplan/monitor",
             "/spielplan-bearbeiten",
             "/einstellungen", "/einstellungen/aenderungsprotokoll",
@@ -187,7 +187,6 @@ class RichDataRouteSmokeTests(unittest.TestCase):
             f"/siegerehrung/{self.event_id}",
             f"/events/{self.event_id}",
             f"/events/{self.event_id}/edit",
-            f"/assistent/{self.event_id}",
         ]
 
         with TestClient(fastapi_app) as client:
