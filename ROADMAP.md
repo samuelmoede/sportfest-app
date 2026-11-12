@@ -149,6 +149,29 @@ richtige Feld/die richtige Station zu finden. Erste gesammelte Ideen, noch nicht
 [x] Vorlage Schulpokal (2026-10-30): Bereich auf `/assistent`, siehe `app/services/schulpokal_vorlage_service.py`; dazu Jahrgangsfinale (`jahrgangsfinale_service.py`), Spielzeit-Vorschlag und Hinweis statt Fehler bei gleicher Klasse in anderer Sportart
 [x] Schulpokal-Gesamtplan (2026-11-06): alle Blöcke auf einmal planen (`schulpokal_gesamtplan_service.py`, `plan_schulpokal_block`), Teilmannschaften Jungen/Mädchen ohne Extra-Teams, Gesamtwertung aus Spielpunkten, Runden-Timer in der Ergebniseingabe (`runden_timer_service.py`)
 
+## Phase 7.5 – Einrichtungsassistent und Turniertag (Herbst 2026)
+
+Stand 2026-11-12: alles auf `develop` (DEV), DEV-Test durch Samuel und Release nach `main` offen.
+
+[x] Einrichtungsassistent neu (2026-11-06, PR #160/#161): Entwurf als JSON (`assistent_entwurf_service.py`), rein rechnender Planungskern (`assistent_planung_service.py`), Vorschau vor dem Anlegen, atomares Übernehmen, Vorlagen aus Entwürfen und Veranstaltungen, einstellbare Gleichstandsregeln (`tiebreak_service.py`). Doku: `docs/EINRICHTUNGSASSISTENT.md`
+[x] Assistent: Layout der Orte-Auswahl repariert (2026-11-09, PR #162)
+[x] Assistent-Vorschau: Spielplan je Wettbewerb als Zeitraster Zeit x Feld (2026-11-09, PR #163)
+[x] Tagesplan: Programmpunkte mit Dauer (Eröffnung, Siegerehrung, Pause), Eröffnung/Siegerehrung/Finale als eigene Blöcke, Klick öffnet Spielplan, Jahrgang 10 eigene Spalte beim Schulpokal (2026-11-06, PR #155-#159)
+[x] Zeitplan aufholen (Spielzeit/Wechselzeit kürzen mit sofortiger Vorschau) und Durchsage an alle bis „Verstanden“ (2026-11-06, PR #157)
+[x] Runden-Timer in der Ergebniseingabe (2026-11-06, PR #154)
+[x] Urkunden-Generator `/urkunden` (2026-10-28, PR #147); Unterschrift der Schulleitung entfällt (2026-11-09, PR #164)
+[ ] Urkunden sportlicher/moderner gestalten, Klassenfeld leer zum Vorab-Druck (drei Entwürfe, Wahl durch Samuel offen)
+[ ] Release 1.2: DEV-Test, PR `develop` → `main`, vorher Backup der Prod-DB (neue Tabellen/Spalten per `init_db()`)
+
+Nächste Schritte für den Assistenten (Analyse 2026-11-12, erst nach DEV-Test):
+
+[ ] Konsolidieren: Es gibt drei Wege, einen Schulpokal anzulegen (neuer Assistent, `/assistent/vorlage/schulpokal` mit `schulpokal_vorlage_service.py`, „Ganzen Schulpokal planen“ mit `schulpokal_gesamtplan_service.py`) plus den Turnier-Schnellstart. Alte Routen auf den neuen Assistenten umleiten, nur noch `assistent_planung_service` plant
+[ ] Einstieg „Vorjahr übernehmen“: bestehende Veranstaltung → Vorlage → Abgleich → Vorschau in einem Zug
+[ ] Weniger Schritte: „Wertung“ in „Sportarten“ bzw. Expertenmodus verschieben
+[ ] Machbarkeit in jedem Schritt als kleines Abzeichen (machbar / nicht machbar) statt nur in der Vorschau
+[ ] Später, nach Feedback: einseitige Variante mit Live-Vorschau neben den Eingaben
+[ ] Planungskern automatisiert mit 4, 5, 8, 9, 10, 12 Teams pro Jahrgang durchrechnen (siehe Phase 4.7)
+
 ## Refactoring
 
 [x] Spielplanrouten und Spielplan-Services aus `app/main.py` ausgelagert
