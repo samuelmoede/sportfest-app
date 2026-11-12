@@ -2204,3 +2204,39 @@ svg.nav-icon {
 .nav-link.is-active svg.nav-icon {
     color: #9cc0fb;
 }
+
+/*
+ * App-weite Liniensymbole (icon() in den Vorlagen, siehe
+ * app/services/icon_service.py) statt Emojis: so gross wie die Schrift,
+ * erben deren Farbe und sitzen auf der Grundlinie des Textes.
+ */
+svg.icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 1.05em;
+    height: 1.05em;
+    vertical-align: -0.16em;
+    filter: none;
+}
+
+.section-icon svg.icon,
+.ranking-icon svg.icon,
+.competition-card-icon svg.icon,
+.competition-summary-icon svg.icon {
+    width: 1.35rem;
+    height: 1.35rem;
+    color: var(--blue);
+}
+
+.logo svg.icon {
+    width: 22px;
+    height: 22px;
+    color: #fff;
+}
+
+.mobile-menu-toggle,
+.sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

@@ -148,7 +148,7 @@
             {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
         </h2>
         <p class="muted">
-            {% if selected_discipline.location %}📍 {{ selected_discipline.location }} · {% endif %}
+            {% if selected_discipline.location %}{{ icon("map-pin") }} {{ selected_discipline.location }} · {% endif %}
             {{ selected_discipline.values_per_team }} Werte je Klasse ·
             {% if selected_discipline.scoring_direction == "lower" %}
             Niedriger ist besser
@@ -619,7 +619,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
                     {% endif %}
                     {% if s.group_patt_risk %}
-                    <span class="pill draw-warning-pill">⚠ Patt möglich</span>
+                    <span class="pill draw-warning-pill">{{ icon("triangle-alert") }} Patt möglich</span>
                     {% endif %}
                     {% if s.undo_available %}
                     <form method="post" action="/slot/{{ s.id }}/undo-correction" class="undo-correction-form"
@@ -627,7 +627,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                           data-confirm="Korrektur rückgängig machen und {{ s.undo_old_label }} wiederherstellen?">
                         <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                         <button class="outline undo-btn" type="submit" title="Letzte Korrektur zurücknehmen">
-                            ↺ Rückgängig ({{ s.undo_old_label }})
+                            {{ icon("undo-2") }} Rückgängig ({{ s.undo_old_label }})
                         </button>
                     </form>
                     {% endif %}
