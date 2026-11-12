@@ -168,8 +168,8 @@ Nächste Schritte für den Assistenten (Analyse 2026-11-12, erst nach DEV-Test):
 [x] Konsolidieren (2026-11-12): Vorlage Schulpokal, „Ganzen Schulpokal planen“ (`schulpokal_gesamtplan_service.py`), der Assistent je Veranstaltung (`/assistent/{event_id}`) und der Turnier-Schnellstart sind entfernt. Alte Links leiten auf den neuen Assistenten bzw. die Veranstaltungsseite („Plan ändern“) um; es plant nur noch `assistent_planung_service`
 [x] Einstieg „Vorjahr übernehmen“: bestehende Veranstaltung → Abgleich → Vorschau in einem Zug (2026-11-12)
 [x] Bestehende Veranstaltung im Assistenten bearbeiten (2026-11-12, Entscheidung Samuel: Grundlage fürs Entfernen der alten Wege). Nur ungespielte Blöcke werden neu geplant
-[ ] Weniger Schritte: „Wertung“ in „Sportarten“ bzw. Expertenmodus verschieben
-[ ] Machbarkeit in jedem Schritt als kleines Abzeichen (machbar / nicht machbar) statt nur in der Vorschau
+[x] Weniger Schritte (2026-11-12): „Wertung“ ist im Abschluss aufgegangen, Punkte und Gleichstand unter „Anpassen“
+[x] Machbarkeit in jedem Schritt als kleines Abzeichen (machbar / Warnungen offen / noch nicht machbar), Klick führt zur Vorschau (2026-11-12)
 [ ] Später, nach Feedback: einseitige Variante mit Live-Vorschau neben den Eingaben
 [ ] Planungskern automatisiert mit 4, 5, 8, 9, 10, 12 Teams pro Jahrgang durchrechnen (siehe Phase 4.7)
 

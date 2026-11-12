@@ -28,6 +28,12 @@ Wichtige Entscheidungen:
   Wertungen), Programmpunkte in `event_programmpunkte`, Konfliktprüfung
   `find_internal_conflicts`/`find_existing_schedule_conflicts` als letzte
   Absicherung beim Übernehmen.
+- **Machbarkeits-Abzeichen in jedem Schritt** (seit 2026-11-12): oben rechts
+  „✔ Machbar“, „⚠ Machbar · n Warnungen offen“ oder „✖ Noch nicht machbar“,
+  ein Klick führt zur Vorschau. Der Plan wird dafür bei jedem Aufruf neu
+  berechnet. Die frühere Seite „Wertung“ steht im Abschluss; dort geänderte
+  Punkte und Gleichstandsregeln gelten beim Erstellen mit (nur auf der
+  angezeigten Entwurfsversion), alte Links auf `/wertung` leiten um.
 - **Machbarkeitsprüfung in drei Stufen:** blockierend (z. B. Feld doppelt
   belegt, Plan passt nicht ins Zeitfenster), Warnung zum Bestätigen (z. B.
   Klasse gleichzeitig in zwei Sportarten), Info. Vorschläge (Spielzeit kürzen,
@@ -126,8 +132,8 @@ die Jahrgänge 7–10 und Felder in Turnhalle und Mensa sollten vorhanden sein.
 5. „Bearbeiten“ an einem Wettbewerb: Spielzeit z. B. auf 12 Minuten setzen →
    Plan wird neu berechnet, ggf. erscheint „passt nicht ins Zeitfenster“ mit
    Vorschlägen. Einen Vorschlag anklicken, Auswirkungen erscheinen als Meldung.
-6. Wertung → Abschluss → „Veranstaltung erstellen“, optional „Als Vorlage
-   speichern“. Danach Tagesplan, Spielplan, Tabellen und Ergebnisse der neuen
+6. Abschluss (mit der Wertung) → „Veranstaltung erstellen“, optional „Als
+   Vorlage speichern“. Danach Tagesplan, Spielplan, Tabellen und Ergebnisse der neuen
    Veranstaltung prüfen. Der Zurück-Knopf und ein zweites Absenden legen nichts
    doppelt an.
 
@@ -144,7 +150,8 @@ die Jahrgänge 7–10 und Felder in Turnhalle und Mensa sollten vorhanden sein.
 5. Zeitplan: die vorgeschlagenen Blöcke prüfen, einen Puffer (Programmpunkt
    „Pause“ 10:30–10:45) eintragen. In der Vorschau darf in dieser Zeit kein
    Spiel liegen.
-6. Wertung: bei Volleyball die Reihenfolge der Gleichstandsregeln ändern
+6. Abschluss, Abschnitt Wertung: bei Volleyball unter „Anpassen“ die
+   Reihenfolge der Gleichstandsregeln ändern
    (z. B. Tordifferenz vor direktem Vergleich). Nach dem Erstellen und dem
    Eintragen von Ergebnissen mit Punktgleichstand nutzt die Tabelle diese
    Reihenfolge.

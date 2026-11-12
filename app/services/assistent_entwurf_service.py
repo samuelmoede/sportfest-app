@@ -68,9 +68,11 @@ SCHRITTE = (
     ("orte", "Orte"),
     ("zeitplan", "Zeitplan"),
     ("vorschau", "Vorschau"),
-    ("wertung", "Wertung"),
     ("abschluss", "Abschluss"),
 )
+# Fruehere Schritte, die in einem anderen aufgegangen sind (alte Links und
+# gespeicherte Entwuerfe): „Wertung“ steht seit 2026-11-12 im Abschluss.
+SCHRITT_ALIASE = {"wertung": "abschluss"}
 SCHRITT_KEYS = tuple(key for key, _ in SCHRITTE)
 ABLAEUFE = {
     "abwechselnd": "Wettbewerbe abwechselnd",
