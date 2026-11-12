@@ -35,7 +35,7 @@
         <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
             <span class="role-badge-prefix">{{ access_badge_prefix }}</span> {{ access_badge_text }}
         </span>
-        <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">☰ Menü</button>
+        <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">{{ icon("menu") }} Menü</button>
     </div>
 </header>
 
@@ -68,12 +68,12 @@
 <div class="layout">
     <aside class="sidebar">
         <div class="brand">
-            <div class="logo">⚡</div>
+            <div class="logo">{{ icon("zap") }}</div>
             <div class="brand-text">
                 <strong>Sportfest</strong>
                 <span>Manager</span>
             </div>
-            <button type="button" class="sidebar-toggle" aria-label="Seitenleiste umschalten" aria-expanded="true">☰</button>
+            <button type="button" class="sidebar-toggle" aria-label="Seitenleiste umschalten" aria-expanded="true">{{ icon("menu") }}</button>
         </div>
 
         <nav>

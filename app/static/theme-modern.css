@@ -1580,3 +1580,12 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Liniensymbole (icon(), siehe app/services/icon_service.py). */
+svg.icon {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 1.05em;
+    height: 1.05em;
+    vertical-align: -0.16em;
+}

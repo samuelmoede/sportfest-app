@@ -183,21 +183,21 @@
                     {{ ui.status_badge(c.status) }}
                 </div>
                 <div class="competition-summary-meta">
-                    <span class="competition-meta-item">👥 Jahrgang {{ c.jahrgang }}</span>
+                    <span class="competition-meta-item">{{ icon("users") }} Jahrgang {{ c.jahrgang }}</span>
                     {% if competition_explicit_team_ids.get(c.id) %}
                     <span class="competition-meta-item explicit-teams-badge">{{ competition_explicit_team_ids[c.id]|length }} Teams explizit</span>
                     {% endif %}
-                    <span class="competition-meta-item">🕒 {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
-                    <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
+                    <span class="competition-meta-item">{{ icon("clock") }} {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
+                    <span class="competition-meta-item">{{ icon("map-pin") }} {{ c.location or "Ort offen" }}</span>
                     {% if c.competition_date %}
-                    <span class="competition-meta-item">🗓 {{ c.competition_date }}</span>
+                    <span class="competition-meta-item">{{ icon("calendar") }} {{ c.competition_date }}</span>
                     {% endif %}
                     <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
                 </div>
                 {% if c.competition_type in ("Turnier", "Schulpokal") %}
                 <p class="competition-detail-note">{{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</p>
                 {% endif %}
-                <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">▾</span></span>
+                <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">{{ icon("chevron-down") }}</span></span>
             </div>
         </summary>
 
@@ -343,7 +343,7 @@
 
                 <button class="primary" type="submit">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
-                <span class="save-feedback-inline competition-save-feedback">✓ Gespeichert um {{ saved_at }}</span>
+                <span class="save-feedback-inline competition-save-feedback">{{ icon("check") }} Gespeichert um {{ saved_at }}</span>
                 {% endif %}
             </form>
 

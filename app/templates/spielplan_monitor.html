@@ -44,6 +44,12 @@
             font-weight: 900;
         }
 
+        svg.icon {
+            width: 1.05em;
+            height: 1.05em;
+            vertical-align: -0.16em;
+        }
+
         .mon-location {
             flex: 1;
             font-size: 22px;
@@ -162,7 +168,7 @@
 </head>
 <body>
 <header class="mon-header">
-    <div class="mon-brand">⚡ Sportfest</div>
+    <div class="mon-brand">{{ icon("zap") }} Sportfest</div>
     <div class="mon-location">{{ selected_location or "Alle Orte" }}</div>
     <button class="mon-fullscreen-btn" id="mon-fullscreen-btn" type="button">Vollbild</button>
     <strong class="mon-clock" id="mon-clock">--:--</strong>

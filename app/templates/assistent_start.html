@@ -48,7 +48,7 @@
 
 <div class="assistent-wege" id="einstieg">
     <section class="panel assistent-weg">
-        <h2>🆕 Neue Veranstaltung</h2>
+        <h2>{{ icon("calendar-plus") }} Neue Veranstaltung</h2>
         <form method="post" action="/assistent/entwurf/start" class="assistent-kachel-form">
             <label for="startpunkt">Startpunkt</label>
             <select name="start" id="startpunkt">
@@ -76,7 +76,7 @@
     </section>
 
     <section class="panel assistent-weg" id="bestehende">
-        <h2>✏️ Bestehende Veranstaltung ändern</h2>
+        <h2>{{ icon("pencil") }} Bestehende Veranstaltung ändern</h2>
         {% if events %}
         <ul class="assistent-liste">
             {% for event in events %}
@@ -100,7 +100,7 @@
 
 {% if neue_entwuerfe %}
 <section class="panel" id="entwuerfe">
-    <h2>⏯ Entwurf fortsetzen</h2>
+    <h2>{{ icon("circle-play") }} Entwurf fortsetzen</h2>
     <ul class="assistent-liste">
         {% for entwurf in neue_entwuerfe %}
         <li>

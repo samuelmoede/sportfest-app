@@ -120,11 +120,11 @@
     {% if plan and schritt != "abgleich" %}
     {% set offene = plan.offene_warnungen|length %}
     {% if plan.blockierend or not plan.eintraege %}
-    <a class="wiz-machbar is-block" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">✖ Noch nicht machbar{% if plan.blockierend %} · {{ plan.blockierend|length }} {{ "Problem" if plan.blockierend|length == 1 else "Probleme" }}{% endif %}</a>
+    <a class="wiz-machbar is-block" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">{{ icon("circle-x") }} Noch nicht machbar{% if plan.blockierend %} · {{ plan.blockierend|length }} {{ "Problem" if plan.blockierend|length == 1 else "Probleme" }}{% endif %}</a>
     {% elif offene %}
-    <a class="wiz-machbar is-warn" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">⚠ Machbar · {{ offene }} {{ "Warnung" if offene == 1 else "Warnungen" }} offen</a>
+    <a class="wiz-machbar is-warn" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">{{ icon("triangle-alert") }} Machbar · {{ offene }} {{ "Warnung" if offene == 1 else "Warnungen" }} offen</a>
     {% else %}
-    <a class="wiz-machbar is-ok" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">✔ Machbar</a>
+    <a class="wiz-machbar is-ok" href="/assistent/entwurf/{{ entwurf.id }}/vorschau" title="Zur Vorschau mit allen Hinweisen">{{ icon("circle-check") }} Machbar</a>
     {% endif %}
     {% endif %}
 </header>
@@ -585,7 +585,7 @@
         {% endif %}
         <dt>Hinweise</dt>
         <dd>{{ plan.anzahl.blockierend }} blockierend, {{ plan.anzahl.warnung }} Warnungen ({{ plan.hinweise|selectattr("bestaetigt")|list|length }} bewusst zugelassen), {{ plan.anzahl.info }} Infos.
-            {% for h in plan.hinweise if h.bestaetigt %}<br>✔ Zugelassen: {{ h.titel }}{% endfor %}</dd>
+            {% for h in plan.hinweise if h.bestaetigt %}<br>{{ icon("check") }} Zugelassen: {{ h.titel }}{% endfor %}</dd>
     </dl>
 
     <form method="post" id="schritt-form" action="/assistent/entwurf/{{ entwurf.id }}/abschluss">

@@ -286,7 +286,7 @@ class AssistentRoutenTests(unittest.TestCase):
         self._bestaetige_warnungen(entwurf_id)
         seite = self.client.get(f"{basis}/sportarten").text
         self.assertIn('class="wiz-machbar is-ok"', seite)
-        self.assertIn("✔ Machbar", seite)
+        self.assertRegex(seite, r"is-ok\"[^>]*><svg class=\"icon\"[^>]*>.*?</svg> Machbar")
 
     def test_vorlage_loeschen_braucht_bestaetigung(self):
         with database.get_conn() as conn:
