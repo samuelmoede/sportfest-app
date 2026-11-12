@@ -161,7 +161,8 @@ Stand 2026-11-12: alles auf `develop` (DEV), DEV-Test durch Samuel und Release n
 [x] Runden-Timer in der Ergebniseingabe (2026-11-06, PR #154)
 [x] Urkunden-Generator `/urkunden` (2026-10-28, PR #147); Unterschrift der Schulleitung entfällt (2026-11-09, PR #164)
 [ ] Urkunden sportlicher/moderner gestalten, Klassenfeld leer zum Vorab-Druck (drei Entwürfe, Wahl durch Samuel offen)
-[ ] Release 1.2: DEV-Test, PR `develop` → `main`, vorher Backup der Prod-DB (neue Tabellen/Spalten per `init_db()`)
+[x] Release 1.2 (2026-11-12, PR #168)
+[ ] Release 1.3: DEV-Test, PR `develop` → `main`, vorher Backup der Prod-DB
 
 Nächste Schritte für den Assistenten (Analyse 2026-11-12, erst nach DEV-Test):
 

@@ -4,6 +4,8 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+## [1.3] - 2026-11-12
+
 - Neu: Beamer-Ansicht (`/beamer`) für den Turniertag überarbeitet. Sie blättert automatisch durch große Seiten: je Ort „Jetzt“ (Spielstände, bei gemeinsam gestarteter Runde die Restzeit) und „Als Nächstes“ (je Feld das nächste Spiel), danach Zwischenstände (Gesamtwertung je Jahrgang bzw. Tabellen) und letzte Ergebnisse. Die Schrift skaliert mit der Auflösung, die Farbe zeigt die Sportart wie im Tagesplan, der nächste Programmpunkt steht in der Kopfzeile, eine Durchsage erscheint als Banner ohne „Verstanden“. Daten werden ohne Neuladen aktualisiert. Optionen: `?ort=Mensa`, `?tabellen=aus`, `?hell=1`, `?sekunden=20` (siehe Einstellungen). Verspätungen erscheinen nicht.
 - Seitenleiste neu geordnet (auch im mobilen Menü): „Wettkampftag“ (Spielplan, Ergebnisse eintragen) und „Auswertung“ (Tabellen, Urkunden) stehen oben, darunter für Admins „Vorbereitung“ in der Reihenfolge der Einrichtung (Einrichtungsassistent, Veranstaltungen, Teams, Spielfelder, Wettbewerbe, Spielplan bearbeiten) und „System“ (Einstellungen, Dokumentation, Roadmap). Spielplan, Ergebnisse und Tabellen stehen damit für jede Rolle an derselben Stelle. „Ergebnisse“ heißt „Ergebnisse eintragen“, „Assistent“ heißt „Einrichtungsassistent“. Einheitliche Liniensymbole statt gemischter Emojis, jedes Symbol kommt nur einmal vor; in der eingeklappten Leiste zeigt ein Tooltip den Namen.
 - Assistent mit einem Schritt weniger: Die Wertung (Sieger, was zählt, Punkte und Gleichstandsregeln) steht jetzt im Abschluss direkt über „Veranstaltung erstellen“; dort geänderte Einstellungen gelten beim Erstellen mit. Alte Links auf die Wertungsseite leiten um.
