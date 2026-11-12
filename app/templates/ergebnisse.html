@@ -847,8 +847,12 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
    .result-actions treffen - die verschachtelten Buttons in
    .correction-unlocked-actions (Korrigieren/Abbrechen/Reaktivieren/Loeschen)
    sollen ihr bisheriges, nicht gestrecktes Layout behalten. */
+/* Umbruch nur noch als ganze Knoepfe: Reicht die Kartenbreite nicht fuer
+   alle drei Knoepfe nebeneinander (schmale Feld-Spalte, Handy, andere
+   Systemschrift), rutscht der letzte Knopf in eine zweite Zeile und fuellt
+   sie aus - statt dass "Speichern" mitten im Wort zu "Speicher/n" bricht. */
 .results-court-column .result-actions {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 /* Muss ueber ".result-form-row .result-actions button" (results.css, ohne
    Media Query, Spezifitaet 0,2,1) gewinnen - ein Selektor mit ">*" (0,2,0)
@@ -859,7 +863,10 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .result-actions > button,
 .results-court-column .result-actions > form {
     flex: 1 1 0;
-    min-width: 0;
+    /* Gleich breit, solange Platz ist, aber nie schmaler als die Beschriftung
+       (frueher min-width: 0 - das liess "Speichern" unter seine Textbreite
+       schrumpfen und mitten im Wort umbrechen). */
+    min-width: max-content;
 }
 .results-court-column .result-actions > button,
 .results-court-column .result-actions > form > button {
@@ -899,10 +906,15 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     padding: 5px 7px;
     font-size: 0.75rem;
 }
-/* Buttons in der schmalen Ergebnis-Spalte sind zu knapp fuer laengere Labels
-   wie "Start rueckgaengig" - ohne Umbruch lief der Text ueber die Button- und
-   Kartengrenze hinweg statt zweizeilig in seinem Button zu bleiben. */
-.results-court-column .result-actions button,
+/* Knopf-Beschriftungen bleiben einzeilig: Statt den Text im Knopf (auch
+   mitten im Wort, "Speicher/n") umzubrechen, wandert der ganze Knopf in die
+   naechste Zeile (flex-wrap oben). Fuer die Korrektur-Knoepfe bleibt der
+   bisherige Umbruch im Knopf als Schutz gegen Ueberlauf. */
+.results-court-column .result-actions > button,
+.results-court-column .result-actions > form > button {
+    white-space: nowrap;
+    text-align: center;
+}
 .results-court-column .correction-unlocked-actions button {
     white-space: normal;
     overflow-wrap: anywhere;
