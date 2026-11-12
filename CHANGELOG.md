@@ -4,6 +4,8 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Neu: Bestehende Veranstaltungen im Einrichtungsassistenten bearbeiten. „Im Assistenten planen“ auf der Veranstaltungsseite (oder die neue Kachel „Bestehende Veranstaltung“ auf `/assistent`) öffnet die Veranstaltung als Entwurf mit Name, Datum, Klassen, Wettbewerben, Zeitblöcken, Programmpunkten und Showspielen. „Änderungen übernehmen“ ändert diese Veranstaltung in einer Transaktion: Wettbewerbe ohne Ergebnisse bekommen Einstellungen und Spielplan neu, nicht mehr ausgewählte werden gelöscht, Programmpunkte und Showspiele ersetzt. Zeitblöcke, in denen schon gespielt wurde, bleiben samt Spielen und Showspiel unverändert; ein Wettbewerb mit Ergebnissen lässt sich hier nicht entfernen. Die eigenen alten Spiele gelten in der Vorschau nicht als Überschneidung. Ein zweiter Klick öffnet denselben Entwurf.
+- Neu: „Vorjahr übernehmen“ auf `/assistent` plant eine neue Veranstaltung nach dem Muster einer bestehenden, ohne vorher eine Vorlage zu speichern (mit Abgleich von Name, Datum, Klassen und Orten).
 ## [1.2] - 2026-11-12
 
 - Urkunden: Die Unterschrift der Schulleitung entfällt. Die Urkunde hat nur noch eine Unterschriftszeile (Standard „Sportlehrer:in“), mittig unter Ort und Datum; in den Einstellungen gibt es nur noch das Feld „Unterschrift“.

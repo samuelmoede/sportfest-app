@@ -3,14 +3,14 @@
 <header class="page-header">
     <div>
         <p class="eyebrow">Einrichtungsassistent</p>
-        <h1>{% if event %}Veranstaltung erstellt{% else %}Entwurf abgeschlossen{% endif %}</h1>
+        <h1>{% if event and entwurf.daten.bestand %}Änderungen übernommen{% elif event %}Veranstaltung erstellt{% else %}Entwurf abgeschlossen{% endif %}</h1>
     </div>
 </header>
 <section class="panel">
     {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
     {% if fehler %}<p class="validation-error" role="alert">{{ fehler }}</p>{% endif %}
     {% if event %}
-    <p><strong>{{ event.name }}</strong> ({{ event.event_date or "Datum offen" }}) ist mit {{ competitions|length }} Wettbewerben angelegt.</p>
+    <p><strong>{{ event.name }}</strong> ({{ event.event_date or "Datum offen" }}) {% if entwurf.daten.bestand %}hat jetzt{% else %}ist mit{% endif %} {{ competitions|length }} Wettbewerben{% if not entwurf.daten.bestand %} angelegt{% endif %}.</p>
     <ul>
         <li><a href="/events/{{ event.id }}">Veranstaltung und Tagesplan</a></li>
         <li><a href="/spielplan">Spielplan</a></li>

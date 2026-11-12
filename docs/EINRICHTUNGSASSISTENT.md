@@ -50,6 +50,30 @@ Wichtige Entscheidungen:
   `/turnier-schnellstart`) funktionieren weiter, sind aber nicht mehr von der
   Startseite verlinkt.
 
+## Bestehende Veranstaltung bearbeiten und „Vorjahr übernehmen“
+
+- **Bearbeiten** (`POST /assistent/entwurf/bearbeiten/{event_id}`, Knopf „Im Assistenten
+  planen“ auf der Veranstaltungsseite, Kachel „Bestehende Veranstaltung“ auf `/assistent`):
+  `entwurf_aus_veranstaltung()` liest die Veranstaltung in einen Entwurf zurück und merkt
+  sich in `daten["bestand"]` die Zuordnung Eintrag → `competition_id` und Showspiel →
+  Finale. Name, Datum, Art und Klassenauswahl bleiben, ein Abgleich erscheint nur, wenn
+  Felder, Orte oder Jahrgänge fehlen. Ein offener Bearbeiten-Entwurf derselben
+  Veranstaltung wird wiederverwendet.
+- **Planungskern** (`_lade_bestand`): Ein Zeitblock ist gesperrt, sobald ein Wettbewerb
+  darin begonnene/beendete Spiele, eingetragene Tore oder Sechskampf-Ergebnisse hat. Seine
+  Spiele kommen unverändert aus der Datenbank in die Vorschau (`bestehend`), Showspiele
+  dieser Wettbewerbe bleiben. Nicht mehr ausgewählte Wettbewerbe ohne Ergebnisse werden
+  gelöscht (Info), mit Ergebnissen blockiert. Die eigenen alten Spiele zählen nicht als
+  fremde Belegung, der Namensabgleich ignoriert die eigene Veranstaltung.
+- **Übernehmen**: aktualisiert `events`, überschreibt Einstellungen nicht gesperrter
+  Wettbewerbe (Spielzeit in Sekunden wird zurückgesetzt) und legt Spiele, Klassen und
+  Disziplinen neu an; entfernte Wettbewerbe und nicht gesperrte Showspiele werden gelöscht
+  und neu erzeugt, Programmpunkte ersetzt. Alles in einer Transaktion, danach die übliche
+  Konfliktprüfung gegen die echten Datensätze.
+- **Vorjahr übernehmen** (`POST /assistent/entwurf/bestehend`, `aktion=vorjahr`):
+  `entwurf_aus_vorjahr()` = Vorlage aus der Veranstaltung + Start aus Vorlage, ohne die
+  Vorlage zu speichern.
+
 ## Migration
 
 Wie gewohnt in `init_db()`, idempotent und ohne Migrationsdateien:
