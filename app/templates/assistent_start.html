@@ -59,6 +59,24 @@
                 <button class="green" type="submit">Mit Vorlage starten</button>
             </form>
         </article>
+        <article class="assistent-kachel" id="bestehende">
+            <h2>✏️ Bestehende Veranstaltung</h2>
+            {% if events %}
+            <form method="post" action="/assistent/entwurf/bestehend" class="assistent-kachel-form">
+                <label for="bestehende-auswahl" class="muted">Veranstaltung</label>
+                <select name="event_id" id="bestehende-auswahl">
+                    {% for event in events %}
+                    <option value="{{ event.id }}">{{ event.name }}{% if event.event_date %} ({{ event.event_date }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button class="green" type="submit" name="aktion" value="vorjahr">Vorjahr übernehmen</button>
+                <button class="secondary" type="submit" name="aktion" value="bearbeiten">Im Assistenten bearbeiten</button>
+            </form>
+            <p class="muted">„Vorjahr übernehmen“ plant eine neue Veranstaltung nach diesem Muster, „Bearbeiten“ ändert die gewählte.</p>
+            {% else %}
+            <p class="muted">Noch keine Veranstaltungen.</p>
+            {% endif %}
+        </article>
         <article class="assistent-kachel" id="entwuerfe">
             <h2>⏯ Entwurf fortsetzen</h2>
             {% if entwuerfe %}

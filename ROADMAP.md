@@ -166,7 +166,8 @@ Stand 2026-11-12: alles auf `develop` (DEV), DEV-Test durch Samuel und Release n
 Nächste Schritte für den Assistenten (Analyse 2026-11-12, erst nach DEV-Test):
 
 [ ] Konsolidieren: Es gibt drei Wege, einen Schulpokal anzulegen (neuer Assistent, `/assistent/vorlage/schulpokal` mit `schulpokal_vorlage_service.py`, „Ganzen Schulpokal planen“ mit `schulpokal_gesamtplan_service.py`) plus den Turnier-Schnellstart. Alte Routen auf den neuen Assistenten umleiten, nur noch `assistent_planung_service` plant
-[ ] Einstieg „Vorjahr übernehmen“: bestehende Veranstaltung → Vorlage → Abgleich → Vorschau in einem Zug
+[x] Einstieg „Vorjahr übernehmen“: bestehende Veranstaltung → Abgleich → Vorschau in einem Zug (2026-11-12)
+[x] Bestehende Veranstaltung im Assistenten bearbeiten (2026-11-12, Entscheidung Samuel: Grundlage fürs Entfernen der alten Wege). Nur ungespielte Blöcke werden neu geplant
 [ ] Weniger Schritte: „Wertung“ in „Sportarten“ bzw. Expertenmodus verschieben
 [ ] Machbarkeit in jedem Schritt als kleines Abzeichen (machbar / nicht machbar) statt nur in der Vorschau
 [ ] Später, nach Feedback: einseitige Variante mit Live-Vorschau neben den Eingaben

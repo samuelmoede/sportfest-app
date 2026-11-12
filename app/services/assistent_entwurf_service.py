@@ -589,13 +589,15 @@ def entwurf_aus_vorlage(vorlage, stamm, quelle, name):
     return daten
 
 
-def vorlage_aus_veranstaltung(conn, event_id):
-    """Macht eine bestehende (fertig geplante) Veranstaltung als Vorlage
-    wiederverwendbar: Sportarten, Jahrgaenge, Zusammenlegungen, Orte,
-    Zeitbloecke, Modi, Punkte, Programmpunkte und Showspiele."""
+def _daten_aus_veranstaltung(conn, event_id):
+    """Liest eine bestehende Veranstaltung in Entwurfsdaten zurueck.
+    Gibt (event, daten, bestand) zurueck; bestand ordnet Eintrags-ids
+    ("Schluessel#Teilmannschaft") und Showspiel-ids den competition-ids zu.
+    Feldnamen stehen noch als felder_namen in den Wettbewerbseinstellungen."""
     event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
     if event is None:
         raise ValueError("Veranstaltung nicht gefunden.")
+    bestand = {"event_id": event["id"], "wettbewerbe": {}, "showspiele": {}}
     daten = neue_daten()
     daten["grunddaten"]["event_type"] = event["event_type"] or DEFAULT_EVENT_TYPE
     competitions = conn.execute(
@@ -629,6 +631,7 @@ def vorlage_aus_veranstaltung(conn, event_id):
             continue
         key = wettbewerb_key(sportart, members)
         key_by_competition[competition["id"]] = key
+        bestand["wettbewerbe"][f'{key}#{competition["teilmannschaft"] or ""}'] = competition["id"]
         if sportart not in daten["sportarten"]:
             daten["sportarten"].append(sportart)
         matrix = daten["matrix"].setdefault(sportart, [])
@@ -701,8 +704,10 @@ def vorlage_aus_veranstaltung(conn, event_id):
     for competition in competitions:
         sources = parse_final_source_ids(competition["final_source_ids"])
         if len(sources) == 2 and all(s in key_by_competition for s in sources):
+            show_id = f"s{len(daten['showspiele']) + 1}"
+            bestand["showspiele"][show_id] = competition["id"]
             daten["showspiele"].append({
-                "id": f"s{len(daten['showspiele']) + 1}",
+                "id": show_id,
                 "wettbewerb_a": key_by_competition[sources[0]],
                 "wettbewerb_b": key_by_competition[sources[1]],
                 "start": uhrzeit(competition["start_time"]) or "",
@@ -713,12 +718,94 @@ def vorlage_aus_veranstaltung(conn, event_id):
         daten["grunddaten"]["start"] = uhr(min(starts))
     if ends:
         daten["grunddaten"]["ende"] = uhr(max(ends))
+    return event, daten, bestand
+
+
+def vorlage_aus_veranstaltung(conn, event_id):
+    """Macht eine bestehende (fertig geplante) Veranstaltung als Vorlage
+    wiederverwendbar: Sportarten, Jahrgaenge, Zusammenlegungen, Orte,
+    Zeitbloecke, Modi, Punkte, Programmpunkte und Showspiele."""
+    _event, daten, _bestand = _daten_aus_veranstaltung(conn, event_id)
     stamm = {"courts": []}
     vorlage = vorlage_aus_daten(daten, stamm)
     for key, einstellung in daten["wettbewerbe"].items():
         if "felder_namen" in einstellung:
             vorlage["wettbewerbe"][key]["felder_namen"] = einstellung["felder_namen"]
     return vorlage
+
+
+def entwurf_aus_vorjahr(conn, event_id, stamm):
+    """„Vorjahr übernehmen“: neue Veranstaltung nach dem Muster einer
+    bestehenden. Wie ein Start aus einer Vorlage, nur ohne Umweg über das
+    Speichern einer Vorlage; Name, Datum und Klassen kommen in den Abgleich."""
+    event = conn.execute("SELECT name FROM events WHERE id = ?", (event_id,)).fetchone()
+    if event is None:
+        raise ValueError("Veranstaltung nicht gefunden.")
+    vorlage = vorlage_aus_veranstaltung(conn, event_id)
+    return entwurf_aus_vorlage(vorlage, stamm, f"veranstaltung:{event_id}", event["name"])
+
+
+def entwurf_aus_veranstaltung(conn, event_id, stamm):
+    """Bestehende Veranstaltung im Assistenten bearbeiten. Der Entwurf
+    behält Name, Datum und Klassenauswahl und merkt sich in daten["bestand"],
+    welche Wettbewerbe schon existieren. Übernehmen ändert dann diese
+    Veranstaltung, statt eine neue anzulegen (siehe uebernehmen)."""
+    event, roh, bestand = _daten_aus_veranstaltung(conn, event_id)
+    vorlage = vorlage_aus_daten(roh, {"courts": []})
+    for key, einstellung in roh["wettbewerbe"].items():
+        if "felder_namen" in einstellung:
+            vorlage["wettbewerbe"][key]["felder_namen"] = einstellung["felder_namen"]
+    daten = entwurf_aus_vorlage(vorlage, stamm, f"bearbeiten:{event_id}", event["name"])
+    daten["grunddaten"]["name"] = event["name"] or ""
+    daten["grunddaten"]["datum"] = event["event_date"] or ""
+    daten["grunddaten"]["event_type"] = event["event_type"] or DEFAULT_EVENT_TYPE
+    for einstellung in daten["wettbewerbe"].values():
+        if einstellung.get("modus_quelle") == "vorlage":
+            einstellung["modus_quelle"] = "bestand"
+    # Klassen, die in keinem expliziten Wettbewerb mitspielen, bleiben abgewählt.
+    explizit = {
+        row["team_id"] for row in conn.execute(
+            """
+            SELECT ct.team_id FROM competition_teams ct
+            JOIN competitions c ON c.id = ct.competition_id
+            WHERE c.event_id = ? AND COALESCE(c.status, '') != 'archiviert'
+            """,
+            (event_id,),
+        ).fetchall()
+    }
+    if explizit:
+        gewaehlt = set(daten.get("jahrgaenge") or [])
+        daten["teams_abgewaehlt"] = sorted(
+            team["id"] for team in stamm["teams"]
+            if jahrgang_text(team["jahrgang"]) in gewaehlt and team["id"] not in explizit
+        )
+    abgleich = daten.get("abgleich") or {}
+    offen = bool(
+        abgleich.get("fehlende_jahrgaenge") or abgleich.get("inaktive_orte") or abgleich.get("fehlende_felder")
+    )
+    daten["abgleich"] = dict(abgleich, offen=offen) if offen else None
+    daten["vorlage"] = None
+    daten["bestand"] = bestand
+    return daten
+
+
+def bestand_event_id(daten):
+    bestand = daten.get("bestand") or {}
+    return bestand.get("event_id")
+
+
+def offener_entwurf_fuer(conn, event_id):
+    """Offener Bearbeiten-Entwurf zu einer Veranstaltung (sonst None), damit
+    ein zweiter Klick denselben Entwurf öffnet statt einen neuen."""
+    for row in conn.execute(
+        "SELECT id, daten FROM assistent_entwuerfe WHERE status = 'offen' ORDER BY id DESC"
+    ).fetchall():
+        try:
+            if bestand_event_id(json.loads(row["daten"])) == event_id:
+                return row["id"]
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _programm_art(titel):
@@ -795,6 +882,8 @@ def speichere_vorlage(conn, name, vorlage, vorlage_id=None):
 
 def titel_fuer(daten):
     name = (daten.get("grunddaten") or {}).get("name") or ""
+    if bestand_event_id(daten):
+        return f"{name.strip() or 'Veranstaltung'} (bearbeiten)"
     if name.strip():
         return name.strip()
     vorlage = daten.get("vorlage") or {}
@@ -851,10 +940,12 @@ def offene_entwuerfe(conn):
 # Uebernehmen
 # ---------------------------------------------------------------------------
 
-def _unique_name(conn, base_name):
+def _unique_name(conn, base_name, ausser=None):
     candidate = base_name
     suffix = 2
-    while conn.execute("SELECT 1 FROM competitions WHERE name = ?", (candidate,)).fetchone():
+    while conn.execute(
+        "SELECT 1 FROM competitions WHERE name = ? AND id != ?", (candidate, ausser or -1)
+    ).fetchone():
         candidate = f"{base_name} ({suffix})"
         suffix += 1
     return candidate
@@ -906,43 +997,82 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane):
 
     grunddaten = daten["grunddaten"]
     name = grunddaten["name"].strip()
-    event_id = conn.execute(
-        """
-        INSERT INTO events (name, description, details, event_date, status, event_type)
-        VALUES (?, '', '', ?, 'geplant', ?)
-        """,
-        (name, grunddaten.get("datum") or None, grunddaten.get("event_type") or DEFAULT_EVENT_TYPE),
-    ).lastrowid
+    bestand = plan.get("bestand")
+    if bestand:
+        event_id = bestand["event_id"]
+        conn.execute(
+            "UPDATE events SET name = ?, event_date = ?, event_type = ? WHERE id = ?",
+            (name, grunddaten.get("datum") or None, grunddaten.get("event_type") or DEFAULT_EVENT_TYPE,
+             event_id),
+        )
+        # Ohne Ergebnisse: entfernte Wettbewerbe und alle Showspiele (werden
+        # unten neu angelegt) verschwinden ganz, wie beim Löschen eines
+        # Wettbewerbs. Gesperrte Wettbewerbe und Showspiele bleiben unberührt.
+        for competition_id in bestand["entfernen_ids"] + bestand["finals_loeschen"]:
+            _loesche_wettbewerb(conn, competition_id)
+        conn.execute("DELETE FROM event_programmpunkte WHERE event_id = ?", (event_id,))
+    else:
+        event_id = conn.execute(
+            """
+            INSERT INTO events (name, description, details, event_date, status, event_type)
+            VALUES (?, '', '', ?, 'geplant', ?)
+            """,
+            (name, grunddaten.get("datum") or None, grunddaten.get("event_type") or DEFAULT_EVENT_TYPE),
+        ).lastrowid
 
     competition_ids = {}
     for eintrag in plan["eintraege"]:
         wb = eintrag["wettbewerb"]
         einstellungen = wb["einstellungen"]
         block = eintrag["block"]
+        vorhanden = (bestand or {}).get("wettbewerbe", {}).get(eintrag["id"])
+        if eintrag.get("gesperrt"):
+            competition_ids[eintrag["id"]] = vorhanden
+            continue
         if einstellungen["art"] == "Sechskampf":
             competition_type, tournament_mode = "Sechskampf", None
         else:
             competition_type, tournament_mode = db_typ_und_modus(daten, eintrag["modus"])
         jahrgang = wb["jahrgaenge"][0]
-        competition_id = conn.execute(
-            """
-            INSERT INTO competitions (
-                name, sportart, jahrgang, status, points_win, points_draw, points_loss,
-                points_first_place, event_id, competition_type, tournament_mode,
-                game_duration_minutes, changeover_duration_minutes, location,
-                start_time, end_time, teilmannschaft, tiebreak_order
-            ) VALUES (?, ?, ?, 'geplant', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                _unique_name(conn, eintrag["name"]), wb["sportart"],
-                int(jahrgang) if jahrgang.isdigit() else jahrgang,
-                einstellungen["punkte_sieg"], einstellungen["punkte_unentschieden"],
-                max(len(wb["teams"]), 1), event_id, competition_type, tournament_mode,
-                block["spielzeit"], block["wechselzeit"], einstellungen["ort"],
-                block["start"], block["ende"], eintrag["teilmannschaft"],
-                format_tiebreak_order(einstellungen.get("tiebreak")),
-            ),
-        ).lastrowid
+        werte = (
+            _unique_name(conn, eintrag["name"], ausser=vorhanden), wb["sportart"],
+            int(jahrgang) if jahrgang.isdigit() else jahrgang,
+            einstellungen["punkte_sieg"], einstellungen["punkte_unentschieden"],
+            max(len(wb["teams"]), 1), event_id, competition_type, tournament_mode,
+            block["spielzeit"], block["wechselzeit"], einstellungen["ort"],
+            block["start"], block["ende"], eintrag["teilmannschaft"],
+            format_tiebreak_order(einstellungen.get("tiebreak")),
+        )
+        if vorhanden:
+            # Noch ohne Ergebnisse (sonst gesperrt): Einstellungen
+            # überschreiben, Spiele, Klassen und Disziplinen neu anlegen.
+            conn.execute(
+                """
+                UPDATE competitions SET
+                    name = ?, sportart = ?, jahrgang = ?, points_win = ?, points_draw = ?,
+                    points_first_place = ?, event_id = ?, competition_type = ?, tournament_mode = ?,
+                    game_duration_minutes = ?, game_duration_seconds = NULL,
+                    changeover_duration_minutes = ?, location = ?, start_time = ?, end_time = ?,
+                    teilmannschaft = ?, tiebreak_order = ?
+                WHERE id = ?
+                """,
+                werte + (vorhanden,),
+            )
+            for tabelle in ("slots", "competition_teams", "competition_disciplines"):
+                conn.execute(f"DELETE FROM {tabelle} WHERE competition_id = ?", (vorhanden,))
+            competition_id = vorhanden
+        else:
+            competition_id = conn.execute(
+                """
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, points_win, points_draw, points_loss,
+                    points_first_place, event_id, competition_type, tournament_mode,
+                    game_duration_minutes, changeover_duration_minutes, location,
+                    start_time, end_time, teilmannschaft, tiebreak_order
+                ) VALUES (?, ?, ?, 'geplant', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                werte,
+            ).lastrowid
         competition_ids[eintrag["id"]] = competition_id
         for team in wb["teams"]:
             conn.execute(
@@ -958,7 +1088,7 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane):
 
     neue_slots = []
     for slot in plan["slots"]:
-        if slot.get("showspiel"):
+        if slot.get("showspiel") or slot.get("bestehend"):
             continue
         competition_id = competition_ids[slot["eintrag_id"]]
         conn.execute(
@@ -1015,6 +1145,25 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane):
         (event_id, jetzt(), entwurf_id),
     )
     return event_id, []
+
+
+def _loesche_wettbewerb(conn, competition_id):
+    """Wie „Wettbewerb löschen“ in der Wettbewerbsverwaltung. Nur für
+    Wettbewerbe ohne Ergebnisse (das prüft der Planungskern)."""
+    conn.execute(
+        """
+        DELETE FROM discipline_results WHERE discipline_id IN (
+            SELECT id FROM competition_disciplines WHERE competition_id = ?
+        )
+        """,
+        (competition_id,),
+    )
+    for tabelle in (
+        "sixkampf_team_results", "sixkampf_participants", "slots",
+        "competition_disciplines", "competition_teams",
+    ):
+        conn.execute(f"DELETE FROM {tabelle} WHERE competition_id = ?", (competition_id,))
+    conn.execute("DELETE FROM competitions WHERE id = ?", (competition_id,))
 
 
 # ---------------------------------------------------------------------------

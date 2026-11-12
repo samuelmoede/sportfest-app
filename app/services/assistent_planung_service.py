@@ -383,7 +383,8 @@ def plane(conn, daten, stamm, belegung=None):
     if not (grunddaten.get("name") or "").strip():
         hinweise.append(_hinweis("blockierend", "Name der Veranstaltung fehlt", kennung="name"))
     elif conn is not None and conn.execute(
-        "SELECT 1 FROM events WHERE name = ?", (grunddaten["name"].strip(),)
+        "SELECT 1 FROM events WHERE name = ? AND id != ?",
+        (grunddaten["name"].strip(), ((daten.get("bestand") or {}).get("event_id") or -1)),
     ).fetchone():
         hinweise.append(_hinweis(
             "blockierend", "Es gibt schon eine Veranstaltung mit diesem Namen",
@@ -498,10 +499,22 @@ def plane(conn, daten, stamm, belegung=None):
             continue
         eintraege.extend(_eintraege_fuer(wb, block, felder, wb["modus"] or "jeder_gegen_jeden", eintrag_ids))
 
+    # Bestehende Veranstaltung bearbeiten: Blöcke mit begonnenen Spielen
+    # bleiben, wie sie sind; entfernte Wettbewerbe werden gelöscht.
+    bestand = _lade_bestand(conn, daten, wettbewerbe, eintraege, bloecke, hinweise)
+
     # Je Block takten; automatischer Modus, falls keiner gesetzt ist
     alle_slots = []
     for block in bloecke:
         block_eintraege = [e for e in eintraege if e["block"] is block]
+        if bestand and block["id"] in bestand["gesperrte_bloecke"]:
+            vorhandene = _bestehende_slots(conn, block_eintraege, bestand, block)
+            block_ergebnisse[block["id"]] = {
+                "slots": vorhandene, "schritte": [], "fehler": [],
+                "ende_min": max((sl["ende_min"] for sl in vorhandene), default=None),
+            }
+            alle_slots.extend(vorhandene)
+            continue
         if block["start_min"] is None or block["ende_min"] is None or block["ende_min"] <= block["start_min"]:
             block_ergebnisse[block["id"]] = {"slots": [], "schritte": [], "ende_min": None, "fehler": []}
             continue
@@ -557,6 +570,13 @@ def plane(conn, daten, stamm, belegung=None):
     eintrag_by_id = {e["id"]: e for e in eintraege}
     showspiele = []
     for show in daten.get("showspiele") or []:
+        if bestand and show.get("id") in bestand["gesperrte_showspiele"]:
+            showspiele.append({
+                "id": show.get("id"), "start": uhrzeit(show.get("start")), "quellen": [], "namen": [],
+                "gueltig": False, "gesperrt": True, "court_id": None,
+                "spielzeit": DEFAULT_GAME_DURATION_MINUTES, "start_min": minuten(show.get("start")),
+            })
+            continue
         quellen = []
         texte = []
         for side in ("wettbewerb_a", "wettbewerb_b"):
@@ -619,7 +639,8 @@ def plane(conn, daten, stamm, belegung=None):
     _feld_konflikte(alle_slots, eintrag_by_id, bloecke, hinweise)
     _klassen_konflikte(alle_slots, eintrag_by_id, hinweise)
     if conn is not None and grunddaten.get("datum"):
-        _fremde_belegung(conn, grunddaten["datum"], alle_slots, eintrag_by_id, hinweise)
+        _fremde_belegung(conn, grunddaten["datum"], alle_slots, eintrag_by_id, hinweise,
+                         ausnahmen=(bestand or {}).get("ersetzt", set()))
 
     akzeptiert = set(daten.get("akzeptierte_hinweise") or [])
     eindeutig = {}
@@ -656,6 +677,163 @@ def plane(conn, daten, stamm, belegung=None):
         "uebernahme_moeglich": not blockierend and not offen and bool(eintraege),
         "timeline": timeline,
         "programmpunkte": blocker,
+        "bestand": bestand,
+    }
+
+
+def _bestehende_slots(conn, eintraege, bestand, block):
+    """Spiele eines gesperrten Blocks so, wie sie in der Datenbank stehen,
+    damit Vorschau, Tagesplan und Konfliktprüfung sie sehen. Sie werden beim
+    Übernehmen nicht angefasst (bestehend=True)."""
+    result = []
+    for eintrag in eintraege:
+        competition_id = bestand["wettbewerbe"].get(eintrag["id"])
+        if competition_id is None:
+            continue
+        for row in conn.execute(
+            """
+            SELECT s.*, ta.name AS team_a_name, tb.name AS team_b_name, c.game_duration_minutes
+            FROM slots s
+            JOIN competitions c ON c.id = s.competition_id
+            LEFT JOIN teams ta ON ta.id = s.team_a_id
+            LEFT JOIN teams tb ON tb.id = s.team_b_id
+            WHERE s.competition_id = ? AND s.slot_typ = 'Spiel'
+            ORDER BY s.startzeit, s.id
+            """,
+            (competition_id,),
+        ).fetchall():
+            start = minuten(row["startzeit"])
+            if start is None:
+                continue
+            dauer = row["game_duration_minutes"] or block["spielzeit"]
+            result.append({
+                "eintrag_id": eintrag["id"], "bestehend": True,
+                "team_a": row["team_a_name"], "team_b": row["team_b_name"],
+                "phase": row["phase"] or "Gruppenphase", "gruppe": row["gruppe"] or "",
+                "note": row["note"] or "", "court_id": row["court_id"],
+                "start_min": start, "ende_min": start + dauer, "spielzeit": dauer,
+                "block_id": block["id"],
+            })
+    return result
+
+
+def _lade_bestand(conn, daten, wettbewerbe, eintraege, bloecke, hinweise):
+    """Nur im Bearbeiten-Modus (daten["bestand"]): ordnet den Plan der
+    bestehenden Veranstaltung zu. Ein Zeitblock ist gesperrt, sobald ein
+    Wettbewerb darin begonnene oder beendete Spiele bzw. Sechskampf-Ergebnisse
+    hat; seine Wettbewerbe und Spiele bleiben dann unverändert (wie bei
+    „Ganzen Schulpokal planen“). Gibt None zurück, wenn nichts zu bearbeiten
+    ist, sonst die Angaben, die uebernehmen() braucht."""
+    roh = daten.get("bestand") or {}
+    event_id = roh.get("event_id")
+    if not event_id or conn is None:
+        return None
+    if conn.execute("SELECT 1 FROM events WHERE id = ?", (event_id,)).fetchone() is None:
+        hinweise.append(_hinweis(
+            "blockierend", "Die Veranstaltung gibt es nicht mehr",
+            "Sie wurde inzwischen gelöscht. Bitte den Entwurf verwerfen.", kennung="bestand-weg",
+        ))
+        return None
+    vorhanden = {
+        row["id"]: row for row in conn.execute(
+            "SELECT id, name, final_source_ids FROM competitions WHERE event_id = ?", (event_id,)
+        ).fetchall()
+    }
+    zuordnung = {eid: cid for eid, cid in (roh.get("wettbewerbe") or {}).items() if cid in vorhanden}
+    show_zuordnung = {sid: cid for sid, cid in (roh.get("showspiele") or {}).items() if cid in vorhanden}
+    ids = list(vorhanden)
+    gesperrt = set()
+    if ids:
+        platzhalter = ", ".join("?" for _ in ids)
+        gesperrt = {
+            row["competition_id"] for row in conn.execute(
+                f"""
+                SELECT DISTINCT competition_id FROM slots
+                WHERE competition_id IN ({platzhalter}) AND slot_typ = 'Spiel'
+                  AND (COALESCE(status, 'geplant') != 'geplant'
+                       OR score_a IS NOT NULL OR score_b IS NOT NULL)
+                UNION
+                SELECT DISTINCT competition_id FROM sixkampf_team_results
+                WHERE competition_id IN ({platzhalter})
+                """,
+                ids + ids,
+            ).fetchall()
+        }
+
+    gesperrte_bloecke = set()
+    for eintrag in eintraege:
+        if zuordnung.get(eintrag["id"]) in gesperrt:
+            gesperrte_bloecke.add(eintrag["block"]["id"])
+    for block in bloecke:
+        if block["id"] not in gesperrte_bloecke:
+            continue
+        namen = []
+        for eintrag in eintraege:
+            if eintrag["block"] is block:
+                eintrag["gesperrt"] = True
+                namen.append(eintrag["name"])
+        hinweise.append(_hinweis(
+            "info", f"Zeitblock {block['ort']} {block['start']}–{block['ende']} hat schon begonnen",
+            f"Es gibt bereits Ergebnisse. {', '.join(namen)} und die Spiele darin bleiben unverändert; "
+            "Änderungen an diesem Block werden nicht übernommen.",
+            kennung=f"bestand-gesperrt-{block['id']}", block=block["id"],
+        ))
+
+    abgeleitet = {
+        f'{wb["key"]}#{teil or ""}' for wb in wettbewerbe for teil in wb["teilmannschaften"]
+    }
+    entfernen_ids = []
+    for eid, cid in zuordnung.items():
+        if eid in abgeleitet:
+            continue
+        if cid in gesperrt:
+            hinweise.append(_hinweis(
+                "blockierend", f"{vorhanden[cid]['name']} hat schon Ergebnisse",
+                "Ein Wettbewerb mit Ergebnissen kann hier nicht entfernt werden. Bitte wieder auswählen "
+                "oder in der Wettbewerbsverwaltung archivieren.", kennung=f"bestand-entfernen-{cid}",
+            ))
+        else:
+            entfernen_ids.append(cid)
+            hinweise.append(_hinweis(
+                "info", f"{vorhanden[cid]['name']} wird gelöscht",
+                "Der Wettbewerb ist nicht mehr ausgewählt und hat noch keine Ergebnisse.",
+                kennung=f"bestand-entfernen-{cid}",
+            ))
+
+    gesperrte_eintraege = {e["id"] for e in eintraege if e.get("gesperrt")}
+    gesperrte_showspiele = set()
+    finals_loeschen = []
+    show_keys = {show.get("id"): show for show in daten.get("showspiele") or []}
+    for cid, row in vorhanden.items():
+        if not (row["final_source_ids"] or "").strip():
+            continue
+        sid = next((s for s, c in show_zuordnung.items() if c == cid), None)
+        show = show_keys.get(sid)
+        quellen_gesperrt = show is not None and any(
+            f"{show.get(side)}#" in gesperrte_eintraege for side in ("wettbewerb_a", "wettbewerb_b")
+        )
+        if cid in gesperrt or quellen_gesperrt:
+            if sid is not None:
+                gesperrte_showspiele.add(sid)
+            continue
+        finals_loeschen.append(cid)
+
+    # Diese Spiele stehen im Plan (neu oder, bei gesperrten Blöcken, als
+    # bestehende Spiele) und zählen deshalb nicht als fremde Belegung.
+    # Gesperrte Showspiele sind nicht im Plan und bleiben fremde Belegung.
+    ersetzt = set(zuordnung.values()) | set(finals_loeschen)
+    return {
+        "event_id": event_id,
+        "wettbewerbe": zuordnung,
+        "showspiele": show_zuordnung,
+        "gesperrte_bloecke": gesperrte_bloecke,
+        "gesperrte_showspiele": gesperrte_showspiele,
+        "entfernen_ids": entfernen_ids,
+        "entfernen_namen": [vorhanden[cid]["name"] for cid in entfernen_ids],
+        "finals_loeschen": finals_loeschen,
+        "ersetzt": ersetzt,
+        "neu": [e["name"] for e in eintraege if e["id"] not in zuordnung],
+        "gesperrt_namen": [e["name"] for e in eintraege if e.get("gesperrt")],
     }
 
 
@@ -881,13 +1059,16 @@ def _klassen_konflikte(slots, eintrag_by_id, hinweise):
         ))
 
 
-def _fremde_belegung(conn, datum, slots, eintrag_by_id, hinweise):
+def _fremde_belegung(conn, datum, slots, eintrag_by_id, hinweise, ausnahmen=()):
     """Spiele anderer, nicht archivierter Veranstaltungen am selben Tag:
     gleiches Feld blockiert, gleiche Klasse ist eine Warnung (andere
-    Sportart) bzw. blockierend (gleiche Sportart, wie im Generator)."""
+    Sportart) bzw. blockierend (gleiche Sportart, wie im Generator).
+    ausnahmen: competition-ids, deren Spiele beim Übernehmen ersetzt werden
+    (Bearbeiten einer bestehenden Veranstaltung)."""
     rows = conn.execute(
         """
-        SELECT s.startzeit, s.court_id, s.team_a_id, s.team_b_id, c.name AS competition_name,
+        SELECT s.startzeit, s.court_id, s.team_a_id, s.team_b_id, s.competition_id,
+               c.name AS competition_name,
                c.sportart, c.game_duration_minutes, co.name AS court_name
         FROM slots s
         JOIN competitions c ON c.id = s.competition_id
@@ -900,6 +1081,7 @@ def _fremde_belegung(conn, datum, slots, eintrag_by_id, hinweise):
         """,
         (datum,),
     ).fetchall()
+    rows = [row for row in rows if row["competition_id"] not in ausnahmen]
     if not rows:
         return
     for row in rows:
