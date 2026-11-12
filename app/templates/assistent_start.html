@@ -1,283 +1,78 @@
 {% extends "base.html" %}
-{% import "partials/ui_macros.html" as ui %}
 {% block extra_head %}
 <style>
-    .court-checkboxes {
-        display: flex;
-        gap: 14px;
-        flex-wrap: wrap;
+    .assistent-kacheln {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
     }
 
-    .court-checkboxes label {
-        background: var(--surface-soft);
+    .assistent-kachel {
         border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 8px 14px;
-        color: var(--text);
+        border-radius: 14px;
+        padding: 16px;
+        background: var(--surface-soft);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
     }
+
+    .assistent-kachel h2 { margin: 0; font-size: 1.1rem; }
+    .assistent-kachel-form { display: flex; flex-direction: column; gap: 8px; }
+    .assistent-entwurf-liste { margin: 0; padding-left: 18px; }
+    .assistent-sekundaer { margin: 12px 0 0; }
 </style>
 {% endblock %}
 {% block content %}
 <header class="page-header">
     <div>
         <p class="eyebrow">Geführte Einrichtung</p>
-        <h1>Wettbewerbs-Assistent</h1>
-        <p>
-            Führt Schritt für Schritt durch das Aufsetzen einer Veranstaltung: Stammdaten prüfen,
-            Wettbewerbe anlegen und den Spielplan erzeugen - ohne dass man vorher alle
-            Einstellungen im System kennen muss.
-        </p>
+        <h1>Einrichtungsassistent</h1>
+        <p>Veranstaltung oder Wettbewerb sicher anlegen, ohne das System im Detail zu kennen.
+        Erst nach deiner Bestätigung wird etwas angelegt.</p>
     </div>
 </header>
 
-<section class="panel">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Schritt 1</p>
-            <h2>Veranstaltung wählen oder anlegen</h2>
-        </div>
-        <span class="section-icon" aria-hidden="true">🧭</span>
-    </div>
-
-    {% if error == "duplicate" %}
-    <p class="muted">Eine Veranstaltung mit diesem Namen existiert bereits.</p>
-    {% elif error == "invalid" %}
-    <p class="muted">Bitte einen Namen für die Veranstaltung angeben.</p>
-    {% endif %}
-
-    {% if events %}
-    <div class="cards event-card-grid">
-        {% for event in events %}
-        <article class="card column event-card {% if event.status == 'aktiv' %}active-event-card{% endif %}">
-            <div class="event-card-head">
-                <span class="event-type">🗓 {{ event.event_type or "Sonstiges" }}</span>
-                {{ ui.status_badge(event.status) }}
-            </div>
-            <div class="event-card-body">
-                <h2>{{ event.name }}</h2>
-                <div class="event-card-meta">
-                    <span>🕒 {{ event.event_date or "Datum offen" }}</span>
-                    <span>🏆 {{ event.competition_count }} Wettbewerbe</span>
-                </div>
-            </div>
-            <div class="event-actions">
-                <a class="button primary" href="/assistent/{{ event.id }}">Weiter mit dieser Veranstaltung</a>
-            </div>
+<section class="panel assistent-einstieg" id="einstieg">
+    {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+    {% if einstieg_fehler %}<p class="validation-error">{{ einstieg_fehler }}</p>{% endif %}
+    <div class="assistent-kacheln">
+        <article class="assistent-kachel">
+            <h2>🆕 Neue Veranstaltung</h2>
+            <p class="muted">Schritt für Schritt: Klassen, Sportarten, Orte, Zeiten.</p>
+            <form method="post" action="/assistent/entwurf/neu">
+                <button class="green" type="submit">Neu planen</button>
+            </form>
         </article>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="muted">Es gibt noch keine Veranstaltungen. Lege unten die erste an.</p>
-    {% endif %}
-
-    <h3 style="margin-top: 24px;">Neue Veranstaltung anlegen</h3>
-    <form method="post" action="/assistent/veranstaltung/anlegen" class="admin-form">
-        <label>Name</label>
-        <input type="text" name="name" placeholder="z. B. Sportfest 2026" required>
-
-        <label>Art</label>
-        <select name="event_type">
-            {% for type in event_types %}
-            <option value="{{ type }}" {% if type == default_event_type %}selected{% endif %}>{{ type }}</option>
-            {% endfor %}
-        </select>
-
-        <label>Datum (optional)</label>
-        <input type="date" name="event_date">
-
-        <button class="green" type="submit">Veranstaltung anlegen und weiter</button>
-    </form>
-</section>
-<section class="panel" id="vorlage-schulpokal">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Vorlage</p>
-            <h2>Schulpokal in einem Schritt anlegen</h2>
-        </div>
-        <span class="section-icon" aria-hidden="true">🏆</span>
-    </div>
-    <p>
-        Legt die Veranstaltung mit allen Wettbewerben an: je Sportart und Jahrgang ein Schulpokal-Wettbewerb
-        mit Ort und Zeitfenster, dazu das Jahrgangsfinale (Sieger gegen Sieger) und die Siegerehrung zum Blockende.
-        Den Spielplan erzeugst du danach je Block im Plan-Generator, der auch die passende Spielzeit vorschlägt.
-        Eine Zeile ohne Sportart wird übersprungen.
-    </p>
-    {% if vorlage_fehler %}
-    <p class="validation-error">{{ vorlage_fehler }}</p>
-    {% endif %}
-    <form method="post" action="/assistent/vorlage/schulpokal" class="admin-form">
-        <label>Name</label>
-        <input type="text" name="name" placeholder="z. B. Schulpokal 2026" required>
-        <label>Datum</label>
-        <input type="date" name="event_date">
-        {% for block in schulpokal_bloecke %}
-        <label style="align-self: start; padding-top: 6px;">Block {{ loop.index }}</label>
-        <div class="court-checkboxes">
-            <input type="text" name="block_sportart" value="{{ block.sportart }}" placeholder="Sportart" aria-label="Sportart Block {{ loop.index }}">
-            <input type="text" name="block_jahrgaenge" value="{{ block.jahrgaenge }}" placeholder="Jahrgänge, z. B. 7, 8" aria-label="Jahrgänge Block {{ loop.index }}">
-            <select name="block_location" aria-label="Ort Block {{ loop.index }}">
-                {% for loc in court_locations %}
-                <option value="{{ loc }}" {% if loc == block.location %}selected{% endif %}>{{ loc }}</option>
-                {% endfor %}
-            </select>
-            <span>von <input type="time" name="block_start_time" value="{{ block.start_time }}" aria-label="Start Block {{ loop.index }}"></span>
-            <span>bis <input type="time" name="block_end_time" value="{{ block.end_time }}" aria-label="Ende Block {{ loop.index }}"></span>
-            <span>Finale <input type="time" name="block_finale_time" value="{{ block.finale_time }}" aria-label="Finale Block {{ loop.index }}"></span>
-        </div>
-        {% endfor %}
-        <label>Siegerehrung</label>
-        <label><input type="checkbox" name="siegerehrung" value="1" checked> Zum Ende jedes Blocks in den Spielplan eintragen</label>
-        <button class="green" type="submit">Schulpokal anlegen</button>
-    </form>
-</section>
-
-<section class="panel">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Alternative</p>
-            <h2>Nur ein einzelnes, spontanes Turnier?</h2>
-        </div>
-        <span class="section-icon" aria-hidden="true">⚡</span>
-    </div>
-    <p>
-        Für ein kurzfristiges Turnier ohne eigene Veranstaltung (z. B. im Sportunterricht): Teams und Felder
-        auswählen, Startzeit setzen - der komplette "Jeder gegen jeden"-Rundenplan inklusive Finale und
-        Spiel um Platz 3 wird sofort erzeugt und gespeichert.
-    </p>
-
-    {% if qs_error == "team_invalid" %}
-    <p class="muted">Bitte Klassenname und Jahrgang angeben - Klasse wurde nicht angelegt.</p>
-    {% elif qs_error == "court_invalid" %}
-    <p class="muted">Bitte einen Namen für das Spielfeld angeben - Spielfeld wurde nicht angelegt.</p>
-    {% endif %}
-
-    {% if not teams_by_jahrgang %}
-    <p class="muted">Es sind keine aktiven Teams angelegt.</p>
-    <details class="team-selector-details">
-        <summary class="team-selector-toggle">+ Klasse spontan anlegen</summary>
-        <div class="team-selector-panel">
-            <form method="post" action="/assistent/team/anlegen" class="admin-form">
-                <label>Klassenname</label>
-                <input type="text" name="name" placeholder="z. B. 7a" required>
-
-                <label>Jahrgang</label>
-                <input type="text" name="jahrgang" placeholder="z. B. 7, 8, GOST" required>
-
-                <button class="green" type="submit">Klasse anlegen</button>
-            </form>
-        </div>
-    </details>
-    {% elif not courts %}
-    <p class="muted">
-        Für den Ort "{{ location }}" sind keine aktiven Felder/Bereiche angelegt.
-    </p>
-    <details class="team-selector-details">
-        <summary class="team-selector-toggle">+ Spielfeld spontan anlegen</summary>
-        <div class="team-selector-panel">
-            <form method="post" action="/assistent/spielfeld/anlegen" class="admin-form">
-                <label>Name</label>
-                <input type="text" name="name" placeholder="z. B. Feld 1" required>
-
-                <label>Sportart (optional)</label>
-                <input type="text" name="sportart" placeholder="z. B. Fußball">
-
-                <input type="hidden" name="location" value="{{ location }}">
-
-                <button class="green" type="submit">Spielfeld anlegen</button>
-            </form>
-        </div>
-    </details>
-    {% else %}
-    <form method="post" action="/turnier-schnellstart" class="admin-form">
-        <label>Name (optional)</label>
-        <input type="text" name="name" placeholder="Schnellturnier {{ default_start_time }}">
-
-        <label>Sportart</label>
-        <input type="text" name="sportart" value="{{ default_sportart }}" required>
-
-        <label>Turniermodus</label>
-        <select name="tournament_mode" id="quickstart-tournament-mode">
-            {% for mode_key, mode in turnier_modes.items() %}
-            <option value="{{ mode_key }}" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
-            {% endfor %}
-        </select>
-
-        <label class="punkterunde-finals-field" hidden>Endplatzierung</label>
-        <div class="punkterunde-finals-field" hidden>
-            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
-            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
-        </div>
-
-        <label>Spielzeit (Min.)</label>
-        <input type="number" name="game_duration_minutes" value="{{ default_game_duration_minutes }}" min="1" required>
-
-        <label>Wechselzeit (Min.)</label>
-        <input type="number" name="changeover_duration_minutes" value="{{ default_changeover_duration_minutes }}" min="0" required>
-
-        <label style="align-self: start; padding-top: 6px;">Teilnehmende Teams</label>
-        <div class="team-selector-panel">
-            <p class="team-selector-hint">Mindestens zwei Teams auswählen.</p>
-            {% for gruppe_key, gruppe_teams in teams_by_jahrgang.items() %}
-            <div class="team-selector-gruppe">
-                <label class="team-selector-gruppe-label">
-                    <input type="checkbox" class="gruppe-all-quickstart" data-gruppe="{{ gruppe_key }}">
-                    <strong>Jahrgang {{ gruppe_key }}</strong>
-                    <span class="muted" style="font-size:0.8rem;font-weight:500;">({{ gruppe_teams | length }})</span>
-                </label>
-                <div class="team-selector-items">
-                    {% for team in gruppe_teams %}
-                    <label class="team-selector-item">
-                        <input type="checkbox" name="team_ids" value="{{ team.id }}" class="team-check-quickstart" data-gruppe="{{ gruppe_key }}">
-                        {{ team.name }}
-                    </label>
+        <article class="assistent-kachel">
+            <h2>📋 Aus Vorlage starten</h2>
+            <form method="post" action="/assistent/entwurf/aus-vorlage" class="assistent-kachel-form">
+                <label for="vorlage-auswahl" class="muted">Vorlage</label>
+                <select name="vorlage" id="vorlage-auswahl">
+                    {% for vorlage in vorlagen.system %}
+                    <option value="{{ vorlage.key }}">{{ vorlage.name }}</option>
                     {% endfor %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <label>Felder/Bereiche ({{ location }})</label>
-        <div class="court-checkboxes">
-            {% for court in courts %}
-            <label>
-                <input type="checkbox" name="court_ids" value="{{ court.id }}" checked>
-                {{ court.name }}
-            </label>
-            {% endfor %}
-        </div>
-
-        <label>Startzeit</label>
-        <input type="time" name="startzeit" value="{{ default_start_time }}" required>
-
-        <button class="green" type="submit">Turnier erstellen und Spielplan erzeugen</button>
-    </form>
-    {% endif %}
+                    {% for vorlage in vorlagen.eigene %}
+                    <option value="vorlage:{{ vorlage.id }}">{{ vorlage.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="green" type="submit">Mit Vorlage starten</button>
+            </form>
+        </article>
+        <article class="assistent-kachel" id="entwuerfe">
+            <h2>⏯ Entwurf fortsetzen</h2>
+            {% if entwuerfe %}
+            <ul class="assistent-entwurf-liste">
+                {% for entwurf in entwuerfe %}
+                <li><a href="/assistent/entwurf/{{ entwurf.id }}">{{ entwurf.titel }}</a>
+                    <span class="muted">· {{ entwurf.updated_at[:16] }}</span></li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="muted">Keine offenen Entwürfe.</p>
+            {% endif %}
+        </article>
+    </div>
+    <p class="assistent-sekundaer"><a href="/assistent/vorlagen">Vorlagen verwalten</a></p>
 </section>
-
-<script>
-document.querySelectorAll('.gruppe-all-quickstart').forEach(function (groupCb) {
-    groupCb.addEventListener('change', function () {
-        const gruppe = this.dataset.gruppe;
-        this.closest('.team-selector-gruppe').querySelectorAll('.team-check-quickstart[data-gruppe="' + gruppe + '"]').forEach(function (cb) {
-            cb.checked = groupCb.checked;
-        });
-    });
-});
-
-// Grosses/kleines Finale (Issue #125) sind nur fuer den Turniermodus
-// "Punkterunde" waehlbar.
-(function () {
-    var modeSelect = document.getElementById('quickstart-tournament-mode');
-    if (!modeSelect) return;
-    var finalsFields = document.querySelectorAll('.punkterunde-finals-field');
-    function toggleFinalsFields() {
-        var isPunkterunde = modeSelect.value === 'punkterunde';
-        finalsFields.forEach(function (field) {
-            field.hidden = !isPunkterunde;
-        });
-    }
-    modeSelect.addEventListener('change', toggleFinalsFields);
-    toggleFinalsFields();
-})();
-</script>
 {% endblock %}

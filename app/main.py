@@ -8,7 +8,7 @@ import os
 import re
 import secrets
 import time
-from typing import Optional
+from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
@@ -25,6 +25,10 @@ from app.routes.teams import create_router as create_teams_router
 from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
+from app.routes.assistent import create_router as create_assistent_router
+from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
+from app.routes.zeitplan import create_router as create_zeitplan_router
+from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
@@ -67,8 +71,10 @@ from app.services.sixkampf_service import (
     calculate_sixkampf_station_rotation,
     calculate_sixkampf_team_ranking,
 )
+from app.services.programmpunkte_service import list_programmpunkte
 from app.services.ui_view_service import (
     classify_yeargang,
+    competition_column,
     enrich_beamer_view,
     enrich_day_schedule_view,
 )
@@ -139,6 +145,7 @@ AREA_ACCESS_RULES = (
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
     ("/urkunden", "tournament_lead"),
+    ("/zeitplan-aufholen", "tournament_lead"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
@@ -185,6 +192,8 @@ ACTION_ACCESS_RULES = (
         "admin",
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
+    (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
+    (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
 
@@ -696,7 +705,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         {
             column
             for column in (
-                classify_yeargang(get_field(competition, "jahrgang"))
+                competition_column(competition)
                 for competition in competitions
             )
             if column is not None
@@ -726,7 +735,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         if not start or not end or end <= start:
             continue
 
-        yeargang = classify_yeargang(get_field(competition, "jahrgang"))
+        yeargang = competition_column(competition)
         if yeargang is None:
             continue
 
@@ -832,7 +841,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
 def get_day_schedule_for_event(event_id: int):
     with get_conn() as conn:
         event = conn.execute(
-            "SELECT event_date, status FROM events WHERE id = ?", (event_id,)
+            "SELECT event_date, status, event_type FROM events WHERE id = ?", (event_id,)
         ).fetchone()
         competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
@@ -840,6 +849,14 @@ def get_day_schedule_for_event(event_id: int):
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
+        programmpunkte = list_programmpunkte(conn, event_id)
+    # Schulpokal: eine Spalte je Jahrgang, auch Jahrgang 10 (nicht Oberstufe),
+    # passend zur Gesamtwertung je Jahrgang.
+    if event is not None and event["event_type"] == "Schulpokal":
+        for competition in competitions:
+            jahrgang = competition.get("jahrgang")
+            if jahrgang not in (None, "", "mixed"):
+                competition["year_column"] = f"Jahrgang {jahrgang}"
     schedule = build_day_schedule(
         competitions,
         event["event_date"] if event is not None else None,
@@ -849,6 +866,7 @@ def get_day_schedule_for_event(event_id: int):
         schedule,
         competitions,
         now=app_now(),
+        programmpunkte=programmpunkte,
     )
 
 
@@ -1189,6 +1207,9 @@ def _resolve_points_tied_group(rows_group, slots, competition):
 
 def sort_table_rows(rows, slots, competition):
     rows.sort(key=lambda r: (-r["pkt"], r["team"].lower()))
+    # Im Assistenten (Expertenmodus) gewaehlte Reihenfolge der
+    # Gleichstandsregeln; ohne Eintrag bleibt alles wie bisher.
+    tiebreak_order = competition_tiebreak_order(competition)
 
     i = 0
     while i < len(rows):
@@ -1196,7 +1217,11 @@ def sort_table_rows(rows, slots, competition):
         while j + 1 < len(rows) and rows[j + 1]["pkt"] == rows[i]["pkt"]:
             j += 1
 
-        if j > i:
+        if j > i and tiebreak_order:
+            rows[i:j + 1] = resolve_with_order(
+                rows[i:j + 1], slots, competition, tiebreak_order, _mini_league_stats
+            )
+        elif j > i:
             rows[i:j + 1] = _resolve_points_tied_group(rows[i:j + 1], slots, competition)
         else:
             rows[i]["tie_note"] = None
@@ -1667,7 +1692,14 @@ def calculate_event_overall_ranking(event_id: int):
                     "placements": [],
                     "tournament_score_diff": 0,
                 })
-                record["points_by_competition"][competition_id] = row.get("competition_points", 0)
+                # Schulpokal: Gesamtwertung = Summe der Spielpunkte aus allen
+                # Wettbewerben des Jahrgangs (Volleyball 2/1/0 je Spiel,
+                # Tischtennis Jungen und Maedchen je 1 Punkt pro Sieg), wie in
+                # der Wertung der Sportfachschaft - nicht Platzierungspunkte.
+                if is_schulpokal_event:
+                    record["points_by_competition"][competition_id] = row.get("pkt", 0)
+                else:
+                    record["points_by_competition"][competition_id] = row.get("competition_points", 0)
                 record["tournament_score_diff"] += row.get("diff", 0)
                 record["placements"].append(row["placement"])
 
@@ -2532,6 +2564,9 @@ def ergebnisse(
                     slot["undo_available"] = True
                     slot["undo_old_label"] = last_change["old_value"]
 
+    # Runden-Timer (Mensa): alle zeitgleich geplanten Spiele gemeinsam starten.
+    round_timer = build_round_timer(result_slots)
+
     if nur_aktive_enabled:
         result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
 
@@ -2545,6 +2580,7 @@ def ergebnisse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
+            "round_timer": round_timer,
             "result_columns": result_columns,
             "result_time_marks": result_time_marks,
             "nur_aktive": nur_aktive_enabled,
@@ -2681,11 +2717,31 @@ def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(
     with get_conn() as conn:
         started_at_value = started_at or app_now_db_timestamp()
         conn.execute(
-            "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
+            "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL, timer_stopped_at = NULL WHERE id = ?",
             (started_at_value, slot_id),
         )
         conn.commit()
 
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
+
+
+@app.post("/slots/runde/starten")
+def start_round_slots(request: Request, slot_ids: List[int] = Form([])):
+    """Startet alle zeitgleich geplanten Spiele gemeinsam (Runden-Timer)."""
+    with get_conn() as conn:
+        start_round(conn, slot_ids, app_now_db_timestamp())
+        conn.commit()
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
+
+
+@app.post("/slots/runde/timer-stoppen")
+def stop_round_slots(request: Request, slot_ids: List[int] = Form([])):
+    """Haelt den gemeinsamen Timer an; Spiele werden einzeln beendet."""
+    with get_conn() as conn:
+        stop_round_timer(conn, slot_ids, app_now_db_timestamp())
+        conn.commit()
     referer = request.headers.get("referer") or "/ergebnisse"
     return RedirectResponse(referer, status_code=303)
 
@@ -2708,7 +2764,7 @@ def unstart_slot(slot_id: int, request: Request):
     with get_conn() as conn:
         conn.execute("""
             UPDATE slots
-            SET status = 'geplant', started_at = NULL, finished_at = NULL
+            SET status = 'geplant', started_at = NULL, finished_at = NULL, timer_stopped_at = NULL
             WHERE id = ?
               AND status = 'läuft'
         """, (slot_id,))
@@ -3094,6 +3150,9 @@ app.include_router(create_schedule_router(
 app.include_router(create_quickstart_router(
     app_now_display_time=app_now_display_time,
 ))
+# Neuer Einrichtungsassistent vor dem bisherigen Assistenten, damit
+# /assistent/vorlagen usw. nicht als /assistent/{event_id} gelesen werden.
+app.include_router(create_assistent_router())
 app.include_router(create_wizard_router(
     app_now_display_time=app_now_display_time,
 ))
@@ -3121,6 +3180,10 @@ app.include_router(create_events_router(
 ))
 
 
+app.include_router(create_zeitplan_router(
+    app_now=app_now,
+    app_now_db_timestamp=app_now_db_timestamp,
+))
 app.include_router(create_urkunden_router(
     app_now_db_timestamp=app_now_db_timestamp,
     calculate_tournament_points=calculate_tournament_points,

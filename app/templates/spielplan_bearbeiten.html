@@ -240,6 +240,9 @@
         {% elif not selected_competition_id %}
         <span class="muted">Wähle ein einzelnes Turnier aus, um geplante Slots gesammelt zu löschen.</span>
         {% endif %}
+        {% if selected_competition_id %}
+        <a class="button secondary" href="/zeitplan-aufholen?competition_id={{ selected_competition_id }}">Zeitplan aufholen</a>
+        {% endif %}
     </div>
 
     {% if selected_timing %}
@@ -814,6 +817,7 @@
             <label>Slottyp</label>
             <select name="slot_typ" required>
                 <option value="Spiel">Spiel</option>
+                <option value="Eröffnung">Eröffnung</option>
                 <option value="Pause">Pause</option>
                 <option value="Leer">Leer</option>
                 <option value="Siegerehrung">Siegerehrung</option>
@@ -834,6 +838,7 @@
                 <option value="Spiel um Platz 3">Spiel um Platz 3</option>
                 <option value="Finale">Finale</option>
                 <option value="Platzierung">Platzierung</option>
+                <option value="Eröffnung">Eröffnung</option>
                 <option value="Pause">Pause</option>
                 <option value="Siegerehrung">Siegerehrung</option>
             </select>
@@ -891,6 +896,7 @@
             <label>Slottyp</label>
             <select id="editSlotTyp" name="slot_typ" required>
                 <option value="Spiel">Spiel</option>
+                <option value="Eröffnung">Eröffnung</option>
                 <option value="Pause">Pause</option>
                 <option value="Leer">Leer</option>
                 <option value="Siegerehrung">Siegerehrung</option>
@@ -911,6 +917,7 @@
                 <option value="Spiel um Platz 3">Spiel um Platz 3</option>
                 <option value="Finale">Finale</option>
                 <option value="Platzierung">Platzierung</option>
+                <option value="Eröffnung">Eröffnung</option>
                 <option value="Pause">Pause</option>
                 <option value="Siegerehrung">Siegerehrung</option>
             </select>
@@ -948,6 +955,30 @@
         </form>
     </div>
 </div>
+
+{% if courtless_slots %}
+<section class="panel" id="slots-ohne-feld">
+    <h2>Ohne Feld</h2>
+    <p class="muted">Einträge ohne Spielfeld, z. B. Eröffnung oder Siegerehrung. Programmpunkte mit Dauer legst du besser direkt im Tagesplan der Veranstaltung an.</p>
+    <table class="team-table">
+        <thead><tr><th>Zeit</th><th>Typ</th><th>Notiz</th><th></th></tr></thead>
+        <tbody>
+            {% for s in courtless_slots %}
+            <tr>
+                <td>{{ s.startzeit }}</td>
+                <td>{{ s.slot_typ }}{% if s.slot_typ == "Spiel" %} ({{ s.phase }}){% endif %}</td>
+                <td>{{ s.note or "" }}</td>
+                <td>
+                    <form method="post" action="/slot/{{ s.id }}/delete" onsubmit="return confirm('Eintrag wirklich löschen?');">
+                        <button class="danger" type="submit">Löschen</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
 
 {% if schedule_planning_enabled %}
 <form method="post" action="/slots/delete"

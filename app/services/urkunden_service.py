@@ -56,8 +56,10 @@ LAYOUT_DEFAULTS = {
     "veranstaltungsname": "",
     "ort": "",
     "datum": "",
+    # Nur noch eine Unterschriftszeile (Sportlehrer:in); die Unterschrift der
+    # Schulleitung entfaellt. Der Schluessel bleibt, damit gespeicherte Werte
+    # weiter gelten.
     "unterschrift_links": "Sportlehrer:in",
-    "unterschrift_rechts": "Schulleitung",
 }
 
 LOGO_MAX_BYTES = 2 * 1024 * 1024

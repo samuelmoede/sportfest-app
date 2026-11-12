@@ -20,7 +20,6 @@ import app.database as database
 # Regressionspruefung, dass die bekannten Felder nicht verschwinden.
 TEMPLATES_WITH_TIME_FIELDS = {
     "assistent_event.html": 2,
-    "assistent_start.html": 4,
     "spielplan_bearbeiten.html": 7,
     "turnier_schnellstart.html": 1,
     "wettbewerbe.html": 4,

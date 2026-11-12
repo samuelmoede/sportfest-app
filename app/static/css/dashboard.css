@@ -432,17 +432,91 @@
     box-shadow: 0 4px 14px rgba(23, 32, 51, 0.18);
 }
 
-.day-timeline-block-link {
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    color: var(--muted);
-    font-size: 0.75rem;
-    text-decoration: none;
+.day-timeline-block.is-editable:hover {
+    cursor: pointer;
 }
 
-.day-timeline-block-link:hover {
-    color: var(--blue);
+.day-timeline-block-head {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.day-timeline-block-head time {
+    margin-top: 0;
+}
+
+/* Ablauf im Block: Eroeffnung, Spiele, Siegerehrung ... zeitproportional. */
+.day-timeline-segments {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 4px -8px 0 -8px;
+}
+
+.day-timeline-segment {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    padding: 0 8px;
+    overflow: visible;
+    border-top: 1px dashed var(--border);
+    font-size: 0.66rem;
+    line-height: 1.1;
+}
+
+.day-timeline-segment span {
+    color: var(--text, inherit);
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-segment.segment-spiele {
+    background: rgba(96, 165, 250, 0.12);
+}
+
+.day-timeline-segment.segment-programm {
+    background: rgba(217, 119, 6, 0.14);
+}
+
+.day-timeline-segment.segment-ko {
+    background: rgba(147, 51, 234, 0.12);
+}
+
+/* Eroeffnung, Siegerehrung, Jahrgangsfinale als eigener kleiner Block */
+.day-timeline-block.day-timeline-programm {
+    justify-content: flex-start;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    z-index: 2;
+    font-size: 0.66rem;
+    line-height: 14px;
+    cursor: default;
+}
+
+.day-timeline-block.day-timeline-programm span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-block.day-timeline-programm time {
+    margin: 0;
+    font-weight: 700;
+}
+
+.day-timeline-block.day-timeline-programm.segment-programm {
+    background: rgba(217, 119, 6, 0.14);
+    border-left-color: #d97706;
+}
+
+.day-timeline-block.day-timeline-programm.segment-ko {
+    background: rgba(147, 51, 234, 0.12);
+    border-left-color: #9333ea;
 }
 
 .day-timeline-resize-handle {
@@ -725,4 +799,63 @@
 .match em {
     margin-left: auto;
     color: var(--muted);
+}
+
+/* Programmpunkte (Eroeffnung, Siegerehrung ...) am Tagesplan der Veranstaltung */
+.programmpunkte {
+    margin-top: 18px;
+    border-top: 1px solid var(--line, rgba(127, 127, 127, 0.25));
+    padding-top: 14px;
+}
+
+.programmpunkt-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: flex-end;
+    margin-top: 10px;
+}
+
+.programmpunkt-jahrgaenge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.programmpunkt-jahrgaenge label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.programmpunkt-jahrgaenge input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.programmpunkt-fehler {
+    color: var(--red);
+}
+
+/* Verspaetung im Tagesplan-Block (nur Admin/Turnierleitung) */
+.day-timeline-delay {
+    cursor: pointer;
+    display: inline-block;
+    align-self: flex-start;
+    max-width: 100%;
+    overflow: hidden;
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--green, #1f8a4c);
+}
+
+.day-timeline-delay.is-late {
+    color: var(--red);
 }

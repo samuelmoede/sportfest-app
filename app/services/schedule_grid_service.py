@@ -92,6 +92,7 @@ def get_all_slots(
                c.location AS competition_location,
                c.competition_type,
                c.game_duration_minutes,
+               c.game_duration_seconds,
                c.changeover_duration_minutes,
                c.start_time AS competition_start_time,
                c.end_time AS competition_end_time,
@@ -176,9 +177,9 @@ def get_all_slots(
         if slot["slot_typ"] != "Spiel" or slot["competition_type"] == "Sechskampf":
             continue
         timing = get_competition_timing(slot)
-        slot["planned_duration_seconds"] = timing["game_duration_minutes"] * 60
+        slot["planned_duration_seconds"] = timing["game_duration_seconds"]
         slot["game_end_time"] = get_game_end_time(
-            slot["startzeit"], timing["game_duration_minutes"]
+            slot["startzeit"], timing["game_duration_minutes"], timing["game_duration_seconds"]
         )
 
     return slots

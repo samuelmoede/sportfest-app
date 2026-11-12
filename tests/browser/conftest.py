@@ -46,11 +46,11 @@ def chromium_available() -> bool:
 
 
 def _seed_quickstart_data():
-    """Mindestdaten fuer den Turnier-Schnellstart auf /assistent (siehe
-    app/routes/quickstart.py::build_quickstart_context): ohne mindestens zwei
-    aktive Teams und ein aktives Feld am Standard-Standort ("Turnhalle")
-    blendet assistent_start.html das Schnellstart-Formular (inkl. Zeitfeld)
-    komplett aus und zeigt nur einen Hinweistext."""
+    """Mindestdaten fuer den Turnier-Schnellstart auf /turnier-schnellstart
+    (siehe app/routes/quickstart.py::build_quickstart_context): ohne
+    mindestens zwei aktive Teams und ein aktives Feld am Standard-Standort
+    ("Turnhalle") blendet die Seite das Schnellstart-Formular (inkl.
+    Zeitfeld) komplett aus und zeigt nur einen Hinweistext."""
     import app.database as database
 
     with database.get_conn() as conn:

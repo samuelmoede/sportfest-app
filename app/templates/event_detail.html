@@ -34,6 +34,10 @@
     <div class="hero-actions">
         {% if can_manage_event %}
         <a class="button secondary" href="/events/{{ event.id }}/edit">Bearbeiten</a>
+        <form method="post" action="/assistent/vorlagen/aus-veranstaltung/{{ event.id }}" style="display: inline;">
+            <input type="hidden" name="name" value="Vorlage {{ event.name }}">
+            <button class="secondary" type="submit">Als Vorlage speichern</button>
+        </form>
         {% endif %}
         <a class="button primary" href="/spielplan">Spielplan öffnen</a>
     </div>
@@ -79,6 +83,56 @@
     {% set day_schedule_editable = can_manage_event %}
     {% set day_schedule_empty_text = "Für diese Veranstaltung gibt es derzeit keinen Zeitplan." %}
     {% include "partials/day_schedule.html" %}
+
+    {% if can_manage_event %}
+    <div class="programmpunkte" id="programmpunkte">
+        <h3>Eröffnung, Siegerehrung und weitere Programmpunkte</h3>
+        <p class="muted">
+            Mit Uhrzeit von/bis anlegen. Ohne Häkchen gilt ein Programmpunkt für alle Jahrgänge.
+            Er erscheint im Tagesplan in den Blöcken der gewählten Jahrgänge.
+        </p>
+        {% if programmpunkt_fehler %}<p class="programmpunkt-fehler"><strong>Nicht angelegt:</strong> {{ programmpunkt_fehler }}</p>{% endif %}
+        {% if programmpunkte %}
+        <table class="team-table">
+            <thead><tr><th>Uhrzeit</th><th>Programmpunkt</th><th>Jahrgänge</th><th></th></tr></thead>
+            <tbody>
+                {% for punkt in programmpunkte %}
+                <tr>
+                    <td>{{ punkt.start_time }}–{{ punkt.end_time }}</td>
+                    <td>{{ punkt.titel }}</td>
+                    <td>{{ punkt.jahrgaenge_label }}</td>
+                    <td>
+                        <form method="post" action="/events/{{ event.id }}/programmpunkt/{{ punkt.id }}/loeschen"
+                              onsubmit="return confirm('Programmpunkt löschen?');">
+                            <button class="danger" type="submit">Löschen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        <form class="programmpunkt-form" method="post" action="/events/{{ event.id }}/programmpunkt/anlegen">
+            <label>Programmpunkt
+                <input type="text" name="titel" list="programmpunkt-vorschlaege" required placeholder="z. B. Eröffnung">
+            </label>
+            <datalist id="programmpunkt-vorschlaege">
+                {% for vorschlag in programmpunkt_vorschlaege %}<option value="{{ vorschlag }}">{% endfor %}
+            </datalist>
+            <label>von <input type="time" name="start_time" required></label>
+            <label>bis <input type="time" name="end_time" required></label>
+            {% if programmpunkt_jahrgaenge %}
+            <fieldset class="programmpunkt-jahrgaenge">
+                <legend>Jahrgänge</legend>
+                {% for jahrgang in programmpunkt_jahrgaenge %}
+                <label><input type="checkbox" name="jahrgaenge" value="{{ jahrgang }}"> {{ jahrgang }}</label>
+                {% endfor %}
+            </fieldset>
+            {% endif %}
+            <button class="green" type="submit">Hinzufügen</button>
+        </form>
+    </div>
+    {% endif %}
 </section>
 
 <section class="panel" id="gesamtwertung">
