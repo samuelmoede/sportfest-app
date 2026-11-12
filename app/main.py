@@ -19,7 +19,6 @@ from app.database import init_db, get_conn, DB_PATH
 from app.routes.settings import router as settings_router
 from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
-from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
 from app.routes.urkunden import create_router as create_urkunden_router
@@ -134,7 +133,6 @@ SESSION_HTTPS_ONLY = os.getenv(
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
-    ("/turnier-schnellstart", "admin"),
     ("/einstellungen", "admin"),
     ("/dokumentation", "admin"),
     ("/roadmap", "admin"),
@@ -3147,15 +3145,10 @@ app.include_router(create_schedule_router(
     get_teams_for_competition=get_teams_for_competition,
     calculate_sixkampf_station_rotation=calculate_sixkampf_station_rotation,
 ))
-app.include_router(create_quickstart_router(
-    app_now_display_time=app_now_display_time,
-))
-# Neuer Einrichtungsassistent vor dem bisherigen Assistenten, damit
-# /assistent/vorlagen usw. nicht als /assistent/{event_id} gelesen werden.
+# Einrichtungsassistent vor der Startseite/den Weiterleitungen (wizard.py),
+# damit /assistent/vorlagen usw. nie als alte /assistent/{event_id}-URL gelten.
 app.include_router(create_assistent_router())
-app.include_router(create_wizard_router(
-    app_now_display_time=app_now_display_time,
-))
+app.include_router(create_wizard_router())
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
     app_today=lambda: app_now().date(),

@@ -38,10 +38,10 @@ def test_generator_hint_grid_column_resets_below_860px(
 
 
 def test_admin_form_collapses_to_single_column_below_700px(live_server_url, page):
-    """Issue #111: .admin-form (u.a. turnier_schnellstart.html) muss unter 700px
+    """Issue #111: .admin-form (u.a. teams.html) muss unter 700px
     auf eine Spalte kollabieren; die Label-Spalte (160px 1fr) darf nur ab
     701px gelten."""
-    page.goto(f"{live_server_url}/turnier-schnellstart")
+    page.goto(f"{live_server_url}/teams")
     admin_form = page.locator(".admin-form").first
 
     page.set_viewport_size(DESKTOP_VIEWPORT)

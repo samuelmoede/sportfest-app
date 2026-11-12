@@ -45,11 +45,12 @@ class NavAssistentVisibilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('href="/turnier-schnellstart"', response.text)
 
-    def test_turnier_schnellstart_route_still_reachable_directly(self):
+    def test_turnier_schnellstart_redirects_to_assistent(self):
         from app.main import app as fastapi_app
         with TestClient(fastapi_app) as client:
-            response = client.get("/turnier-schnellstart")
-        self.assertEqual(response.status_code, 200)
+            response = client.get("/turnier-schnellstart", follow_redirects=False)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/assistent")
 
 
 if __name__ == "__main__":

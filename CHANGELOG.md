@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Alte Assistent-Wege entfernt: der Assistent je Veranstaltung (`/assistent/{id}` mit Klassen, Feldern und Wettbewerben einzeln), die Vorlage Schulpokal, „Ganzen Schulpokal planen“ und der Turnier-Schnellstart. Alles läuft jetzt über den Einrichtungsassistenten; eine bestehende Veranstaltung ändert man dort mit „Plan ändern“. Alte Lesezeichen leiten auf die Veranstaltungsseite bzw. auf `/assistent` um.
 - Assistent-Startseite übersichtlicher: zwei Wege statt vier Kacheln. „Neue Veranstaltung“ mit einem Startpunkt (leer, Vorlage oder wie eine frühere Veranstaltung) und „Bestehende Veranstaltung ändern“ als Liste mit „Plan ändern“ bzw. „Weiter ändern“ bei offenem Entwurf. Auf der Veranstaltungsseite heißt der Knopf „Plan ändern“, das alte Formular „Name & Beschreibung“.
 - Plan ändern: Wettbewerbe, deren Plan gleich bleibt, werden beim Übernehmen nicht mehr angefasst (Spiele behalten ihre ids, eine mit „Zeitplan aufholen“ gekürzte Spielzeit bleibt), ebenso unveränderte Showspiele und Programmpunkte. Die Meldung danach nennt, wie viele Wettbewerbe neu geplant, neu angelegt, gelöscht oder unverändert sind.
 - Fix: Eine Veranstaltung mit gleichzeitig gespielten Teilmannschaften (z. B. Tischtennis Jungen/Mädchen) ergab beim Wiederöffnen bzw. als Vorlage einen anderen Plan (Mädchen erst nach den Jungen). Orte übernehmen jetzt die genutzten Felder, eigene Felder je Wettbewerb nur, wo sie abweichen.

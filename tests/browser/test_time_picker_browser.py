@@ -48,19 +48,33 @@ def _minute_click_position(width: float, height: float, value: int) -> dict:
     return _position_on_circle(width, height, angle_deg, OUTER_RADIUS_PERCENT)
 
 
-def _quickstart_time_field(page):
-    """Startzeit-Feld des Turnier-Schnellstarts (/turnier-schnellstart); jedes
-    Uhrzeitfeld bekommt seinen eigenen Picker."""
-    return page.locator('.time-field-wrap:has(input[name="startzeit"])')
+CREATE_FORM = ".competition-create-details"
+
+
+def _open_time_field_page(page, live_server_url):
+    """Startzeit-Feld im Formular „Wettbewerb anlegen“ auf /wettbewerbe
+    (frueher der entfernte Turnier-Schnellstart); das Formular steckt in einem
+    zugeklappten <details> und wird hier aufgeklappt."""
+    page.goto(f"{live_server_url}/wettbewerbe")
+    page.locator(f"{CREATE_FORM} > summary").click()
+
+
+def _time_input(page):
+    return page.locator(f'{CREATE_FORM} input[name="start_time"]')
+
+
+def _time_field(page):
+    """Jedes Uhrzeitfeld bekommt seinen eigenen Picker."""
+    return page.locator(f'{CREATE_FORM} .time-field-wrap:has(input[name="start_time"])')
 
 
 def test_time_picker_dial_click_updates_native_input_value(live_server_url, page):
-    page.goto(f"{live_server_url}/turnier-schnellstart")
+    _open_time_field_page(page, live_server_url)
 
-    time_input = page.locator('input[name="startzeit"]')
+    time_input = _time_input(page)
     expect(time_input).to_be_visible()
 
-    field = _quickstart_time_field(page)
+    field = _time_field(page)
     field.locator(".time-picker-toggle").click()
     panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
@@ -85,12 +99,12 @@ def test_time_picker_dial_click_updates_native_input_value(live_server_url, page
 
 
 def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
-    page.goto(f"{live_server_url}/turnier-schnellstart")
+    _open_time_field_page(page, live_server_url)
 
-    time_input = page.locator('input[name="startzeit"]')
+    time_input = _time_input(page)
     expect(time_input).to_be_visible()
 
-    field = _quickstart_time_field(page)
+    field = _time_field(page)
     field.locator(".time-picker-toggle").click()
     panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
@@ -113,9 +127,9 @@ def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
 
 
 def test_time_picker_panel_closes_on_escape(live_server_url, page):
-    page.goto(f"{live_server_url}/turnier-schnellstart")
+    _open_time_field_page(page, live_server_url)
 
-    field = _quickstart_time_field(page)
+    field = _time_field(page)
     field.locator(".time-picker-toggle").click()
     panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
@@ -137,9 +151,9 @@ def test_time_picker_panel_contains_all_content(live_server_url, page, viewport_
     "Fertig"-Button ragten sichtbar ueber die abgerundete Kante der
     .time-picker-panel-Karte hinaus, statt vollstaendig darin zu bleiben."""
     page.set_viewport_size({"width": viewport_width, "height": 900})
-    page.goto(f"{live_server_url}/turnier-schnellstart")
+    _open_time_field_page(page, live_server_url)
 
-    field = _quickstart_time_field(page)
+    field = _time_field(page)
     field.locator(".time-picker-toggle").click()
     panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
