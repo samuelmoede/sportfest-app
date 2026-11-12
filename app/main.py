@@ -27,6 +27,7 @@ from app.routes.wizard import create_router as create_wizard_router
 from app.routes.assistent import create_router as create_assistent_router
 from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
 from app.routes.zeitplan import create_router as create_zeitplan_router
+from app.services.beamer_service import STANDARD_SEKUNDEN, baue_beamer_seiten
 from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
@@ -3204,14 +3205,60 @@ def siegerehrung_public(request: Request, event_id: int):
     )
 
 
-@app.get("/beamer")
-def beamer(request: Request):
-    data = fetch_beamer_data()
-    data["refresh_seconds"] = get_beamer_refresh_seconds()
-    template_name = (
-        "beamer_modern.html"
-        if request.query_params.get("ui_theme") == "modern"
-        else "beamer.html"
+def fetch_beamer_seiten(ort=None, mit_tabellen=True):
+    """Daten fuer die Beamer-Ansicht (siehe beamer_service): Seiten je Ort,
+    Zwischenstaende und letzte Ergebnisse der laufenden Wettbewerbe."""
+    with get_conn() as conn:
+        active_comps = [dict(row) for row in conn.execute("""
+            SELECT id, name, sportart, event_id, location FROM competitions
+            WHERE status = 'läuft' AND competition_type IN ('Turnier', 'Schulpokal')
+            ORDER BY jahrgang, name
+        """).fetchall()]
+        sixkampf_active = conn.execute("""
+            SELECT 1 FROM competitions
+            WHERE status = 'läuft' AND competition_type = 'Sechskampf' LIMIT 1
+        """).fetchone() is not None
+        event_ids = sorted({c["event_id"] for c in active_comps if c["event_id"] is not None})
+        programmpunkte = [p for event_id in event_ids for p in list_programmpunkte(conn, event_id)]
+        event_name = None
+        if len(event_ids) == 1:
+            row = conn.execute("SELECT name FROM events WHERE id = ?", (event_ids[0],)).fetchone()
+            event_name = row["name"] if row else None
+
+    slots = get_all_slots(competition_ids=[c["id"] for c in active_comps]) if active_comps else []
+    gesamtwertung, tabellen = [], []
+    if mit_tabellen:
+        for event_id in event_ids:
+            gesamtwertung += calculate_event_overall_ranking(event_id)
+        tabellen = [
+            {
+                "name": c["name"], "sportart": c["sportart"],
+                "ort": get_effective_competition_location(c),
+                "rows": calculate_table(c["id"]),
+            }
+            for c in active_comps
+        ]
+    data = baue_beamer_seiten(
+        slots, app_now(), gesamtwertung=gesamtwertung, tabellen=tabellen,
+        programmpunkte=programmpunkte, ort=ort, mit_tabellen=mit_tabellen,
     )
-    return templates.TemplateResponse(request=request, name=template_name, context=data)
+    data["event_name"] = event_name
+    data["sixkampf_active"] = sixkampf_active
+    data["has_active"] = bool(active_comps)
+    return data
+
+
+@app.get("/beamer")
+def beamer(request: Request, ort: str = "", tabellen: str = "", sekunden: str = ""):
+    if request.query_params.get("ui_theme") == "modern":
+        data = fetch_beamer_data()
+        data["refresh_seconds"] = get_beamer_refresh_seconds()
+        return templates.TemplateResponse(request=request, name="beamer_modern.html", context=data)
+    selected_ort = normalize_competition_location(ort)
+    data = fetch_beamer_seiten(ort=selected_ort, mit_tabellen=tabellen not in ("0", "aus"))
+    data["selected_ort"] = selected_ort
+    data["refresh_seconds"] = get_beamer_refresh_seconds()
+    data["seiten_sekunden"] = min(max(int(sekunden), 5), 120) if sekunden.isdigit() else STANDARD_SEKUNDEN
+    data["uhrzeit"] = app_now().strftime("%H:%M:%S")
+    return templates.TemplateResponse(request=request, name="beamer.html", context=data)
 

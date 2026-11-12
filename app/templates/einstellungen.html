@@ -449,6 +449,13 @@
     <h2>Beamer-Ansicht</h2>
     <p>Öffne diese URL auf dem Beamer-PC:</p>
     <code>{{ request.base_url }}beamer</code>
+    <p class="muted">Die Ansicht blättert automatisch durch die Orte, die Zwischenstände und die letzten Ergebnisse. Optionen lassen sich an die Adresse anhängen und mit <code>&amp;</code> kombinieren:</p>
+    <ul class="muted">
+        <li><code>?ort=Mensa</code> – nur ein Ort (z.&nbsp;B. ein eigener Beamer in der Mensa)</li>
+        <li><code>?tabellen=aus</code> – keine Zwischenstände zeigen (Spannung bis zur Siegerehrung)</li>
+        <li><code>?hell=1</code> – heller Hintergrund für helle Räume</li>
+        <li><code>?sekunden=20</code> – Anzeigedauer je Seite (Standard 12 Sekunden)</li>
+    </ul>
 </section>
 
 <script>
