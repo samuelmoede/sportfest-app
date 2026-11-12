@@ -69,6 +69,10 @@ class AssistentRoutenTests(unittest.TestCase):
             if hinweis["bestaetigbar"] and not hinweis["bestaetigt"]:
                 self._post(f"/assistent/entwurf/{entwurf_id}/hinweis/bestaetigen", {"kennung": hinweis["id"]})
 
+    def _stamm(self):
+        with database.get_conn() as conn:
+            return es.lade_stammdaten(conn)
+
     def _count(self, sql):
         with database.get_conn() as conn:
             return conn.execute(sql).fetchone()[0]
@@ -159,7 +163,8 @@ class AssistentRoutenTests(unittest.TestCase):
         start = self.client.get("/assistent").text
         self.assertIn(f"/assistent/entwurf/{entwurf_id}", start)
         response = self.client.get(f"/assistent/entwurf/{entwurf_id}", follow_redirects=False)
-        self.assertIn(f"/assistent/entwurf/{entwurf_id}/wertung", response.headers["location"])
+        # Die frühere Seite „Wertung“ ist im Abschluss aufgegangen.
+        self.assertIn(f"/assistent/entwurf/{entwurf_id}/abschluss", response.headers["location"])
 
     def test_blockierende_hinweise_verhindern_uebernahme(self):
         location = self._post("/assistent/entwurf/neu")
@@ -196,7 +201,7 @@ class AssistentRoutenTests(unittest.TestCase):
             es.speichere_entwurf(conn, entwurf_id, daten)
             conn.commit()
 
-        for schritt in ("orte", "zeitplan", "vorschau", "wertung", "abschluss"):
+        for schritt in ("orte", "zeitplan", "vorschau", "abschluss"):
             self.assertEqual(self.client.get(f"{basis}/{schritt}").status_code, 200, schritt)
         self._bestaetige_warnungen(entwurf_id)
         plan = self._plan(entwurf_id)
@@ -211,6 +216,77 @@ class AssistentRoutenTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM competition_teams WHERE competition_id = ?", (competitions[0]["id"],)
             ).fetchone()[0]
         self.assertEqual(teams, 8)  # ein gemeinsamer Wettbewerb, ein gemeinsamer Sieger
+
+    # Weniger Schritte und Machbarkeits-Abzeichen ------------------------------
+
+    def test_wertung_steht_im_abschluss(self):
+        """Die frühere Seite „Wertung“ ist im Abschluss aufgegangen: alte
+        Links leiten um, die Einstellungen stehen im Abschluss und gelten beim
+        Erstellen mit, ohne vorher zu speichern."""
+        self.assertNotIn("wertung", es.SCHRITT_KEYS)
+        entwurf_id = self._schulpokal_entwurf()
+        basis = f"/assistent/entwurf/{entwurf_id}"
+        response = self.client.get(f"{basis}/wertung", follow_redirects=False)
+        self.assertTrue(response.headers["location"].endswith("/abschluss"))
+
+        self._bestaetige_warnungen(entwurf_id)
+        seite = self.client.get(f"{basis}/abschluss").text
+        self.assertIn("<h3", seite)
+        self.assertIn("Wertung", seite)
+        self.assertIn('name="wb_sieg_0"', seite)
+        self.assertIn(f'formaction="{basis}/uebernehmen"', seite)
+
+        daten = self._entwurf(entwurf_id)["daten"]
+        keys = [wb["key"] for wb in es.ableiten_wettbewerbe(daten, self._stamm())]
+        index = next(i for i, key in enumerate(keys) if key.startswith("Volleyball|9"))
+        form = {"version": str(self._entwurf(entwurf_id)["version"]), "wb_anzahl": str(len(keys))}
+        for i, key in enumerate(keys):
+            form[f"wb_key_{i}"] = key
+        form[f"wb_sieg_{index}"] = "5"
+        form[f"wb_remis_{index}"] = "2"
+        location = self._post(f"{basis}/uebernehmen", form)
+        self.assertIn("/fertig", location)
+        with database.get_conn() as conn:
+            row = conn.execute(
+                "SELECT points_win, points_draw FROM competitions WHERE name = 'Volleyball Jahrgang 9'"
+            ).fetchone()
+        self.assertEqual((row["points_win"], row["points_draw"]), (5, 2))
+
+    def test_wertung_aus_veralteter_seite_wird_nicht_gespeichert(self):
+        entwurf_id = self._schulpokal_entwurf()
+        self._bestaetige_warnungen(entwurf_id)
+        alte_version = self._entwurf(entwurf_id)["version"]
+        self._post(f"/assistent/entwurf/{entwurf_id}/abschluss", {"ziel": "bleiben"})
+        location = self._post(f"/assistent/entwurf/{entwurf_id}/uebernehmen", {
+            "version": str(alte_version), "wb_anzahl": "1",
+            "wb_key_0": "Volleyball|9", "wb_sieg_0": "9", "wb_remis_0": "0",
+        })
+        self.assertIn("fehler=", location)
+        self.assertEqual(self._count("SELECT COUNT(*) FROM events"), 0)
+        einstellung = self._entwurf(entwurf_id)["daten"].get("wettbewerbe", {}).get("Volleyball|9", {})
+        self.assertNotEqual(einstellung.get("punkte_sieg"), 9)
+
+    def test_machbarkeits_abzeichen_in_jedem_schritt(self):
+        location = self._post("/assistent/entwurf/neu")
+        entwurf_id = int(location.split("/")[3])
+        seite = self.client.get(f"/assistent/entwurf/{entwurf_id}/grunddaten").text
+        self.assertIn('class="wiz-machbar is-block"', seite)
+        self.assertIn("Noch nicht machbar", seite)
+
+        entwurf_id = self._schulpokal_entwurf()
+        basis = f"/assistent/entwurf/{entwurf_id}"
+        offene = len(self._plan(entwurf_id)["offene_warnungen"])
+        self.assertGreater(offene, 0)
+        for schritt in ("grunddaten", "sportarten", "orte", "zeitplan", "vorschau", "abschluss"):
+            seite = self.client.get(f"{basis}/{schritt}").text
+            self.assertIn('class="wiz-machbar is-warn"', seite, schritt)
+            self.assertIn(f"{offene} Warnung", seite, schritt)
+            self.assertIn(f'href="{basis}/vorschau"', seite, schritt)
+
+        self._bestaetige_warnungen(entwurf_id)
+        seite = self.client.get(f"{basis}/sportarten").text
+        self.assertIn('class="wiz-machbar is-ok"', seite)
+        self.assertIn("✔ Machbar", seite)
 
     def test_vorlage_loeschen_braucht_bestaetigung(self):
         with database.get_conn() as conn:
