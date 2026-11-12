@@ -19,9 +19,8 @@ import app.database as database
 # querySelectorAll('input[type="time"]')) - diese Liste ist nur eine
 # Regressionspruefung, dass die bekannten Felder nicht verschwinden.
 TEMPLATES_WITH_TIME_FIELDS = {
-    "assistent_event.html": 2,
+    "assistent_entwurf.html": 7,
     "spielplan_bearbeiten.html": 7,
-    "turnier_schnellstart.html": 1,
     "wettbewerbe.html": 4,
 }
 

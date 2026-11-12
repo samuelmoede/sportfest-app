@@ -1,0 +1,16 @@
+{#
+  Hauptnavigation - wird in base.html zweimal eingebunden (Seitenleiste und
+  mobiles Menue). Inhalt, Reihenfolge und Symbole kommen aus
+  app/services/navigation_service.py, nicht aus diesem Template.
+#}
+{% macro hauptnavigation(gruppen) %}
+{% for gruppe in gruppen %}
+{% if gruppe.titel %}<div class="nav-group">{{ gruppe.titel }}</div>{% endif %}
+{% for eintrag in gruppe.eintraege %}
+<a class="nav-link{% if eintrag.aktiv %} is-active{% endif %}" href="{{ eintrag.href }}" title="{{ eintrag.label }}"{% if eintrag.aktiv %} aria-current="page"{% endif %}>
+    {{ nav_icon_svg(eintrag.icon)|safe }}
+    <span class="nav-text">{{ eintrag.label }}</span>
+</a>
+{% endfor %}
+{% endfor %}
+{% endmacro %}

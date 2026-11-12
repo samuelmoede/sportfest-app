@@ -1,8 +1,8 @@
 """Neuer Einrichtungsassistent (Entwurf -> Vorschau -> Uebernehmen).
 
 Alle Seiten liegen unter /assistent und damit im bestehenden Bereichsschutz
-fuer Admins. Der bisherige Assistent (/assistent/{event_id}, Schulpokal-
-Gesamtplan, Turnier-Schnellstart) bleibt unveraendert erreichbar."""
+fuer Admins. Die Startseite /assistent und die Weiterleitungen der
+frueheren Assistent-Wege liegen in app/routes/wizard.py."""
 import json
 from typing import List
 from urllib.parse import urlencode
@@ -24,7 +24,6 @@ from app.services.tiebreak_service import (
 )
 from app.web import templates
 
-VORSCHAU_SCHRITTE = ("vorschau", "wertung", "abschluss")
 
 
 def _redirect(url, **params):
@@ -72,9 +71,9 @@ def create_router() -> APIRouter:
         with get_conn() as conn:
             stamm = es.lade_stammdaten(conn)
             daten = entwurf["daten"]
-            plan = None
-            if schritt in VORSCHAU_SCHRITTE or schritt == "zeitplan":
-                plan = plane(conn, daten, stamm)
+            # Der Plan wird in jedem Schritt geprueft: das Machbarkeits-
+            # Abzeichen oben zeigt den Stand, nicht erst die Vorschau.
+            plan = plane(conn, daten, stamm)
         wettbewerbe = es.ableiten_wettbewerbe(daten, stamm)
         plan_wbs = {wb["key"]: wb for wb in (plan or {}).get("wettbewerbe", [])}
         teams_by_jahrgang = es.teams_nach_jahrgang(stamm)
@@ -304,7 +303,8 @@ def create_router() -> APIRouter:
         daten = entwurf["daten"]
         if (daten.get("abgleich") or {}).get("offen"):
             return _redirect(_schritt_url(entwurf_id, "abgleich"))
-        schritt = daten.get("schritt") if daten.get("schritt") in es.SCHRITT_KEYS else "grunddaten"
+        schritt = es.SCHRITT_ALIASE.get(daten.get("schritt"), daten.get("schritt"))
+        schritt = schritt if schritt in es.SCHRITT_KEYS else "grunddaten"
         return _redirect(_schritt_url(entwurf_id, schritt))
 
     @router.get("/assistent/entwurf/{entwurf_id}/fertig")
@@ -342,7 +342,7 @@ def create_router() -> APIRouter:
             return _speichere_orte(conn, daten, stamm, form)
         if schritt == "zeitplan":
             return _speichere_zeitplan(daten, stamm, form)
-        if schritt == "wertung":
+        if schritt == "abschluss":
             return _speichere_wertung(daten, stamm, form)
         return ""
 
@@ -659,18 +659,28 @@ def create_router() -> APIRouter:
         return _aktion(entwurf_id, aenderung, wb=form.get("wb") or "")
 
     @router.post("/assistent/entwurf/{entwurf_id}/uebernehmen")
-    def uebernehmen(
-        entwurf_id: int,
-        version: str = Form(...),
-        als_vorlage: str = Form(""),
-        vorlage_name: str = Form(""),
-    ):
+    async def uebernehmen(request: Request, entwurf_id: int):
+        form = await request.form()
+        version = form.get("version") or ""
+        als_vorlage = form.get("als_vorlage") or ""
+        vorlage_name = form.get("vorlage_name") or ""
         with get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             entwurf = lade(conn, entwurf_id)
             if entwurf is None:
                 conn.rollback()
                 return _redirect("/assistent")
+            # Der Knopf steht im Formular des Abschlusses: dort geänderte
+            # Wertungs-Einstellungen gelten mit, ohne vorher zu speichern.
+            # Nur auf der Version, die die Seite gezeigt hat (sonst meldet
+            # es.uebernehmen den Versionskonflikt).
+            if (entwurf["status"] == "offen" and form.get("wb_anzahl") is not None
+                    and str(entwurf["version"]) == str(version)):
+                daten = entwurf["daten"]
+                _speichere_wertung(daten, es.lade_stammdaten(conn), form)
+                es.speichere_entwurf(conn, entwurf_id, daten)
+                entwurf = lade(conn, entwurf_id)
+                version = str(entwurf["version"])
             ziel = (entwurf["daten"].get("ziel") or "veranstaltung")
             if entwurf["status"] == "offen" and ziel.startswith("vorlage:"):
                 vorlage_id = int(ziel.partition(":")[2])
@@ -722,6 +732,8 @@ def create_router() -> APIRouter:
 
     @router.get("/assistent/entwurf/{entwurf_id}/{schritt}")
     def entwurf_schritt(request: Request, entwurf_id: int, schritt: str):
+        if schritt in es.SCHRITT_ALIASE:
+            return _redirect(_schritt_url(entwurf_id, es.SCHRITT_ALIASE[schritt]))
         if schritt not in es.SCHRITT_KEYS and schritt != "abgleich":
             return _redirect(f"/assistent/entwurf/{entwurf_id}")
         with get_conn() as conn:
@@ -748,6 +760,7 @@ def create_router() -> APIRouter:
     @router.post("/assistent/entwurf/{entwurf_id}/{schritt}")
     async def entwurf_schritt_speichern(request: Request, entwurf_id: int, schritt: str):
         form = await request.form()
+        schritt = es.SCHRITT_ALIASE.get(schritt, schritt)
         with get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
             entwurf = lade(conn, entwurf_id)

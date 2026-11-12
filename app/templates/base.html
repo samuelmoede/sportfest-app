@@ -19,10 +19,13 @@
 {% set access_badge_prefix = "Benutzer:" if access_username else "Rolle:" %}
 {% set access_badge_text = access_username or access_role_label %}
 {% set access_badge_aria = ("Angemeldet als " ~ access_username ~ ", Rolle: " ~ access_role_label) if access_username else ("Aktuelle Rolle: " ~ access_role_label) %}
+{# can_view_* werden auch von Kind-Templates gelesen (Dashboard, Tabellen). #}
 {% set can_view_results = can_access_role(request, "referee") %}
 {% set can_view_admin = can_access_role(request, "admin") %}
 {% set can_view_urkunden = can_access_role(request, "tournament_lead") %}
 {% set current_path = request.url.path %}
+{% from "partials/navigation.html" import hauptnavigation %}
+{% set nav_gruppen = get_navigation(request) %}
 <header class="mobile-topbar" aria-label="Mobile Kopfzeile">
     <div class="mobile-brand">
         <strong>Sportfest</strong>
@@ -43,78 +46,9 @@
         <button type="button" class="mobile-menu-close" data-mobile-menu-close aria-label="Menü schließen">Schließen</button>
     </div>
     <nav>
-        <div class="nav-group">Allgemein</div>
-        <a class="nav-link{% if current_path == '/' %} is-active{% endif %}" href="/" {% if current_path == '/' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">🏠</span>
-            <span class="nav-text">Dashboard</span>
-        </a>
-        <div class="nav-group">Wettbewerbe</div>
-        {% if can_view_admin %}
-        <a class="nav-link{% if current_path == '/wettbewerbe' %} is-active{% endif %}" href="/wettbewerbe" {% if current_path == '/wettbewerbe' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">🏆</span>
-            <span class="nav-text">Wettbewerbe</span>
-        </a>
-        {% endif %}
-        <a class="nav-link{% if current_path == '/spielplan' %} is-active{% endif %}" href="/spielplan" {% if current_path == '/spielplan' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">🗓</span>
-            <span class="nav-text">Spielplan</span>
-        </a>
-        {% if can_view_admin %}
-        <a class="nav-link{% if current_path == '/spielplan-bearbeiten' %} is-active{% endif %}" href="/spielplan-bearbeiten" {% if current_path == '/spielplan-bearbeiten' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">✏️</span>
-            <span class="nav-text">Spielplan bearbeiten</span>
-        </a>
-        {% endif %}
-        {% if can_view_results %}
-        <a class="nav-link{% if current_path == '/ergebnisse' %} is-active{% endif %}" href="/ergebnisse" {% if current_path == '/ergebnisse' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">✅</span>
-            <span class="nav-text">Ergebnisse</span>
-        </a>
-        {% endif %}
-        <a class="nav-link{% if current_path == '/tabellen' %} is-active{% endif %}" href="/tabellen" {% if current_path == '/tabellen' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">📊</span>
-            <span class="nav-text">Tabellen</span>
-        </a>
-        {% if can_view_urkunden %}
-        <a class="nav-link{% if current_path == '/urkunden' %} is-active{% endif %}" href="/urkunden" {% if current_path == '/urkunden' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">📜</span>
-            <span class="nav-text">Urkunden</span>
-        </a>
-        {% endif %}
-
-        {% if can_view_admin %}
-        <div class="nav-group">Verwaltung</div>
-        <a class="nav-link{% if current_path.startswith('/assistent') %} is-active{% endif %}" href="/assistent" {% if current_path.startswith('/assistent') %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">🧭</span>
-            <span class="nav-text">Assistent</span>
-        </a>
-        <a class="nav-link{% if current_path.startswith('/events') %} is-active{% endif %}" href="/events" {% if current_path.startswith('/events') %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">📅</span>
-            <span class="nav-text">Veranstaltungen</span>
-        </a>
-        <a class="nav-link{% if current_path == '/teams' %} is-active{% endif %}" href="/teams" {% if current_path == '/teams' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">👥</span>
-            <span class="nav-text">Teams</span>
-        </a>
-        <a class="nav-link{% if current_path == '/spielfelder' %} is-active{% endif %}" href="/spielfelder" {% if current_path == '/spielfelder' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">📍</span>
-            <span class="nav-text">Spielfelder</span>
-        </a>
-        <a class="nav-link{% if current_path == '/einstellungen' %} is-active{% endif %}" href="/einstellungen" {% if current_path == '/einstellungen' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">⚙️</span>
-            <span class="nav-text">Einstellungen</span>
-        </a>
-        <a class="nav-link{% if current_path == '/dokumentation' %} is-active{% endif %}" href="/dokumentation" {% if current_path == '/dokumentation' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">📘</span>
-            <span class="nav-text">Dokumentation</span>
-        </a>
-        <a class="nav-link{% if current_path == '/roadmap' %} is-active{% endif %}" href="/roadmap" {% if current_path == '/roadmap' %}aria-current="page"{% endif %}>
-            <span class="nav-icon" aria-hidden="true">🗺️</span>
-            <span class="nav-text">Roadmap</span>
-        </a>
-        {% endif %}
-        <a class="beamer-link" href="/beamer" target="_blank">
-            <span class="beamer-icon" aria-hidden="true">⚡</span>
+        {{ hauptnavigation(nav_gruppen) }}
+        <a class="beamer-link" href="/beamer" target="_blank" rel="noopener" title="Beamer-Ansicht (öffnet in neuem Fenster)">
+            {{ nav_icon_svg("projector", "beamer-icon")|safe }}
             <span class="beamer-text">Beamer</span>
         </a>
         <a class="impressum-link" href="/impressum">Impressum</a>
@@ -143,81 +77,12 @@
         </div>
 
         <nav>
-            <div class="nav-group">Allgemein</div>
-            <a class="nav-link{% if current_path == '/' %} is-active{% endif %}" href="/" {% if current_path == '/' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">🏠</span>
-                <span class="nav-text">Dashboard</span>
-            </a>
-            <div class="nav-group">Wettbewerbe</div>
-            {% if can_view_admin %}
-            <a class="nav-link{% if current_path == '/wettbewerbe' %} is-active{% endif %}" href="/wettbewerbe" {% if current_path == '/wettbewerbe' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">🏆</span>
-                <span class="nav-text">Wettbewerbe</span>
-            </a>
-            {% endif %}
-            <a class="nav-link{% if current_path == '/spielplan' %} is-active{% endif %}" href="/spielplan" {% if current_path == '/spielplan' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">🗓</span>
-                <span class="nav-text">Spielplan</span>
-            </a>
-            {% if can_view_admin %}
-            <a class="nav-link{% if current_path == '/spielplan-bearbeiten' %} is-active{% endif %}" href="/spielplan-bearbeiten" {% if current_path == '/spielplan-bearbeiten' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">✏️</span>
-                <span class="nav-text">Spielplan bearbeiten</span>
-            </a>
-            {% endif %}
-            {% if can_view_results %}
-            <a class="nav-link{% if current_path == '/ergebnisse' %} is-active{% endif %}" href="/ergebnisse" {% if current_path == '/ergebnisse' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">✅</span>
-                <span class="nav-text">Ergebnisse</span>
-            </a>
-            {% endif %}
-            <a class="nav-link{% if current_path == '/tabellen' %} is-active{% endif %}" href="/tabellen" {% if current_path == '/tabellen' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">📊</span>
-                <span class="nav-text">Tabellen</span>
-            </a>
-            {% if can_view_urkunden %}
-            <a class="nav-link{% if current_path == '/urkunden' %} is-active{% endif %}" href="/urkunden" {% if current_path == '/urkunden' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">📜</span>
-                <span class="nav-text">Urkunden</span>
-            </a>
-            {% endif %}
-
-            {% if can_view_admin %}
-            <div class="nav-group">Verwaltung</div>
-            <a class="nav-link{% if current_path.startswith('/assistent') %} is-active{% endif %}" href="/assistent" {% if current_path.startswith('/assistent') %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">🧭</span>
-                <span class="nav-text">Assistent</span>
-            </a>
-            <a class="nav-link{% if current_path.startswith('/events') %} is-active{% endif %}" href="/events" {% if current_path.startswith('/events') %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">📅</span>
-                <span class="nav-text">Veranstaltungen</span>
-            </a>
-            <a class="nav-link{% if current_path == '/teams' %} is-active{% endif %}" href="/teams" {% if current_path == '/teams' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">👥</span>
-                <span class="nav-text">Teams</span>
-            </a>
-            <a class="nav-link{% if current_path == '/spielfelder' %} is-active{% endif %}" href="/spielfelder" {% if current_path == '/spielfelder' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">📍</span>
-                <span class="nav-text">Spielfelder</span>
-            </a>
-            <a class="nav-link{% if current_path == '/einstellungen' %} is-active{% endif %}" href="/einstellungen" {% if current_path == '/einstellungen' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">⚙️</span>
-                <span class="nav-text">Einstellungen</span>
-            </a>
-            <a class="nav-link{% if current_path == '/dokumentation' %} is-active{% endif %}" href="/dokumentation" {% if current_path == '/dokumentation' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">📘</span>
-                <span class="nav-text">Dokumentation</span>
-            </a>
-            <a class="nav-link{% if current_path == '/roadmap' %} is-active{% endif %}" href="/roadmap" {% if current_path == '/roadmap' %}aria-current="page"{% endif %}>
-                <span class="nav-icon" aria-hidden="true">🗺️</span>
-                <span class="nav-text">Roadmap</span>
-            </a>
-            {% endif %}
+            {{ hauptnavigation(nav_gruppen) }}
         </nav>
 
         <div class="sidebar-footer">
-            <a class="beamer-link" href="/beamer" target="_blank">
-                <span class="beamer-icon" aria-hidden="true">⚡</span>
+            <a class="beamer-link" href="/beamer" target="_blank" rel="noopener" title="Beamer-Ansicht (öffnet in neuem Fenster)">
+                {{ nav_icon_svg("projector", "beamer-icon")|safe }}
                 <span class="beamer-text">Beamer</span>
             </a>
             <div class="access-strip" aria-label="Zugriff">
@@ -226,12 +91,12 @@
                 </span>
                 {% if access_logged_in %}
                 <a class="access-action" href="/logout" aria-label="Abmelden">
-                    <span class="access-action-icon" aria-hidden="true">↪</span>
+                    {{ nav_icon_svg("log-out", "access-action-icon")|safe }}
                     <span class="access-action-label">Abmelden</span>
                 </a>
                 {% else %}
                 <a class="access-action" href="/login" aria-label="Login">
-                    <span class="access-action-icon" aria-hidden="true">🔑</span>
+                    {{ nav_icon_svg("log-in", "access-action-icon")|safe }}
                     <span class="access-action-label">Login</span>
                 </a>
                 {% endif %}

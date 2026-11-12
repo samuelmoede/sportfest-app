@@ -28,6 +28,12 @@ Wichtige Entscheidungen:
   Wertungen), Programmpunkte in `event_programmpunkte`, Konfliktprüfung
   `find_internal_conflicts`/`find_existing_schedule_conflicts` als letzte
   Absicherung beim Übernehmen.
+- **Machbarkeits-Abzeichen in jedem Schritt** (seit 2026-11-12): oben rechts
+  „✔ Machbar“, „⚠ Machbar · n Warnungen offen“ oder „✖ Noch nicht machbar“,
+  ein Klick führt zur Vorschau. Der Plan wird dafür bei jedem Aufruf neu
+  berechnet. Die frühere Seite „Wertung“ steht im Abschluss; dort geänderte
+  Punkte und Gleichstandsregeln gelten beim Erstellen mit (nur auf der
+  angezeigten Entwurfsversion), alte Links auf `/wertung` leiten um.
 - **Machbarkeitsprüfung in drei Stufen:** blockierend (z. B. Feld doppelt
   belegt, Plan passt nicht ins Zeitfenster), Warnung zum Bestätigen (z. B.
   Klasse gleichzeitig in zwei Sportarten), Info. Vorschläge (Spielzeit kürzen,
@@ -43,12 +49,15 @@ Wichtige Entscheidungen:
   noch Klassen. Ein Start aus einer Vorlage erzwingt den Abgleich von Datum,
   Klassen, Sportarten und Orten; fehlende Jahrgänge, inaktive Orte und nicht
   mehr vorhandene Felder werden dort gemeldet statt stillschweigend ersetzt.
-- **Alte Wege aus der Übersicht entfernt:** Die bisherigen Formulare der
-  Assistent-Startseite (Veranstaltung wählen/anlegen, Vorlage Schulpokal,
-  Turnier-Schnellstart) sind dort raus (Samuel, 2026-11-06: „verwirrt nur“).
-  Die alten Routen (`/assistent/{event_id}`, `/assistent/vorlage/schulpokal`,
-  `/turnier-schnellstart`) funktionieren weiter, sind aber nicht mehr von der
-  Startseite verlinkt.
+- **Alte Wege entfernt:** Die bisherigen Formulare der Assistent-Startseite
+  (Veranstaltung wählen/anlegen, Vorlage Schulpokal, Turnier-Schnellstart)
+  waren seit 2026-11-06 nicht mehr verlinkt (Samuel: „verwirrt nur“). Seit
+  2026-11-12, nachdem der Assistent bestehende Veranstaltungen bearbeiten kann,
+  sind sie samt `schulpokal_gesamtplan_service.py` entfernt. Alte Lesezeichen
+  leiten um: `/assistent/{event_id}` und `/assistent/{event_id}/schulpokal-plan`
+  auf die Veranstaltungsseite (Knopf „Plan ändern“), `/turnier-schnellstart`
+  auf `/assistent`. Die Blöcke der System-Vorlage „Schulpokal“ stehen weiter
+  in `schulpokal_vorlage_service.py` (`DEFAULT_SCHULPOKAL_BLOECKE`).
 
 ## Bestehende Veranstaltung bearbeiten und „Vorjahr übernehmen“
 
@@ -123,8 +132,8 @@ die Jahrgänge 7–10 und Felder in Turnhalle und Mensa sollten vorhanden sein.
 5. „Bearbeiten“ an einem Wettbewerb: Spielzeit z. B. auf 12 Minuten setzen →
    Plan wird neu berechnet, ggf. erscheint „passt nicht ins Zeitfenster“ mit
    Vorschlägen. Einen Vorschlag anklicken, Auswirkungen erscheinen als Meldung.
-6. Wertung → Abschluss → „Veranstaltung erstellen“, optional „Als Vorlage
-   speichern“. Danach Tagesplan, Spielplan, Tabellen und Ergebnisse der neuen
+6. Abschluss (mit der Wertung) → „Veranstaltung erstellen“, optional „Als
+   Vorlage speichern“. Danach Tagesplan, Spielplan, Tabellen und Ergebnisse der neuen
    Veranstaltung prüfen. Der Zurück-Knopf und ein zweites Absenden legen nichts
    doppelt an.
 
@@ -141,7 +150,8 @@ die Jahrgänge 7–10 und Felder in Turnhalle und Mensa sollten vorhanden sein.
 5. Zeitplan: die vorgeschlagenen Blöcke prüfen, einen Puffer (Programmpunkt
    „Pause“ 10:30–10:45) eintragen. In der Vorschau darf in dieser Zeit kein
    Spiel liegen.
-6. Wertung: bei Volleyball die Reihenfolge der Gleichstandsregeln ändern
+6. Abschluss, Abschnitt Wertung: bei Volleyball unter „Anpassen“ die
+   Reihenfolge der Gleichstandsregeln ändern
    (z. B. Tordifferenz vor direktem Vergleich). Nach dem Erstellen und dem
    Eintragen von Ergebnissen mit Punktgleichstand nutzt die Tabelle diese
    Reihenfolge.
