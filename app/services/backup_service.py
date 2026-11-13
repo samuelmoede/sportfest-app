@@ -85,6 +85,15 @@ def _resolve_backup_path(backup_name: str):
     return candidate
 
 
+def get_backup_download_path(backup_name: str):
+    """Pfad einer vorhandenen Backup-Datei zum Herunterladen, sonst None.
+    Nur *.db-Dateien direkt im Backup-Ordner (kein Path-Traversal)."""
+    backup_path = _resolve_backup_path(backup_name)
+    if backup_path is None or backup_path.suffix != ".db" or not backup_path.is_file():
+        return None
+    return backup_path
+
+
 def delete_backup_file(backup_name: str) -> str:
     """Loescht eine einzelne Backup-Datei. Gibt einen Status-String zurueck."""
     backup_path = _resolve_backup_path(backup_name)

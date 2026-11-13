@@ -162,7 +162,7 @@ class UserSessionRouteTests(_TempDbTestCase):
 
         with TestClient(fastapi_app) as client:
             self._login(client)
-            settings_page = client.get("/einstellungen").text
+            settings_page = client.get("/einstellungen?bereich=benutzer").text
             self.assertIn("Derzeit angemeldet", settings_page)
             self.assertIn("gerade aktiv", settings_page)
             self.assertEqual(len(list_logged_in_sessions()), 1)
@@ -177,7 +177,7 @@ class UserTableRouteTests(_TempDbTestCase):
         from app.main import app as fastapi_app
 
         with TestClient(fastapi_app) as client:
-            page = client.get("/einstellungen").text
+            page = client.get("/einstellungen?bereich=benutzer").text
 
         self.assertIn('class="backup-table user-table"', page)
         self.assertIn(f'id="user-edit-{self.user_id}" class="user-edit-row" hidden', page)
