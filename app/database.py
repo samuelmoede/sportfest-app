@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,93 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _competition_name_is_globally_unique(conn) -> bool:
+    """True, solange die alte Spaltenregel "name ... UNIQUE" noch gilt."""
+    for index in conn.execute("PRAGMA index_list(competitions)").fetchall():
+        if not index["unique"] or index["origin"] != "u":
+            continue
+        columns = [
+            row["name"]
+            for row in conn.execute(f'PRAGMA index_info("{index["name"]}")').fetchall()
+        ]
+        if columns == ["name"]:
+            return True
+    return False
+
+
+def _migrate_competition_name_unique_per_event(conn):
+    """Wettbewerbsnamen muessen nur noch innerhalb einer Veranstaltung
+    eindeutig sein (vorher: in der ganzen Datenbank).
+
+    SQLite kann eine UNIQUE-Spaltenregel nicht per ALTER TABLE entfernen.
+    Deshalb wird die Tabelle - einmalig und nur, wenn die alte Regel noch
+    besteht - mit unveraenderten Spalten und Daten neu aufgebaut. Alles
+    laeuft in einer Transaktion: Scheitert ein Schritt, bleibt die alte
+    Tabelle unveraendert. Danach sichert ein Index die neue Regel ab.
+    """
+    if _competition_name_is_globally_unique(conn):
+        table_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'competitions'"
+        ).fetchone()["sql"]
+        new_sql, replaced_unique = re.subn(
+            r"(\bname\s+TEXT\s+NOT\s+NULL)\s+UNIQUE\b", r"\1", table_sql, count=1
+        )
+        new_sql, replaced_name = re.subn(
+            r'^\s*CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?"?competitions"?',
+            "CREATE TABLE competitions_neu", new_sql, count=1, flags=re.IGNORECASE,
+        )
+        if replaced_unique != 1 or replaced_name != 1:
+            raise RuntimeError(
+                "Tabelle competitions hat eine unerwartete Definition - "
+                "Migration der Namensregel abgebrochen, nichts geaendert."
+            )
+        dependents = [
+            row["sql"] for row in conn.execute(
+                """
+                SELECT sql FROM sqlite_master
+                WHERE tbl_name = 'competitions' AND type IN ('index', 'trigger')
+                  AND sql IS NOT NULL
+                """
+            ).fetchall()
+        ]
+        sequence = conn.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'competitions'"
+        ).fetchone()
+        count_before = conn.execute("SELECT COUNT(*) FROM competitions").fetchone()[0]
+
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(new_sql)
+            conn.execute("INSERT INTO competitions_neu SELECT * FROM competitions")
+            count_after = conn.execute("SELECT COUNT(*) FROM competitions_neu").fetchone()[0]
+            if count_after != count_before:
+                raise RuntimeError("Wettbewerbe wurden nicht vollstaendig uebernommen.")
+            conn.execute("DROP TABLE competitions")
+            conn.execute("ALTER TABLE competitions_neu RENAME TO competitions")
+            for statement in dependents:
+                conn.execute(statement)
+            if sequence is not None:
+                # Zaehler erhalten, damit ids geloeschter Wettbewerbe nicht
+                # neu vergeben werden (change_log verweist per id darauf).
+                conn.execute("DELETE FROM sqlite_sequence WHERE name = 'competitions'")
+                conn.execute(
+                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('competitions', ?)",
+                    (sequence["seq"],),
+                )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_competitions_event_name
+        ON competitions (COALESCE(event_id, 0), name)
+        """
+    )
+    conn.commit()
 
 
 def init_db(db_path=None):
@@ -51,7 +139,7 @@ def init_db(db_path=None):
 
         CREATE TABLE IF NOT EXISTS competitions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
             sportart TEXT NOT NULL,
             jahrgang INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'geplant',
@@ -650,5 +738,6 @@ def init_db(db_path=None):
             )
 
         conn.commit()
+        _migrate_competition_name_unique_per_event(conn)
     conn.close()
 

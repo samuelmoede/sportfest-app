@@ -248,7 +248,9 @@ def create_router(
                         start_time, end_time, location, competition_date
                     ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    get_unique_competition_name(conn, competition["name"]),
+                    # Neue Veranstaltung, also bleibt der Name frei: Namen
+                    # sind nur innerhalb einer Veranstaltung eindeutig.
+                    competition["name"],
                     competition["sportart"], competition["jahrgang"],
                     competition["points_win"], competition["points_draw"],
                     competition["points_loss"], competition["points_first_place"],
