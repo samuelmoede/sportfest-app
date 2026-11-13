@@ -9,6 +9,7 @@ Tabelle des Finales nur die beiden Finalisten und nicht alle Klassen beider
 Jahrgaenge."""
 from typing import Callable, List, Optional
 
+from app.services.competition_name_service import freier_competition_name
 from app.services.schedule_location_service import get_effective_competition_location
 
 
@@ -23,15 +24,6 @@ def parse_final_source_ids(value) -> List[int]:
 
 def _short_jahrgang(competition) -> str:
     return str(competition["jahrgang"]).strip()
-
-
-def _unique_name(conn, base_name: str) -> str:
-    candidate = base_name
-    suffix = 2
-    while conn.execute("SELECT 1 FROM competitions WHERE name = ?", (candidate,)).fetchone():
-        candidate = f"{base_name} ({suffix})"
-        suffix += 1
-    return candidate
 
 
 def find_jahrgangsfinale(conn, source_competition_id: int):
@@ -75,7 +67,7 @@ def create_jahrgangsfinale(
         f"{first['sportart']} Jahrgangsfinale "
         f"{_short_jahrgang(first)}/{_short_jahrgang(second)}"
     )
-    name = _unique_name(conn, base_name)
+    name = freier_competition_name(conn, base_name, first["event_id"])
     cursor = conn.execute(
         """
         INSERT INTO competitions (
