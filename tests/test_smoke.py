@@ -41,6 +41,17 @@ class SmokeTests(unittest.TestCase):
                 response = client.get(path)
                 self.assertEqual(response.status_code, 200, f"{path} -> {response.status_code}")
 
+    def test_beamer_button_label_is_short(self):
+        """Regression fuer Issue #130: der Beamer-Link in der Sidebar soll
+        nur "Beamer" heissen, nicht mehr die laengere "Beamer-Ansicht
+        oeffnen"-Bezeichnung."""
+        from app.main import app as fastapi_app
+
+        with TestClient(fastapi_app) as client:
+            response = client.get("/")
+            self.assertIn('<span class="beamer-text">Beamer</span>', response.text)
+            self.assertNotIn("Beamer-Ansicht öffnen", response.text)
+
     def test_public_routes_respond_ok_with_mixed_jahrgang_competition(self):
         """Regression: /competition/create speichert bei rein expliziter
         Teamauswahl (ohne Jahrgang) den String "mixed" in competitions.jahrgang

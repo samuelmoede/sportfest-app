@@ -85,12 +85,14 @@ def get_all_slots(
     location: Optional[str] = None,
     event_id: Optional[int] = None,
     exclude_archived_events: bool = False,
+    competition_ids: Optional[list] = None,
 ):
     query = """
         SELECT slots.*, c.name AS competition_name, c.sportart, c.jahrgang,
                c.location AS competition_location,
                c.competition_type,
                c.game_duration_minutes,
+               c.game_duration_seconds,
                c.changeover_duration_minutes,
                c.start_time AS competition_start_time,
                c.end_time AS competition_end_time,
@@ -110,6 +112,13 @@ def get_all_slots(
     if competition_id:
         query += " AND slots.competition_id = ?"
         params.append(competition_id)
+
+    if competition_ids is not None:
+        if not competition_ids:
+            return []
+        placeholders = ",".join("?" for _ in competition_ids)
+        query += f" AND slots.competition_id IN ({placeholders})"
+        params.extend(competition_ids)
 
     if event_id is not None:
         query += " AND c.event_id = ?"
@@ -168,9 +177,9 @@ def get_all_slots(
         if slot["slot_typ"] != "Spiel" or slot["competition_type"] == "Sechskampf":
             continue
         timing = get_competition_timing(slot)
-        slot["planned_duration_seconds"] = timing["game_duration_minutes"] * 60
+        slot["planned_duration_seconds"] = timing["game_duration_seconds"]
         slot["game_end_time"] = get_game_end_time(
-            slot["startzeit"], timing["game_duration_minutes"]
+            slot["startzeit"], timing["game_duration_minutes"], timing["game_duration_seconds"]
         )
 
     return slots

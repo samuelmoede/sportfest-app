@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Callable
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
@@ -16,10 +17,16 @@ from app.services.event_status_service import (
     restore_event,
     set_active_event,
 )
+from app.services.programmpunkte_service import (
+    PROGRAMMPUNKT_VORSCHLAEGE,
+    create_programmpunkt,
+    delete_programmpunkt,
+    list_programmpunkte,
+)
 from app.web import templates
 
 
-EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Sonstiges"]
+EVENT_TYPES = ["Bewegungsfest", "Einzelturnier", "Käthelauf", "Schulpokal", "Sonstiges"]
 EVENT_TYPES_SET = set(EVENT_TYPES)
 
 
@@ -206,6 +213,7 @@ def create_router(
             ).fetchone()[0]
             if competition_count:
                 return RedirectResponse(f"/events/{event_id}", status_code=303)
+            conn.execute("DELETE FROM event_programmpunkte WHERE event_id = ?", (event_id,))
             conn.execute("DELETE FROM events WHERE id = ?", (event_id,))
             conn.commit()
         return RedirectResponse("/events", status_code=303)
@@ -237,8 +245,8 @@ def create_router(
                         points_loss, points_first_place, placement_points,
                         event_id, competition_type,
                         game_duration_minutes, changeover_duration_minutes,
-                        start_time, end_time, location
-                    ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        start_time, end_time, location, competition_date
+                    ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     get_unique_competition_name(conn, competition["name"]),
                     competition["sportart"], competition["jahrgang"],
@@ -249,6 +257,7 @@ def create_router(
                     timing["game_duration_minutes"], timing["changeover_duration_minutes"],
                     competition["start_time"],
                     competition["end_time"], competition["location"],
+                    competition["competition_date"],
                 ))
                 copy_competition_disciplines(
                     conn, competition["id"], competition_cursor.lastrowid
@@ -265,13 +274,56 @@ def create_router(
 
         schedule = get_day_schedule_for_event(event_id)
         overall_ranking = calculate_event_overall_ranking(event_id)
+        with get_conn() as conn:
+            programmpunkte = list_programmpunkte(conn, event_id)
+            jahrgang_rows = conn.execute(
+                """
+                SELECT DISTINCT jahrgang FROM competitions
+                WHERE event_id = ? AND status != 'archiviert'
+                  AND jahrgang IS NOT NULL AND jahrgang != '' AND jahrgang != 'mixed'
+                """,
+                (event_id,),
+            ).fetchall()
+        jahrgaenge = sorted(
+            {str(row["jahrgang"]) for row in jahrgang_rows},
+            key=lambda value: (not value.isdigit(), int(value) if value.isdigit() else 0, value),
+        )
         return templates.TemplateResponse(
             request=request, name="event_detail.html",
             context={
                 "event": event,
                 "overall_ranking": overall_ranking,
                 "schedule": schedule,
+                "programmpunkte": programmpunkte,
+                "programmpunkt_jahrgaenge": jahrgaenge,
+                "programmpunkt_vorschlaege": PROGRAMMPUNKT_VORSCHLAEGE,
+                "programmpunkt_fehler": request.query_params.get("programmpunkt_fehler", ""),
             }
         )
+
+    @router.post("/events/{event_id}/programmpunkt/anlegen")
+    async def event_programmpunkt_anlegen(request: Request, event_id: int):
+        form = await request.form()
+        try:
+            with get_conn() as conn:
+                create_programmpunkt(
+                    conn, event_id,
+                    form.get("titel"), form.get("start_time"), form.get("end_time"),
+                    form.getlist("jahrgaenge"),
+                )
+                conn.commit()
+        except ValueError as error:
+            return RedirectResponse(
+                f"/events/{event_id}?{urlencode({'programmpunkt_fehler': str(error)})}#programmpunkte",
+                status_code=303,
+            )
+        return RedirectResponse(f"/events/{event_id}#tagesplan", status_code=303)
+
+    @router.post("/events/{event_id}/programmpunkt/{programmpunkt_id}/loeschen")
+    def event_programmpunkt_loeschen(event_id: int, programmpunkt_id: int):
+        with get_conn() as conn:
+            delete_programmpunkt(conn, event_id, programmpunkt_id)
+            conn.commit()
+        return RedirectResponse(f"/events/{event_id}#programmpunkte", status_code=303)
 
     return router

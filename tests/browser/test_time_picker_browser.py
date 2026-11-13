@@ -48,17 +48,38 @@ def _minute_click_position(width: float, height: float, value: int) -> dict:
     return _position_on_circle(width, height, angle_deg, OUTER_RADIUS_PERCENT)
 
 
-def test_time_picker_dial_click_updates_native_input_value(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+CREATE_FORM = ".competition-create-details"
 
-    time_input = page.locator('input[name="startzeit"]')
+
+def _open_time_field_page(page, live_server_url):
+    """Startzeit-Feld im Formular „Wettbewerb anlegen“ auf /wettbewerbe
+    (frueher der entfernte Turnier-Schnellstart); das Formular steckt in einem
+    zugeklappten <details> und wird hier aufgeklappt."""
+    page.goto(f"{live_server_url}/wettbewerbe")
+    page.locator(f"{CREATE_FORM} > summary").click()
+
+
+def _time_input(page):
+    return page.locator(f'{CREATE_FORM} input[name="start_time"]')
+
+
+def _time_field(page):
+    """Jedes Uhrzeitfeld bekommt seinen eigenen Picker."""
+    return page.locator(f'{CREATE_FORM} .time-field-wrap:has(input[name="start_time"])')
+
+
+def test_time_picker_dial_click_updates_native_input_value(live_server_url, page):
+    _open_time_field_page(page, live_server_url)
+
+    time_input = _time_input(page)
     expect(time_input).to_be_visible()
 
-    page.locator(".time-picker-toggle").click()
-    panel = page.locator(".time-picker-panel")
+    field = _time_field(page)
+    field.locator(".time-picker-toggle").click()
+    panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
 
-    clock = page.locator(".time-clock")
+    clock = field.locator(".time-clock")
     box = clock.bounding_box()
     assert box is not None
     # Stunde 9 liegt auf dem aeusseren Ring (Stunden 1-12).
@@ -66,7 +87,7 @@ def test_time_picker_dial_click_updates_native_input_value(live_server_url, page
 
     # Nach der Stundenauswahl wechselt der Picker automatisch in den
     # Minuten-Modus (siehe stopDrag() in base.html).
-    expect(page.locator('.time-picker-display-part[data-mode="minutes"]')).to_have_class(
+    expect(field.locator('.time-picker-display-part[data-mode="minutes"]')).to_have_class(
         re.compile(r"\bis-active\b")
     )
 
@@ -78,22 +99,23 @@ def test_time_picker_dial_click_updates_native_input_value(live_server_url, page
 
 
 def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+    _open_time_field_page(page, live_server_url)
 
-    time_input = page.locator('input[name="startzeit"]')
+    time_input = _time_input(page)
     expect(time_input).to_be_visible()
 
-    page.locator(".time-picker-toggle").click()
-    panel = page.locator(".time-picker-panel")
+    field = _time_field(page)
+    field.locator(".time-picker-toggle").click()
+    panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
 
-    clock = page.locator(".time-clock")
+    clock = field.locator(".time-clock")
     box = clock.bounding_box()
     assert box is not None
     # Stunde 14 liegt auf dem inneren Ring (Stunden 13-23 und 0).
     clock.click(position=_hour_click_position(box["width"], box["height"], 14))
 
-    expect(page.locator('.time-picker-display-part[data-mode="minutes"]')).to_have_class(
+    expect(field.locator('.time-picker-display-part[data-mode="minutes"]')).to_have_class(
         re.compile(r"\bis-active\b")
     )
 
@@ -105,10 +127,11 @@ def test_time_picker_dial_click_selects_inner_ring_hour(live_server_url, page):
 
 
 def test_time_picker_panel_closes_on_escape(live_server_url, page):
-    page.goto(f"{live_server_url}/assistent")
+    _open_time_field_page(page, live_server_url)
 
-    page.locator(".time-picker-toggle").click()
-    panel = page.locator(".time-picker-panel")
+    field = _time_field(page)
+    field.locator(".time-picker-toggle").click()
+    panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
 
     page.keyboard.press("Escape")
@@ -128,38 +151,39 @@ def test_time_picker_panel_contains_all_content(live_server_url, page, viewport_
     "Fertig"-Button ragten sichtbar ueber die abgerundete Kante der
     .time-picker-panel-Karte hinaus, statt vollstaendig darin zu bleiben."""
     page.set_viewport_size({"width": viewport_width, "height": 900})
-    page.goto(f"{live_server_url}/assistent")
+    _open_time_field_page(page, live_server_url)
 
-    page.locator(".time-picker-toggle").click()
-    panel = page.locator(".time-picker-panel")
+    field = _time_field(page)
+    field.locator(".time-picker-toggle").click()
+    panel = field.locator(".time-picker-panel")
     expect(panel).to_be_visible()
 
     # In den Minuten-Modus wechseln, damit die aktive Minuten-Anzeige
     # (data-mode="minutes") sichtbar hervorgehoben ist, wie im Issue
     # beschrieben.
-    page.locator('.time-picker-display-part[data-mode="minutes"]').click()
+    field.locator('.time-picker-display-part[data-mode="minutes"]').click()
 
     panel_box = panel.bounding_box()
     assert panel_box is not None
 
-    minutes_box = page.locator('.time-picker-display-part[data-mode="minutes"]').bounding_box()
+    minutes_box = field.locator('.time-picker-display-part[data-mode="minutes"]').bounding_box()
     assert minutes_box is not None
     _assert_fully_inside(minutes_box, panel_box)
 
-    hours_box = page.locator('.time-picker-display-part[data-mode="hours"]').bounding_box()
+    hours_box = field.locator('.time-picker-display-part[data-mode="hours"]').bounding_box()
     assert hours_box is not None
     _assert_fully_inside(hours_box, panel_box)
 
-    done_button = page.locator(".time-picker-actions button", has_text="Fertig")
+    done_button = field.locator(".time-picker-actions button", has_text="Fertig")
     done_box = done_button.bounding_box()
     assert done_box is not None
     _assert_fully_inside(done_box, panel_box)
 
-    now_button = page.locator(".time-picker-actions button", has_text="Jetzt")
+    now_button = field.locator(".time-picker-actions button", has_text="Jetzt")
     now_box = now_button.bounding_box()
     assert now_box is not None
     _assert_fully_inside(now_box, panel_box)
 
-    clock_box = page.locator(".time-clock").bounding_box()
+    clock_box = field.locator(".time-clock").bounding_box()
     assert clock_box is not None
     _assert_fully_inside(clock_box, panel_box)

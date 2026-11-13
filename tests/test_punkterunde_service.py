@@ -48,7 +48,10 @@ def make_in_memory_db():
     return conn
 
 
-def _make_punkterunde_competition(conn, team_count, court_count, competition_id=1):
+def _make_punkterunde_competition(
+    conn, team_count, court_count, competition_id=1,
+    grosses_finale=0, kleines_finale=0,
+):
     court_names = ["Feld 1", "Feld 2", "Feld 3"][:court_count]
     court_ids = []
     for name in court_names:
@@ -65,9 +68,10 @@ def _make_punkterunde_competition(conn, team_count, court_count, competition_id=
     conn.execute("""
         INSERT INTO competitions
             (id, name, sportart, jahrgang, competition_type, tournament_mode,
-             game_duration_minutes, changeover_duration_minutes, status)
-        VALUES (?, 'Punkterunde-Test', 'Zweifelderball', 8, 'Turnier', 'punkterunde', 7, 3, 'geplant')
-    """, (competition_id,))
+             game_duration_minutes, changeover_duration_minutes, status,
+             punkterunde_grosses_finale, punkterunde_kleines_finale)
+        VALUES (?, 'Punkterunde-Test', 'Zweifelderball', 8, 'Turnier', 'punkterunde', 7, 3, 'geplant', ?, ?)
+    """, (competition_id, grosses_finale, kleines_finale))
     conn.commit()
 
     teams = conn.execute("SELECT id, name FROM teams ORDER BY id").fetchall()
@@ -200,6 +204,73 @@ class GeneratePunkterundePlanRobustnessTests(unittest.TestCase):
         }
         for slot in slots:
             self.assertTrue(required_fields.issubset(slot.keys()))
+
+
+class GeneratePunkterundeFinalsPlaceholderTests(unittest.TestCase):
+    """Issue #125: optionale Finale-/Spiel-um-Platz-3-Platzhalter im
+    Anschluss an die Punkterunde, gesteuert ueber
+    competitions.punkterunde_grosses_finale / punkterunde_kleines_finale."""
+
+    def _generate(self, grosses_finale, kleines_finale, court_count=2, team_count=6):
+        conn = make_in_memory_db()
+        court_ids, teams = _make_punkterunde_competition(
+            conn, team_count, court_count,
+            grosses_finale=grosses_finale, kleines_finale=kleines_finale,
+        )
+        import app.services.tournament_modes.punkterunde as svc
+        with patch.object(svc, "get_conn", return_value=conn):
+            slots = generate_punkterunde_plan(competition_id=1, court_ids=court_ids, startzeit="09:00")
+        return slots, teams
+
+    def test_no_flags_creates_no_placeholders(self):
+        slots, _teams = self._generate(grosses_finale=0, kleines_finale=0)
+        phases = {slot["phase"] for slot in slots}
+        self.assertEqual(phases, {"Gruppenphase"})
+
+    def test_only_grosses_finale(self):
+        slots, teams = self._generate(grosses_finale=1, kleines_finale=0)
+        finals = [slot for slot in slots if slot["phase"] == "Finale"]
+        small_finals = [slot for slot in slots if slot["phase"] == "Spiel um Platz 3"]
+        self.assertEqual(len(finals), 1)
+        self.assertEqual(small_finals, [])
+        self.assertEqual(finals[0]["team_a_id"], "")
+        self.assertEqual(finals[0]["team_b_id"], "")
+        warnings = validate_punkterunde_plan(slots, teams)
+        self.assertEqual([w for w in warnings if w["level"] == "error"], [])
+
+    def test_only_kleines_finale(self):
+        slots, teams = self._generate(grosses_finale=0, kleines_finale=1)
+        finals = [slot for slot in slots if slot["phase"] == "Finale"]
+        small_finals = [slot for slot in slots if slot["phase"] == "Spiel um Platz 3"]
+        self.assertEqual(finals, [])
+        self.assertEqual(len(small_finals), 1)
+        warnings = validate_punkterunde_plan(slots, teams)
+        self.assertEqual([w for w in warnings if w["level"] == "error"], [])
+
+    def test_both_flags_use_separate_courts_same_time(self):
+        slots, _teams = self._generate(grosses_finale=1, kleines_finale=1, court_count=2)
+        finals = [slot for slot in slots if slot["phase"] == "Finale"]
+        small_finals = [slot for slot in slots if slot["phase"] == "Spiel um Platz 3"]
+        self.assertEqual(len(finals), 1)
+        self.assertEqual(len(small_finals), 1)
+        self.assertEqual(finals[0]["startzeit"], small_finals[0]["startzeit"])
+        self.assertNotEqual(finals[0]["court_id"], small_finals[0]["court_id"])
+
+    def test_both_flags_single_court_share_same_court(self):
+        """Ist nur ein Feld ausgewaehlt, muessen beide Platzhalter trotzdem
+        angelegt werden (auf demselben Feld) statt einen davon zu verlieren."""
+        slots, _teams = self._generate(grosses_finale=1, kleines_finale=1, court_count=1)
+        finals = [slot for slot in slots if slot["phase"] == "Finale"]
+        small_finals = [slot for slot in slots if slot["phase"] == "Spiel um Platz 3"]
+        self.assertEqual(len(finals), 1)
+        self.assertEqual(len(small_finals), 1)
+        self.assertEqual(finals[0]["court_id"], small_finals[0]["court_id"])
+
+    def test_placeholders_have_game_end_time(self):
+        slots, _teams = self._generate(grosses_finale=1, kleines_finale=1)
+        for slot in slots:
+            if slot["phase"] in ("Finale", "Spiel um Platz 3"):
+                self.assertIn("game_end_time", slot)
 
 
 if __name__ == "__main__":

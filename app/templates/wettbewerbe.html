@@ -54,6 +54,10 @@
             {% endfor %}
         </select>
 
+        <label>Eigenes Datum</label>
+        <input type="date" name="competition_date" value="">
+        <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
+
         <label style="align-self: start; padding-top: 6px;">Jahrgang</label>
         <div class="jahrgang-selector-field">
             <select name="jahrgang" id="create-jahrgang-input">
@@ -107,6 +111,12 @@
             <option value="{{ mode_key }}" data-for-type="Turnier" {% if mode_key == default_turnier_mode %}selected{% endif %}>{{ mode.label }}</option>
             {% endfor %}
         </select>
+
+        <label class="punkterunde-finals-field" hidden>Endplatzierung</label>
+        <div class="punkterunde-finals-field" hidden>
+            <label><input type="checkbox" name="punkterunde_grosses_finale" value="1"> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+            <label><input type="checkbox" name="punkterunde_kleines_finale" value="1"> Spiel um Platz 3 anschließen</label>
+        </div>
 
         <label class="tournament-timing">Spielzeit (Min.)</label>
         <input class="tournament-timing" type="number" name="game_duration_minutes"
@@ -173,18 +183,21 @@
                     {{ ui.status_badge(c.status) }}
                 </div>
                 <div class="competition-summary-meta">
-                    <span class="competition-meta-item">👥 Jahrgang {{ c.jahrgang }}</span>
+                    <span class="competition-meta-item">{{ icon("users") }} Jahrgang {{ c.jahrgang }}</span>
                     {% if competition_explicit_team_ids.get(c.id) %}
                     <span class="competition-meta-item explicit-teams-badge">{{ competition_explicit_team_ids[c.id]|length }} Teams explizit</span>
                     {% endif %}
-                    <span class="competition-meta-item">🕒 {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
-                    <span class="competition-meta-item">📍 {{ c.location or "Ort offen" }}</span>
+                    <span class="competition-meta-item">{{ icon("clock") }} {{ c.start_time or "Zeit offen" }}{% if c.end_time %}–{{ c.end_time }}{% endif %}</span>
+                    <span class="competition-meta-item">{{ icon("map-pin") }} {{ c.location or "Ort offen" }}</span>
+                    {% if c.competition_date %}
+                    <span class="competition-meta-item">{{ icon("calendar") }} {{ c.competition_date }}</span>
+                    {% endif %}
                     <span class="competition-meta-item competition-kind">{{ c.competition_type }}</span>
                 </div>
                 {% if c.competition_type in ("Turnier", "Schulpokal") %}
                 <p class="competition-detail-note">{{ c.game_duration_minutes }} min Spiel · {{ c.changeover_duration_minutes }} min Wechsel</p>
                 {% endif %}
-                <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">▾</span></span>
+                <span class="competition-summary-action">Details und Bearbeitung <span class="competition-toggle-indicator" aria-hidden="true">{{ icon("chevron-down") }}</span></span>
             </div>
         </summary>
 
@@ -260,6 +273,13 @@
                     {% endfor %}
                 </select>
 
+                {% set is_punkterunde_edit = c.competition_type == "Turnier" and (c.tournament_mode or default_turnier_mode) == "punkterunde" %}
+                <label class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>Endplatzierung</label>
+                <div class="punkterunde-finals-field" {% if not is_punkterunde_edit %}hidden{% endif %}>
+                    <label><input type="checkbox" name="punkterunde_grosses_finale" value="1" {% if c.punkterunde_grosses_finale %}checked{% endif %}> Großes Finale (Platz 1 gegen Platz 2) anschließen</label>
+                    <label><input type="checkbox" name="punkterunde_kleines_finale" value="1" {% if c.punkterunde_kleines_finale %}checked{% endif %}> Spiel um Platz 3 anschließen</label>
+                </div>
+
                 <label class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}>Spielzeit (Min.)</label>
                 <input class="tournament-timing" {% if c.competition_type not in ("Turnier", "Schulpokal") %}hidden{% endif %}
                        type="number" name="game_duration_minutes"
@@ -283,6 +303,10 @@
                     <option value="{{ location }}" {% if c.location == location %}selected{% endif %}>{{ location }}</option>
                     {% endfor %}
                 </select>
+
+                <label>Eigenes Datum</label>
+                <input type="date" name="competition_date" value="{{ c.competition_date or '' }}">
+                <p class="muted field-hint">Nur nötig, wenn dieser Wettbewerb an einem eigenen Tag stattfindet (unabhängig vom Datum der Veranstaltung) - erscheint dann im Tagesplan der Startseite.</p>
 
                 <label class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}>Punkte für Platz 1</label>
                 <input class="sixkampf-points" {% if c.competition_type != "Sechskampf" %}hidden{% endif %}
@@ -319,7 +343,7 @@
 
                 <button class="primary" type="submit">Speichern</button>
                 {% if saved_competition_id == c.id and saved_at %}
-                <span class="save-feedback-inline competition-save-feedback">✓ Gespeichert um {{ saved_at }}</span>
+                <span class="save-feedback-inline competition-save-feedback">{{ icon("check") }} Gespeichert um {{ saved_at }}</span>
                 {% endif %}
             </form>
 
@@ -448,8 +472,18 @@ document.querySelectorAll('form[action^="/competition/"]').forEach(form => {
                 modeSelect.value = firstVisibleOption.value;
             }
         }
+        // Grosses/kleines Finale (Issue #125) sind nur fuer den Turniermodus
+        // "Punkterunde" waehlbar.
+        const isPunkterunde = isTurnier && !!modeSelect && modeSelect.value === "punkterunde";
+        form.querySelectorAll('.punkterunde-finals-field').forEach(element => {
+            element.hidden = !isPunkterunde;
+        });
     };
     typeSelect.addEventListener("change", toggleTypeFields);
+    const modeSelectForToggle = form.querySelector('select.tournament-mode-field');
+    if (modeSelectForToggle) {
+        modeSelectForToggle.addEventListener("change", toggleTypeFields);
+    }
     toggleTypeFields();
 });
 

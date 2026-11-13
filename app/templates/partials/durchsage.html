@@ -1,0 +1,70 @@
+<style>
+    .durchsage-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.45);
+    }
+    .durchsage-overlay[hidden] { display: none; }
+    .durchsage-box {
+        width: min(560px, 100%);
+        margin-top: 8vh;
+        padding: 20px 22px;
+        border-radius: 16px;
+        border: 3px solid #d97706;
+        background: #fffbeb;
+        color: #1f2937;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    .durchsage-titel { margin: 0 0 8px; font-weight: 700; color: #b45309; }
+    .durchsage-text { margin: 0 0 16px; font-size: 1.35rem; font-weight: 700; line-height: 1.35; white-space: pre-wrap; }
+    .durchsage-box button { font-size: 1.05rem; padding: 10px 22px; }
+</style>
+<div class="durchsage-overlay" id="durchsage" hidden role="alertdialog" aria-labelledby="durchsage-titel" aria-describedby="durchsage-text">
+    <div class="durchsage-box">
+        <p class="durchsage-titel" id="durchsage-titel">{{ icon("megaphone") }} Durchsage der Turnierleitung <span id="durchsage-zeit"></span></p>
+        <p class="durchsage-text" id="durchsage-text"></p>
+        <button type="button" class="green" id="durchsage-ok">Verstanden</button>
+    </div>
+</div>
+<script>
+// Durchsage an alle (siehe durchsage_service): bleibt stehen, bis sie auf
+// diesem Geraet mit "Verstanden" bestaetigt wird.
+(() => {
+    const box = document.getElementById("durchsage");
+    if (!box || !window.fetch) return;
+    const storageKey = "durchsage-bestaetigt";
+    const read = () => { try { return localStorage.getItem(storageKey); } catch (e) { return null; } };
+    const write = (value) => { try { localStorage.setItem(storageKey, value); } catch (e) {} };
+    let shownId = null;
+    const check = () => {
+        fetch("/durchsage/aktuell", { cache: "no-store" })
+            .then((response) => response.ok ? response.json() : {})
+            .then((data) => {
+                if (!data || !data.id) {
+                    box.hidden = true;
+                    shownId = null;
+                    return;
+                }
+                if (String(data.id) === read()) return;
+                document.getElementById("durchsage-text").textContent = data.text;
+                document.getElementById("durchsage-zeit").textContent =
+                    data.created_at ? "· " + String(data.created_at).slice(11, 16) + " Uhr" : "";
+                shownId = data.id;
+                box.hidden = false;
+            })
+            .catch(() => {});
+    };
+    document.getElementById("durchsage-ok").addEventListener("click", () => {
+        if (shownId !== null) write(String(shownId));
+        box.hidden = true;
+    });
+    check();
+    setInterval(check, 15000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+})();
+</script>

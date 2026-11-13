@@ -73,6 +73,38 @@ class ScheduleTimingUpdateTests(unittest.TestCase):
         )
         self.assertEqual(self._get_timing(), (10, 5))
 
+    def test_partner_competitions_get_the_same_timing(self):
+        from fastapi.testclient import TestClient
+        from app.main import app as fastapi_app
+
+        with get_conn() as conn:
+            partner_id = conn.execute(
+                """
+                INSERT INTO competitions (
+                    name, sportart, jahrgang, status, competition_type,
+                    game_duration_minutes, changeover_duration_minutes
+                )
+                VALUES ('Partner', 'Fussball', 8, 'geplant', 'Schulpokal', 7, 3)
+                """
+            ).lastrowid
+            conn.commit()
+        with TestClient(fastapi_app) as client:
+            client.post(
+                f"/competition/{self.competition_id}/update-timing",
+                data={
+                    "game_duration_minutes": "13",
+                    "changeover_duration_minutes": "3",
+                    "partner_competition_ids": [str(partner_id)],
+                },
+                follow_redirects=False,
+            )
+        with get_conn() as conn:
+            partner = conn.execute(
+                "SELECT game_duration_minutes FROM competitions WHERE id = ?", (partner_id,)
+            ).fetchone()
+        self.assertEqual(self._get_timing(), (13, 3))
+        self.assertEqual(partner["game_duration_minutes"], 13)
+
     def test_rejects_game_duration_below_one(self):
         from fastapi.testclient import TestClient
 

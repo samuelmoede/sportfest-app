@@ -1,3 +1,36 @@
+{# Verspaetung im Block nur fuer Admin und Turnierleitung #}
+{% set show_day_delay = can_access_role(request, "tournament_lead") %}
+{% macro render_block_content(item, editable=false, show_delay=false) %}
+{% set segments = item.segments if item.segments is defined else none %}
+{% if show_delay and item.verspaetung is defined and item.verspaetung is not none %}
+<span class="day-timeline-delay{% if item.verspaetung >= 5 %} is-late{% endif %}" title="Verspätung gegenüber dem geplanten Spielplan · Klicken: Zeitplan aufholen"
+      data-aufholen-href="/zeitplan-aufholen?competition_id={{ item.competition_id }}" role="link" tabindex="0">
+    {% if item.verspaetung > 0 %}+{{ item.verspaetung }} Min.{% else %}im Plan{% endif %}
+</span>
+{% endif %}
+{# Ablauf nur in Bloecken mit voller Spaltenbreite, schmale Spuren sind dafuer zu eng. #}
+{% if segments and (segments.inside or segments.after) and (item.lane_width_percent|default(100)) >= 99 %}
+<div class="day-timeline-block-head">
+    <strong>{{ item.name }}</strong>
+    <span><time{% if editable %} data-grobplan-time{% endif %}>{{ item.display_time }}</time>{% if item.location %} · {{ item.location }}{% endif %}</span>
+</div>
+<div class="day-timeline-segments">
+    {% for segment in segments.inside %}
+    <div class="day-timeline-segment segment-{{ segment.kind }}"
+         style="top: {{ segment.top_percent }}%; height: {{ segment.height_percent }}%;"
+         title="{{ segment.time }} {{ segment.label }}">
+        <span>{{ segment.time }} {{ segment.label }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<strong>{{ item.name }}</strong>
+{% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
+{% if item.location %}<span>{{ item.location }}</span>{% endif %}
+<time{% if editable %} data-grobplan-time{% endif %}>{{ item.display_time }}</time>
+{% endif %}
+{% endmacro %}
+
 {% macro render_now_marker(marker) %}
 <div class="day-now-marker" role="status" aria-label="{{ marker.label }}">
     <span aria-hidden="true"></span>
@@ -44,29 +77,36 @@
                     <div class="day-timeline-gridline" style="top: {{ mark.top_percent }}%;"></div>
                     {% endfor %}
                     {% for item in col["items"] %}
-                    {% if day_schedule_editable|default(false) and item.competition_id %}
-                    <div class="day-timeline-block status-{{ item.status_key|default('planned') }} is-editable"
+                    {% if item.is_programm %}
+                    {# Eroeffnung, Siegerehrung, Jahrgangsfinale: eigener Block neben dem Spielblock #}
+                    <div class="day-timeline-block day-timeline-programm segment-{{ item.kind }} status-{{ item.status_key|default('planned') }}"
+                         style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; min-height: {{ item.lines|length * 14 + 2 }}px; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
+                         title="{% for line in item.lines %}{{ line.time }} {{ line.name }}{% if not loop.last %} · {% endif %}{% endfor %}">
+                        {% for line in item.lines %}
+                        <span class="segment-{{ line.kind }}"><time>{{ line.time }}</time> <strong>{{ line.name }}</strong></span>
+                        {% endfor %}
+                    </div>
+                    {% elif day_schedule_editable|default(false) and item.competition_id %}
+                    <div class="day-timeline-block status-{{ item.status_key|default('planned') }} sport-{{ item.farbe|default(0) }} is-editable"
                          style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                          data-grobplan-block
+                         data-href="/spielplan?competition_id={{ item.competition_id }}"
+                         role="link" tabindex="0" title="Klicken: Spielplan öffnen · Ziehen: verschieben"
+                         aria-label="Spielplan für {{ item.name }} öffnen"
                          data-competition-id="{{ item.competition_id }}"
-                         data-start-minutes="{{ item.start_minutes }}"
-                         data-end-minutes="{{ item.end_minutes }}">
+                         data-start-minutes="{{ item.block_start_minutes|default(item.start_minutes) }}"
+                         data-end-minutes="{{ item.block_end_minutes|default(item.end_minutes) }}"
+                         data-offset-start="{{ item.start_minutes - item.block_start_minutes|default(item.start_minutes) }}"
+                         data-offset-end="{{ item.block_end_minutes|default(item.end_minutes) - item.end_minutes }}">
                         <div class="day-timeline-resize-handle handle-start" data-grobplan-handle="start"></div>
-                        <a class="day-timeline-block-link" href="/spielplan?competition_id={{ item.competition_id }}" title="Spielplan öffnen" aria-label="Spielplan für {{ item.name }} öffnen">↗</a>
-                        <strong>{{ item.name }}</strong>
-                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
-                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
-                        <time data-grobplan-time>{{ item.display_time }}</time>
+                        {{ render_block_content(item, editable=true, show_delay=show_day_delay) }}
                         <div class="day-timeline-resize-handle handle-end" data-grobplan-handle="end"></div>
                     </div>
                     {% else %}
-                    <a class="day-timeline-block status-{{ item.status_key|default('planned') }}"
+                    <a class="day-timeline-block status-{{ item.status_key|default('planned') }} sport-{{ item.farbe|default(0) }}"
                        style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                        href="/spielplan?competition_id={{ item.competition_id }}">
-                        <strong>{{ item.name }}</strong>
-                        {% if item.sportart %}<span>{{ item.sportart }}</span>{% endif %}
-                        {% if item.location %}<span>{{ item.location }}</span>{% endif %}
-                        <time>{{ item.display_time }}</time>
+                        {{ render_block_content(item, show_delay=show_day_delay) }}
                     </a>
                     {% endif %}
                     {% endfor %}
@@ -222,10 +262,18 @@
         var dragMode = null;
         var pointerId = null;
         var startY = 0;
+        var movedPixels = false;
         var originStart = Number(block.dataset.startMinutes);
         var originEnd = Number(block.dataset.endMinutes);
 
+        // Abgeloeste Eroeffnung/Siegerehrung: angezeigt wird nur der
+        // Spiele-Teil, verschoben wird das ganze Zeitfenster.
+        var offsetStart = Number(block.dataset.offsetStart) || 0;
+        var offsetEnd = Number(block.dataset.offsetEnd) || 0;
+
         function applyPreview(newStart, newEnd) {
+            newStart += offsetStart;
+            newEnd -= offsetEnd;
             block.style.top = ((newStart - timelineStart) / totalMinutes * 100) + "%";
             block.style.height = ((newEnd - newStart) / totalMinutes * 100) + "%";
             var timeEl = block.querySelector("[data-grobplan-time]");
@@ -237,6 +285,9 @@
         function onPointerMove(event) {
             if (!dragMode) {
                 return;
+            }
+            if (Math.abs(event.clientY - startY) > 4) {
+                movedPixels = true;
             }
             var pxPerMinute = block.parentElement.clientHeight / totalMinutes;
             if (!pxPerMinute) {
@@ -281,6 +332,10 @@
             var newStart = Number(block.dataset.previewStart != null ? block.dataset.previewStart : originStart);
             var newEnd = Number(block.dataset.previewEnd != null ? block.dataset.previewEnd : originEnd);
             if (newStart === originStart && newEnd === originEnd) {
+                // Klick ohne Verschieben oeffnet den Spielplan des Blocks.
+                if (!movedPixels && block.dataset.href) {
+                    window.location.href = block.dataset.href;
+                }
                 return;
             }
             persistGrobplanBlock(block, newStart, newEnd).catch(function (error) {
@@ -289,14 +344,22 @@
             });
         }
 
+        block.addEventListener("keydown", function (event) {
+            if ((event.key === "Enter" || event.key === " ") && block.dataset.href) {
+                event.preventDefault();
+                window.location.href = block.dataset.href;
+            }
+        });
+
         block.addEventListener("pointerdown", function (event) {
-            if (event.target.closest("a")) {
+            if (event.target.closest("a, [data-aufholen-href]")) {
                 return;
             }
             var handle = event.target.closest("[data-grobplan-handle]");
             dragMode = handle ? handle.dataset.grobplanHandle : "move";
             pointerId = event.pointerId;
             startY = event.clientY;
+            movedPixels = false;
             originStart = Number(block.dataset.startMinutes);
             originEnd = Number(block.dataset.endMinutes);
             block.setPointerCapture(pointerId);
@@ -326,4 +389,21 @@
         }
     }
 })();
+</script>
+<script>
+// Verspaetung im Block: Klick oeffnet "Zeitplan aufholen" statt des Spielplans.
+document.addEventListener("click", function (event) {
+    var badge = event.target.closest && event.target.closest("[data-aufholen-href]");
+    if (!badge) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.href = badge.dataset.aufholenHref;
+}, true);
+document.addEventListener("keydown", function (event) {
+    var badge = event.target.closest && event.target.closest("[data-aufholen-href]");
+    if (!badge || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.href = badge.dataset.aufholenHref;
+}, true);
 </script>

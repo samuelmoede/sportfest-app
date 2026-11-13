@@ -8,7 +8,7 @@
 <div class="modern-dashboard">
     {% if dashboard_info_html %}
     <div class="dashboard-banner" role="status">
-        <span class="dashboard-banner-icon" aria-hidden="true">📣</span>
+        <span class="dashboard-banner-icon" aria-hidden="true">{{ icon("megaphone") }}</span>
         <div class="dashboard-banner-text">{{ dashboard_info_html|safe }}</div>
         <button type="button" class="dashboard-banner-close" aria-label="Hinweis schließen" onclick="this.closest('.dashboard-banner').remove()">&times;</button>
     </div>
@@ -39,16 +39,16 @@
 
     <nav class="modern-quick-nav" aria-label="Schnellzugriff">
         <a class="is-active" href="/?ui_theme=modern">
-            <span aria-hidden="true">⌂</span>
+            <span aria-hidden="true">{{ icon("house") }}</span>
             <strong>Übersicht</strong>
         </a>
         <a href="/spielplan">
-            <span aria-hidden="true">▦</span>
+            <span aria-hidden="true">{{ icon("layout-grid") }}</span>
             <strong>Spielplan</strong>
         </a>
         {% if can_view_results %}
         <a href="/ergebnisse">
-            <span aria-hidden="true">✓</span>
+            <span aria-hidden="true">{{ icon("check") }}</span>
             <strong>Ergebnisse</strong>
         </a>
         {% endif %}
@@ -56,13 +56,13 @@
             <span aria-hidden="true">≡</span>
             <strong>Tabellen</strong>
         </a>
-        <a href="/beamer?ui_theme=modern" target="_blank">
-            <span aria-hidden="true">↗</span>
+        <a href="/beamer" target="_blank">
+            <span aria-hidden="true">{{ icon("external-link") }}</span>
             <strong>Beamer</strong>
         </a>
         {% if next_event and next_event.siegerehrung_public %}
         <a href="/siegerehrung/{{ next_event.id }}" target="_blank">
-            <span aria-hidden="true">🏆</span>
+            <span aria-hidden="true">{{ icon("trophy") }}</span>
             <strong>Siegerehrung</strong>
         </a>
         {% endif %}
@@ -165,7 +165,7 @@
                 </article>
                 {% else %}
                 <div class="modern-empty-state">
-                    <span aria-hidden="true">○</span>
+                    <span aria-hidden="true">{{ icon("circle") }}</span>
                     <div>
                         <strong>Momentan läuft kein Spiel</strong>
                         <p>Geplante Begegnungen erscheinen rechts als Nächstes.</p>
@@ -203,7 +203,7 @@
                 </article>
                 {% else %}
                 <div class="modern-empty-state compact">
-                    <span aria-hidden="true">✓</span>
+                    <span aria-hidden="true">{{ icon("check") }}</span>
                     <div>
                         <strong>Keine weiteren Slots geplant</strong>
                         <p>Der aktuelle Spielplan enthält keinen offenen Eintrag.</p>
@@ -234,7 +234,7 @@
                 </a>
                 {% else %}
                 <div class="modern-empty-state compact">
-                    <span aria-hidden="true">○</span>
+                    <span aria-hidden="true">{{ icon("circle") }}</span>
                     <div>
                         <strong>Keine weiteren Termine</strong>
                         <p>Aktuell sind keine weiteren Veranstaltungen geplant.</p>

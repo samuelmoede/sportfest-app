@@ -6,10 +6,14 @@ services:
     ports:
       - "8502:8500"
     environment:
-      # Staging soll immer ohne Login testbar sein, unabhaengig davon, was
-      # in der (z.B. aus Prod kopierten) Datenbank an security_enabled
+      # Staging laeuft mit aktiver Sicherheit (Login fuer Einstellungen,
+      # Teams, Spielfelder und Wettbewerbsverwaltung noetig), unabhaengig davon,
+      # was in der (z.B. aus Prod kopierten) Datenbank an security_enabled
       # gespeichert ist - die Env-Var hat laut settings_service.py Vorrang.
-      SPORTFEST_SECURITY_ENABLED: ${SPORTFEST_SECURITY_ENABLED:-false}
+      # Wirksam nur, solange ein aktiver Admin-Benutzer mit Passwort existiert
+      # (siehe is_login_prepared()); per SPORTFEST_SECURITY_ENABLED=false
+      # in der Umgebung bzw. .env wieder abschaltbar.
+      SPORTFEST_SECURITY_ENABLED: ${SPORTFEST_SECURITY_ENABLED:-true}
       SPORTFEST_REFEREE_PASSWORD: ${SPORTFEST_REFEREE_PASSWORD:-}
       SPORTFEST_TOURNAMENT_LEAD_PASSWORD: ${SPORTFEST_TOURNAMENT_LEAD_PASSWORD:-}
       SPORTFEST_ADMIN_PASSWORD: ${SPORTFEST_ADMIN_PASSWORD:-}

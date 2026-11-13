@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Einrichtungsassistent</p>
+        <h1>{% if event and entwurf.daten.bestand %}Änderungen übernommen{% elif event %}Veranstaltung erstellt{% else %}Entwurf abgeschlossen{% endif %}</h1>
+    </div>
+</header>
+<section class="panel">
+    {% if meldung %}<p class="validation-box" role="status">{{ meldung }}</p>{% endif %}
+    {% if fehler %}<p class="validation-error" role="alert">{{ fehler }}</p>{% endif %}
+    {% if event %}
+    <p><strong>{{ event.name }}</strong> ({{ event.event_date or "Datum offen" }}) {% if entwurf.daten.bestand %}hat jetzt{% else %}ist mit{% endif %} {{ competitions|length }} Wettbewerben{% if not entwurf.daten.bestand %} angelegt{% endif %}.</p>
+    <ul>
+        <li><a href="/events/{{ event.id }}">Veranstaltung und Tagesplan</a></li>
+        <li><a href="/spielplan">Spielplan</a></li>
+        <li><a href="/wettbewerbe">Wettbewerbe verwalten</a></li>
+        <li><a href="/ergebnisse">Ergebnisse eintragen</a></li>
+        <li><a href="/tabellen">Tabellen und Gesamtwertung</a></li>
+    </ul>
+    <h2>Als Vorlage speichern</h2>
+    <form method="post" action="/assistent/vorlagen/aus-veranstaltung/{{ event.id }}" class="admin-form">
+        <label>Name der Vorlage</label>
+        <input type="text" name="name" value="Vorlage {{ event.name }}" required>
+        <button type="submit" class="green">Als Vorlage speichern</button>
+    </form>
+    {% else %}
+    <p class="muted">Dieser Entwurf hat keine Veranstaltung erzeugt.</p>
+    {% endif %}
+    <p><a class="button secondary" href="/assistent">Zum Assistenten</a></p>
+</section>
+{% endblock %}

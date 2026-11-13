@@ -95,26 +95,85 @@
     font-weight: 700;
 }
 
-.user-list {
+.user-table {
+    margin-bottom: 26px;
+}
+
+.user-table td {
+    vertical-align: middle;
+}
+
+.user-row-inactive td:not(.user-row-actions) {
+    opacity: 0.6;
+}
+
+.user-row-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.user-edit-row > td {
+    background: var(--surface-soft);
+}
+
+.user-edit-panel {
     display: grid;
-    gap: 14px;
-    margin: 14px 0 26px;
+    gap: 12px;
+    padding: 4px 0;
 }
 
-.user-card {
-    display: grid;
-    gap: 10px;
-}
+/* Schmale Bildschirme: jede Benutzerzeile als kompakte Karte statt einer
+   seitlich scrollenden Tabelle, damit die aufgeklappten Formulare nicht
+   ueber den Rand hinausragen. */
+@media (max-width: 640px) {
+    .user-table thead {
+        display: none;
+    }
 
-.user-card-inactive {
-    opacity: 0.65;
-}
+    .user-table,
+    .user-table tbody {
+        display: block;
+    }
 
-.user-card-head {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
+    .user-table .user-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+        padding: 12px 14px;
+        border-top: 1px solid var(--border);
+    }
+
+    .user-table .user-row > td {
+        display: block;
+        padding: 0;
+        border: 0;
+    }
+
+    .user-table .user-row .user-row-actions {
+        order: 6;
+        margin-left: auto;
+    }
+
+    .user-table .user-last-seen {
+        flex: 1 1 60%;
+        order: 5;
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+
+    .user-table .user-last-seen::before {
+        content: attr(data-label) " ";
+    }
+
+    .user-table .user-edit-row:not([hidden]),
+    .user-table .user-edit-row > td {
+        display: block;
+    }
+
+    .user-table .user-edit-row > td {
+        padding: 12px 14px;
+    }
 }
 
 /* Bewusst keine Dropdown-Auswahl fuer die Rollenzuweisung - eine Zeile aus

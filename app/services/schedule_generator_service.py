@@ -413,16 +413,30 @@ def _jeder_gegen_jeden_pairings(team_names):
     return _build_pairings(team_names, games_per_team)
 
 
-# Registry moeglicher Schulpokal-Turniermodi. Aktuell nur "jeder gegen
-# jeden" umgesetzt; weitere Modi koennen hier ergaenzt werden, ohne
+def _hin_rueckrunde_pairings(team_names):
+    """Jeder gegen jeden zweimal, in der Rueckrunde mit getauschten Seiten -
+    fuer wenige Klassen pro Jahrgang, damit das Zeitfenster gefuellt wird
+    (Schulpokal mit 4 Klassen: 6 statt 3 Runden je Jahrgang)."""
+    hinrunde = _jeder_gegen_jeden_pairings(team_names)
+    return hinrunde + [(team_b, team_a, gruppe) for team_a, team_b, gruppe in hinrunde]
+
+
+# Registry moeglicher Schulpokal-Turniermodi ("jeder gegen jeden", "Hin- und
+# Rueckrunde"); weitere Modi koennen hier ergaenzt werden, ohne
 # generate_schulpokal_plan oder die aufrufenden Routen anfassen zu muessen -
 # das Dropdown in wettbewerbe.html und die Auswahl in competitions.py lesen
-# ebenfalls aus dieser Registry.
+# ebenfalls aus dieser Registry. games_factor: wie oft jedes Paar spielt.
 DEFAULT_SCHULPOKAL_MODE = "jeder_gegen_jeden"
 SCHULPOKAL_MODES = {
     "jeder_gegen_jeden": {
         "label": "Jeder gegen jeden",
         "build_pairings": _jeder_gegen_jeden_pairings,
+        "games_factor": 1,
+    },
+    "hin_rueckrunde": {
+        "label": "Hin- und Rückrunde",
+        "build_pairings": _hin_rueckrunde_pairings,
+        "games_factor": 2,
     },
 }
 
@@ -552,19 +566,52 @@ def generate_schulpokal_plan(
     return proposed_slots
 
 
-def validate_schulpokal_plan(proposed_slots, expected_teams_by_competition):
+def _split_courts(court_ids, needs):
+    """Teilt die Felder auf zeitgleich spielende Wettbewerbe auf: jeder bekommt
+    mindestens ein Feld, weitere Felder gehen an den Wettbewerb mit dem
+    groessten Bedarf je Feld (Bedarf = Spiele pro Runde). Die Felder bleiben
+    zusammenhaengend (Platte 1-3, 4-6, ...)."""
+    if len(court_ids) < len(needs):
+        return None
+    alloc = [1] * len(needs)
+    remaining = len(court_ids) - len(needs)
+    while remaining > 0:
+        candidates = [
+            (needs[i] / alloc[i], -i) for i in range(len(needs)) if alloc[i] < needs[i]
+        ]
+        if not candidates:
+            break
+        _, neg_index = max(candidates)
+        alloc[-neg_index] += 1
+        remaining -= 1
+    chunks = []
+    position = 0
+    for count in alloc:
+        chunks.append(list(court_ids[position:position + count]))
+        position += count
+    return chunks
+
+
+def validate_schulpokal_plan(
+    proposed_slots,
+    expected_teams_by_competition,
+    tournament_mode: str = DEFAULT_SCHULPOKAL_MODE,
+):
     """Wendet validate_generated_plan je Wettbewerb an (Doppelbelegung, direkt
     aufeinanderfolgende Spiele, korrekte Spielanzahl) und fasst die Warnungen
     zusammen. games_per_team wird je Wettbewerb aus der tatsaechlichen
     Teamzahl abgeleitet (jeder-gegen-jeden: Teams - 1), da Schulpokal-
     Wettbewerbe unterschiedlich grosse Gruppen haben koennen."""
+    games_factor = SCHULPOKAL_MODES.get(
+        tournament_mode, SCHULPOKAL_MODES[DEFAULT_SCHULPOKAL_MODE]
+    )["games_factor"]
     warnings = []
     for competition_id, expected_teams in expected_teams_by_competition.items():
         competition_slots = [
             slot for slot in proposed_slots
             if slot["competition_id"] == competition_id
         ]
-        games_per_team = max(len(expected_teams) - 1, 0)
+        games_per_team = max(len(expected_teams) - 1, 0) * games_factor
         warnings.extend(
             validate_generated_plan(competition_slots, expected_teams, games_per_team)
         )

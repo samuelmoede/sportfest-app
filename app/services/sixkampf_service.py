@@ -85,6 +85,7 @@ def calculate_sixkampf_team_ranking(
     teams_by_id = {_get(team, "id"): team for team in teams}
     disciplines_by_id = {_get(discipline, "id"): discipline for discipline in disciplines}
     discipline_points_by_team = {team_id: {} for team_id in teams_by_id}
+    discipline_placements_by_team = {team_id: {} for team_id in teams_by_id}
     totals_by_team_discipline = {}
     teams_with_results = set()
 
@@ -127,6 +128,7 @@ def calculate_sixkampf_team_ranking(
         for row in discipline_rows:
             team_id = _get(row["team"], "id")
             discipline_points_by_team[team_id][discipline_id] = row["discipline_points"]
+            discipline_placements_by_team[team_id][discipline_id] = row["placement"]
 
     highest_discipline_points = placement_points[0] if placement_points else 0.0
     max_intermediate_total = len(disciplines) * highest_discipline_points
@@ -155,6 +157,7 @@ def calculate_sixkampf_team_ranking(
             "team": team,
             "discipline_points": discipline_points,
             "discipline_points_display": _format_points_map(discipline_points),
+            "discipline_placements": discipline_placements_by_team.get(team_id, {}),
             "discipline_results_display": discipline_results_display,
             "intermediate_total": intermediate_total,
             "intermediate_total_display": format_points_value(intermediate_total),

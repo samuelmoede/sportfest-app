@@ -375,24 +375,57 @@
     margin: 1px;
     padding: 6px 8px;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-left: 3px solid #60a5fa;
+    /* Farbkonzept: die Farbe zeigt die Sportart (sport-1 ... sport-6, siehe
+       assign_sport_colors), der Zustand steckt in der Form - laufend mit
+       Rahmen und Punkt, beendet ausgegraut. Gruen bleibt "laeuft", Rot
+       "jetzt"/Verspaetung, Bernstein Programmpunkte. */
+    --block-color: var(--blue);
+    border: 1px solid color-mix(in srgb, var(--block-color) 24%, var(--border));
+    border-left: 4px solid var(--block-color);
     border-radius: 8px;
-    background: var(--surface);
+    background: color-mix(in srgb, var(--block-color) 9%, var(--surface));
     color: inherit;
     font-size: 0.76rem;
     line-height: 1.3;
     text-decoration: none;
+    hyphens: auto;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.day-timeline-block.sport-1,
+.wiz-sport.sport-1 { --block-color: #2563eb; }
+.day-timeline-block.sport-2,
+.wiz-sport.sport-2 { --block-color: #0d9488; }
+.day-timeline-block.sport-3,
+.wiz-sport.sport-3 { --block-color: #7c3aed; }
+.day-timeline-block.sport-4,
+.wiz-sport.sport-4 { --block-color: #db2777; }
+.day-timeline-block.sport-5,
+.wiz-sport.sport-5 { --block-color: #0369a1; }
+.day-timeline-block.sport-6,
+.wiz-sport.sport-6 { --block-color: #65a30d; }
+
+[data-theme="dunkel"] .day-timeline-block.sport-1,
+[data-theme="dunkel"] .wiz-sport.sport-1 { --block-color: #60a5fa; }
+[data-theme="dunkel"] .day-timeline-block.sport-2,
+[data-theme="dunkel"] .wiz-sport.sport-2 { --block-color: #2dd4bf; }
+[data-theme="dunkel"] .day-timeline-block.sport-3,
+[data-theme="dunkel"] .wiz-sport.sport-3 { --block-color: #a78bfa; }
+[data-theme="dunkel"] .day-timeline-block.sport-4,
+[data-theme="dunkel"] .wiz-sport.sport-4 { --block-color: #f472b6; }
+[data-theme="dunkel"] .day-timeline-block.sport-5,
+[data-theme="dunkel"] .wiz-sport.sport-5 { --block-color: #38bdf8; }
+[data-theme="dunkel"] .day-timeline-block.sport-6,
+[data-theme="dunkel"] .wiz-sport.sport-6 { --block-color: #a3e635; }
+
 .day-timeline-block:hover,
 .day-timeline-block:focus-visible {
-    border-color: var(--blue);
+    border-color: var(--block-color);
     box-shadow: 0 2px 8px rgba(23, 32, 51, 0.1);
 }
 
 .day-timeline-block strong {
+    color: var(--text);
     overflow-wrap: anywhere;
 }
 
@@ -410,14 +443,33 @@
 }
 
 .day-timeline-block.status-running {
-    border-left-color: var(--green);
-    background: var(--green-soft);
+    z-index: 1;
+    border-color: var(--block-color);
+    background: color-mix(in srgb, var(--block-color) 16%, var(--surface));
+    box-shadow: 0 4px 12px rgba(23, 32, 51, 0.12);
+}
+
+/* Gruener Punkt unten rechts: dieser Block laeuft gerade. */
+.day-timeline-block.status-running::after {
+    content: "";
+    position: absolute;
+    bottom: 8px;
+    right: 7px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent);
 }
 
 .day-timeline-block.status-done {
-    border-left-color: var(--muted);
+    border-color: var(--border);
+    border-left-color: color-mix(in srgb, var(--block-color) 30%, var(--border));
     background: var(--surface-soft);
-    opacity: 0.75;
+}
+
+.day-timeline-block.status-done strong {
+    color: var(--muted);
 }
 
 .day-timeline-block.is-editable {
@@ -432,17 +484,82 @@
     box-shadow: 0 4px 14px rgba(23, 32, 51, 0.18);
 }
 
-.day-timeline-block-link {
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    color: var(--muted);
-    font-size: 0.75rem;
-    text-decoration: none;
+.day-timeline-block.is-editable:hover {
+    cursor: pointer;
 }
 
-.day-timeline-block-link:hover {
-    color: var(--blue);
+.day-timeline-block-head {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.day-timeline-block-head time {
+    margin-top: 0;
+}
+
+/* Ablauf im Block: Eroeffnung, Spiele, Siegerehrung ... zeitproportional. */
+.day-timeline-segments {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 4px -8px 0 -8px;
+}
+
+.day-timeline-segment {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    padding: 0 8px;
+    overflow: visible;
+    border-top: 1px dashed var(--border);
+    font-size: 0.66rem;
+    line-height: 1.1;
+}
+
+.day-timeline-segment span {
+    color: var(--text, inherit);
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-segment.segment-spiele {
+    background: rgba(96, 165, 250, 0.12);
+}
+
+.day-timeline-segment.segment-programm {
+    background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+
+.day-timeline-segment.segment-ko {
+    background: color-mix(in srgb, var(--block-color) 16%, transparent);
+}
+
+/* Eroeffnung, Siegerehrung, Jahrgangsfinale als eigener kleiner Block */
+.day-timeline-block.day-timeline-programm {
+    --block-color: var(--amber);
+    justify-content: flex-start;
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    z-index: 2;
+    font-size: 0.66rem;
+    line-height: 14px;
+    cursor: default;
+}
+
+.day-timeline-block.day-timeline-programm span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.day-timeline-block.day-timeline-programm time {
+    margin: 0;
+    font-weight: 700;
 }
 
 .day-timeline-resize-handle {
@@ -725,4 +842,63 @@
 .match em {
     margin-left: auto;
     color: var(--muted);
+}
+
+/* Programmpunkte (Eroeffnung, Siegerehrung ...) am Tagesplan der Veranstaltung */
+.programmpunkte {
+    margin-top: 18px;
+    border-top: 1px solid var(--line, rgba(127, 127, 127, 0.25));
+    padding-top: 14px;
+}
+
+.programmpunkt-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: flex-end;
+    margin-top: 10px;
+}
+
+.programmpunkt-jahrgaenge {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.programmpunkt-jahrgaenge label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.programmpunkt-jahrgaenge input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.programmpunkt-fehler {
+    color: var(--red);
+}
+
+/* Verspaetung im Tagesplan-Block (nur Admin/Turnierleitung) */
+.day-timeline-delay {
+    cursor: pointer;
+    display: inline-block;
+    align-self: flex-start;
+    max-width: 100%;
+    overflow: hidden;
+    margin-bottom: 2px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--green, #1f8a4c);
+}
+
+.day-timeline-delay.is-late {
+    color: var(--red);
 }

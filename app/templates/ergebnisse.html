@@ -148,7 +148,7 @@
             {% if selected_discipline.unit %}({{ selected_discipline.unit }}){% endif %}
         </h2>
         <p class="muted">
-            {% if selected_discipline.location %}📍 {{ selected_discipline.location }} · {% endif %}
+            {% if selected_discipline.location %}{{ icon("map-pin") }} {{ selected_discipline.location }} · {% endif %}
             {{ selected_discipline.values_per_team }} Werte je Klasse ·
             {% if selected_discipline.scoring_direction == "lower" %}
             Niedriger ist besser
@@ -489,6 +489,26 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     </div>
 </section>
 {% endif %}
+{% if ko_error_message %}
+<section class="panel correction-blocked-banner">
+    <strong>{{ ko_error_message }}</strong>
+</section>
+{% endif %}
+{% if next_phase_action %}
+<section class="panel phase-ready-banner">
+    <div class="phase-ready-content">
+        <strong>Nächste Phase</strong>
+        <p class="muted">{{ next_phase_action.hint }}</p>
+    </div>
+    <div class="phase-ready-actions">
+        <form method="post" action="{{ next_phase_action.action }}"
+              onsubmit="return confirm('{{ next_phase_action.label }}?');">
+            <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+            <button class="green" type="submit">{{ next_phase_action.label }}</button>
+        </form>
+    </div>
+</section>
+{% endif %}
 {% if correction_blocked %}
 <section class="panel correction-blocked-banner">
     <strong>Diese Korrektur ist nicht mehr möglich.</strong>
@@ -498,6 +518,57 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
         Folgespiele nicht mehr zu den Teams passen - daher bleibt der gespeicherte Stand erhalten.
     </p>
 </section>
+{% endif %}
+{% if round_timer and (round_timer.running or round_timer.next) %}
+<section class="panel round-timer-panel" id="runden-timer">
+    <div class="round-timer-head">
+        <div>
+            <p class="eyebrow">Runden-Timer{% if selected_ort %} · {{ selected_ort }}{% endif %}</p>
+            {% if round_timer.running %}
+            <h2>Runde {{ round_timer.running.startzeit }} · {{ round_timer.running.count }} Spiele</h2>
+            {% else %}
+            <h2>Nächste Runde {{ round_timer.next.startzeit }}</h2>
+            {% endif %}
+        </div>
+        {% if round_timer.running %}
+        <div class="round-timer-display"
+             data-started-at="{{ round_timer.running.started_at }}"
+             data-planned-duration="{{ round_timer.running.planned_seconds or '' }}"
+             data-stopped-at="{{ round_timer.running.stopped_at or '' }}">--:--</div>
+        {% endif %}
+    </div>
+    <div class="round-timer-actions">
+        {% set aufhol_competition = (round_timer.running or round_timer.next).competition_id %}
+        {% if aufhol_competition and can_access_role(request, "tournament_lead") %}
+        <a class="button secondary" href="/zeitplan-aufholen?competition_id={{ aufhol_competition }}">Zeitplan aufholen</a>
+        {% endif %}
+        {% if round_timer.running and not round_timer.running.stopped_at %}
+        <form method="post" action="/slots/runde/timer-stoppen">
+            {% for slot_id in round_timer.running.slot_ids %}<input type="hidden" name="slot_ids" value="{{ slot_id }}">{% endfor %}
+            <button class="danger" type="submit">Timer stoppen</button>
+        </form>
+        {% endif %}
+        {% if round_timer.next %}
+        <form method="post" action="/slots/runde/starten"
+              onsubmit="return confirm('Alle {{ round_timer.next.count }} Spiele um {{ round_timer.next.startzeit }} jetzt gleichzeitig starten?');">
+            {% for slot_id in round_timer.next.slot_ids %}<input type="hidden" name="slot_ids" value="{{ slot_id }}">{% endfor %}
+            <button class="green" type="submit">Alle {{ round_timer.next.count }} Spiele um {{ round_timer.next.startzeit }} gleichzeitig starten</button>
+        </form>
+        {% endif %}
+    </div>
+    <p class="muted">
+        Gilt für die unten angezeigten Spiele{% if not selected_ort %} (für die Mensa oben den Ort wählen){% endif %}.
+        Ergebnisse werden weiter je Spiel gespeichert und beendet.
+    </p>
+</section>
+<style>
+    .round-timer-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .round-timer-display { font-size: clamp(2.5rem, 8vw, 5rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    .round-timer-display.near-end { color: var(--amber); }
+    .round-timer-display.overrun, .round-timer-display.stopped { color: var(--red); }
+    .round-timer-display small { display: block; font-size: 1rem; font-weight: 600; text-align: right; }
+    .round-timer-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+</style>
 {% endif %}
 <section class="panel" id="results-section">
     <h2>Spiele</h2>
@@ -536,7 +607,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     </span>
                     {% endif %}
                     {% if s.started_at and s.status == 'läuft' %}
-                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}">00:00</span>
+                    <span class="slot-duration" data-started-at="{{ s.started_at }}" data-planned-duration="{{ s.planned_duration_seconds or '' }}" data-stopped-at="{{ s.timer_stopped_at or '' }}">00:00</span>
                     {% elif s.started_at %}
                     <span class="pill">Gestartet {{ s.started_at.split(' ')[1] if ' ' in s.started_at else s.started_at }}</span>
                     {% endif %}
@@ -548,7 +619,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     <span class="pill draw-warning-pill">Unentschieden – Verlängerung/Elfmeterschießen eintragen</span>
                     {% endif %}
                     {% if s.group_patt_risk %}
-                    <span class="pill draw-warning-pill">⚠ Patt möglich</span>
+                    <span class="pill draw-warning-pill">{{ icon("triangle-alert") }} Patt möglich</span>
                     {% endif %}
                     {% if s.undo_available %}
                     <form method="post" action="/slot/{{ s.id }}/undo-correction" class="undo-correction-form"
@@ -556,7 +627,7 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                           data-confirm="Korrektur rückgängig machen und {{ s.undo_old_label }} wiederherstellen?">
                         <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                         <button class="outline undo-btn" type="submit" title="Letzte Korrektur zurücknehmen">
-                            ↺ Rückgängig ({{ s.undo_old_label }})
+                            {{ icon("undo-2") }} Rückgängig ({{ s.undo_old_label }})
                         </button>
                     </form>
                     {% endif %}
@@ -776,8 +847,12 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
    .result-actions treffen - die verschachtelten Buttons in
    .correction-unlocked-actions (Korrigieren/Abbrechen/Reaktivieren/Loeschen)
    sollen ihr bisheriges, nicht gestrecktes Layout behalten. */
+/* Umbruch nur noch als ganze Knoepfe: Reicht die Kartenbreite nicht fuer
+   alle drei Knoepfe nebeneinander (schmale Feld-Spalte, Handy, andere
+   Systemschrift), rutscht der letzte Knopf in eine zweite Zeile und fuellt
+   sie aus - statt dass "Speichern" mitten im Wort zu "Speicher/n" bricht. */
 .results-court-column .result-actions {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 /* Muss ueber ".result-form-row .result-actions button" (results.css, ohne
    Media Query, Spezifitaet 0,2,1) gewinnen - ein Selektor mit ">*" (0,2,0)
@@ -788,7 +863,10 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
 .results-court-column .result-actions > button,
 .results-court-column .result-actions > form {
     flex: 1 1 0;
-    min-width: 0;
+    /* Gleich breit, solange Platz ist, aber nie schmaler als die Beschriftung
+       (frueher min-width: 0 - das liess "Speichern" unter seine Textbreite
+       schrumpfen und mitten im Wort umbrechen). */
+    min-width: max-content;
 }
 .results-court-column .result-actions > button,
 .results-court-column .result-actions > form > button {
@@ -828,10 +906,15 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     padding: 5px 7px;
     font-size: 0.75rem;
 }
-/* Buttons in der schmalen Ergebnis-Spalte sind zu knapp fuer laengere Labels
-   wie "Start rueckgaengig" - ohne Umbruch lief der Text ueber die Button- und
-   Kartengrenze hinweg statt zweizeilig in seinem Button zu bleiben. */
-.results-court-column .result-actions button,
+/* Knopf-Beschriftungen bleiben einzeilig: Statt den Text im Knopf (auch
+   mitten im Wort, "Speicher/n") umzubrechen, wandert der ganze Knopf in die
+   naechste Zeile (flex-wrap oben). Fuer die Korrektur-Knoepfe bleibt der
+   bisherige Umbruch im Knopf als Schutz gegen Ueberlauf. */
+.results-court-column .result-actions > button,
+.results-court-column .result-actions > form > button {
+    white-space: nowrap;
+    text-align: center;
+}
 .results-court-column .correction-unlocked-actions button {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -895,9 +978,16 @@ function updateResultTimers() {
         const started = parseTimestamp(startedAt);
         if (Number.isNaN(started.getTime())) return;
 
-        const seconds = Math.max(0, Math.floor((now - started) / 1000));
+        const stoppedAt = el.dataset.stoppedAt ? parseTimestamp(el.dataset.stoppedAt) : null;
+        const reference = stoppedAt && !Number.isNaN(stoppedAt.getTime()) ? stoppedAt : now;
+        const seconds = Math.max(0, Math.floor((reference - started) / 1000));
         const planned = Number(el.dataset.plannedDuration || 0);
         const runtime = formatDuration(seconds);
+        if (reference === stoppedAt) {
+            el.classList.remove('on-time', 'near-end', 'overrun');
+            el.textContent = `Timer gestoppt · Laufzeit ${runtime}`;
+            return;
+        }
 
         el.classList.remove('on-time', 'near-end', 'overrun');
         if (planned > 0) {
@@ -918,8 +1008,38 @@ function updateResultTimers() {
     });
 }
 
+function updateRoundTimer() {
+    const el = document.querySelector('.round-timer-display');
+    if (!el || !el.dataset.startedAt) return;
+    const started = parseTimestamp(el.dataset.startedAt);
+    if (Number.isNaN(started.getTime())) return;
+    const stoppedAt = el.dataset.stoppedAt ? parseTimestamp(el.dataset.stoppedAt) : null;
+    const stopped = stoppedAt && !Number.isNaN(stoppedAt.getTime());
+    const seconds = Math.max(0, Math.floor(((stopped ? stoppedAt : new Date()) - started) / 1000));
+    const planned = Number(el.dataset.plannedDuration || 0);
+    const clock = value => {
+        const abs = Math.max(0, Math.floor(value));
+        return `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+    };
+    el.classList.remove('near-end', 'overrun', 'stopped');
+    if (stopped) {
+        el.classList.add('stopped');
+        el.innerHTML = `${clock(planned > 0 ? Math.max(0, planned - seconds) : seconds)}<small>Timer gestoppt</small>`;
+    } else if (planned > 0 && seconds >= planned) {
+        el.classList.add('overrun');
+        el.innerHTML = `00:00<small>Zeit abgelaufen · +${clock(seconds - planned)}</small>`;
+    } else if (planned > 0) {
+        if (planned - seconds <= 60) el.classList.add('near-end');
+        el.innerHTML = `${clock(planned - seconds)}<small>Restzeit</small>`;
+    } else {
+        el.innerHTML = `${clock(seconds)}<small>Laufzeit</small>`;
+    }
+}
+
 updateResultTimers();
+updateRoundTimer();
 setInterval(updateResultTimers, 1000);
+setInterval(updateRoundTimer, 1000);
 
 function attachStartHandler(form) {
     form.addEventListener('submit', async event => {

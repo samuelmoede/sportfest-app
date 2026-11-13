@@ -69,6 +69,13 @@ def init_db(db_path=None):
             regeln TEXT,
             siegerehrung_published_at TEXT,
             archived_via_event INTEGER NOT NULL DEFAULT 0,
+            punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0,
+            punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0,
+            competition_date TEXT,
+            final_source_ids TEXT,
+            teilmannschaft TEXT,
+            game_duration_seconds INTEGER,
+            tiebreak_order TEXT,
             FOREIGN KEY (event_id) REFERENCES events(id)
         );
 
@@ -142,10 +149,32 @@ def init_db(db_path=None):
 
             status TEXT NOT NULL DEFAULT 'geplant',
             note TEXT,
+            timer_stopped_at TEXT,
             FOREIGN KEY (competition_id) REFERENCES competitions(id),
             FOREIGN KEY (court_id) REFERENCES courts(id),
             FOREIGN KEY (team_a_id) REFERENCES teams(id),
             FOREIGN KEY (team_b_id) REFERENCES teams(id)
+        );
+
+        -- Programmpunkte einer Veranstaltung fuer den Tagesplan (Eroeffnung,
+        -- Siegerehrung, Pause ...) mit Dauer und optional nur fuer bestimmte
+        -- Jahrgaenge ("7,8"; leer = alle), siehe programmpunkte_service.
+        CREATE TABLE IF NOT EXISTS event_programmpunkte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            titel TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            jahrgaenge TEXT,
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS durchsagen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT,
+            active INTEGER NOT NULL DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS settings (
@@ -193,6 +222,60 @@ def init_db(db_path=None):
             active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            ended_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_sessions_open
+            ON user_sessions (ended_at, last_seen_at);
+
+        -- Manuelle Korrekturen fuer den Urkunden-Generator (nur fuer den
+        -- Druck, die Wertung in Tabellen/Gesamtwertung bleibt unveraendert).
+        CREATE TABLE IF NOT EXISTS urkunden_anpassungen (
+            event_id INTEGER NOT NULL,
+            eintrag_key TEXT NOT NULL,
+            platz INTEGER,
+            urkundentyp TEXT,
+            name TEXT,
+            leistung TEXT,
+            ausgeblendet INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT,
+            PRIMARY KEY (event_id, eintrag_key),
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        -- Neuer Einrichtungsassistent: Entwuerfe sind reine Planungsdaten
+        -- (JSON in daten), es entstehen dabei keine Wettbewerbe oder Spiele.
+        -- Erst "Veranstaltung erstellen" legt alles in einer Transaktion an
+        -- (status 'uebernommen', event_id), siehe assistent_entwurf_service.
+        CREATE TABLE IF NOT EXISTS assistent_entwuerfe (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titel TEXT NOT NULL,
+            daten TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'offen',
+            version INTEGER NOT NULL DEFAULT 1,
+            event_id INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES events(id)
+        );
+
+        -- Eigene Vorlagen des Assistenten (Parameter und Regeln ohne
+        -- konkrete Team-/Feld-ids, siehe vorlage_aus_daten).
+        CREATE TABLE IF NOT EXISTS assistent_vorlagen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            daten TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         """)
 
         columns = [
@@ -216,6 +299,11 @@ def init_db(db_path=None):
 
         if "finished_at" not in columns:
             conn.execute("ALTER TABLE slots ADD COLUMN finished_at TEXT")
+
+        # Runden-Timer in der Ergebniseingabe: Zeitpunkt, an dem der Timer
+        # angehalten wurde (das Spiel selbst laeuft weiter, bis es beendet wird).
+        if "timer_stopped_at" not in columns:
+            conn.execute("ALTER TABLE slots ADD COLUMN timer_stopped_at TEXT")
 
         court_columns = {
             row["name"]
@@ -383,6 +471,53 @@ def init_db(db_path=None):
             conn.execute(
                 "ALTER TABLE competitions ADD COLUMN archived_via_event INTEGER NOT NULL DEFAULT 0"
             )
+
+        # Optionales grosses Finale (Platz 1 gegen Platz 2) und/oder kleines
+        # Finale (Spiel um Platz 3) im Anschluss an eine Punkterunde (Issue
+        # #125) - unabhaengig voneinander wählbar, daher zwei Spalten statt
+        # einer im tournament_mode-String kodierten Variante.
+        if "punkterunde_grosses_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_grosses_finale INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "punkterunde_kleines_finale" not in competition_columns:
+            conn.execute(
+                "ALTER TABLE competitions ADD COLUMN punkterunde_kleines_finale INTEGER NOT NULL DEFAULT 0"
+            )
+
+        # Eigenes Datum fuer einen einzelnen Wettbewerb, unabhaengig vom
+        # (optionalen) event_date seiner Veranstaltung - z.B. fuer
+        # Wettbewerbe ohne Veranstaltung oder mit einem vom Sportfest
+        # abweichenden Termin (Issue #134). Wird analog zu events.event_date
+        # ausgewertet, damit ein solcher Wettbewerb ebenfalls im Tagesplan
+        # der Startseite auftaucht.
+        if "competition_date" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN competition_date TEXT")
+
+        # Jahrgangsfinale beim Schulpokal (Sieger J7 gegen Sieger J8): ids der
+        # beiden Quell-Wettbewerbe, kommagetrennt (siehe
+        # app/services/jahrgangsfinale_service.py).
+        if "final_source_ids" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN final_source_ids TEXT")
+
+        # Schulpokal-Tischtennis: Jungen und Maedchen einer Klasse spielen
+        # zeitgleich in eigenen Wettbewerben mit denselben Klassen-Teams. Bei
+        # verschiedener Teilmannschaft ist das kein Konflikt (siehe
+        # schedule_conflict_service).
+        if "teilmannschaft" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN teilmannschaft TEXT")
+
+        # Spielzeit auf die Sekunde (z.B. 6:30 beim Zeitplan aufholen);
+        # NULL heisst game_duration_minutes gilt.
+        if "game_duration_seconds" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN game_duration_seconds INTEGER")
+
+        # Reihenfolge der Gleichstandsregeln nach den Punkten, z.B.
+        # "tordifferenz,tore,direkter_vergleich" (siehe tiebreak_service).
+        # NULL heisst: bisherige Standardreihenfolge, unveraendert.
+        if "tiebreak_order" not in competition_columns:
+            conn.execute("ALTER TABLE competitions ADD COLUMN tiebreak_order TEXT")
 
         # Wettbewerbe einer bereits archivierten Veranstaltung nachziehen (z.B.
         # Altdaten von vor Einfuehrung der automatischen Kaskade in

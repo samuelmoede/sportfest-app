@@ -150,10 +150,13 @@ Alle Workflows liegen unter `.github/workflows/`.
 
 - Über die bestehende WireGuard-VPN-Verbindung ins Heimnetz ist die
   DEV-Umgebung unter `http://192.168.178.20:8502` erreichbar.
-- DEV läuft standardmäßig **ohne Login** (`SPORTFEST_SECURITY_ENABLED=false`
-  fest in `docker-compose.dev.yml`, unabhängig vom Wert in einer eventuell
-  aus Prod kopierten Datenbank — die Env-Var hat laut `settings_service.py`
-  Vorrang).
+- DEV läuft standardmäßig **mit aktiver Sicherheit**
+  (`SPORTFEST_SECURITY_ENABLED=true` als Standard in `docker-compose.dev.yml`,
+  unabhängig vom Wert in einer eventuell aus Prod kopierten Datenbank — die
+  Env-Var hat laut `settings_service.py` Vorrang). Einstellungen, Teams,
+  Spielfelder und Wettbewerbsverwaltung brauchen also einen Login (z. B.
+  `ADMIN`). Abschaltbar über `SPORTFEST_SECURITY_ENABLED=false` in der
+  Umgebung bzw. einer `.env` im DEV-Ordner.
 - DEV hat eine eigene, von Produktion getrennte SQLite-Datenbank — Testdaten
   dort haben keine Auswirkung auf Produktion.
 

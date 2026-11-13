@@ -46,18 +46,73 @@ def get_competition_timing(competition):
     changeover_duration_minutes = read_minutes(
         "changeover_duration_minutes", DEFAULT_CHANGEOVER_DURATION_MINUTES, 0
     )
+    # Spielzeit auf die Sekunde (Zeitplan aufholen, z.B. 6:30); sonst die
+    # ganzen Minuten.
+    try:
+        game_duration_seconds = int(_get_value(competition, "game_duration_seconds", None))
+    except (TypeError, ValueError):
+        game_duration_seconds = None
+    if game_duration_seconds is None or game_duration_seconds < 30:
+        game_duration_seconds = game_duration_minutes * 60
     return {
         "game_duration_minutes": game_duration_minutes,
+        "game_duration_seconds": game_duration_seconds,
         "changeover_duration_minutes": changeover_duration_minutes,
         "slot_interval_minutes": game_duration_minutes + changeover_duration_minutes,
     }
 
 
-def get_game_end_time(startzeit: str, game_duration_minutes: int):
+def format_duration_seconds(seconds):
+    """390 -> '6:30', 420 -> '7'."""
+    minutes, rest = divmod(int(seconds), 60)
+    return f"{minutes}:{rest:02d}" if rest else str(minutes)
+
+
+def get_game_end_time(startzeit: str, game_duration_minutes: int, game_duration_seconds=None):
     start = parse_slot_time(startzeit)
     if start is None:
         return None
-    return (start + timedelta(minutes=game_duration_minutes)).strftime("%H:%M")
+    seconds = game_duration_seconds if game_duration_seconds else game_duration_minutes * 60
+    return (start + timedelta(seconds=seconds)).strftime("%H:%M")
+
+
+def suggest_game_duration(slots, competition):
+    """Schlaegt eine Spielzeit vor, mit der alle Runden eines Vorschlags
+    zwischen dem ersten Anpfiff und der geplanten Endzeit des Wettbewerbs
+    fertig werden. Die Wechselzeit bleibt wie eingestellt; eine Runde ist
+    eine Startzeit (beim Schulpokal ist das jeweils ein Jahrgang).
+
+    Mit n Runden, Spielzeit g und Wechselzeit c endet das letzte Spiel nach
+    (n - 1) * (g + c) + g = n * g + (n - 1) * c Minuten."""
+    starts = sorted({
+        start for start in (
+            parse_slot_time(_get_value(slot, "startzeit"))
+            for slot in slots
+            if _get_value(slot, "slot_typ") == "Spiel"
+        )
+        if start is not None
+    })
+    if not starts:
+        return None
+    timing = get_competition_timing(competition)
+    planned_end = parse_slot_time(_get_value(competition, "end_time"))
+    result = {
+        "rounds": len(starts),
+        "first_start": starts[0].strftime("%H:%M"),
+        "planned_end": planned_end.strftime("%H:%M") if planned_end else None,
+        "changeover_duration_minutes": timing["changeover_duration_minutes"],
+        "current_game_duration_minutes": timing["game_duration_minutes"],
+        "game_duration_minutes": None,
+    }
+    if planned_end is None or planned_end <= starts[0]:
+        return result
+    available = int((planned_end - starts[0]).total_seconds() // 60)
+    rounds = len(starts)
+    game = (available - (rounds - 1) * timing["changeover_duration_minutes"]) // rounds
+    result["available_minutes"] = available
+    if game >= 1:
+        result["game_duration_minutes"] = game
+    return result
 
 
 def build_end_time_forecast(slots, competition):
@@ -110,6 +165,7 @@ def build_end_time_forecast(slots, competition):
         parse_slot_time(entry["projected_end"]) for entry in courts
     )
     return {
+        "duration_suggestion": suggest_game_duration(slots, competition),
         "courts": courts,
         "overall_end": overall_end.strftime("%H:%M"),
         "planned_end": planned_end.strftime("%H:%M") if planned_end else None,

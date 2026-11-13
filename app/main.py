@@ -8,10 +8,10 @@ import os
 import re
 import secrets
 import time
-from typing import Optional
+from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -19,11 +19,19 @@ from app.database import init_db, get_conn, DB_PATH
 from app.routes.settings import router as settings_router
 from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
-from app.routes.quickstart import create_router as create_quickstart_router
 from app.routes.schedule import create_router as create_schedule_router
 from app.routes.teams import create_router as create_teams_router
+from app.routes.urkunden import create_router as create_urkunden_router
 from app.routes.venues import create_router as create_venues_router
 from app.routes.wizard import create_router as create_wizard_router
+from app.routes.assistent import create_router as create_assistent_router
+from app.services.navigation_service import build_navigation, nav_icon_svg
+from app.services.icon_service import icon_svg
+from markupsafe import Markup
+from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
+from app.routes.zeitplan import create_router as create_zeitplan_router
+from app.services.beamer_service import STANDARD_SEKUNDEN, baue_beamer_seiten
+from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
 from app.services.schedule_grid_service import build_editor_time_grid, get_all_slots
 from app.services.schedule_location_service import (
     COMPETITION_LOCATIONS,
@@ -37,10 +45,13 @@ from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     get_archived_event_ids,
     get_dashboard_event,
+    get_dashboard_standalone_competitions,
     get_upcoming_events,
     normalize_event_statuses,
     resolve_selected_event_id,
 )
+from app.services.csrf_service import UNSAFE_METHODS as CSRF_UNSAFE_METHODS, is_request_origin_allowed
+from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
@@ -63,9 +74,10 @@ from app.services.sixkampf_service import (
     calculate_sixkampf_station_rotation,
     calculate_sixkampf_team_ranking,
 )
+from app.services.programmpunkte_service import list_programmpunkte
 from app.services.ui_view_service import (
     classify_yeargang,
-    enrich_beamer_view,
+    competition_column,
     enrich_day_schedule_view,
 )
 from app.services.schedule_time_service import (
@@ -81,6 +93,7 @@ from app.services.settings_service import (
     get_current_role,
     get_current_role_description,
     get_current_role_label,
+    get_current_username,
     get_dashboard_info_html,
     get_site_theme,
     is_logged_in,
@@ -88,7 +101,13 @@ from app.services.settings_service import (
     is_security_enabled,
     render_rich_text_html,
 )
-from app.services.users_service import verify_login
+from app.services.users_service import (
+    SESSION_MAX_AGE_SECONDS,
+    end_user_session,
+    start_user_session,
+    touch_user_session,
+    verify_login,
+)
 from app.web import APP_DIR, templates, get_style_version
 from app.utils.formatting import (
     format_points_value,
@@ -117,7 +136,6 @@ SESSION_HTTPS_ONLY = os.getenv(
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
-    ("/turnier-schnellstart", "admin"),
     ("/einstellungen", "admin"),
     ("/dokumentation", "admin"),
     ("/roadmap", "admin"),
@@ -127,6 +145,8 @@ AREA_ACCESS_RULES = (
     ("/teams", "admin"),
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
+    ("/urkunden", "tournament_lead"),
+    ("/zeitplan-aufholen", "tournament_lead"),
 )
 
 # Historische Formularziele liegen teilweise außerhalb ihres sichtbaren
@@ -153,7 +173,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table)$"
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table|advance-ko-round)$"
         ),
         "referee",
     ),
@@ -173,6 +193,8 @@ ACTION_ACCESS_RULES = (
         "admin",
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
+    (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
+    (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
 
@@ -184,13 +206,61 @@ class RoleAreaMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class UserActivityMiddleware(BaseHTTPMiddleware):
+    """Merkt sich die letzte Aktivitaet angemeldeter Benutzer (fuer die
+    Uebersicht "Angemeldete Benutzer" in /einstellungen)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/static"):
+            user_id = request.session.get("user_id")
+            if user_id is not None:
+                token = request.session.get("session_token")
+                if not token:
+                    token = secrets.token_urlsafe(24)
+                    request.session["session_token"] = token
+                try:
+                    touch_user_session(token, user_id)
+                except Exception:
+                    # Aktivitaets-Tracking darf nie eine Anfrage scheitern lassen.
+                    pass
+        return await call_next(request)
+
+
+class CsrfOriginMiddleware(BaseHTTPMiddleware):
+    """Lehnt schreibende Anfragen fremder Herkunft ab (siehe
+    app/services/csrf_service.py). Nur bei aktiver Sicherheit, damit der
+    deaktivierte Modus unveraendert rueckwaertskompatibel bleibt."""
+
+    async def dispatch(self, request: Request, call_next):
+        if (
+            request.method.upper() in CSRF_UNSAFE_METHODS
+            and is_security_enabled()
+            and not is_request_origin_allowed(request.method, request.headers)
+        ):
+            logging.getLogger(__name__).warning(
+                "CSRF-Schutz: %s %s abgelehnt (Origin=%r, Referer=%r, Host=%r). "
+                "Hinter einem Proxy ggf. SPORTFEST_TRUSTED_ORIGINS setzen.",
+                request.method, request.url.path,
+                request.headers.get("origin"), request.headers.get("referer"),
+                request.headers.get("host"),
+            )
+            return PlainTextResponse(
+                "Anfrage abgelehnt: Sie stammt nicht von dieser Sportfest-App (CSRF-Schutz).",
+                status_code=403,
+            )
+        return await call_next(request)
+
+
 # Die Session-Middleware muss außen liegen, damit der Bereichsschutz auf
 # request.session zugreifen kann.
+app.add_middleware(CsrfOriginMiddleware)
+app.add_middleware(UserActivityMiddleware)
 app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     session_cookie="sportfest_session",
+    max_age=SESSION_MAX_AGE_SECONDS,
     same_site="lax",
     https_only=SESSION_HTTPS_ONLY,
 )
@@ -252,9 +322,15 @@ def slot_minutes_until(startzeit, now, default=0):
 templates.env.globals["get_current_role"] = get_current_role
 templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
+templates.env.globals["get_current_username"] = get_current_username
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
+templates.env.globals["nav_icon_svg"] = nav_icon_svg
+templates.env.globals["icon"] = lambda name, css_class="icon": Markup(icon_svg(name, css_class))
+templates.env.globals["get_navigation"] = lambda request: build_navigation(
+    request.url.path, lambda rolle: can_access_role(request, rolle)
+)
 
 app.include_router(settings_router)
 app.include_router(create_teams_router(app_now_db_timestamp))
@@ -425,7 +501,15 @@ def collect_tabellen_view_data(
     include_overall = selected_event_id is not None and selected_competition_id is None
     if include_overall:
         overall_ranking = calculate_event_overall_ranking(selected_event_id)
-        if selected_jahrgang is not None:
+        exact_group = f"Gesamtwertung Jahrgang {selected_jahrgang}"
+        if selected_jahrgang is not None and any(
+            group["year_group"] == exact_group for group in overall_ranking
+        ):
+            # Schulpokal: Wertung je einzelnem Jahrgang, auch Jahrgang 10.
+            overall_ranking = [
+                group for group in overall_ranking if group["year_group"] == exact_group
+            ]
+        elif selected_jahrgang is not None:
             year_group_filter = classify_yeargang(selected_jahrgang)
             if year_group_filter == "Oberstufe":
                 overall_ranking = [
@@ -627,7 +711,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         {
             column
             for column in (
-                classify_yeargang(get_field(competition, "jahrgang"))
+                competition_column(competition)
                 for competition in competitions
             )
             if column is not None
@@ -657,7 +741,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
         if not start or not end or end <= start:
             continue
 
-        yeargang = classify_yeargang(get_field(competition, "jahrgang"))
+        yeargang = competition_column(competition)
         if yeargang is None:
             continue
 
@@ -763,7 +847,7 @@ def build_day_schedule(competitions, event_date=None, now=None, event_status=Non
 def get_day_schedule_for_event(event_id: int):
     with get_conn() as conn:
         event = conn.execute(
-            "SELECT event_date, status FROM events WHERE id = ?", (event_id,)
+            "SELECT event_date, status, event_type FROM events WHERE id = ?", (event_id,)
         ).fetchone()
         competitions = [dict(row) for row in conn.execute("""
             SELECT * FROM competitions
@@ -771,6 +855,14 @@ def get_day_schedule_for_event(event_id: int):
               AND status != 'archiviert'
             ORDER BY start_time, end_time, jahrgang, name
         """, (event_id,)).fetchall()]
+        programmpunkte = list_programmpunkte(conn, event_id)
+    # Schulpokal: eine Spalte je Jahrgang, auch Jahrgang 10 (nicht Oberstufe),
+    # passend zur Gesamtwertung je Jahrgang.
+    if event is not None and event["event_type"] == "Schulpokal":
+        for competition in competitions:
+            jahrgang = competition.get("jahrgang")
+            if jahrgang not in (None, "", "mixed"):
+                competition["year_column"] = f"Jahrgang {jahrgang}"
     schedule = build_day_schedule(
         competitions,
         event["event_date"] if event is not None else None,
@@ -779,7 +871,23 @@ def get_day_schedule_for_event(event_id: int):
     return enrich_day_schedule_view(
         schedule,
         competitions,
-        event_id,
+        now=app_now(),
+        programmpunkte=programmpunkte,
+    )
+
+
+def get_day_schedule_for_competitions(competitions: list, schedule_date):
+    """Analog zu get_day_schedule_for_event, aber fuer Wettbewerbe mit
+    eigenem competition_date statt fuer eine Veranstaltung (Issue #134) -
+    schedule_date ist bereits das gemeinsame Ziel-Datum aller uebergebenen
+    Wettbewerbe (siehe get_dashboard_standalone_competitions)."""
+    schedule = build_day_schedule(
+        competitions,
+        schedule_date.isoformat() if schedule_date else None,
+    )
+    return enrich_day_schedule_view(
+        schedule,
+        competitions,
         now=app_now(),
     )
 
@@ -903,7 +1011,29 @@ def fetch_dashboard_data():
             exclude_event_id=next_event["id"] if next_event else None,
         )
 
+        # Faellt next_event aus (keine datierte/aktive Veranstaltung), kann
+        # trotzdem ein einzelner Wettbewerb mit eigenem competition_date
+        # anstehen (Issue #134) - der Tagesplan zeigt dann dessen Tag statt
+        # leer zu bleiben. Existiert bereits eine Veranstaltung mit Tagesplan,
+        # hat diese Vorrang (siehe get_dashboard_standalone_competitions).
+        standalone_schedule_date = None
+        standalone_schedule_competitions = []
+        if next_event is None:
+            standalone_schedule_date, standalone_schedule_competitions = (
+                get_dashboard_standalone_competitions(conn, today)
+            )
+
     next_event_details_text = (next_event["details"] or "").strip() if next_event else ""
+
+    schedule_event = next_event
+    if schedule_event is None and standalone_schedule_competitions:
+        names = [c["name"] for c in standalone_schedule_competitions]
+        schedule_event = {
+            "id": None,
+            "name": names[0] if len(names) == 1 else f"Wettbewerbe am {standalone_schedule_date.isoformat()}",
+            "event_date": standalone_schedule_date.isoformat(),
+            "status": None,
+        }
 
     return {
         "competitions": competitions,
@@ -913,7 +1043,9 @@ def fetch_dashboard_data():
         "upcoming": upcoming,
         "ended_count": ended_count,
         "next_event": next_event,
-        "schedule_event": next_event,
+        "schedule_event": schedule_event,
+        "standalone_schedule_date": standalone_schedule_date,
+        "standalone_schedule_competitions": standalone_schedule_competitions,
         "additional_upcoming_events": additional_upcoming_events,
         "dashboard_info_html": get_dashboard_info_html(),
         "next_event_details_html": (
@@ -1081,6 +1213,9 @@ def _resolve_points_tied_group(rows_group, slots, competition):
 
 def sort_table_rows(rows, slots, competition):
     rows.sort(key=lambda r: (-r["pkt"], r["team"].lower()))
+    # Im Assistenten (Expertenmodus) gewaehlte Reihenfolge der
+    # Gleichstandsregeln; ohne Eintrag bleibt alles wie bisher.
+    tiebreak_order = competition_tiebreak_order(competition)
 
     i = 0
     while i < len(rows):
@@ -1088,7 +1223,11 @@ def sort_table_rows(rows, slots, competition):
         while j + 1 < len(rows) and rows[j + 1]["pkt"] == rows[i]["pkt"]:
             j += 1
 
-        if j > i:
+        if j > i and tiebreak_order:
+            rows[i:j + 1] = resolve_with_order(
+                rows[i:j + 1], slots, competition, tiebreak_order, _mini_league_stats
+            )
+        elif j > i:
             rows[i:j + 1] = _resolve_points_tied_group(rows[i:j + 1], slots, competition)
         else:
             rows[i]["tie_note"] = None
@@ -1409,18 +1548,35 @@ def format_duration(start_time: str, end_time: str):
 
 def calculate_event_overall_ranking(event_id: int):
     with get_conn() as conn:
+        event = conn.execute("SELECT event_type FROM events WHERE id = ?", (event_id,)).fetchone()
         competitions = conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()
 
+    # Schulpokal: ein Sieger je Jahrgang (auch Jahrgang 10, nicht GOST), aus
+    # allen Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis).
+    # Das Jahrgangsfinale (Sieger J7 gegen Sieger J8) findet erst nach der
+    # Siegerehrung statt und zaehlt nicht in die Jahrgangswertung.
+    is_schulpokal_event = event is not None and event["event_type"] == "Schulpokal"
+    if is_schulpokal_event:
+        competitions = [
+            competition for competition in competitions
+            if not (competition["final_source_ids"] or "").strip()
+        ]
+
+    def year_group_of(jahrgang):
+        if is_schulpokal_event:
+            return f"Jahrgang {jahrgang}" if jahrgang not in (None, "", "mixed") else None
+        return classify_yeargang(jahrgang)
+
     if not competitions:
         return []
 
     grouped_competitions = {}
     for competition in competitions:
-        year_group = classify_yeargang(competition["jahrgang"])
+        year_group = year_group_of(competition["jahrgang"])
         if year_group is None:
             continue
         grouped_competitions.setdefault(year_group, []).append({
@@ -1542,7 +1698,14 @@ def calculate_event_overall_ranking(event_id: int):
                     "placements": [],
                     "tournament_score_diff": 0,
                 })
-                record["points_by_competition"][competition_id] = row.get("competition_points", 0)
+                # Schulpokal: Gesamtwertung = Summe der Spielpunkte aus allen
+                # Wettbewerben des Jahrgangs (Volleyball 2/1/0 je Spiel,
+                # Tischtennis Jungen und Maedchen je 1 Punkt pro Sieg), wie in
+                # der Wertung der Sportfachschaft - nicht Platzierungspunkte.
+                if is_schulpokal_event:
+                    record["points_by_competition"][competition_id] = row.get("pkt", 0)
+                else:
+                    record["points_by_competition"][competition_id] = row.get("competition_points", 0)
                 record["tournament_score_diff"] += row.get("diff", 0)
                 record["placements"].append(row["placement"])
 
@@ -1569,7 +1732,7 @@ def calculate_event_overall_ranking(event_id: int):
     year_groups = {}
 
     for row in overall.values():
-        year_group = classify_yeargang(row["jahrgang"])
+        year_group = year_group_of(row["jahrgang"])
         if year_group is None:
             continue
         year_groups.setdefault(year_group, []).append(row)
@@ -1581,6 +1744,13 @@ def calculate_event_overall_ranking(event_id: int):
         "Jahrgang 9": "Gesamtwertung Jahrgang 9",
         "Oberstufe": "Gesamtwertung GOST",
     }
+    if is_schulpokal_event:
+        def schulpokal_group_key(group):
+            value = group.removeprefix("Jahrgang ")
+            return jahrgang_sort_key(int(value) if value.isdigit() else value)
+
+        ordered_groups = sorted(year_groups, key=schulpokal_group_key)
+        display_year_groups = {group: f"Gesamtwertung {group}" for group in ordered_groups}
     result = []
     for year_group in ordered_groups:
         rows = year_groups.get(year_group)
@@ -1626,6 +1796,41 @@ def calculate_event_overall_ranking(event_id: int):
         })
 
     return result
+
+
+def calculate_sixkampf_competition_ranking(competition):
+    """Sechskampf-Wertung eines Wettbewerbs wie in der Gesamtwertung (nur
+    Klassen mit Ergebnissen). Gibt (disciplines, ranking) zurueck; genutzt
+    vom Urkunden-Generator."""
+    with get_conn() as conn:
+        competition_teams = get_teams_for_competition(
+            conn, competition["id"], competition["jahrgang"]
+        )
+        disciplines = conn.execute("""
+            SELECT * FROM competition_disciplines
+            WHERE competition_id = ?
+            ORDER BY sort_order, id
+        """, (competition["id"],)).fetchall()
+        result_rows = conn.execute(
+            "SELECT * FROM sixkampf_team_results WHERE competition_id = ?",
+            (competition["id"],)
+        ).fetchall()
+        competition_teams = include_teams_with_existing_sixkampf_results(
+            conn, competition["id"], competition_teams
+        )
+
+    if not result_rows:
+        return disciplines, []
+
+    ranking, _, _ = calculate_sixkampf_team_ranking(
+        competition_teams,
+        disciplines,
+        result_rows,
+        competition["points_first_place"],
+        require_result_entry=True,
+        placement_points=get_competition_placement_points(competition, len(competition_teams)),
+    )
+    return disciplines, ranking
 
 
 def calculate_group_table(competition_id: int, gruppe: str):
@@ -1838,62 +2043,6 @@ def find_group_patt_risk(
     }
 
 
-def fetch_beamer_data():
-    with get_conn() as conn:
-        active_comps = conn.execute("""
-            SELECT id FROM competitions
-            WHERE status = 'läuft' AND competition_type IN ('Turnier', 'Schulpokal')
-        """).fetchall()
-        # Sechskampf-Wettbewerbe erzeugen keine Spielfeld-Slots und tauchen daher nie
-        # in running_slots/recent_results auf - ohne diesen Hinweis wirkt die
-        # Beamer-Ansicht faelschlich komplett leer, waehrend tatsaechlich nur
-        # Sechskampf-Stationen laufen (die im Spielplan sichtbar sind).
-        active_sixkampf = conn.execute("""
-            SELECT 1 FROM competitions
-            WHERE status = 'läuft' AND competition_type = 'Sechskampf'
-            LIMIT 1
-        """).fetchone()
-        courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
-
-    active_comp_ids = {row["id"] for row in active_comps}
-
-    if not active_comp_ids:
-        return enrich_beamer_view({
-            "running_slots": [],
-            "recent_results": [],
-            "court_summaries": [{"court": dict(c), "open_count": 0, "next_games": []} for c in courts],
-            "sixkampf_active": active_sixkampf is not None,
-        }, [])
-
-    all_slots = get_all_slots()
-    slots = [s for s in all_slots if s.get("competition_id") in active_comp_ids]
-
-    running_slots = [
-        s for s in slots if s["slot_typ"] == "Spiel" and s["status"] == "läuft"
-    ]
-
-    recent_results = sorted(
-        [s for s in slots
-         if s["status"] == "beendet" and s["slot_typ"] == "Spiel"
-         and s.get("team_a_id") is not None and s.get("team_b_id") is not None],
-        key=lambda s: (s.get("startzeit", ""), s.get("id", 0)),
-        reverse=True,
-    )[:6]
-
-    court_summaries = []
-    for court in courts:
-        court_slots = [s for s in slots if s["court_id"] == court["id"] and s["slot_typ"] == "Spiel"]
-        open_count = len([s for s in court_slots if s["status"] != "beendet"])
-        next_games = [s for s in court_slots if s["status"] == "geplant"][:3]
-        court_summaries.append({"court": court, "open_count": open_count, "next_games": next_games})
-
-    return enrich_beamer_view({
-        "running_slots": running_slots,
-        "recent_results": recent_results,
-        "court_summaries": court_summaries,
-        "sixkampf_active": False,
-    }, slots)
-
 @app.get("/login")
 def login_page(request: Request, next: str = "/", logged_out: str = ""):
     return templates.TemplateResponse(
@@ -1993,6 +2142,7 @@ def login(
         request.session["role"] = user["role"]
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
+        request.session["session_token"] = start_user_session(user["id"])
         return RedirectResponse(safe_next_url(next), status_code=303)
 
     _register_login_failure(client_key)
@@ -2015,6 +2165,7 @@ def login(
 
 @app.get("/logout")
 def logout(request: Request):
+    end_user_session(request.session.get("session_token"))
     request.session.clear()
     return RedirectResponse("/", status_code=303)
 
@@ -2022,8 +2173,12 @@ def logout(request: Request):
 @app.get("/")
 def dashboard(request: Request):
     data = fetch_dashboard_data()
-    if data["schedule_event"]:
+    if data["schedule_event"] and data["schedule_event"]["id"] is not None:
         data["schedule"] = get_day_schedule_for_event(data["schedule_event"]["id"])
+    elif data["standalone_schedule_competitions"]:
+        data["schedule"] = get_day_schedule_for_competitions(
+            data["standalone_schedule_competitions"], data["standalone_schedule_date"]
+        )
     else:
         data["schedule"] = build_day_schedule([], event_date=None)
     template_name = (
@@ -2076,6 +2231,7 @@ def ergebnisse(
     phase_ready_competition_id: str = "",
     overwrite_warning: str = "",
     correction_blocked: str = "",
+    ko_error: str = "",
     nur_aktive: str = "",
 ):
     nur_aktive_enabled = nur_aktive == "1"
@@ -2358,6 +2514,9 @@ def ergebnisse(
                     slot["undo_available"] = True
                     slot["undo_old_label"] = last_change["old_value"]
 
+    # Runden-Timer (Mensa): alle zeitgleich geplanten Spiele gemeinsam starten.
+    round_timer = build_round_timer(result_slots)
+
     if nur_aktive_enabled:
         result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
 
@@ -2371,6 +2530,7 @@ def ergebnisse(
         request=request, name="ergebnisse.html",
         context={
             "is_sixkampf": False,
+            "round_timer": round_timer,
             "result_columns": result_columns,
             "result_time_marks": result_time_marks,
             "nur_aktive": nur_aktive_enabled,
@@ -2387,6 +2547,13 @@ def ergebnisse(
             "overwrite_warning_prompt": overwrite_warning_prompt,
             "overwrite_warning_dismiss_url": overwrite_warning_dismiss_url,
             "correction_blocked": correction_blocked == "1",
+            "ko_error_message": get_ko_error_message(ko_error),
+            # Dauerhafter Besetzen-Button (ROADMAP Phase 4.7) - nicht doppelt
+            # neben dem einmaligen Banner direkt nach Abschluss der Phase.
+            "next_phase_action": (
+                None if phase_ready_prompt or overwrite_warning_prompt
+                else get_next_phase_action(selected_competition)
+            ),
         }
     )
 
@@ -2500,11 +2667,31 @@ def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(
     with get_conn() as conn:
         started_at_value = started_at or app_now_db_timestamp()
         conn.execute(
-            "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
+            "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL, timer_stopped_at = NULL WHERE id = ?",
             (started_at_value, slot_id),
         )
         conn.commit()
 
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
+
+
+@app.post("/slots/runde/starten")
+def start_round_slots(request: Request, slot_ids: List[int] = Form([])):
+    """Startet alle zeitgleich geplanten Spiele gemeinsam (Runden-Timer)."""
+    with get_conn() as conn:
+        start_round(conn, slot_ids, app_now_db_timestamp())
+        conn.commit()
+    referer = request.headers.get("referer") or "/ergebnisse"
+    return RedirectResponse(referer, status_code=303)
+
+
+@app.post("/slots/runde/timer-stoppen")
+def stop_round_slots(request: Request, slot_ids: List[int] = Form([])):
+    """Haelt den gemeinsamen Timer an; Spiele werden einzeln beendet."""
+    with get_conn() as conn:
+        stop_round_timer(conn, slot_ids, app_now_db_timestamp())
+        conn.commit()
     referer = request.headers.get("referer") or "/ergebnisse"
     return RedirectResponse(referer, status_code=303)
 
@@ -2527,7 +2714,7 @@ def unstart_slot(slot_id: int, request: Request):
     with get_conn() as conn:
         conn.execute("""
             UPDATE slots
-            SET status = 'geplant', started_at = NULL, finished_at = NULL
+            SET status = 'geplant', started_at = NULL, finished_at = NULL, timer_stopped_at = NULL
             WHERE id = ?
               AND status = 'läuft'
         """, (slot_id,))
@@ -2900,6 +3087,7 @@ def tabellen_csv_export(
 
 app.include_router(create_schedule_router(
     app_now_db_timestamp=app_now_db_timestamp,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
     app_today=lambda: app_now().date(),
     parse_competition_id=parse_competition_id,
     parse_jahrgang_filter=parse_jahrgang_filter,
@@ -2909,12 +3097,10 @@ app.include_router(create_schedule_router(
     get_teams_for_competition=get_teams_for_competition,
     calculate_sixkampf_station_rotation=calculate_sixkampf_station_rotation,
 ))
-app.include_router(create_quickstart_router(
-    app_now_display_time=app_now_display_time,
-))
-app.include_router(create_wizard_router(
-    app_now_display_time=app_now_display_time,
-))
+# Einrichtungsassistent vor der Startseite/den Weiterleitungen (wizard.py),
+# damit /assistent/vorlagen usw. nie als alte /assistent/{event_id}-URL gelten.
+app.include_router(create_assistent_router())
+app.include_router(create_wizard_router())
 app.include_router(create_competitions_router(
     app_now_db_timestamp=app_now_db_timestamp,
     app_today=lambda: app_now().date(),
@@ -2939,6 +3125,18 @@ app.include_router(create_events_router(
 ))
 
 
+app.include_router(create_zeitplan_router(
+    app_now=app_now,
+    app_now_db_timestamp=app_now_db_timestamp,
+))
+app.include_router(create_urkunden_router(
+    app_now_db_timestamp=app_now_db_timestamp,
+    calculate_tournament_points=calculate_tournament_points,
+    calculate_sixkampf_competition_ranking=calculate_sixkampf_competition_ranking,
+    calculate_event_overall_ranking=calculate_event_overall_ranking,
+))
+
+
 @app.get("/siegerehrung/{event_id}")
 def siegerehrung_public(request: Request, event_id: int):
     with get_conn() as conn:
@@ -2958,14 +3156,70 @@ def siegerehrung_public(request: Request, event_id: int):
     )
 
 
-@app.get("/beamer")
-def beamer(request: Request):
-    data = fetch_beamer_data()
-    data["refresh_seconds"] = get_beamer_refresh_seconds()
-    template_name = (
-        "beamer_modern.html"
-        if request.query_params.get("ui_theme") == "modern"
-        else "beamer.html"
+def fetch_beamer_seiten(ort=None, mit_tabellen=True):
+    """Daten fuer die Beamer-Ansicht (siehe beamer_service): Seiten je Ort,
+    Zwischenstaende und letzte Ergebnisse der laufenden und heutigen
+    Wettbewerbe."""
+    with get_conn() as conn:
+        # Neben den laufenden Wettbewerben zaehlen alle Wettbewerbe von heute
+        # (Veranstaltungsdatum oder eigenes Datum): so zeigt der Beamer schon
+        # vor dem ersten Spiel und in der Umbaupause, was als Naechstes kommt.
+        heute = app_now().date().isoformat()
+        active_comps = [dict(row) for row in conn.execute("""
+            SELECT c.id, c.name, c.sportart, c.event_id, c.location FROM competitions c
+            LEFT JOIN events e ON e.id = c.event_id
+            WHERE c.competition_type IN ('Turnier', 'Schulpokal')
+              AND (
+                c.status = 'läuft'
+                OR (
+                    c.status != 'archiviert'
+                    AND COALESCE(e.status, '') != 'archiviert'
+                    AND SUBSTR(COALESCE(NULLIF(TRIM(c.competition_date), ''), e.event_date, ''), 1, 10) = ?
+                )
+              )
+            ORDER BY c.jahrgang, c.name
+        """, (heute,)).fetchall()]
+        sixkampf_active = conn.execute("""
+            SELECT 1 FROM competitions
+            WHERE status = 'läuft' AND competition_type = 'Sechskampf' LIMIT 1
+        """).fetchone() is not None
+        event_ids = sorted({c["event_id"] for c in active_comps if c["event_id"] is not None})
+        programmpunkte = [p for event_id in event_ids for p in list_programmpunkte(conn, event_id)]
+        event_name = None
+        if len(event_ids) == 1:
+            row = conn.execute("SELECT name FROM events WHERE id = ?", (event_ids[0],)).fetchone()
+            event_name = row["name"] if row else None
+
+    slots = get_all_slots(competition_ids=[c["id"] for c in active_comps]) if active_comps else []
+    gesamtwertung, tabellen = [], []
+    if mit_tabellen:
+        for event_id in event_ids:
+            gesamtwertung += calculate_event_overall_ranking(event_id)
+        tabellen = [
+            {
+                "name": c["name"], "sportart": c["sportart"],
+                "ort": get_effective_competition_location(c),
+                "rows": calculate_table(c["id"]),
+            }
+            for c in active_comps
+        ]
+    data = baue_beamer_seiten(
+        slots, app_now(), gesamtwertung=gesamtwertung, tabellen=tabellen,
+        programmpunkte=programmpunkte, ort=ort, mit_tabellen=mit_tabellen,
     )
-    return templates.TemplateResponse(request=request, name=template_name, context=data)
+    data["event_name"] = event_name
+    data["sixkampf_active"] = sixkampf_active
+    data["has_active"] = bool(active_comps)
+    return data
+
+
+@app.get("/beamer")
+def beamer(request: Request, ort: str = "", tabellen: str = "", sekunden: str = ""):
+    selected_ort = normalize_competition_location(ort)
+    data = fetch_beamer_seiten(ort=selected_ort, mit_tabellen=tabellen not in ("0", "aus"))
+    data["selected_ort"] = selected_ort
+    data["refresh_seconds"] = get_beamer_refresh_seconds()
+    data["seiten_sekunden"] = min(max(int(sekunden), 5), 120) if sekunden.isdigit() else STANDARD_SEKUNDEN
+    data["uhrzeit"] = app_now().strftime("%H:%M:%S")
+    return templates.TemplateResponse(request=request, name="beamer.html", context=data)
 

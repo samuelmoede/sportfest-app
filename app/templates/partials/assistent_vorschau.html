@@ -1,0 +1,271 @@
+{# Zentrale Planungsvorschau des Einrichtungsassistenten: oben der Tagesplan
+   (gleiche Bausteine wie auf der Startseite), darunter genau ein
+   Wettbewerbsspielplan mit Pfeil-Navigation, daneben die Machbarkeitspruefung. #}
+{% set eintraege = plan.eintraege %}
+{% set total = eintraege|length %}
+{% set aktiv = wb_index if wb_index < total else 0 %}
+<section class="panel" id="vorschau">
+    <div class="section-heading">
+        <h2>Vorschau</h2>
+        <form method="post" id="vorschau-modus" action="/assistent/entwurf/{{ entwurf.id }}/vorschau">{{ modus_schalter("vorschau-modus") }}</form>
+    </div>
+
+    {% set offen = plan.offene_warnungen|length %}
+    {% set summe = plan.anzahl.blockierend + plan.anzahl.warnung + plan.anzahl.info %}
+    <div class="wiz-pruefung {% if plan.blockierend %}is-blocked{% elif offen %}is-open{% else %}is-ok{% endif %}" id="pruefung" role="status">
+        <strong>
+            {% if plan.blockierend %}Plan geprüft – {{ plan.anzahl.blockierend }} blockierend{% if offen %}, {{ offen }} zu klären{% endif %}
+            {% elif offen %}Plan geprüft – {{ offen }} Warnung{% if offen != 1 %}en{% endif %} zu klären
+            {% elif summe %}Plan geprüft – {{ summe }} Hinweis{% if summe != 1 %}e{% endif %}, übernehmbar
+            {% else %}Plan geprüft – keine Hinweise{% endif %}
+        </strong>
+        {% if plan.hinweise %}
+        <ul class="wiz-hinweise">
+            {% for h in plan.hinweise %}
+            <li class="wiz-hinweis stufe-{{ h.stufe }}{% if h.bestaetigt %} is-confirmed{% endif %}" id="hinweis-{{ h.id }}">
+                <strong>{% if h.stufe == "blockierend" %}{{ icon("octagon-x") }} Blockierend{% elif h.stufe == "warnung" %}{% if h.bestaetigt %}{{ icon("circle-check") }} Bewusst zugelassen{% else %}{{ icon("triangle-alert") }} Warnung{% endif %}{% else %}{{ icon("info") }} Info{% endif %}:</strong>
+                {% if h.wb %}{% for e in eintraege if e.wettbewerb.key == h.wb %}{% if loop.first %}<a href="?wb={{ eintraege.index(e) }}#plan" data-goto="{{ eintraege.index(e) }}">{{ h.titel }}</a>{% endif %}{% else %}{{ h.titel }}{% endfor %}{% else %}{{ h.titel }}{% endif %}
+                {% if h.text %}<p>{{ h.text }}</p>{% endif %}
+                <div class="wiz-vorschlaege">
+                    {% for v in h.vorschlaege %}
+                    <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/vorschlag">
+                        <input type="hidden" name="aktion" value="{{ v.aktion }}">
+                        <input type="hidden" name="werte" value="{{ json.dumps(v.werte) }}">
+                        <input type="hidden" name="wb" value="{{ aktiv }}">
+                        <button type="submit" {% if v.aktion == "wb_modus" %}data-confirm="Turniermodus wirklich ändern?"{% endif %}>{{ v.label }}</button>
+                    </form>
+                    {% endfor %}
+                    {% if h.bestaetigbar and not h.bestaetigt %}
+                    <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/hinweis/bestaetigen">
+                        <input type="hidden" name="kennung" value="{{ h.id }}">
+                        <input type="hidden" name="wb" value="{{ aktiv }}">
+                        <button type="submit">Bewusst zulassen</button>
+                    </form>
+                    {% elif h.bestaetigt %}
+                    <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/hinweis/zuruecknehmen">
+                        <input type="hidden" name="kennung" value="{{ h.id }}">
+                        <input type="hidden" name="wb" value="{{ aktiv }}">
+                        <button type="submit" class="secondary">Zurücknehmen</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+
+    <h3>Tagesablauf</h3>
+    {% set timeline = plan.timeline %}
+    {% if timeline %}
+    <div class="day-timeline-wrapper">
+        <div class="day-timeline">
+            <div class="day-timeline-header">
+                <div class="day-timeline-corner"></div>
+                {% for col in timeline.columns %}<p class="day-timeline-column-label">{{ col.label.replace("Jahrgang ", "JG ") }}</p>{% endfor %}
+            </div>
+            <div class="day-timeline-body" style="--day-timeline-total-minutes: {{ timeline.total_minutes }};">
+                <div class="day-timeline-axis">
+                    {% for mark in timeline.hour_marks %}<div class="day-timeline-hour" style="top: {{ mark.top_percent }}%;">{{ mark.label }}</div>{% endfor %}
+                </div>
+                <div class="day-timeline-columns">
+                    {% for col in timeline.columns %}
+                    <div class="day-timeline-column-body">
+                        {% for mark in timeline.hour_marks %}<div class="day-timeline-gridline" style="top: {{ mark.top_percent }}%;"></div>{% endfor %}
+                        {% for item in col["items"] %}
+                        {% if item.is_programm %}
+                        <div class="day-timeline-block day-timeline-programm segment-{{ item.kind }}"
+                             style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; min-height: {{ item.lines|length * 14 + 2 }}px; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;">
+                            {% for line in item.lines %}<span class="segment-{{ line.kind }}"><time>{{ line.time }}</time> <strong>{{ line.name }}</strong></span>{% endfor %}
+                        </div>
+                        {% else %}
+                        <button type="button" class="day-timeline-block wiz-timeline-block sport-{{ item.farbe|default(0) }}" data-goto="{{ item.wb_index }}"
+                                style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
+                                aria-label="Spielplan {{ item.name }} anzeigen">
+                            <strong>{{ item.name }}</strong>
+                            {% if item.location %}<span>{{ item.location }}</span>{% endif %}
+                            <time>{{ item.display_time }}</time>
+                        </button>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="muted">Noch nichts zu zeigen – bitte Wettbewerbe und Zeitblöcke anlegen.</p>
+    {% endif %}
+
+    <h3 id="plan">Spielplan je Wettbewerb</h3>
+    {% if total %}
+    <div class="wiz-carousel" data-carousel data-total="{{ total }}" data-aktiv="{{ aktiv }}">
+        <div class="wiz-carousel-head">
+            <button type="button" class="wiz-arrow" data-carousel-prev aria-label="Vorheriger Wettbewerb">{{ icon("chevron-left") }}</button>
+            <label class="muted" for="wiz-wb-select">Wettbewerb</label>
+            <select id="wiz-wb-select" data-carousel-select>
+                {% for e in eintraege %}<option value="{{ loop.index0 }}" {% if loop.index0 == aktiv %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+            </select>
+            <span class="wiz-badge" data-carousel-pos aria-live="polite">{{ aktiv + 1 }} von {{ total }}</span>
+            <button type="button" class="wiz-arrow" data-carousel-next aria-label="Nächster Wettbewerb">{{ icon("chevron-right") }}</button>
+        </div>
+        {% for e in eintraege %}
+        {% set i = loop.index0 %}
+        {% set wb = e.wettbewerb %}
+        <section class="wiz-card wiz-sport sport-{{ e.farbe|default(0) }}" data-carousel-item="{{ i }}" {% if i != aktiv %}hidden{% endif %} aria-label="{{ e.name }}">
+            <h3>{{ e.name }}</h3>
+            <p class="muted">
+                {{ wb.sportart }} · Jahrgang {{ wb.jahrgaenge|join(" + ") }}{% if wb.zusammengelegt %} <span class="wiz-badge is-merged">gemeinsamer Sieger</span>{% endif %}
+                · {{ wb.teams|map(attribute="name")|join(", ") }}<br>
+                {{ wb.einstellungen.ort }} · Zeitblock {{ e.block.start }}–{{ e.block.ende }} · {{ e.block.spielzeit }} Min. Spielzeit, {{ e.block.wechselzeit }} Min. Wechsel
+                {% if wb.einstellungen.art != "Sechskampf" %} · {{ modi.get(e.modus, "") }}{% if wb.einstellungen.modus_quelle == "vorlage" %} (aus Vorlage){% elif not wb.einstellungen.modus %} (Vorschlag){% endif %}{% endif %}
+            </p>
+            {% if wb.einstellungen.art == "Sechskampf" %}
+            <table class="wiz-table">
+                <thead><tr><th>#</th><th>Disziplin</th><th>Zeitraum</th></tr></thead>
+                <tbody>
+                {% for d in e.disziplinen %}<tr><td>{{ loop.index }}</td><td>{{ d }}</td><td>{{ e.block.start }}–{{ e.block.ende }}</td></tr>
+                {% else %}<tr><td colspan="3" class="muted">Noch keine Disziplinen eingetragen.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            {% set raster = e.raster %}
+            <div class="wiz-plan-scroll">
+            <table class="wiz-table wiz-raster" style="--wiz-raster-felder: {{ raster.felder|length or 1 }};">
+                <thead><tr><th class="wiz-raster-zeit" scope="col">Zeit</th>{% for feld in raster.felder %}<th scope="col">{{ feld }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                {% for z in raster.zeilen %}
+                {% if z.punkt %}
+                <tr class="wiz-raster-punkt"><th class="wiz-raster-zeit" scope="row">{{ z.zeit }}</th><td colspan="{{ raster.felder|length or 1 }}">{{ z.punkt.titel }}{% if z.punkt.art == "puffer" %} (Puffer){% endif %}</td></tr>
+                {% else %}
+                <tr>
+                    <th class="wiz-raster-zeit" scope="row"><span class="wiz-raster-runde">{{ z.runde }}.</span> {{ z.zeit }}</th>
+                    {% for zelle in z.zellen %}
+                    <td class="{% if not zelle %}is-frei{% elif zelle|length > 1 %}is-doppelt{% else %}is-belegt{% endif %}">
+                        {% for s in zelle %}
+                        <div class="wiz-raster-spiel">{% if s.team_a %}{{ s.team_a }} – {{ s.team_b }}{% else %}<span class="muted">{{ s.note }}</span>{% endif %}{% if s.phase != "Gruppenphase" %} <span class="wiz-badge">{{ s.phase }}</span>{% endif %}</div>
+                        {% else %}<span class="muted" aria-label="frei">–</span>{% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endif %}
+                {% else %}
+                <tr><td colspan="{{ (raster.felder|length) + 1 }}" class="muted">Keine Spiele geplant – siehe Hinweise oben.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endif %}
+            {% for show in plan.showspiele if show.gueltig and e.id in show.quellen %}
+            <p><span class="wiz-badge is-show">Showspiel ohne Wertung</span> {{ show.start }}: Sieger {{ show.namen|join(" gegen Sieger ") }}</p>
+            {% endfor %}
+            <button type="button" data-dialog-open="dialog-{{ i }}">Bearbeiten</button>
+            <dialog class="wiz-dialog" id="dialog-{{ i }}" aria-labelledby="dialog-titel-{{ i }}">
+                <form method="post" action="/assistent/entwurf/{{ entwurf.id }}/bearbeiten">
+                    <h3 id="dialog-titel-{{ i }}">{{ e.name }} anpassen</h3>
+                    <input type="hidden" name="wb" value="{{ i }}">
+                    <input type="hidden" name="wb_key" value="{{ wb.key }}">
+                    <input type="hidden" name="block_id" value="{{ e.block.id }}">
+                    <p class="muted">Zeitblock {{ e.block.ort }} – gilt für alle Wettbewerbe dieses Blocks.</p>
+                    <div class="wiz-grid">
+                        <label>Beginn<input type="time" name="start" value="{{ e.block.start }}" required></label>
+                        <label>Ende<input type="time" name="ende" value="{{ e.block.ende }}" required></label>
+                        <label>Spielzeit (Min.)<input type="number" min="1" name="spielzeit" value="{{ e.block.spielzeit }}"></label>
+                        <label>Wechselzeit (Min.)<input type="number" min="0" name="wechselzeit" value="{{ e.block.wechselzeit }}"></label>
+                        <label>Reihenfolge<select name="ablauf">{% for key, label in ablaeufe.items() %}<option value="{{ key }}" {% if key == e.block.ablauf %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+                        {% if wb.einstellungen.art != "Sechskampf" %}
+                        <label>Turniermodus
+                            <select name="modus">
+                                <option value="" {% if not wb.einstellungen.modus %}selected{% endif %}>automatisch (Vorschlag)</option>
+                                {% for key, label in modi.items() %}
+                                {% if key != "hin_rueckrunde" or ist_schulpokal or wb.einstellungen.modus == key %}
+                                <option value="{{ key }}" {% if key == wb.einstellungen.modus %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </label>
+                        {% endif %}
+                    </div>
+                    {% if wb.einstellungen.art != "Sechskampf" %}
+                    <input type="hidden" name="felder_gesendet" value="1">
+                    <p class="muted" style="margin: 8px 0 2px;">Felder für diesen Wettbewerb (keins = alle):</p>
+                    <div class="wiz-chips">
+                        {% for court in stamm.courts if court.ort == wb.einstellungen.ort and court.active %}
+                        <label><input type="checkbox" name="felder" value="{{ court.id }}" {% if court.id in (wb.einstellungen.felder or []) %}checked{% endif %}> {{ court.name }}</label>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="wiz-actions">
+                        <button type="button" class="secondary" data-dialog-close>Abbrechen</button>
+                        <button type="submit" class="green">Vorschlag neu berechnen</button>
+                    </div>
+                </form>
+            </dialog>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Wettbewerbe geplant.</p>
+    {% endif %}
+
+    <div class="wiz-actions">
+        <a class="button secondary" href="/assistent/entwurf/{{ entwurf.id }}/zeitplan">Zurück</a>
+        <a class="button green" href="/assistent/entwurf/{{ entwurf.id }}/abschluss">Weiter zum Abschluss</a>
+    </div>
+</section>
+<script>
+(function () {
+    var carousel = document.querySelector("[data-carousel]");
+    function show(index) {
+        if (!carousel) return;
+        var total = Number(carousel.dataset.total);
+        if (!total) return;
+        index = ((index % total) + total) % total;
+        carousel.dataset.aktiv = index;
+        carousel.querySelectorAll("[data-carousel-item]").forEach(function (item) {
+            item.hidden = Number(item.dataset.carouselItem) !== index;
+        });
+        carousel.querySelector("[data-carousel-pos]").textContent = (index + 1) + " von " + total;
+        carousel.querySelector("[data-carousel-select]").value = String(index);
+        document.querySelectorAll(".wiz-timeline-block").forEach(function (block) {
+            block.classList.toggle("is-selected", Number(block.dataset.goto) === index);
+        });
+        document.querySelectorAll("input[name=wb]").forEach(function (input) { input.value = index; });
+        try { history.replaceState(null, "", "?wb=" + index + location.hash); } catch (e) {}
+    }
+    if (carousel) {
+        carousel.querySelector("[data-carousel-prev]").addEventListener("click", function () { show(Number(carousel.dataset.aktiv) - 1); });
+        carousel.querySelector("[data-carousel-next]").addEventListener("click", function () { show(Number(carousel.dataset.aktiv) + 1); });
+        carousel.querySelector("[data-carousel-select]").addEventListener("change", function (event) { show(Number(event.target.value)); });
+        document.addEventListener("keydown", function (event) {
+            if (event.target.closest("input, select, textarea, dialog")) return;
+            if (event.key === "ArrowLeft") { show(Number(carousel.dataset.aktiv) - 1); }
+            if (event.key === "ArrowRight") { show(Number(carousel.dataset.aktiv) + 1); }
+        });
+        show(Number(carousel.dataset.aktiv));
+    }
+    document.querySelectorAll("[data-goto]").forEach(function (el) {
+        el.addEventListener("click", function (event) {
+            if (el.dataset.goto === "" || el.dataset.goto === "None") return;
+            event.preventDefault();
+            show(Number(el.dataset.goto));
+            document.getElementById("plan").scrollIntoView({behavior: "smooth", block: "start"});
+        });
+    });
+    document.querySelectorAll("[data-dialog-open]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            var dialog = document.getElementById(button.dataset.dialogOpen);
+            if (dialog && dialog.showModal) dialog.showModal();
+        });
+    });
+    document.querySelectorAll("[data-dialog-close]").forEach(function (button) {
+        button.addEventListener("click", function () { button.closest("dialog").close(); });
+    });
+    document.querySelectorAll("[data-confirm]").forEach(function (button) {
+        button.addEventListener("click", function (event) {
+            if (!window.confirm(button.dataset.confirm)) event.preventDefault();
+        });
+    });
+})();
+</script>
