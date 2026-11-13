@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.database import get_conn
 from app.routes.teams import normalize_jahrgang
+from app.services.competition_name_service import competition_name_vergeben
 from app.services.event_status_service import (
     fetch_events_with_competition_counts,
     resolve_selected_event_id,
@@ -226,11 +227,7 @@ def create_router(
 
         with get_conn() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            duplicate_name = conn.execute(
-                "SELECT 1 FROM competitions WHERE name = ?",
-                (name_value,)
-            ).fetchone()
-            if duplicate_name:
+            if competition_name_vergeben(conn, name_value, event_id_value):
                 return RedirectResponse("/wettbewerbe", status_code=303)
             if event_id_value is not None and conn.execute(
                 "SELECT 1 FROM events WHERE id = ?", (event_id_value,)
@@ -312,7 +309,7 @@ def create_router(
                     punkterunde_grosses_finale, punkterunde_kleines_finale
                 ) VALUES (?, ?, ?, 'geplant', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                get_unique_competition_name(conn, competition["name"]),
+                get_unique_competition_name(conn, competition["name"], competition["event_id"]),
                 competition["sportart"], competition["jahrgang"], competition["points_win"],
                 competition["points_draw"], competition["points_loss"],
                 competition["points_first_place"], competition["placement_points"],
@@ -409,11 +406,7 @@ def create_router(
             ).fetchone() is None:
                 return RedirectResponse("/wettbewerbe", status_code=303)
             conn.execute("BEGIN IMMEDIATE")
-            duplicate_name = conn.execute(
-                "SELECT 1 FROM competitions WHERE name = ? AND id != ?",
-                (name_value, competition_id)
-            ).fetchone()
-            if duplicate_name:
+            if competition_name_vergeben(conn, name_value, event_id_value, competition_id):
                 return RedirectResponse("/wettbewerbe", status_code=303)
             if event_id_value is not None and conn.execute(
                 "SELECT 1 FROM events WHERE id = ?", (event_id_value,)

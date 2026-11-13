@@ -35,6 +35,7 @@ import copy
 import json
 from datetime import datetime
 
+from app.services.competition_name_service import freier_competition_name
 from app.services.jahrgangsfinale_service import create_jahrgangsfinale, parse_final_source_ids
 from app.services.programmpunkte_service import create_programmpunkt, list_programmpunkte
 from app.services.schedule_conflict_service import (
@@ -968,17 +969,6 @@ def offene_entwuerfe(conn):
 # Uebernehmen
 # ---------------------------------------------------------------------------
 
-def _unique_name(conn, base_name, ausser=None):
-    candidate = base_name
-    suffix = 2
-    while conn.execute(
-        "SELECT 1 FROM competitions WHERE name = ? AND id != ?", (candidate, ausser or -1)
-    ).fetchone():
-        candidate = f"{base_name} ({suffix})"
-        suffix += 1
-    return candidate
-
-
 def db_typ_und_modus(daten, modus):
     """Wizard-Modus -> (competition_type, tournament_mode). "Jeder gegen
     jeden" ist beim Schulpokal ein Schulpokal-Wettbewerb (Wertung je
@@ -1066,7 +1056,7 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
             competition_type, tournament_mode = db_typ_und_modus(daten, eintrag["modus"])
         jahrgang = wb["jahrgaenge"][0]
         werte = (
-            _unique_name(conn, eintrag["name"], ausser=vorhanden), wb["sportart"],
+            freier_competition_name(conn, eintrag["name"], event_id, ausser_id=vorhanden), wb["sportart"],
             int(jahrgang) if jahrgang.isdigit() else jahrgang,
             einstellungen["punkte_sieg"], einstellungen["punkte_unentschieden"],
             max(len(wb["teams"]), 1), event_id, competition_type, tournament_mode,

@@ -27,6 +27,7 @@ from app.routes.wizard import create_router as create_wizard_router
 from app.routes.assistent import create_router as create_assistent_router
 from app.services.navigation_service import build_navigation, nav_icon_svg
 from app.services.icon_service import icon_svg
+from app.services.competition_name_service import competition_name_vergeben
 from markupsafe import Markup
 from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
 from app.routes.zeitplan import create_router as create_zeitplan_router
@@ -923,11 +924,13 @@ def get_day_schedule_for_competitions(competitions: list, schedule_date):
     )
 
 
-def get_unique_competition_name(conn, original_name: str):
+def get_unique_competition_name(conn, original_name: str, event_id=None):
+    """Name fuer die Kopie eines Wettbewerbs - eindeutig innerhalb der
+    Veranstaltung event_id (Namen sind nur je Veranstaltung eindeutig)."""
     base_name = f"{original_name} (Kopie)"
     candidate = base_name
     copy_number = 2
-    while conn.execute("SELECT 1 FROM competitions WHERE name = ?", (candidate,)).fetchone():
+    while competition_name_vergeben(conn, candidate, event_id):
         candidate = f"{base_name} {copy_number}"
         copy_number += 1
     return candidate
