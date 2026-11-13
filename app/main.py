@@ -52,6 +52,7 @@ from app.services.event_status_service import (
 )
 from app.services.csrf_service import UNSAFE_METHODS as CSRF_UNSAFE_METHODS, is_request_origin_allowed
 from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
+from app.services.feldansicht_service import build_feldansicht
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
@@ -101,6 +102,7 @@ from app.services.settings_service import (
     is_security_enabled,
     render_rich_text_html,
 )
+from app.services.public_cache_service import public_cache_control
 from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     end_user_session,
@@ -133,6 +135,11 @@ if not SESSION_SECRET_KEY:
 SESSION_HTTPS_ONLY = os.getenv(
     "SPORTFEST_SESSION_HTTPS_ONLY", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
+
+# Merkt sich je Geraet das zuletzt gewaehlte Feld der Feldansicht.
+FELDANSICHT_COOKIE = "feldansicht_feld"
+
+SESSION_COOKIE_NAME = "sportfest_session"
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
@@ -259,11 +266,35 @@ app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
-    session_cookie="sportfest_session",
+    session_cookie=SESSION_COOKIE_NAME,
     max_age=SESSION_MAX_AGE_SECONDS,
     same_site="lax",
     https_only=SESSION_HTTPS_ONLY,
 )
+
+class PublicCacheMiddleware(BaseHTTPMiddleware):
+    """Erlaubt einem vorgeschalteten Cache (z.B. Cloudflare), oeffentliche
+    Leseseiten fuer Besucher ohne Anmeldung kurz zwischenzuspeichern (siehe
+    app/services/public_cache_service.py)."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        has_session = (
+            SESSION_COOKIE_NAME in request.cookies
+            or "set-cookie" in response.headers
+        )
+        cache_control = public_cache_control(
+            request.method, request.url.path, response.status_code, has_session
+        )
+        if cache_control:
+            response.headers["Cache-Control"] = cache_control
+            response.headers["Vary"] = "Cookie"
+        return response
+
+
+# Ganz aussen, damit auch ein von der Session-Middleware gesetztes Cookie
+# sichtbar ist.
+app.add_middleware(PublicCacheMiddleware)
 
 APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
 
@@ -2217,6 +2248,141 @@ def _group_slots_by_court(slots, courts):
     return columns
 
 
+def annotate_result_slots(result_slots):
+    """Ergaenzt Spiele der Ergebniseingabe um Patt-Warnung, ungeklaertes
+    Unentschieden, Korrektursperre und "Rueckgaengig" - gemeinsam genutzt vom
+    Raster (/ergebnisse) und der Feldansicht (/ergebnisse/feld)."""
+    group_pending_counts = {}
+    for slot in result_slots:
+        if slot["phase"] == "Gruppenphase" and slot["gruppe"] and slot["status"] != "beendet":
+            key = (slot["competition_id"], slot["gruppe"])
+            group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
+
+    beendet_slot_ids = [slot["id"] for slot in result_slots if slot["status"] == "beendet"]
+    last_result_changes = {}
+    if beendet_slot_ids:
+        placeholders = ", ".join("?" for _ in beendet_slot_ids)
+        with get_conn() as conn:
+            for row in conn.execute(
+                f"""
+                SELECT entity_id, action, old_value, new_value
+                FROM change_log
+                WHERE entity_type = 'slot_result' AND entity_id IN ({placeholders})
+                ORDER BY id
+                """,
+                beendet_slot_ids,
+            ).fetchall():
+                # ueberschreibt bei mehreren Eintraegen je Slot bewusst mit dem
+                # zuletzt protokollierten - nur der neueste Stand entscheidet,
+                # ob "Rueckgaengig" gerade eine echte Korrektur zuruecknehmen wuerde.
+                last_result_changes[row["entity_id"]] = row
+
+    for slot in result_slots:
+        slot["group_patt_risk"] = None
+        if (
+            slot["phase"] == "Gruppenphase"
+            and slot["gruppe"]
+            and slot["team_a"]
+            and slot["team_b"]
+            and slot["status"] != "beendet"
+            and group_pending_counts.get((slot["competition_id"], slot["gruppe"])) == 1
+        ):
+            slot["group_patt_risk"] = find_group_patt_risk(
+                slot["competition_id"], slot["gruppe"], slot["team_a"], slot["team_b"]
+            )
+        slot["is_draw_unresolved"] = (
+            slot["phase"] in KO_DECISIVE_PHASES
+            and slot["score_a"] is not None
+            and slot["score_a"] == slot["score_b"]
+        )
+        slot["correction_locked"] = False
+        slot["undo_available"] = False
+        slot["undo_old_label"] = None
+        if slot["status"] == "beendet":
+            slot["correction_locked"] = is_next_phase_started(
+                slot["competition_id"], slot["phase"]
+            )
+            last_change = last_result_changes.get(slot["id"])
+            if (
+                not slot["correction_locked"]
+                and last_change is not None
+                and last_change["action"] == "Ergebnis nachträglich korrigiert"
+                and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
+            ):
+                old_a, old_b = parse_score(last_change["old_value"])
+                if old_a is not None and old_b is not None:
+                    slot["undo_available"] = True
+                    slot["undo_old_label"] = last_change["old_value"]
+
+
+@app.get("/ergebnisse/feld")
+def ergebnisse_feld(
+    request: Request,
+    ort: str = "",
+    court_id: str = "",
+    phase_ready: str = "",
+    phase_ready_competition_id: str = "",
+    correction_blocked: str = "",
+):
+    """Feldansicht fuers Handy: ein Feld, beendete Spiele als Zeile, das
+    laufende gross. Gespeichert wird ueber dieselben /slot/...-Routen wie im
+    Raster."""
+    filter_state = build_results_filter_state(
+        get_active_competitions(),
+        event_id_value="",
+        competition_id_value="",
+        event_filter_present=False,
+        today=app_now().date(),
+    )
+    visible_competition_ids = filter_state["visible_competition_ids"]
+    slots = [
+        slot for slot in get_all_slots(None)
+        if slot["competition_id"] in visible_competition_ids
+        and slot["slot_typ"] == "Spiel"
+    ]
+    annotate_result_slots(slots)
+    with get_conn() as conn:
+        courts = conn.execute("SELECT * FROM courts WHERE active = 1").fetchall()
+
+    # Ohne ausdrueckliche Auswahl gilt das zuletzt auf diesem Geraet gewaehlte
+    # Feld: wer an Platte 3 steht, waehlt einmal und landet danach immer dort.
+    selected_court_id = parse_filter_id(court_id)
+    selected_ort = normalize_competition_location(ort)
+    if selected_court_id is None and selected_ort is None:
+        selected_court_id = parse_filter_id(request.cookies.get(FELDANSICHT_COOKIE, ""))
+
+    ansicht = build_feldansicht(slots, courts, ort=selected_ort, court_id=selected_court_id)
+    feld = ansicht["feld"]
+
+    phase_ready_url = None
+    ready_competition_id = parse_filter_id(phase_ready_competition_id)
+    if phase_ready in ("Halbfinale", "Finale", "FinaleAusTabelle") and ready_competition_id is not None:
+        phase_ready_url = build_results_redirect_url(
+            "",
+            competition_id=ready_competition_id,
+            phase_ready=phase_ready,
+            phase_ready_competition_id=ready_competition_id,
+        )
+
+    response = templates.TemplateResponse(
+        request=request, name="ergebnisse_feld.html",
+        context={
+            "ansicht": ansicht,
+            "results_return_to": (
+                f"/ergebnisse/feld?court_id={feld['id']}" if feld else "/ergebnisse/feld"
+            ),
+            "phase_ready_url": phase_ready_url,
+            "correction_blocked": correction_blocked == "1",
+        },
+    )
+    if feld is not None:
+        response.set_cookie(
+            FELDANSICHT_COOKIE, str(feld["id"]),
+            max_age=60 * 60 * 24 * 30, samesite="lax", path="/ergebnisse",
+        )
+    return response
+
+
 @app.get("/ergebnisse")
 def ergebnisse(
     request: Request,
@@ -2452,67 +2618,7 @@ def ergebnisse(
         key=lambda slot: (slot["startzeit"], slot["id"]),
     )
 
-    group_pending_counts = {}
-    for slot in result_slots:
-        if slot["phase"] == "Gruppenphase" and slot["gruppe"] and slot["status"] != "beendet":
-            key = (slot["competition_id"], slot["gruppe"])
-            group_pending_counts[key] = group_pending_counts.get(key, 0) + 1
-
-    beendet_slot_ids = [slot["id"] for slot in result_slots if slot["status"] == "beendet"]
-    last_result_changes = {}
-    if beendet_slot_ids:
-        placeholders = ", ".join("?" for _ in beendet_slot_ids)
-        with get_conn() as conn:
-            for row in conn.execute(
-                f"""
-                SELECT entity_id, action, old_value, new_value
-                FROM change_log
-                WHERE entity_type = 'slot_result' AND entity_id IN ({placeholders})
-                ORDER BY id
-                """,
-                beendet_slot_ids,
-            ).fetchall():
-                # ueberschreibt bei mehreren Eintraegen je Slot bewusst mit dem
-                # zuletzt protokollierten - nur der neueste Stand entscheidet,
-                # ob "Rueckgaengig" gerade eine echte Korrektur zuruecknehmen wuerde.
-                last_result_changes[row["entity_id"]] = row
-
-    for slot in result_slots:
-        slot["group_patt_risk"] = None
-        if (
-            slot["phase"] == "Gruppenphase"
-            and slot["gruppe"]
-            and slot["team_a"]
-            and slot["team_b"]
-            and slot["status"] != "beendet"
-            and group_pending_counts.get((slot["competition_id"], slot["gruppe"])) == 1
-        ):
-            slot["group_patt_risk"] = find_group_patt_risk(
-                slot["competition_id"], slot["gruppe"], slot["team_a"], slot["team_b"]
-            )
-        slot["is_draw_unresolved"] = (
-            slot["phase"] in KO_DECISIVE_PHASES
-            and slot["score_a"] is not None
-            and slot["score_a"] == slot["score_b"]
-        )
-        slot["correction_locked"] = False
-        slot["undo_available"] = False
-        slot["undo_old_label"] = None
-        if slot["status"] == "beendet":
-            slot["correction_locked"] = is_next_phase_started(
-                slot["competition_id"], slot["phase"]
-            )
-            last_change = last_result_changes.get(slot["id"])
-            if (
-                not slot["correction_locked"]
-                and last_change is not None
-                and last_change["action"] == "Ergebnis nachträglich korrigiert"
-                and last_change["new_value"] == format_score(slot["score_a"], slot["score_b"])
-            ):
-                old_a, old_b = parse_score(last_change["old_value"])
-                if old_a is not None and old_b is not None:
-                    slot["undo_available"] = True
-                    slot["undo_old_label"] = last_change["old_value"]
+    annotate_result_slots(result_slots)
 
     # Runden-Timer (Mensa): alle zeitgleich geplanten Spiele gemeinsam starten.
     round_timer = build_round_timer(result_slots)
