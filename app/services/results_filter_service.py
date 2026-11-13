@@ -111,6 +111,9 @@ def get_default_result_event_id(events, today):
 
 
 _RESULTS_REDIRECT_PATH = "/ergebnisse"
+# Die Feldansicht (Handy) speichert ueber dieselben /slot/...-Routen und will
+# danach wieder bei sich landen statt im Raster.
+_RESULTS_FELD_PATH = "/ergebnisse/feld"
 _RESULTS_TRANSIENT_PARAMS = {
     "saved_team_id", "saved_at", "phase_ready", "phase_ready_competition_id",
     "overwrite_warning", "correction_blocked", "ko_error",
@@ -119,6 +122,7 @@ _RESULTS_TRANSIENT_PARAMS = {
 
 def build_results_redirect_url(return_to="", **updates):
     params = {}
+    target_path = _RESULTS_REDIRECT_PATH
     raw_return_to = str(return_to or "")
     if (
         raw_return_to
@@ -130,8 +134,9 @@ def build_results_redirect_url(return_to="", **updates):
         if (
             not parts.scheme
             and not parts.netloc
-            and parts.path == _RESULTS_REDIRECT_PATH
+            and parts.path in (_RESULTS_REDIRECT_PATH, _RESULTS_FELD_PATH)
         ):
+            target_path = parts.path
             params = {
                 key: value
                 for key, value in parse_qsl(parts.query, keep_blank_values=True)
@@ -149,8 +154,8 @@ def build_results_redirect_url(return_to="", **updates):
 
     query = urlencode(params)
     if query:
-        return f"{_RESULTS_REDIRECT_PATH}?{query}"
-    return _RESULTS_REDIRECT_PATH
+        return f"{target_path}?{query}"
+    return target_path
 
 
 def build_results_filter_state(

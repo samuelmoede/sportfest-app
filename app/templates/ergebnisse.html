@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+{% if not is_sixkampf and result_columns %}
+{# Am Handy ist die Feldansicht die bessere Eingabe. Nur der Aufruf ohne
+   Filter (Menue) wechselt dorthin; jeder Link mit Parametern, auch
+   "Alle Felder" (?ansicht=raster), bleibt im Raster. #}
+<script>
+if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) {
+    window.location.replace('/ergebnisse/feld');
+}
+</script>
+{% endif %}
 <header class="page-header">
     <div>
         <p class="eyebrow">Live-Erfassung</p>
@@ -14,6 +24,7 @@
         </p>
     </div>
     {% if not is_sixkampf %}
+    <a class="button secondary" href="/ergebnisse/feld">Feldansicht (Handy)</a>
     <label class="nur-aktive-toggle">
         <input type="checkbox" id="nur-aktive-checkbox" {% if nur_aktive %}checked{% endif %}>
         <span>Nur aktive anzeigen</span>

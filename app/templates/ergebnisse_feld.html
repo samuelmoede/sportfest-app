@@ -1,0 +1,849 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro phasen_name(s) -%}
+    {%- if s.phase == "Gruppenphase" -%}
+        {%- if s.gruppe %}Gruppe {{ s.gruppe }}{% else %}Gruppenphase{% endif -%}
+    {%- elif s.phase in ("Spiel um Platz 3", "Kleines Finale", "Platzierung") -%}
+        Spiel um Platz 3
+    {%- else -%}
+        {{ s.phase or "" }}
+    {%- endif -%}
+{%- endmacro %}
+
+{# Zwei Zeilen "Team  [-] [Zahl] [+]". Die Zahl ist ein echtes Eingabefeld:
+   Tippen auf +/- reicht bei Zweifelderball, bei 25:23 tippt man die Zahl. #}
+{% macro spielstand(s, gesperrt=false) %}
+<div class="fa-stand">
+    {% for seite, team, wert in (("a", s.team_a, s.score_a), ("b", s.team_b, s.score_b)) %}
+    <div class="fa-seite">
+        <span class="fa-team">{{ team or "?" }}</span>
+        <button type="button" class="fa-schritt" data-schritt="-1" aria-label="{{ team or 'Team' }}: einen Punkt weniger">&minus;</button>
+        <input class="fa-zahl" type="number" inputmode="numeric" min="0" name="score_{{ seite }}"
+               value="{{ wert if wert is not none else 0 }}" data-original="{{ wert if wert is not none else 0 }}"
+               aria-label="Punkte {{ team or 'Team' }}">
+        <button type="button" class="fa-schritt" data-schritt="1" aria-label="{{ team or 'Team' }}: einen Punkt mehr">+</button>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+<div class="fa-root" data-return-to="{{ results_return_to }}">
+<div id="feld-inhalt">
+    <header class="fa-kopf">
+        <div>
+            <p class="eyebrow">Ergebniseingabe</p>
+            <h1>{% if ansicht.feld %}{{ ansicht.feld.name }}{% else %}Feldansicht{% endif %}</h1>
+        </div>
+        <a class="fa-raster-link" href="/ergebnisse?ansicht=raster">{{ icon("layout-grid") }} Alle Felder</a>
+    </header>
+
+    {% if correction_blocked %}
+    <p class="fa-hinweis fa-hinweis-rot">
+        <strong>Diese Korrektur ist nicht mehr möglich.</strong>
+        Die nächste Phase hat bereits begonnen, das gespeicherte Ergebnis bleibt.
+    </p>
+    {% endif %}
+    {% if phase_ready_url %}
+    <p class="fa-hinweis">
+        <strong>Alle Spiele dieser Phase sind gespeichert.</strong>
+        <a href="{{ phase_ready_url }}">Nächste Phase besetzen</a>
+    </p>
+    {% endif %}
+
+    {% if not ansicht.feld %}
+    <section class="panel">
+        <p class="muted">Heute sind keine Spiele auf einem Feld geplant.</p>
+        <a class="button secondary" href="/ergebnisse?ansicht=raster">Zur vollständigen Ergebniseingabe</a>
+    </section>
+    {% else %}
+
+    {% if ansicht.orte|length > 1 %}
+    <nav class="fa-auswahl fa-orte" aria-label="Ort">
+        {% for o in ansicht.orte %}
+        <a href="/ergebnisse/feld?ort={{ o.name|urlencode }}" class="fa-chip{% if o.gewaehlt %} aktiv{% endif %}"
+           {% if o.gewaehlt %}aria-current="true"{% endif %}>{{ o.name }}</a>
+        {% endfor %}
+    </nav>
+    {% endif %}
+    <nav class="fa-auswahl fa-felder" aria-label="Feld">
+        {% for f in ansicht.felder %}
+        <a href="/ergebnisse/feld?court_id={{ f.id }}" class="fa-chip{% if f.gewaehlt %} aktiv{% endif %}"
+           {% if f.gewaehlt %}aria-current="true"{% endif %}>
+            {%- if f.laeuft %}<span class="fa-punkt" title="Spiel läuft"></span>{% endif -%}
+            {{ f.name }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    {% macro beendet_zeile(s) %}
+    <article class="fa-fertig" data-slot="{{ s.id }}">
+        <div class="fa-fertig-zeile">
+            <span class="fa-zeit">{{ s.startzeit }}</span>
+            <span class="fa-paarung">
+                <span class="fa-name">{{ s.team_a or "?" }}</span>
+                <strong class="fa-ergebnis">{{ s.score_a if s.score_a is not none else "–" }} : {{ s.score_b if s.score_b is not none else "–" }}</strong>
+                <span class="fa-name">{{ s.team_b or "?" }}</span>
+            </span>
+            {% if s.correction_locked %}
+            <span class="fa-gesperrt" title="Nicht mehr korrigierbar, die nächste Phase hat begonnen">{{ icon("lock") }}</span>
+            {% else %}
+            <button type="button" class="fa-link" data-aktion="bearbeiten" aria-expanded="false">Bearbeiten</button>
+            {% endif %}
+        </div>
+        {% if s.is_draw_unresolved %}
+        <p class="fa-warnung">{{ icon("triangle-alert") }} Unentschieden: Verlängerung oder Entscheidung eintragen.</p>
+        {% endif %}
+        {% if not s.correction_locked %}
+        <div class="fa-korrektur" hidden>
+            {{ spielstand(s) }}
+            <div class="fa-knopfzeile">
+                <button type="button" class="primary" data-aktion="korrigieren">Korrektur speichern</button>
+                <button type="button" class="outline" data-aktion="abbrechen">Abbrechen</button>
+            </div>
+            <details class="fa-weitere">
+                <summary>Weitere Aktionen</summary>
+                <div class="fa-weitere-knoepfe">
+                    {% if s.undo_available %}
+                    <button type="button" class="outline" data-post="/slot/{{ s.id }}/undo-correction"
+                            data-frage="Korrektur zurücknehmen und {{ s.undo_old_label }} wiederherstellen?">
+                        {{ icon("undo-2") }} Korrektur zurücknehmen ({{ s.undo_old_label }})
+                    </button>
+                    {% endif %}
+                    <button type="button" class="outline" data-post="/slot/{{ s.id }}/reactivate"
+                            data-frage="Spiel wieder öffnen? Es läuft dann weiter und kann neu beendet werden.">
+                        Spiel wieder öffnen
+                    </button>
+                    <button type="button" class="danger" data-post="/slot/{{ s.id }}/clear-result"
+                            data-frage="Ergebnis wirklich löschen und Spiel wieder auf geplant setzen?">
+                        Ergebnis löschen
+                    </button>
+                </div>
+            </details>
+        </div>
+        {% endif %}
+    </article>
+    {% endmacro %}
+
+    {% if ansicht.beendet or ansicht.beendet_frueher %}
+    <section class="fa-abschnitt">
+        <h2>Beendet</h2>
+        {% if ansicht.beendet_frueher %}
+        <details class="fa-frueher">
+            <summary>{{ ansicht.beendet_frueher|length }} frühere{{ "s Spiel" if ansicht.beendet_frueher|length == 1 else " Spiele" }} anzeigen</summary>
+            {% for s in ansicht.beendet_frueher %}{{ beendet_zeile(s) }}{% endfor %}
+        </details>
+        {% endif %}
+        {% for s in ansicht.beendet %}{{ beendet_zeile(s) }}{% endfor %}
+    </section>
+    {% endif %}
+
+    {% if ansicht.laufend %}
+    <section class="fa-abschnitt">
+        <h2>Jetzt</h2>
+        {% for s in ansicht.laufend %}
+        <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1">
+            <div class="fa-jetzt-kopf">
+                <span class="fa-status"><span class="fa-punkt"></span>läuft · {{ s.startzeit }}{% if phasen_name(s) %} · {{ phasen_name(s) }}{% endif %}</span>
+                {% if s.started_at %}
+                <span class="fa-uhr" data-started-at="{{ s.started_at }}"
+                      data-planned="{{ s.planned_duration_seconds or '' }}"
+                      data-stopped-at="{{ s.timer_stopped_at or '' }}">--:--</span>
+                {% endif %}
+            </div>
+            <p class="fa-wettbewerb">{{ s.competition_name }}</p>
+            {% if s.group_patt_risk %}
+            <p class="fa-warnung">{{ icon("triangle-alert") }} {{ s.group_patt_risk.message }}</p>
+            {% endif %}
+            {% if s.is_draw_unresolved %}
+            <p class="fa-warnung">{{ icon("triangle-alert") }} Unentschieden: Verlängerung oder Entscheidung eintragen.</p>
+            {% endif %}
+            {{ spielstand(s) }}
+            <button type="button" class="primary fa-haupt" data-aktion="beenden">
+                Spiel beenden · <span data-endstand>{{ s.score_a or 0 }} : {{ s.score_b or 0 }}</span>
+            </button>
+            <div class="fa-fuss">
+                <span class="fa-speicherstand" role="status"></span>
+                <button type="button" class="fa-link" data-post="/slot/{{ s.id }}/unstart"
+                        data-frage="Start wirklich rückgängig machen? Der Zwischenstand bleibt, die Uhr wird zurückgesetzt.">
+                    Start rückgängig
+                </button>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% elif ansicht.dran %}
+    {% set s = ansicht.dran %}
+    <section class="fa-abschnitt">
+        <h2>Als Nächstes dran</h2>
+        <article class="fa-jetzt fa-dran" data-slot="{{ s.id }}">
+            <div class="fa-jetzt-kopf">
+                <span class="fa-status">{{ s.startzeit }}{% if phasen_name(s) %} · {{ phasen_name(s) }}{% endif %}</span>
+            </div>
+            <p class="fa-wettbewerb">{{ s.competition_name }}</p>
+            {% if s.group_patt_risk %}
+            <p class="fa-warnung">{{ icon("triangle-alert") }} {{ s.group_patt_risk.message }}</p>
+            {% endif %}
+            <p class="fa-paarung-gross">
+                <span>{{ s.team_a or "?" }}</span><span class="fa-gegen">gegen</span><span>{{ s.team_b or "?" }}</span>
+            </p>
+            <button type="button" class="primary fa-haupt" data-aktion="start" data-url="/slot/{{ s.id }}/start">
+                {{ icon("circle-play") }} Spiel starten
+            </button>
+            <div class="fa-fuss">
+                <span></span>
+                <button type="button" class="fa-link" data-aktion="ohne-start" aria-expanded="false">Ergebnis ohne Start eintragen</button>
+            </div>
+            <div class="fa-nachtrag" hidden>
+                {{ spielstand(s) }}
+                <button type="button" class="primary fa-haupt" data-aktion="beenden">
+                    Ergebnis speichern · <span data-endstand>0 : 0</span>
+                </button>
+            </div>
+        </article>
+    </section>
+    {% endif %}
+
+    {% if ansicht.geplant %}
+    <section class="fa-abschnitt">
+        <h2>{% if ansicht.laufend %}Als Nächstes{% else %}Danach{% endif %}</h2>
+        {% for s in ansicht.geplant %}
+        <article class="fa-kommt" data-slot="{{ s.id }}">
+            <span class="fa-zeit">{{ s.startzeit }}</span>
+            <span class="fa-paarung">
+                <span class="fa-name">{{ s.team_a or "?" }}</span>
+                <span class="fa-gegen">–</span>
+                <span class="fa-name">{{ s.team_b or "?" }}</span>
+            </span>
+            <button type="button" class="outline fa-start-klein" data-aktion="start" data-url="/slot/{{ s.id }}/start">Start</button>
+        </article>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if not ansicht.laufend and not ansicht.dran and not ansicht.geplant %}
+    <p class="fa-hinweis">Auf diesem Feld sind alle Spiele beendet.</p>
+    {% endif %}
+    {% endif %}
+</div>
+<p class="fa-meldung" id="feld-meldung" role="alert" hidden></p>
+</div>
+
+<style>
+.fa-root {
+    max-width: 560px;
+    margin: 0 auto;
+}
+.fa-kopf {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.fa-kopf .eyebrow { margin: 0; }
+.fa-kopf h1 {
+    margin: 2px 0 0;
+    font-size: 1.6rem;
+    line-height: 1.15;
+}
+.fa-raster-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    color: var(--blue);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.fa-auswahl {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scrollbar-width: none;
+}
+.fa-auswahl::-webkit-scrollbar { display: none; }
+.fa-chip {
+    flex: 1 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.fa-orte .fa-chip {
+    min-height: 40px;
+    font-size: 0.9rem;
+    border-radius: 10px;
+}
+.fa-chip.aktiv {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--surface);
+}
+.fa-punkt {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--green);
+    flex: none;
+}
+.fa-abschnitt { margin-top: 14px; }
+.fa-abschnitt h2 {
+    margin: 0 0 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.fa-fertig,
+.fa-kommt {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    padding: 0 12px;
+}
+.fa-fertig-zeile,
+.fa-kommt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+}
+.fa-zeit {
+    flex: none;
+    width: 3.2em;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+.fa-kommt .fa-zeit {
+    color: var(--text);
+    font-weight: 700;
+}
+.fa-paarung {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+.fa-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.fa-ergebnis {
+    flex: none;
+    padding: 3px 9px;
+    border-radius: 6px;
+    background: var(--bg);
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.fa-gegen {
+    flex: none;
+    color: var(--muted);
+    font-weight: 400;
+}
+.fa-link {
+    flex: none;
+    min-height: 44px;
+    padding: 0 2px;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--blue);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.fa-link:hover { text-decoration: underline; background: none; }
+.fa-gesperrt {
+    flex: none;
+    color: var(--muted);
+    display: inline-flex;
+}
+.fa-frueher { margin-bottom: 6px; }
+.fa-frueher > summary,
+.fa-weitere > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    color: var(--blue);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.fa-korrektur {
+    padding: 4px 0 12px;
+    border-top: 1px solid var(--border);
+}
+.fa-knopfzeile {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.fa-knopfzeile button {
+    flex: 1 1 0;
+    min-height: 48px;
+}
+.fa-weitere-knoepfe {
+    display: grid;
+    gap: 8px;
+}
+.fa-weitere-knoepfe button { min-height: 44px; }
+.fa-jetzt {
+    background: var(--surface);
+    border: 2px solid var(--green);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 8px;
+}
+.fa-jetzt.fa-dran { border-color: var(--border-strong); }
+.fa-jetzt-kopf {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.fa-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--green);
+}
+.fa-dran .fa-status { color: var(--text); }
+.fa-uhr {
+    font-size: 1.3rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.fa-uhr.knapp { color: var(--amber); }
+.fa-uhr.ueberzogen { color: var(--red); }
+.fa-wettbewerb {
+    margin: 2px 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+.fa-warnung {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 8px 0 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--amber);
+}
+.fa-fertig .fa-warnung { margin: 0 0 10px; }
+.fa-stand {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+}
+.fa-seite {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 52px 76px 52px;
+    gap: 6px;
+    align-items: center;
+}
+.fa-team {
+    font-size: 1.35rem;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.fa-schritt {
+    width: 52px;
+    height: 56px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface-soft);
+    color: var(--text);
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1;
+    touch-action: manipulation;
+}
+.fa-seite .fa-zahl {
+    width: 76px;
+    height: 56px;
+    padding: 0;
+    border: 2px solid var(--text);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 1.8rem;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.fa-zahl::-webkit-outer-spin-button,
+.fa-zahl::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.fa-haupt {
+    width: 100%;
+    min-height: 56px;
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    touch-action: manipulation;
+}
+.fa-paarung-gross {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 10px;
+    margin: 14px 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    min-width: 0;
+}
+.fa-paarung-gross span:not(.fa-gegen) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.fa-paarung-gross .fa-gegen { font-size: 0.9rem; }
+.fa-fuss {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    min-height: 44px;
+}
+.fa-speicherstand {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+}
+.fa-speicherstand.ok { color: var(--green); }
+.fa-speicherstand.fehler { color: var(--red); }
+.fa-nachtrag {
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+.fa-start-klein {
+    flex: none;
+    min-height: 40px;
+    padding: 0 16px;
+}
+.fa-hinweis {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    font-size: 0.9rem;
+}
+.fa-hinweis-rot {
+    border-color: var(--red);
+    background: var(--red-soft);
+}
+.fa-hinweis a { font-weight: 700; margin-left: 6px; }
+.fa-meldung {
+    position: fixed;
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 1300;
+    max-width: 532px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--red);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: var(--shadow-md);
+}
+@media (max-width: 360px) {
+    .fa-seite { grid-template-columns: minmax(0, 1fr) 46px 64px 46px; }
+    .fa-schritt { width: 46px; }
+    .fa-seite .fa-zahl { width: 64px; font-size: 1.6rem; }
+}
+</style>
+
+<script>
+(function () {
+    const root = document.querySelector('.fa-root');
+    const returnTo = () => root.dataset.returnTo;
+    const meldung = document.getElementById('feld-meldung');
+
+    // Alle Speicheranfragen laufen nacheinander: ein spaet eintreffender
+    // Zwischenstand darf "Spiel beenden" nicht wieder auf "läuft" setzen.
+    let kette = Promise.resolve();
+    let offen = 0;                 // noch nicht abgeschlossene Anfragen
+    const wartend = new Map();     // Karte -> Timer fuer den Zwischenstand
+    const hinterher = (aufgabe) => {
+        offen += 1;
+        const lauf = kette.then(aufgabe);
+        kette = lauf.catch(() => {}).then(() => { offen -= 1; });
+        return lauf;
+    };
+
+    function zeigeMeldung(text) {
+        meldung.textContent = text;
+        meldung.hidden = false;
+        clearTimeout(zeigeMeldung.timer);
+        zeigeMeldung.timer = setTimeout(() => { meldung.hidden = true; }, 6000);
+    }
+
+    async function sende(url, felder) {
+        const daten = new FormData();
+        Object.entries(felder || {}).forEach(([name, wert]) => daten.append(name, wert));
+        const antwort = await fetch(url, { method: 'POST', body: daten, credentials: 'same-origin' });
+        if (!antwort.ok) throw new Error(`Anfrage fehlgeschlagen (${antwort.status})`);
+        return antwort.text();
+    }
+
+    // Ersetzt den Inhalt durch den frisch gerenderten Stand. Fehlt er in der
+    // Antwort (z.B. Anmeldung abgelaufen), wird die Seite neu geladen.
+    function uebernimm(html) {
+        const neu = new DOMParser().parseFromString(html, 'text/html');
+        const neuerInhalt = neu.getElementById('feld-inhalt');
+        const neuesRoot = neu.querySelector('.fa-root');
+        if (!neuerInhalt || !neuesRoot) {
+            window.location.reload();
+            return;
+        }
+        document.getElementById('feld-inhalt').replaceWith(neuerInhalt);
+        root.dataset.returnTo = neuesRoot.dataset.returnTo;
+        aktualisiereUhren();
+    }
+
+    // nurWenn: wird nach dem Laden erneut geprueft - hat inzwischen jemand
+    // getippt, bleibt der sichtbare Stand stehen.
+    async function ladeNeu(nurWenn) {
+        const antwort = await fetch(returnTo(), { credentials: 'same-origin' });
+        if (!antwort.ok) throw new Error(`Laden fehlgeschlagen (${antwort.status})`);
+        const html = await antwort.text();
+        if (nurWenn && !nurWenn()) return;
+        uebernimm(html);
+    }
+
+    function lies(bereich) {
+        const a = bereich.querySelector('input[name="score_a"]');
+        const b = bereich.querySelector('input[name="score_b"]');
+        const zahl = feld => (/^\d+$/.test(feld.value.trim()) ? Number(feld.value) : null);
+        return { a: zahl(a), b: zahl(b) };
+    }
+
+    function setzeSpeicherstand(karte, text, klasse) {
+        const el = karte.querySelector('.fa-speicherstand');
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'fa-speicherstand' + (klasse ? ' ' + klasse : '');
+    }
+
+    function speichereZwischenstand(karte) {
+        wartend.delete(karte);
+        const stand = lies(karte);
+        if (stand.a === null || stand.b === null || !karte.isConnected) return Promise.resolve();
+        return hinterher(() => sende(`/slot/${karte.dataset.slot}/save`, {
+            score_a: stand.a, score_b: stand.b, finish: '0', results_return_to: returnTo(),
+        })).then(() => {
+            if (!wartend.has(karte)) setzeSpeicherstand(karte, 'Zwischenstand gespeichert', 'ok');
+        }).catch(() => {
+            setzeSpeicherstand(karte, 'Nicht gespeichert. Bitte noch einmal tippen.', 'fehler');
+        });
+    }
+
+    function standGeaendert(feld) {
+        const karte = feld.closest('[data-slot]');
+        const stand = lies(feld.closest('.fa-stand').parentElement);
+        const anzeige = feld.closest('.fa-stand').parentElement.querySelector('[data-endstand]');
+        if (anzeige) anzeige.textContent = `${stand.a ?? '–'} : ${stand.b ?? '–'}`;
+        if (karte.dataset.autospeichern !== '1') return;
+        clearTimeout(wartend.get(karte));
+        setzeSpeicherstand(karte, 'Speichert …', '');
+        wartend.set(karte, setTimeout(() => speichereZwischenstand(karte), 600));
+    }
+
+    function alleWartendenSofort() {
+        const karten = [...wartend.keys()];
+        karten.forEach(karte => clearTimeout(wartend.get(karte)));
+        return Promise.all(karten.map(speichereZwischenstand));
+    }
+
+    function schliesseKorrektur(zeile) {
+        const bereich = zeile.querySelector('.fa-korrektur');
+        if (!bereich) return;
+        bereich.querySelectorAll('.fa-zahl').forEach(feld => { feld.value = feld.dataset.original; });
+        bereich.hidden = true;
+        const knopf = zeile.querySelector('[data-aktion="bearbeiten"]');
+        if (knopf) { knopf.textContent = 'Bearbeiten'; knopf.setAttribute('aria-expanded', 'false'); }
+    }
+
+    async function mitSperre(knopf, aufgabe) {
+        if (knopf.disabled) return;
+        knopf.disabled = true;
+        try {
+            await aufgabe();
+        } catch (fehler) {
+            console.error(fehler);
+            zeigeMeldung('Das hat nicht geklappt. Bitte Verbindung prüfen und noch einmal versuchen.');
+        } finally {
+            if (knopf.isConnected) knopf.disabled = false;
+        }
+    }
+
+    const jetztLokal = () => {
+        const d = new Date();
+        const z = wert => String(wert).padStart(2, '0');
+        return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;
+    };
+
+    root.addEventListener('click', event => {
+        const schritt = event.target.closest('[data-schritt]');
+        if (schritt) {
+            const feld = schritt.parentElement.querySelector('.fa-zahl');
+            const aktuell = /^\d+$/.test(feld.value.trim()) ? Number(feld.value) : 0;
+            feld.value = Math.max(0, aktuell + Number(schritt.dataset.schritt));
+            standGeaendert(feld);
+            return;
+        }
+
+        const post = event.target.closest('[data-post]');
+        if (post) {
+            if (post.dataset.frage && !window.confirm(post.dataset.frage)) return;
+            mitSperre(post, async () => {
+                await alleWartendenSofort();
+                uebernimm(await hinterher(() => sende(post.dataset.post, { results_return_to: returnTo() })));
+            });
+            return;
+        }
+
+        const knopf = event.target.closest('[data-aktion]');
+        if (knopf) {
+            const karte = knopf.closest('[data-slot]');
+            const aktion = knopf.dataset.aktion;
+            if (aktion === 'bearbeiten') {
+                const bereich = karte.querySelector('.fa-korrektur');
+                if (bereich.hidden) {
+                    bereich.hidden = false;
+                    knopf.textContent = 'Schließen';
+                    knopf.setAttribute('aria-expanded', 'true');
+                } else {
+                    schliesseKorrektur(karte);
+                }
+            } else if (aktion === 'abbrechen') {
+                schliesseKorrektur(karte);
+            } else if (aktion === 'ohne-start') {
+                const bereich = karte.querySelector('.fa-nachtrag');
+                bereich.hidden = !bereich.hidden;
+                knopf.setAttribute('aria-expanded', String(!bereich.hidden));
+            } else if (aktion === 'start') {
+                mitSperre(knopf, async () => {
+                    await hinterher(() => sende(knopf.dataset.url, { started_at: jetztLokal() }));
+                    await ladeNeu();
+                });
+            } else if (aktion === 'beenden' || aktion === 'korrigieren') {
+                const bereich = knopf.closest('.fa-korrektur, .fa-nachtrag') || karte;
+                const stand = lies(bereich);
+                if (stand.a === null || stand.b === null) {
+                    zeigeMeldung('Bitte für beide Teams eine Zahl eintragen.');
+                    return;
+                }
+                if (aktion === 'korrigieren' && !window.confirm(`Ergebnis wirklich auf ${stand.a} : ${stand.b} ändern?`)) return;
+                if (aktion === 'beenden' && stand.a === 0 && stand.b === 0
+                    && !window.confirm('Spiel wirklich mit 0 : 0 beenden?')) return;
+                mitSperre(knopf, async () => {
+                    clearTimeout(wartend.get(karte));
+                    wartend.delete(karte);
+                    uebernimm(await hinterher(() => sende(`/slot/${karte.dataset.slot}/save`, {
+                        score_a: stand.a, score_b: stand.b, finish: '1', results_return_to: returnTo(),
+                    })));
+                });
+            }
+            return;
+        }
+
+        // Feld- oder Ortswechsel: einen noch wartenden Zwischenstand erst sichern.
+        const link = event.target.closest('a[href]');
+        if (link && (wartend.size || offen)) {
+            event.preventDefault();
+            alleWartendenSofort().then(() => kette).then(() => { window.location.href = link.href; });
+        }
+    });
+
+    root.addEventListener('input', event => {
+        if (event.target.classList.contains('fa-zahl')) standGeaendert(event.target);
+    });
+    root.addEventListener('focusin', event => {
+        if (event.target.classList.contains('fa-zahl')) event.target.select();
+    });
+
+    function leseZeit(text) {
+        const m = String(text).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+        return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : null;
+    }
+    const alsUhr = sekunden => {
+        const s = Math.max(0, Math.floor(sekunden));
+        return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    };
+
+    // Restzeit bis zum geplanten Ende; danach rot die Ueberziehung.
+    function aktualisiereUhren() {
+        root.querySelectorAll('.fa-uhr').forEach(el => {
+            const start = leseZeit(el.dataset.startedAt);
+            if (!start) return;
+            const stopp = el.dataset.stoppedAt ? leseZeit(el.dataset.stoppedAt) : null;
+            const gelaufen = Math.max(0, ((stopp || new Date()) - start) / 1000);
+            const geplant = Number(el.dataset.planned || 0);
+            el.classList.remove('knapp', 'ueberzogen');
+            if (!geplant) {
+                el.textContent = alsUhr(gelaufen);
+            } else if (gelaufen >= geplant) {
+                el.textContent = `+${alsUhr(gelaufen - geplant)}`;
+                el.classList.add('ueberzogen');
+            } else {
+                el.textContent = alsUhr(geplant - gelaufen);
+                if (geplant - gelaufen <= 60) el.classList.add('knapp');
+            }
+        });
+    }
+    aktualisiereUhren();
+    setInterval(aktualisiereUhren, 1000);
+
+    // Die Turnierleitung startet Runden zentral und andere Geraete tragen
+    // ebenfalls ein: den Stand regelmaessig nachladen, aber nie waehrend
+    // jemand tippt, korrigiert oder etwas noch gespeichert wird.
+    const istRuhig = () => {
+        if (document.hidden || wartend.size || offen) return false;
+        if (root.querySelector('.fa-korrektur:not([hidden]), .fa-nachtrag:not([hidden]), details[open]')) return false;
+        return !(document.activeElement && document.activeElement.classList.contains('fa-zahl'));
+    };
+    setInterval(() => {
+        if (istRuhig()) ladeNeu(istRuhig).catch(() => {});
+    }, 15000);
+})();
+</script>
+{% endblock %}
