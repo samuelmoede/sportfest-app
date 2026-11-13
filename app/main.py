@@ -101,6 +101,7 @@ from app.services.settings_service import (
     is_security_enabled,
     render_rich_text_html,
 )
+from app.services.public_cache_service import public_cache_control
 from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     end_user_session,
@@ -133,6 +134,8 @@ if not SESSION_SECRET_KEY:
 SESSION_HTTPS_ONLY = os.getenv(
     "SPORTFEST_SESSION_HTTPS_ONLY", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
+
+SESSION_COOKIE_NAME = "sportfest_session"
 
 AREA_ACCESS_RULES = (
     ("/spielplan-bearbeiten", "admin"),
@@ -259,11 +262,35 @@ app.add_middleware(RoleAreaMiddleware)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
-    session_cookie="sportfest_session",
+    session_cookie=SESSION_COOKIE_NAME,
     max_age=SESSION_MAX_AGE_SECONDS,
     same_site="lax",
     https_only=SESSION_HTTPS_ONLY,
 )
+
+class PublicCacheMiddleware(BaseHTTPMiddleware):
+    """Erlaubt einem vorgeschalteten Cache (z.B. Cloudflare), oeffentliche
+    Leseseiten fuer Besucher ohne Anmeldung kurz zwischenzuspeichern (siehe
+    app/services/public_cache_service.py)."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        has_session = (
+            SESSION_COOKIE_NAME in request.cookies
+            or "set-cookie" in response.headers
+        )
+        cache_control = public_cache_control(
+            request.method, request.url.path, response.status_code, has_session
+        )
+        if cache_control:
+            response.headers["Cache-Control"] = cache_control
+            response.headers["Vary"] = "Cookie"
+        return response
+
+
+# Ganz aussen, damit auch ein von der Session-Middleware gesetztes Cookie
+# sichtbar ist.
+app.add_middleware(PublicCacheMiddleware)
 
 APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
 
