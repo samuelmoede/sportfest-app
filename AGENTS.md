@@ -1,22 +1,45 @@
 # AGENTS.md
 
-## Projektbeschreibung
+## Gemeinsame fachliche Referenz
 
-Die Sportfest-App ist eine FastAPI-Anwendung fuer schulische Sportveranstaltungen.
-Sie verwaltet Veranstaltungen, Wettbewerbe, Turniere, Sechskampf, Teams, Orte,
-Spielplaene, Ergebnisse, Tabellen, Tagesplaene und grundlegende Auswertungen.
+`CLAUDE.md` ist fuer Claude Code und Codex die gemeinsame fachliche und
+architektonische Referenz (Datenmodell, Services, Templates, Schema und
+Kompatibilitaet). Vor Aenderungen die relevanten Abschnitte und den betroffenen
+Service lesen. Die Claude-spezifische Automation bleibt in `CLAUDE.md` und
+`.github/workflows/claude.yml`; diese Datei beschreibt die Codex-Variante.
+`CLAUDE.md` nicht im Rahmen der Codex-Workflow-Pflege veraendern.
 
-Der aktuelle technische Kern liegt bewusst noch in wenigen Dateien:
+## Nicht verhandelbare Regeln fuer automatisierte Aenderungen (Codex)
 
-- `app/main.py`: FastAPI-App, Routen, Formularverarbeitung und grosse Teile der Fachlogik.
-- `app/database.py`: SQLite-Initialisierung, Schema-Erweiterungen und `get_conn()`.
-- `app/seed.py`: optionale Beispieldaten.
-- `app/templates/`: Jinja2-Templates fuer die Oberflaeche.
-- `app/static/`: CSS und statische Assets.
-- `data/sportfest.db`: lokale SQLite-Datenbank, nicht versionieren.
-
-Die fachliche Sprache der Anwendung ist Deutsch. Neue UI-Texte, Routen, Statuswerte
-und fachliche Begriffe sollen zur bestehenden Sprache passen.
+- Entwicklungsbasis ist `develop`. Neue Aenderungen auf einem davon abgeleiteten
+  `codex/*`-Feature-Branch in einem separaten Klon erstellen. `claude/*` sind die
+  Feature-Branches von Claude. Niemals direkt auf `main` entwickeln oder pushen;
+  auch auf das geschuetzte `develop` nicht direkt pushen.
+- Niemals im Live-Produktivmount `Z:\sportfest-app` beziehungsweise
+  `/volume1/docker/sportfest-app` arbeiten; Dateiänderungen koennen dort sofort
+  produktiv wirksam werden.
+- Pull Requests ausschliesslich gegen `develop` oeffnen; die tatsaechliche
+  PR-Basis vor und nach dem Erstellen pruefen. Niemals einen Codex-PR gegen
+  `main` oeffnen.
+- Niemals selbst mergen, auch nicht per API, `gh pr merge`, Auto-Merge oder
+  Merge Queue. Merge und spaetere Freigaben bleiben beim Menschen.
+- Branch-Protection und Pflichtchecks `test` und `docker` niemals umgehen,
+  abschwaechen oder durch Force-Push auf geschuetzte Branches aushebeln.
+- Niemals die Produktivfreigabe selbst erteilen, ein Prod-Deployment ausloesen
+  oder die Freigabe des Environments `production` in
+  `.github/workflows/deploy-prod.yml` umgehen. Den self-hosted NAS-Runner
+  ausschliesslich dem bestehenden Deployment-Workflow ueberlassen.
+- Niemals die Produktivdatenbank `data/sportfest.db` lesen, schreiben,
+  ueberschreiben, kopieren oder committen. Tests muessen vor jedem DB-Zugriff
+  `app.database.DB_PATH` auf eine temporaere SQLite-Datei umstellen.
+  Niemals Seed-/Reset-Befehle gegen Produktivdaten ausfuehren.
+- Zuerst analysieren, dann aendern. So wenige Dateien wie moeglich aendern;
+  keine auftragsfremden Refactorings oder Aufraeumarbeiten.
+- Bestehende Funktionen nicht ohne expliziten Auftrag loeschen und Verhalten
+  nicht stillschweigend aendern.
+- Neue oder geaenderte Logik erhaelt Tests in `tests/`, bevorzugt auf
+  Service-Ebene. Relevante Tests ausfuehren und Ergebnisse sowie nicht
+  ausgefuehrte Pruefungen im PR offen nennen.
 
 ## Entwicklungsregeln
 
@@ -52,9 +75,17 @@ und fachliche Begriffe sollen zur bestehenden Sprache passen.
 
 ## Test-Regeln
 
-- Es gibt aktuell keine etablierte Testsuite und keine CI.
+- CI ist in `.github/workflows/ci.yml` definiert: Python 3.12, pytest samt
+  Playwright/Chromium sowie Docker-Build und Container-Healthcheck. Sie laeuft
+  bei Pull Requests und bei Pushes auf `main`/`develop`.
+- Im Projekt-Root Abhaengigkeiten mit `python -m pip install -r requirements-dev.txt`
+  installieren; das schliesst `requirements.txt` ein. Fuer Browser-Tests einmalig
+  `python -m playwright install --with-deps chromium` auf Linux ausfuehren
+  (unter Windows ohne `--with-deps`). Tests: `python -m pytest tests -v`.
+- Fehlendes Chromium fuehrt zu uebersprungenen Browser-Tests; dies nicht als
+  vollstaendig bestandene Testsuite ausgeben.
 - Wenn Tests ergaenzt werden, klein anfangen und kritische Fachlogik priorisieren: Turniertabellen, Punkteberechnung, Sechskampf-Wertung, Spielplan-Zeiten und Rollen-/Sicherheitslogik.
-- Fuer Datenbanklogik moeglichst temporaere SQLite-Datenbanken verwenden, nicht `data/sportfest.db`.
+- Fuer Datenbanklogik immer temporaere SQLite-Datenbanken verwenden (DB_PATH wie oben umstellen).
 - Nach UI- oder Routing-Aenderungen mindestens die betroffenen Seiten lokal starten und manuell pruefen.
 - Vor riskanten Refactorings erst Charakterisierungstests fuer bestehendes Verhalten schreiben.
 - Wenn keine Tests ausgefuehrt wurden, dies am Ende der Arbeit offen nennen.
