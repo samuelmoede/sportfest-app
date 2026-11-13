@@ -111,7 +111,7 @@ Role *authorization* (`ROLES`, `ROLE_ACCESS_LEVELS`, `can_access_role()`) still 
   tie-breaking by points → goal difference → goals → head-to-head (`calculate_direct_comparison`).
 - `generate_semifinals` / `generate_finals` — fill KO-round slots from group results / semifinal winners.
 - `calculate_sixkampf_team_ranking()` — Sechskampf placement and points.
-- `fetch_beamer_data()` — backs `/beamer`, a projector/scoreboard view of the live competition.
+- `fetch_beamer_seiten()` — backs `/beamer`, the projector view (pages per location, standings, recent results; page building lives in `app/services/beamer_service.py`).
 
 ## Branch-, CI- und Deploy-Workflow
 

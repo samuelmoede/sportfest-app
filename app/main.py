@@ -78,7 +78,6 @@ from app.services.programmpunkte_service import list_programmpunkte
 from app.services.ui_view_service import (
     classify_yeargang,
     competition_column,
-    enrich_beamer_view,
     enrich_day_schedule_view,
 )
 from app.services.schedule_time_service import (
@@ -2044,62 +2043,6 @@ def find_group_patt_risk(
     }
 
 
-def fetch_beamer_data():
-    with get_conn() as conn:
-        active_comps = conn.execute("""
-            SELECT id FROM competitions
-            WHERE status = 'läuft' AND competition_type IN ('Turnier', 'Schulpokal')
-        """).fetchall()
-        # Sechskampf-Wettbewerbe erzeugen keine Spielfeld-Slots und tauchen daher nie
-        # in running_slots/recent_results auf - ohne diesen Hinweis wirkt die
-        # Beamer-Ansicht faelschlich komplett leer, waehrend tatsaechlich nur
-        # Sechskampf-Stationen laufen (die im Spielplan sichtbar sind).
-        active_sixkampf = conn.execute("""
-            SELECT 1 FROM competitions
-            WHERE status = 'läuft' AND competition_type = 'Sechskampf'
-            LIMIT 1
-        """).fetchone()
-        courts = conn.execute("SELECT * FROM courts WHERE active = 1 ORDER BY name").fetchall()
-
-    active_comp_ids = {row["id"] for row in active_comps}
-
-    if not active_comp_ids:
-        return enrich_beamer_view({
-            "running_slots": [],
-            "recent_results": [],
-            "court_summaries": [{"court": dict(c), "open_count": 0, "next_games": []} for c in courts],
-            "sixkampf_active": active_sixkampf is not None,
-        }, [])
-
-    all_slots = get_all_slots()
-    slots = [s for s in all_slots if s.get("competition_id") in active_comp_ids]
-
-    running_slots = [
-        s for s in slots if s["slot_typ"] == "Spiel" and s["status"] == "läuft"
-    ]
-
-    recent_results = sorted(
-        [s for s in slots
-         if s["status"] == "beendet" and s["slot_typ"] == "Spiel"
-         and s.get("team_a_id") is not None and s.get("team_b_id") is not None],
-        key=lambda s: (s.get("startzeit", ""), s.get("id", 0)),
-        reverse=True,
-    )[:6]
-
-    court_summaries = []
-    for court in courts:
-        court_slots = [s for s in slots if s["court_id"] == court["id"] and s["slot_typ"] == "Spiel"]
-        open_count = len([s for s in court_slots if s["status"] != "beendet"])
-        next_games = [s for s in court_slots if s["status"] == "geplant"][:3]
-        court_summaries.append({"court": court, "open_count": open_count, "next_games": next_games})
-
-    return enrich_beamer_view({
-        "running_slots": running_slots,
-        "recent_results": recent_results,
-        "court_summaries": court_summaries,
-        "sixkampf_active": False,
-    }, slots)
-
 @app.get("/login")
 def login_page(request: Request, next: str = "/", logged_out: str = ""):
     return templates.TemplateResponse(
@@ -3215,13 +3158,27 @@ def siegerehrung_public(request: Request, event_id: int):
 
 def fetch_beamer_seiten(ort=None, mit_tabellen=True):
     """Daten fuer die Beamer-Ansicht (siehe beamer_service): Seiten je Ort,
-    Zwischenstaende und letzte Ergebnisse der laufenden Wettbewerbe."""
+    Zwischenstaende und letzte Ergebnisse der laufenden und heutigen
+    Wettbewerbe."""
     with get_conn() as conn:
+        # Neben den laufenden Wettbewerben zaehlen alle Wettbewerbe von heute
+        # (Veranstaltungsdatum oder eigenes Datum): so zeigt der Beamer schon
+        # vor dem ersten Spiel und in der Umbaupause, was als Naechstes kommt.
+        heute = app_now().date().isoformat()
         active_comps = [dict(row) for row in conn.execute("""
-            SELECT id, name, sportart, event_id, location FROM competitions
-            WHERE status = 'läuft' AND competition_type IN ('Turnier', 'Schulpokal')
-            ORDER BY jahrgang, name
-        """).fetchall()]
+            SELECT c.id, c.name, c.sportart, c.event_id, c.location FROM competitions c
+            LEFT JOIN events e ON e.id = c.event_id
+            WHERE c.competition_type IN ('Turnier', 'Schulpokal')
+              AND (
+                c.status = 'läuft'
+                OR (
+                    c.status != 'archiviert'
+                    AND COALESCE(e.status, '') != 'archiviert'
+                    AND SUBSTR(COALESCE(NULLIF(TRIM(c.competition_date), ''), e.event_date, ''), 1, 10) = ?
+                )
+              )
+            ORDER BY c.jahrgang, c.name
+        """, (heute,)).fetchall()]
         sixkampf_active = conn.execute("""
             SELECT 1 FROM competitions
             WHERE status = 'läuft' AND competition_type = 'Sechskampf' LIMIT 1
@@ -3258,10 +3215,6 @@ def fetch_beamer_seiten(ort=None, mit_tabellen=True):
 
 @app.get("/beamer")
 def beamer(request: Request, ort: str = "", tabellen: str = "", sekunden: str = ""):
-    if request.query_params.get("ui_theme") == "modern":
-        data = fetch_beamer_data()
-        data["refresh_seconds"] = get_beamer_refresh_seconds()
-        return templates.TemplateResponse(request=request, name="beamer_modern.html", context=data)
     selected_ort = normalize_competition_location(ort)
     data = fetch_beamer_seiten(ort=selected_ort, mit_tabellen=tabellen not in ("0", "aus"))
     data["selected_ort"] = selected_ort

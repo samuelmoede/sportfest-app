@@ -79,7 +79,7 @@
                             {% for line in item.lines %}<span class="segment-{{ line.kind }}"><time>{{ line.time }}</time> <strong>{{ line.name }}</strong></span>{% endfor %}
                         </div>
                         {% else %}
-                        <button type="button" class="day-timeline-block wiz-timeline-block" data-goto="{{ item.wb_index }}"
+                        <button type="button" class="day-timeline-block wiz-timeline-block sport-{{ item.farbe|default(0) }}" data-goto="{{ item.wb_index }}"
                                 style="top: {{ item.top_percent }}%; height: {{ item.height_percent }}%; left: {{ item.lane_left_percent }}%; width: {{ item.lane_width_percent }}%;"
                                 aria-label="Spielplan {{ item.name }} anzeigen">
                             <strong>{{ item.name }}</strong>
@@ -113,7 +113,7 @@
         {% for e in eintraege %}
         {% set i = loop.index0 %}
         {% set wb = e.wettbewerb %}
-        <section class="wiz-card" data-carousel-item="{{ i }}" {% if i != aktiv %}hidden{% endif %} aria-label="{{ e.name }}">
+        <section class="wiz-card wiz-sport sport-{{ e.farbe|default(0) }}" data-carousel-item="{{ i }}" {% if i != aktiv %}hidden{% endif %} aria-label="{{ e.name }}">
             <h3>{{ e.name }}</h3>
             <p class="muted">
                 {{ wb.sportart }} · Jahrgang {{ wb.jahrgaenge|join(" + ") }}{% if wb.zusammengelegt %} <span class="wiz-badge is-merged">gemeinsamer Sieger</span>{% endif %}
@@ -142,7 +142,7 @@
                 <tr>
                     <th class="wiz-raster-zeit" scope="row"><span class="wiz-raster-runde">{{ z.runde }}.</span> {{ z.zeit }}</th>
                     {% for zelle in z.zellen %}
-                    <td class="{% if not zelle %}is-frei{% elif zelle|length > 1 %}is-doppelt{% endif %}">
+                    <td class="{% if not zelle %}is-frei{% elif zelle|length > 1 %}is-doppelt{% else %}is-belegt{% endif %}">
                         {% for s in zelle %}
                         <div class="wiz-raster-spiel">{% if s.team_a %}{{ s.team_a }} – {{ s.team_b }}{% else %}<span class="muted">{{ s.note }}</span>{% endif %}{% if s.phase != "Gruppenphase" %} <span class="wiz-badge">{{ s.phase }}</span>{% endif %}</div>
                         {% else %}<span class="muted" aria-label="frei">–</span>{% endfor %}

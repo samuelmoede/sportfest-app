@@ -160,7 +160,55 @@ class BeamerRouteTests(unittest.TestCase):
         self.assertIn("Zurzeit kein Spiel", mensa)
         self.assertIn('class="hell"', mensa)
         self.assertIn('data-sekunden="5"', mensa)
-        self.assertEqual(self.client.get("/beamer?ui_theme=modern").status_code, 200)
+
+    def test_old_variants_lead_to_the_new_view(self):
+        modern = self.client.get("/beamer?ui_theme=modern").text
+        self.assertIn('id="bm-buehne"', modern)
+        monitor = self.client.get("/spielplan/monitor?ort=Mensa", follow_redirects=False)
+        self.assertEqual(monitor.status_code, 303)
+        self.assertEqual(monitor.headers["location"], "/beamer?ort=Mensa")
+        self.assertEqual(
+            self.client.get("/spielplan/monitor", follow_redirects=False).headers["location"], "/beamer"
+        )
+
+    def _wettbewerb_geplant(self, datum):
+        """Zweiter Wettbewerb, noch nicht gestartet, in einer Veranstaltung
+        mit dem angegebenen Datum; der laufende wird beendet."""
+        with get_conn() as conn:
+            conn.execute("UPDATE competitions SET status = 'beendet'")
+            conn.execute("UPDATE slots SET status = 'beendet', score_a = 1, score_b = 0")
+            conn.execute("INSERT INTO events (name, status, event_date) VALUES ('Schulpokal', 'aktiv', ?)", (datum,))
+            event_id = conn.execute("SELECT id FROM events WHERE name = 'Schulpokal'").fetchone()["id"]
+            conn.execute("""
+                INSERT INTO competitions (name, sportart, jahrgang, status, competition_type, event_id)
+                VALUES ('Volleyball Jahrgang 9', 'Volleyball', 9, 'geplant', 'Turnier', ?)
+            """, (event_id,))
+            comp_id = conn.execute("SELECT id FROM competitions WHERE name LIKE 'Volleyball%'").fetchone()["id"]
+            conn.execute("""
+                INSERT INTO slots (competition_id, court_id, startzeit, slot_typ, team_a_id, team_b_id, phase, status)
+                VALUES (?, 1, '11:10', 'Spiel', 1, 2, 'Gruppenphase', 'geplant')
+            """, (comp_id,))
+            conn.execute("""
+                INSERT INTO event_programmpunkte (event_id, titel, start_time, end_time)
+                VALUES (?, 'Siegerehrung', '23:58', '23:59')
+            """, (event_id,))
+            conn.commit()
+
+    def test_todays_planned_games_show_before_start_and_in_breaks(self):
+        from app.main import app_now
+        self._wettbewerb_geplant(app_now().date().isoformat())
+        text = self.client.get("/beamer").text
+        self.assertIn("Als Nächstes", text)
+        self.assertIn("Volleyball Jg. 9", text)
+        self.assertIn("11:10", text)
+        self.assertIn("Siegerehrung", text)
+        self.assertNotIn("Kein laufender Wettbewerb", text)
+
+    def test_planned_games_of_other_days_stay_hidden(self):
+        self._wettbewerb_geplant("2020-01-01")
+        text = self.client.get("/beamer").text
+        self.assertNotIn("Volleyball", text)
+        self.assertIn("Kein laufender Wettbewerb", text)
 
 
 if __name__ == "__main__":

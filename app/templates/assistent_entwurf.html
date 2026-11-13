@@ -80,13 +80,18 @@
     .wiz-raster td { text-align: center; border-left: 1px solid var(--border); }
     .wiz-raster td.is-frei { background: rgba(127, 127, 127, 0.06); }
     .wiz-raster td.is-doppelt { background: rgba(220, 38, 38, 0.12); }
+    /* Sportfarbe wie im Tagesplan (sport-1..6, Palette in dashboard.css): Streifen links an der Karte, belegte Felder leicht getönt. */
+    .wiz-sport { --block-color: var(--blue, #2563eb); }
+    .wiz-card.wiz-sport { border-left: 4px solid var(--block-color); }
+    .wiz-sport .wiz-raster td.is-belegt { background: color-mix(in srgb, var(--block-color) 10%, var(--surface, #fff)); }
+    .wiz-sport .wiz-raster thead th:not(.wiz-raster-zeit) { box-shadow: inset 0 -2px 0 var(--block-color); }
     .wiz-raster-spiel { white-space: nowrap; }
     .wiz-raster-spiel + .wiz-raster-spiel { margin-top: 4px; }
     .wiz-raster-runde { color: var(--muted, #64748b); font-size: 0.8em; }
     .wiz-raster-punkt td, .wiz-raster-punkt th { font-style: italic; color: var(--muted, #64748b); }
     .wiz-timeline-block { cursor: pointer; text-align: left; font: inherit; align-items: stretch; }
     .wiz-timeline-block span { text-align: left; }
-    .wiz-timeline-block.is-selected { box-shadow: 0 0 0 2px var(--blue, #2563eb); }
+    .wiz-timeline-block.is-selected { box-shadow: 0 0 0 2px var(--block-color, var(--blue, #2563eb)); }
     dialog.wiz-dialog { border: 1px solid var(--border); border-radius: 14px; padding: 16px; max-width: 560px; width: calc(100% - 32px); background: var(--surface); color: var(--text); }
     dialog.wiz-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
     .wiz-tb-list { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; }
