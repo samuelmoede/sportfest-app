@@ -277,6 +277,29 @@ class AssistentPlanungTests(unittest.TestCase):
             anzahl = sum(len(zelle) for z in raster["zeilen"] if "zellen" in z for zelle in z["zellen"])
             self.assertEqual(anzahl, len(eintrag["slots"]))
 
+    def test_vorschau_nutzt_sportfarben_des_tagesplans(self):
+        daten = self._freie_daten()
+        daten["sportarten"] = ["Volleyball", "Basketball"]
+        daten["matrix"]["Basketball"] = ["9"]
+        daten["wettbewerbe"]["Basketball|9"] = {"ort": "Turnhalle"}
+        es.bloecke_vorschlagen(daten, self.stamm)
+        plan = self._plane(daten)
+        farben = {e["wettbewerb"]["key"]: e["farbe"] for e in plan["eintraege"]}
+        self.assertEqual(set(farben), {"Volleyball|9", "Volleyball|10", "Basketball|9"})
+        # gleiche Sportart = gleiche Farbe, andere Sportart = andere Farbe
+        self.assertEqual(farben["Volleyball|9"], farben["Volleyball|10"])
+        self.assertNotEqual(farben["Volleyball|9"], farben["Basketball|9"])
+        self.assertTrue(all(1 <= farbe <= 6 for farbe in farben.values()))
+        # und genau die Farbe, die der Block im Tagesplan hat
+        timeline_farben = {
+            item["wb_index"]: item["farbe"]
+            for column in plan["timeline"]["columns"] for item in column["items"]
+            if not item.get("is_programm")
+        }
+        self.assertEqual(set(timeline_farben), {0, 1, 2})
+        for index, farbe in timeline_farben.items():
+            self.assertEqual(plan["eintraege"][index]["farbe"], farbe)
+
 
 if __name__ == "__main__":
     unittest.main()
