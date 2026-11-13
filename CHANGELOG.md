@@ -4,6 +4,7 @@ Alle bemerkenswerten Änderungen dieses Projekts werden hier dokumentiert.
 
 ## [Unveröffentlicht]
 
+- Beamer aufgeräumt: Die Ansicht zeigt jetzt auch alle Wettbewerbe von heute (Datum der Veranstaltung oder des Wettbewerbs), nicht nur solche mit Status „läuft“. Vor dem ersten Spiel und in der Umbaupause stehen dort also die nächsten Spiele je Feld und der nächste Programmpunkt. Die alte „moderne“ Beamer-Variante (`?ui_theme=modern`) und der Orts-Monitor (`/spielplan/monitor`) sind entfernt; beide Adressen führen zur neuen Ansicht (`/beamer` bzw. `/beamer?ort=…`).
 ## [1.3] - 2026-11-12
 
 - Neu: Beamer-Ansicht (`/beamer`) für den Turniertag überarbeitet. Sie blättert automatisch durch große Seiten: je Ort „Jetzt“ (Spielstände, bei gemeinsam gestarteter Runde die Restzeit) und „Als Nächstes“ (je Feld das nächste Spiel), danach Zwischenstände (Gesamtwertung je Jahrgang bzw. Tabellen) und letzte Ergebnisse. Die Schrift skaliert mit der Auflösung, die Farbe zeigt die Sportart wie im Tagesplan, der nächste Programmpunkt steht in der Kopfzeile, eine Durchsage erscheint als Banner ohne „Verstanden“. Daten werden ohne Neuladen aktualisiert. Optionen: `?ort=Mensa`, `?tabellen=aus`, `?hell=1`, `?sekunden=20` (siehe Einstellungen). Verspätungen erscheinen nicht.
