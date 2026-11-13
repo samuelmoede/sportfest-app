@@ -35,7 +35,7 @@ class ChangeLogScrollWrapperTests(unittest.TestCase):
         from app.main import app as fastapi_app
 
         with TestClient(fastapi_app) as client:
-            response = client.get("/einstellungen")
+            response = client.get("/einstellungen?bereich=protokoll")
             self.assertEqual(response.status_code, 200)
             self.assertNotIn("change-log-scroll", response.text)
 
@@ -67,7 +67,7 @@ class ChangeLogScrollWrapperTests(unittest.TestCase):
             conn.commit()
 
         with TestClient(fastapi_app) as client:
-            response = client.get("/einstellungen")
+            response = client.get("/einstellungen?bereich=protokoll")
             self.assertEqual(response.status_code, 200)
             self.assertIn(
                 '<div class="table-scroll change-log-scroll">', response.text

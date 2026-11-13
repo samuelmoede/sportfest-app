@@ -1,13 +1,22 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.services.backup_service import (
     create_database_backup,
     delete_backup_file,
+    get_backup_download_path,
     restore_database_backup,
 )
+from app.services.einstellungen_service import (
+    baue_beamer_link,
+    baue_bereichsleiste,
+    beamer_orte,
+    bereich_url,
+    bestimme_bereich,
+)
+from app.services.beamer_service import STANDARD_SEKUNDEN
 from app.services.settings_service import (
     ROLE_DESCRIPTIONS,
     ROLE_LABELS,
@@ -33,6 +42,13 @@ from app.services.settings_service import (
     set_site_theme,
     SITE_THEMES,
 )
+from app.services.urkunden_service import (
+    lade_logo,
+    lade_schulname,
+    loesche_logo,
+    speichere_logo,
+    speichere_schulname,
+)
 from app.services.users_service import (
     ASSIGNABLE_ROLES,
     create_user,
@@ -56,6 +72,9 @@ router = APIRouter()
 @router.get("/einstellungen")
 def einstellungen(
     request: Request,
+    bereich: str = "",
+    anzeige_status: str = "",
+    schule_status: str = "",
     backup_status: str = "",
     backup_file: str = "",
     settings_status: str = "",
@@ -83,7 +102,23 @@ def einstellungen(
     except ValueError:
         change_log_competition_id_value = None
 
+    aktiver_bereich = bestimme_bereich(
+        bereich,
+        user_status=user_status,
+        security_status=security_status,
+        backup_status=backup_status,
+        restore_status=restore_status,
+        delete_status=delete_status,
+        reset_status=reset_status,
+        change_log_role=change_log_role,
+        change_log_competition_id=change_log_competition_id,
+        change_log_username=change_log_username,
+    )
+
     context = collect_system_info()
+    users = list_users()
+    change_log_count = get_change_log_count()
+    logo_bytes, _ = lade_logo()
     recent_changes = get_recent_change_log(
         role=change_log_role or None,
         competition_id=change_log_competition_id_value,
@@ -91,6 +126,25 @@ def einstellungen(
     )
     change_log_filter_options = get_change_log_filter_options()
     context.update({
+        "bereich": aktiver_bereich,
+        "bereichsleiste": baue_bereichsleiste(
+            aktiver_bereich,
+            benutzer_anzahl=len(users),
+            sicherheit_aktiv=is_security_enabled(),
+            letztes_backup=(
+                context["last_backup"]["created_at_display"] if context["last_backup"] else None
+            ),
+            aenderungen=change_log_count,
+            version=context["app_version_value"],
+            system_ok=context["db_reachable"] and context["write_access"],
+        ),
+        "anzeige_status": anzeige_status,
+        "schule_status": schule_status,
+        "schulname": lade_schulname(),
+        "hat_logo": logo_bytes is not None,
+        "beamer_orte": beamer_orte(),
+        "beamer_link": baue_beamer_link(str(request.base_url)),
+        "beamer_standard_sekunden": STANDARD_SEKUNDEN,
         "backup_status": backup_status,
         "backup_file": backup_file,
         "settings_status": settings_status,
@@ -122,14 +176,14 @@ def einstellungen(
             for role in ("viewer", "station_helper", "referee", "tournament_lead", "admin")
         ],
         "recent_changes": recent_changes,
-        "change_log_count": get_change_log_count(),
+        "change_log_count": change_log_count,
         "change_log_roles": change_log_filter_options["roles"],
         "change_log_competitions": change_log_filter_options["competitions"],
         "change_log_usernames": change_log_filter_options["usernames"],
         "change_log_role": change_log_role,
         "change_log_competition_id": change_log_competition_id_value,
         "change_log_username": change_log_username,
-        "users": list_users(),
+        "users": users,
         "logged_in_sessions": list_logged_in_sessions(),
         "last_activity_by_user": get_last_activity_by_user(),
         "assignable_roles": [
@@ -302,6 +356,29 @@ def create_backup():
     )
 
 
+@router.get("/einstellungen/backup/download")
+def download_backup(request: Request, datei: str = ""):
+    """Backup als Datei herunterladen, damit eine Kopie ausserhalb des
+    Servers liegt. Die Datei enthaelt alle Daten samt Passwort-Hashes, deshalb
+    nur mit Admin-Anmeldung - auch wenn die Sicherheit abgeschaltet ist."""
+    if get_current_role(request) != "admin":
+        return RedirectResponse(
+            bereich_url("datensicherung", backup_status="download_login"),
+            status_code=303,
+        )
+    backup_path = get_backup_download_path(datei)
+    if backup_path is None:
+        return RedirectResponse(
+            bereich_url("datensicherung", backup_status="download_not_found"),
+            status_code=303,
+        )
+    return FileResponse(
+        backup_path,
+        media_type="application/octet-stream",
+        filename=backup_path.name,
+    )
+
+
 @router.post("/einstellungen/backup/restore")
 def restore_backup(
     request: Request,
@@ -327,6 +404,67 @@ def delete_backup(backup_file: str = Form(...)):
     return RedirectResponse(
         f"/einstellungen?delete_status={delete_status}",
         status_code=303,
+    )
+
+
+@router.post("/einstellungen/anzeige")
+def update_anzeige(
+    dashboard_info_text: str = Form(""),
+    site_theme: str = Form(...),
+    beamer_refresh_seconds: str = Form(...),
+):
+    """Banner, Farbschema und Aktualisierung in einem Schritt speichern.
+    Erst alles pruefen, dann speichern - bei einem Fehler aendert sich nichts."""
+    intervall_text = beamer_refresh_seconds.strip()
+    if not intervall_text.isdigit() or int(intervall_text) <= 0:
+        return RedirectResponse(
+            bereich_url("anzeige", anzeige_status="invalid_intervall"), status_code=303
+        )
+    if site_theme not in SITE_THEMES:
+        return RedirectResponse(
+            bereich_url("anzeige", anzeige_status="invalid_theme"), status_code=303
+        )
+
+    set_dashboard_info_text(dashboard_info_text)
+    set_site_theme(site_theme)
+    set_beamer_refresh_seconds(int(intervall_text))
+    return RedirectResponse(
+        bereich_url("anzeige", anzeige_status="saved", saved_at=app_now_db_timestamp()[11:16]),
+        status_code=303,
+    )
+
+
+@router.post("/einstellungen/schule")
+def update_schule(schulname: str = Form("")):
+    speichere_schulname(schulname)
+    return RedirectResponse(
+        bereich_url("anzeige", schule_status="saved") + "#schule", status_code=303
+    )
+
+
+@router.post("/einstellungen/schule/logo")
+async def upload_schul_logo(logo: UploadFile = File(...)):
+    data = await logo.read()
+    try:
+        speichere_logo(data)
+    except ValueError as error:
+        status = {
+            "Keine Datei ausgewählt.": "logo_leer",
+            "Das Logo ist größer als 2 MB.": "logo_zu_gross",
+        }.get(str(error), "logo_format")
+        return RedirectResponse(
+            bereich_url("anzeige", schule_status=status) + "#schule", status_code=303
+        )
+    return RedirectResponse(
+        bereich_url("anzeige", schule_status="logo_saved") + "#schule", status_code=303
+    )
+
+
+@router.post("/einstellungen/schule/logo/loeschen")
+def delete_schul_logo():
+    loesche_logo()
+    return RedirectResponse(
+        bereich_url("anzeige", schule_status="logo_deleted") + "#schule", status_code=303
     )
 
 

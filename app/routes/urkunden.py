@@ -279,7 +279,13 @@ def create_router(
     @router.post("/urkunden/einstellungen")
     async def urkunden_einstellungen(request: Request):
         form = await request.form()
-        speichere_layout({key: form.get(key, "") for key in LAYOUT_DEFAULTS})
+        # Der Schulname wird zentral in den Einstellungen gepflegt; fehlt er im
+        # Formular, bleibt der gespeicherte Wert erhalten.
+        aktuelles_layout = lade_layout()
+        speichere_layout({
+            key: form.get(key, aktuelles_layout[key] if key == "schulname" else "")
+            for key in LAYOUT_DEFAULTS
+        })
         schwellen = {"standard": {f: form.get(f"standard_{f}", "") for f in STANDARD_SCHWELLE}}
         for index, gruppe in enumerate(JAHRGANGSGRUPPEN):
             schwellen[gruppe] = {f: form.get(f"gruppe{index}_{f}", "") for f in STANDARD_SCHWELLE}

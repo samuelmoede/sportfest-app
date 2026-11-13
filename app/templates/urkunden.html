@@ -188,7 +188,6 @@
     <form method="post" action="/urkunden/einstellungen" class="urkunden-einstellungen-form">
         <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
         <div class="urkunden-grid">
-            <label>Schulname <input type="text" name="schulname" value="{{ layout.schulname }}" placeholder="z. B. Städtisches Gymnasium Musterstadt"></label>
             <label>Veranstaltungsname <input type="text" name="veranstaltungsname" value="{{ layout.veranstaltungsname }}" placeholder="leer = Name der Veranstaltung"></label>
             <label>Ort <input type="text" name="ort" value="{{ layout.ort }}" placeholder="z. B. Musterstadt"></label>
             <label>Datum <input type="text" name="datum" value="{{ layout.datum }}" placeholder="leer = Datum von Wettbewerb/Veranstaltung"></label>
@@ -229,23 +228,18 @@
         <button class="primary" type="submit">Einstellungen speichern</button>
     </form>
 
-    <h3>Schul-Logo</h3>
+    <h3>Schulname und Logo</h3>
     <div class="urkunden-logo">
         {% if hat_logo %}
         <img src="/urkunden/logo" alt="Aktuelles Schul-Logo">
-        <form method="post" action="/urkunden/logo/loeschen" class="inline-form">
-            <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
-            <button type="submit" class="secondary">Logo entfernen</button>
-        </form>
-        {% else %}
-        <p class="muted">Noch kein Logo hinterlegt.</p>
         {% endif %}
-        <form method="post" action="/urkunden/logo" enctype="multipart/form-data" class="inline-form">
-            <input type="hidden" name="rueckweg" value="{{ rueckweg }}">
-            <input type="file" name="logo" accept="image/png,image/jpeg" required>
-            <button type="submit" class="primary">Logo hochladen</button>
-        </form>
-        <p class="muted">PNG oder JPG, höchstens 2 MB. Wird in der Datenbank gespeichert und ist damit in jedem Backup enthalten.</p>
+        <p>
+            <strong>{{ layout.schulname or "Noch kein Schulname hinterlegt" }}</strong>{% if not hat_logo %} · noch kein Logo{% endif %}
+        </p>
+        <p class="muted">
+            Schulname und Logo gelten für die ganze App und werden in den
+            <a href="/einstellungen?bereich=anzeige#schule">Einstellungen unter „Anzeige“</a> gepflegt (nur Admin).
+        </p>
     </div>
 </details>
 

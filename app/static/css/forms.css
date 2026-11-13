@@ -257,3 +257,303 @@
     grid-column: 2;
 }
 
+
+/*
+ * Einstellungen in Bereichen: Bereichsleiste links (am Handy als Reiter oben),
+ * rechts nur der gewaehlte Bereich. Einstellungen stehen als Zeilen
+ * "Bezeichnung + Erklaerung | Feld".
+ */
+.einstellungen-layout {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.einstellungen-bereiche {
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.einstellungen-bereich {
+    display: block;
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.einstellungen-bereich strong {
+    display: block;
+}
+
+.einstellungen-bereich span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 400;
+}
+
+.einstellungen-bereich:hover {
+    border-color: var(--border);
+}
+
+.einstellungen-bereich.aktiv {
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.einstellungen-bereich.aktiv strong {
+    color: var(--blue);
+}
+
+.einstellungen-inhalt {
+    min-width: 0;
+}
+
+.einstellungen-inhalt > .panel:first-child {
+    margin-top: 0;
+}
+
+/* Kurze Code-Schnipsel im Fliesstext (global ist code ein Block). */
+.einstellungen-inhalt p code,
+.einstellungen-inhalt li code {
+    display: inline;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.einstellungen-zeile {
+    display: grid;
+    grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+    gap: 8px 24px;
+    align-items: start;
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+}
+
+.einstellungen-form > .einstellungen-zeile:first-child {
+    border-top: 0;
+    padding-top: 4px;
+}
+
+.einstellungen-zeile-text label,
+.einstellungen-label {
+    display: block;
+    font-weight: 700;
+}
+
+.einstellungen-zeile-text .muted {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.einstellungen-zeile-feld textarea,
+.einstellungen-zeile-feld input[type="text"] {
+    width: 100%;
+}
+
+.einstellungen-zeile-feld textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.einstellungen-einheit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.einstellungen-einheit input[type="number"] {
+    width: 96px;
+}
+
+.einstellungen-einheit input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.einstellungen-aktionen {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.einstellungen-logo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.einstellungen-logo img {
+    max-height: 72px;
+    max-width: 180px;
+}
+
+.einstellungen-logo p {
+    margin: 0;
+}
+
+.einstellungen-details {
+    margin: 12px 0;
+}
+
+.einstellungen-details summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.einstellungen-details .role-overview {
+    margin-top: 12px;
+}
+
+.beamer-baukasten-optionen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 24px;
+    margin: 12px 0 16px;
+}
+
+.beamer-baukasten-optionen label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 700;
+}
+
+.beamer-baukasten-optionen label.beamer-baukasten-haken {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+}
+
+.beamer-baukasten-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.beamer-baukasten-link output {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--surface-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+    .einstellungen-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+    }
+
+    .einstellungen-bereiche {
+        position: static;
+        flex-direction: row;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .einstellungen-bereich {
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        border-color: var(--border);
+        background: var(--surface);
+        white-space: nowrap;
+    }
+
+    .einstellungen-bereich span {
+        display: none;
+    }
+}
+
+@media (max-width: 700px) {
+    .einstellungen-zeile {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .beamer-baukasten-link {
+        flex-wrap: wrap;
+    }
+
+    .beamer-baukasten-link output {
+        flex-basis: 100%;
+    }
+}
+
+.einstellungen-zeile-feld,
+.einstellungen-logo .inline-form {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.einstellungen-logo input[type="file"] {
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 100%;
+    width: auto;
+}
+
+.einstellungen-einheit > span {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+/* Backup-Liste: je Backup eine Zeile mit Name/Zeit links und Aktionen rechts;
+   bei wenig Platz rutschen die Aktionen darunter. */
+.backup-liste {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.backup-eintrag {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 24px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.backup-eintrag:first-child {
+    border-top: 0;
+}
+
+.backup-eintrag-info {
+    min-width: 0;
+}
+
+.backup-eintrag-info strong,
+.backup-eintrag-info span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.backup-eintrag-info span {
+    margin-top: 2px;
+    font-size: 0.85rem;
+}
+
+.backup-liste .restore-form input[type="password"] {
+    width: 160px;
+}

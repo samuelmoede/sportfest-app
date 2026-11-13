@@ -288,7 +288,7 @@ class ChangeLogAjaxFragmentTests(unittest.TestCase):
         from app.main import app as fastapi_app
 
         with TestClient(fastapi_app) as client:
-            response = client.get("/einstellungen")
+            response = client.get("/einstellungen?bereich=protokoll")
             self.assertEqual(response.status_code, 200)
             self.assertIn("/einstellungen/aenderungsprotokoll", response.text)
             self.assertIn("change-log-filter-form", response.text)
