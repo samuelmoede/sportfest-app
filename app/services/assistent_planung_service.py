@@ -1187,8 +1187,19 @@ def baue_tagesplan(daten, eintraege, slots, showspiele, blocker):
     ]
     columns = sorted({c["year_column"] for c in competitions if c.get("year_column")}, key=_spalten_key)
     timeline = build_day_timeline(columns, competitions, slots=timeline_slots, programmpunkte=programmpunkte)
+    for e in eintraege:
+        e["farbe"] = 0
     if timeline is None:
         return None
+    # Gleiche Sportfarbe wie im Tagesplan auch fuer die Spielplan-Vorschau
+    # des Wettbewerbs (Karte und Zeitraster), siehe assign_sport_colors.
+    farbe_by_id = {
+        item.get("competition_id"): item.get("farbe", 0)
+        for column in timeline["columns"] for item in column["items"]
+        if not item.get("is_programm")
+    }
+    for e in eintraege:
+        e["farbe"] = farbe_by_id.get(ids[e["id"]], 0)
     index_by_id = {}
     for position, e in enumerate(eintraege):
         index_by_id.setdefault(ids[e["id"]], position)

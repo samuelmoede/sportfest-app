@@ -392,19 +392,31 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.day-timeline-block.sport-1 { --block-color: #2563eb; }
-.day-timeline-block.sport-2 { --block-color: #0d9488; }
-.day-timeline-block.sport-3 { --block-color: #7c3aed; }
-.day-timeline-block.sport-4 { --block-color: #db2777; }
-.day-timeline-block.sport-5 { --block-color: #0369a1; }
-.day-timeline-block.sport-6 { --block-color: #65a30d; }
+.day-timeline-block.sport-1,
+.wiz-sport.sport-1 { --block-color: #2563eb; }
+.day-timeline-block.sport-2,
+.wiz-sport.sport-2 { --block-color: #0d9488; }
+.day-timeline-block.sport-3,
+.wiz-sport.sport-3 { --block-color: #7c3aed; }
+.day-timeline-block.sport-4,
+.wiz-sport.sport-4 { --block-color: #db2777; }
+.day-timeline-block.sport-5,
+.wiz-sport.sport-5 { --block-color: #0369a1; }
+.day-timeline-block.sport-6,
+.wiz-sport.sport-6 { --block-color: #65a30d; }
 
-[data-theme="dunkel"] .day-timeline-block.sport-1 { --block-color: #60a5fa; }
-[data-theme="dunkel"] .day-timeline-block.sport-2 { --block-color: #2dd4bf; }
-[data-theme="dunkel"] .day-timeline-block.sport-3 { --block-color: #a78bfa; }
-[data-theme="dunkel"] .day-timeline-block.sport-4 { --block-color: #f472b6; }
-[data-theme="dunkel"] .day-timeline-block.sport-5 { --block-color: #38bdf8; }
-[data-theme="dunkel"] .day-timeline-block.sport-6 { --block-color: #a3e635; }
+[data-theme="dunkel"] .day-timeline-block.sport-1,
+[data-theme="dunkel"] .wiz-sport.sport-1 { --block-color: #60a5fa; }
+[data-theme="dunkel"] .day-timeline-block.sport-2,
+[data-theme="dunkel"] .wiz-sport.sport-2 { --block-color: #2dd4bf; }
+[data-theme="dunkel"] .day-timeline-block.sport-3,
+[data-theme="dunkel"] .wiz-sport.sport-3 { --block-color: #a78bfa; }
+[data-theme="dunkel"] .day-timeline-block.sport-4,
+[data-theme="dunkel"] .wiz-sport.sport-4 { --block-color: #f472b6; }
+[data-theme="dunkel"] .day-timeline-block.sport-5,
+[data-theme="dunkel"] .wiz-sport.sport-5 { --block-color: #38bdf8; }
+[data-theme="dunkel"] .day-timeline-block.sport-6,
+[data-theme="dunkel"] .wiz-sport.sport-6 { --block-color: #a3e635; }
 
 .day-timeline-block:hover,
 .day-timeline-block:focus-visible {
