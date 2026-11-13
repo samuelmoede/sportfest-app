@@ -603,59 +603,12 @@ def create_router(
         )
 
     @router.get("/spielplan/monitor")
-    def spielplan_monitor(
-        request: Request,
-        ort: str = "",
-        event_id: str = "",
-        jahrgang: str = "",
-        recent: int = 2,
-        upcoming: int = 4,
-    ):
-        """Feste, unbeaufsichtigte Anzeige fuer einen an einen Beamer/Monitor
-        angeschlossenen Rechner: je Feld eines Ortes die letzten Ergebnisse,
-        das laufende und die naechsten Spiele, mit automatischer Aktualisierung
-        und automatischem Scrollen (siehe spielplan_monitor.html)."""
-        monitor_locations = [
-            location for location in COMPETITION_LOCATIONS
-            if location != NO_SLOT_LOCATION
-        ]
-        selected_location = normalize_competition_location(ort) or monitor_locations[0]
-        selected_jahrgang = parse_jahrgang_filter(jahrgang)
-        event_options, selected_event_id = resolve_event_context(
-            request, event_id, include_archived=False,
-        )
-
-        location_sections = get_location_schedule_sections(
-            None, selected_jahrgang, selected_location, event_id=selected_event_id,
-            exclude_archived_events=True,
-        )
-        section = next(
-            (s for s in location_sections if s["location"] == selected_location), None
-        )
-
-        court_views = []
-        for group in (section["court_groups"] if section else []):
-            slots = [s for s in group["slots"] if s.get("slot_typ") == "Spiel"]
-            finished = [s for s in slots if s["status"] == "beendet"]
-            court_views.append({
-                "court": group["court"],
-                "recent": finished[-max(recent, 0):] if recent > 0 else [],
-                "running": [s for s in slots if s["status"] == "läuft"],
-                "upcoming": [s for s in slots if s["status"] == "geplant"][:max(upcoming, 0)],
-            })
-
-        return templates.TemplateResponse(
-            request=request,
-            name="spielplan_monitor.html",
-            context={
-                "monitor_locations": monitor_locations,
-                "selected_location": selected_location,
-                "event_options": event_options,
-                "selected_event_id": selected_event_id,
-                "court_views": court_views,
-                "refresh_seconds": max(get_beamer_refresh_seconds(), 45),
-            }
-        )
+    def spielplan_monitor(ort: str = ""):
+        """Der fruehere Orts-Monitor ist in der Beamer-Ansicht aufgegangen
+        (/beamer?ort=...); alte Lesezeichen landen dort."""
+        selected_location = normalize_competition_location(ort)
+        ziel = f"/beamer?{urlencode({'ort': selected_location})}" if selected_location else "/beamer"
+        return RedirectResponse(ziel, status_code=303)
 
     @router.get("/spielplan-bearbeiten")
     def spielplan_bearbeiten(

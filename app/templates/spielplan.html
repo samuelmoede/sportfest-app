@@ -121,8 +121,8 @@
 
 {% if selected_location %}
 <p class="monitor-hint">
-    Für einen unbeaufsichtigten Monitor/Beamer (Vollbild, automatisches Scrollen, zeigt laufende/letzte/nächste Spiele):
-    <a href="/spielplan/monitor?ort={{ selected_location }}" target="_blank">/spielplan/monitor?ort={{ selected_location }} {{ icon("external-link") }}</a>
+    Für einen unbeaufsichtigten Monitor/Beamer an diesem Ort (Vollbild, zeigt laufende, nächste und letzte Spiele):
+    <a href="/beamer?ort={{ selected_location|urlencode }}" target="_blank">/beamer?ort={{ selected_location }} {{ icon("external-link") }}</a>
 </p>
 {% endif %}
 
