@@ -9,7 +9,6 @@
     gap: 8px;
     font-size: 0.9rem;
     color: var(--muted);
-    white-space: nowrap;
 }
 
 .monitor-hint {
