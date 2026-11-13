@@ -13,15 +13,11 @@
     </header>
 
     <form method="get" action="/spielplan/aushang" class="filter-row">
-        <select name="event_id">
-            <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
-            {% for event in event_options %}
-            <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
-                {{ event.name }}{% if event.status == "aktiv" %} &middot; aktiv{% endif %}
-            </option>
-            {% endfor %}
-        </select>
-
+        {# Kein Veranstaltungsfilter: Es gilt die aktive Veranstaltung. Ein Link
+           mit ?event_id=... bleibt beim Filtern erhalten. #}
+        {% if request.query_params.get("event_id") and selected_event_id is not none %}
+        <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+        {% endif %}
         <select name="ort">
             {% for location in printable_locations %}
             <option value="{{ location }}" {% if selected_location == location %}selected{% endif %}>{{ location }}</option>

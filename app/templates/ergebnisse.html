@@ -35,17 +35,11 @@ if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) 
 {% set results_return_to = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
 
 <form method="get" action="/ergebnisse" class="filter-row">
-    <label>
-        <span>Veranstaltung</span>
-        <select name="event_id">
-            <option value="" {% if selected_event_id is none %}selected{% endif %}>Alle Veranstaltungen</option>
-            {% for event in event_options %}
-            <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
-                {{ event.name }}{% if event.event_date %} - {{ event.event_date }}{% endif %}
-            </option>
-            {% endfor %}
-        </select>
-    </label>
+    {# Kein Veranstaltungsfilter: Es gilt die aktive Veranstaltung. Ein Link
+       mit ?event_id=... bleibt beim Filtern erhalten. #}
+    {% if request.query_params.get("event_id") and selected_event_id is not none %}
+    <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+    {% endif %}
     <label>
         <span>Wettbewerb</span>
         <select name="competition_id">

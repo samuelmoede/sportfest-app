@@ -111,6 +111,36 @@ class SpielplanOhneVeranstaltungsfilterTests(unittest.TestCase):
         self.assertIn("filter-checkbox", label.group(1).split())
         self.assertLess(html.index('name="ort"'), html.index('name="beamer"'))
 
+    def test_wettkampftag_seiten_haben_keine_veranstaltungsauswahl(self):
+        # Ergebnisse, Tabellen und Aushang arbeiten wie der Spielplan mit
+        # der aktiven Veranstaltung.
+        for url in ("/ergebnisse?ansicht=raster", "/tabellen", "/spielplan/aushang"):
+            with self.subTest(url=url):
+                html = self._get(url)
+                self.assertNotIn('name="event_id"', html)
+                self.assertNotIn("Alle Veranstaltungen", html)
+                self.assertNotIn("Geplanter Wettbewerb", html)
+
+    def test_wettkampftag_seiten_behalten_event_id_aus_dem_link(self):
+        event_id = self.event_ids["Geplantes Fest"]
+        hidden = f'<input type="hidden" name="event_id" value="{event_id}">'
+        for url in (
+            f"/ergebnisse?ansicht=raster&event_id={event_id}",
+            f"/tabellen?event_id={event_id}",
+            f"/spielplan/aushang?event_id={event_id}",
+        ):
+            with self.subTest(url=url):
+                html = self._get(url)
+                self.assertIn(hidden, html)
+                self.assertNotIn("Aktiver Wettbewerb", html)
+
+    def test_vorbereitungsseiten_behalten_die_veranstaltungsauswahl(self):
+        # Wettbewerbe, Spielplan bearbeiten und Urkunden brauchen den Filter
+        # weiter, um eine nicht aktive Veranstaltung zu bearbeiten.
+        for url in ("/wettbewerbe", "/spielplan-bearbeiten", "/urkunden"):
+            with self.subTest(url=url):
+                self.assertIn('<select name="event_id"', self._get(url))
+
 
 if __name__ == "__main__":
     unittest.main()

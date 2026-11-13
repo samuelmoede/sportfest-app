@@ -2,20 +2,18 @@
 {% block content %}
 <header class="page-header">
     <div>
-        <p class="eyebrow">Auswertung</p>
+        <p class="eyebrow">Auswertung{% if selected_event_id is not none and events_by_id.get(selected_event_id) %} &middot; {{ events_by_id[selected_event_id] }}{% endif %}</p>
         <h1>Tabellen</h1>
         <p>Automatisch berechnete Ranglisten für Turniere und Sechskampf.</p>
     </div>
 </header>
 
 <form method="get" action="/tabellen" class="filter-row">
-    <select name="event_id">
-        <option value="">Alle Veranstaltungen</option>
-        {% for event_id, event_name in events_by_id.items() %}
-        <option value="{{ event_id }}" {% if selected_event_id == event_id %}selected{% endif %}>{{ event_name }}</option>
-        {% endfor %}
-    </select>
-
+    {# Kein Veranstaltungsfilter: Es gilt die aktive Veranstaltung. Ein Link
+       mit ?event_id=... bleibt beim Filtern erhalten. #}
+    {% if request.query_params.get("event_id") and selected_event_id is not none %}
+    <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+    {% endif %}
     <select name="jahrgang">
         <option value="">Alle Jahrgänge</option>
         {% for year in year_options %}
@@ -25,9 +23,9 @@
 
     <select name="competition_id">
         <option value="">Alle Wettbewerbe anzeigen</option>
-        {% for c in competitions %}
+        {% for c in competitions if selected_event_id is none or c.event_id == selected_event_id %}
         <option value="{{ c.id }}" {% if selected_competition_id == c.id %}selected{% endif %}>
-            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}{% if c.event_id and events_by_id.get(c.event_id) %} · {{ events_by_id[c.event_id] }}{% endif %}
+            {{ c.name }}{% if c.competition_type == "Sechskampf" %} · Sechskampf{% endif %}{% if selected_event_id is none and c.event_id and events_by_id.get(c.event_id) %} · {{ events_by_id[c.event_id] }}{% endif %}
         </option>
         {% endfor %}
     </select>
