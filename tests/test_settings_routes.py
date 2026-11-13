@@ -40,7 +40,7 @@ class SettingsUserManagementRouteTests(unittest.TestCase):
         from app.main import app as fastapi_app
 
         with TestClient(fastapi_app) as client:
-            response = client.get("/einstellungen")
+            response = client.get("/einstellungen?bereich=benutzer")
         self.assertEqual(response.status_code, 200)
         self.assertIn("ADMIN", response.text)
         self.assertIn("MOSA", response.text)
@@ -48,7 +48,9 @@ class SettingsUserManagementRouteTests(unittest.TestCase):
         # Benutzer-Abschnitt zaehlt - andere Einstellungen wie das
         # Farbschema duerfen weiterhin ein <select> nutzen).
         start = response.text.index('id="benutzer"')
-        end = response.text.index('id="aenderungsprotokoll"')
+        # Die Seite zeigt nur noch den gewaehlten Bereich: der Abschnitt endet
+        # mit seinem eigenen </section>.
+        end = response.text.index("</section>", start)
         benutzer_section = response.text[start:end]
         self.assertIn('type="radio"', benutzer_section)
         self.assertNotIn("<select", benutzer_section)

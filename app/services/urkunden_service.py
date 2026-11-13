@@ -493,6 +493,18 @@ def speichere_layout(values):
         set_setting(f"urkunden_{key}", (values.get(key) or "").strip())
 
 
+def lade_schulname() -> str:
+    return get_setting("urkunden_schulname", "") or ""
+
+
+def speichere_schulname(value) -> str:
+    """Schulname zentral (Einstellungen > Anzeige). Liegt unter demselben
+    Schluessel wie bisher im Urkunden-Layout, damit gespeicherte Werte gelten."""
+    name = (value or "").strip()[:120]
+    set_setting("urkunden_schulname", name)
+    return name
+
+
 def lade_schwellen():
     return parse_schwellen(get_setting(SCHWELLEN_SETTING_KEY, ""))
 
