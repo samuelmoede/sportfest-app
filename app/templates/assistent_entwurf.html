@@ -22,6 +22,10 @@
     .wiz-chips { display: flex; flex-wrap: wrap; gap: 6px 10px; }
     .wiz-chips label { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-soft); }
     .wiz-chips label.is-missing { border-style: dashed; color: var(--muted); }
+    /* Klassen je Jahrgang (Grunddaten): nur angehakte Jahrgänge sind sichtbar. */
+    .wiz-klassen { margin: 6px 0; align-items: center; }
+    .wiz-klassen[hidden] { display: none; }
+    .wiz-klassen > strong { min-width: 110px; }
     /* Checkbox-Labels: Häkchen links neben dem Text, nicht darüber (überschreibt .wiz-grid label). */
     .wiz-grid .wiz-chips label, .wiz-grid label.wiz-check { flex-direction: row; align-items: center; white-space: nowrap; }
     .wiz-check { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
@@ -246,16 +250,20 @@
         <details class="wiz-erweitert" {% if experte %}open{% endif %}>
             <summary>Einzelne Klassen abwählen</summary>
             <input type="hidden" name="teams_gesendet" value="1">
+            {# Alle Jahrgänge stehen im Formular; sichtbar sind nur die oben
+               angehakten (Skript unten), damit ein frisch angehakter Jahrgang
+               seine Klassen sofort zeigt und nicht erst nach dem Speichern. #}
+            <p class="muted" data-klassen-leer {% if daten.jahrgaenge %}hidden{% endif %}>Oben zuerst einen Jahrgang anhaken – dann erscheinen hier seine Klassen.</p>
             {% for jahrgang in verfuegbare_jahrgaenge %}
-            {% if jahrgang in daten.jahrgaenge %}
-            <div class="wiz-chips" style="margin: 6px 0;">
-                <strong style="min-width: 110px;">Jahrgang {{ jahrgang }}</strong>
+            <div class="wiz-chips wiz-klassen" data-klassen-jahrgang="{{ jahrgang }}" {% if jahrgang not in daten.jahrgaenge %}hidden{% endif %}>
+                <strong>Jahrgang {{ jahrgang }}</strong>
                 {% for team in teams_by_jahrgang.get(jahrgang, []) %}
                 <input type="hidden" name="teams_gezeigt" value="{{ team.id }}">
                 <label><input type="checkbox" name="teams_aktiv" value="{{ team.id }}" {% if team.id not in daten.teams_abgewaehlt %}checked{% endif %}> {{ team.name }}</label>
+                {% else %}
+                <span class="muted">Keine Klassen angelegt.</span>
                 {% endfor %}
             </div>
-            {% endif %}
             {% endfor %}
         </details>
         <div class="wiz-actions">
@@ -707,6 +715,23 @@
             schrittForm.appendChild(ziel);
             schrittForm.submit();
         });
+    }
+
+    // Grunddaten: Klassen eines Jahrgangs zeigen, sobald er angehakt ist.
+    var klassenZeilen = document.querySelectorAll("[data-klassen-jahrgang]");
+    if (klassenZeilen.length) {
+        var jahrgangBoxen = document.querySelectorAll("input[type=checkbox][name=jahrgaenge]");
+        var klassenLeer = document.querySelector("[data-klassen-leer]");
+        var zeigeKlassen = function () {
+            var gewaehlt = {};
+            jahrgangBoxen.forEach(function (box) { if (box.checked) gewaehlt[box.value] = true; });
+            klassenZeilen.forEach(function (zeile) {
+                zeile.hidden = !gewaehlt[zeile.getAttribute("data-klassen-jahrgang")];
+            });
+            if (klassenLeer) klassenLeer.hidden = Object.keys(gewaehlt).length > 0;
+        };
+        jahrgangBoxen.forEach(function (box) { box.addEventListener("change", zeigeKlassen); });
+        zeigeKlassen();
     }
 
     // Matrix: Liste der Wettbewerbe live aktualisieren.

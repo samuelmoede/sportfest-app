@@ -219,6 +219,36 @@ class AssistentRoutenTests(unittest.TestCase):
 
     # Weniger Schritte und Machbarkeits-Abzeichen ------------------------------
 
+    def test_klassen_abwaehlen_ohne_vorher_zu_speichern(self):
+        """Die Klassen aller Jahrgaenge stehen schon im Formular (versteckt,
+        solange der Jahrgang nicht angehakt ist). So laesst sich ein Jahrgang
+        anhaken und im selben Zug eine Klasse abwaehlen."""
+        location = self._post("/assistent/entwurf/neu")
+        entwurf_id = int(location.split("/")[3])
+        basis = f"/assistent/entwurf/{entwurf_id}"
+        html = self.client.get(f"{basis}/grunddaten").text
+        with database.get_conn() as conn:
+            teams = {row["name"]: row["id"] for row in conn.execute("SELECT id, name FROM teams")}
+        self.assertIn('data-klassen-jahrgang="9" hidden', html)
+        for team_id in teams.values():
+            self.assertIn(f'name="teams_aktiv" value="{team_id}" checked', html)
+
+        neunte = [str(teams[name]) for name in ("9a", "9b", "9c", "9d")]
+        self._post(f"{basis}/grunddaten", {
+            "name": "Turnier", "datum": "2026-12-22", "event_type": "Sportfest",
+            "start": "08:00", "ende": "13:00", "jahrgaenge_gesendet": "1", "jahrgaenge": ["9"],
+            "teams_gesendet": "1", "teams_gezeigt": [str(i) for i in teams.values()],
+            "teams_aktiv": [str(i) for i in teams.values() if i != teams["9c"]],
+            "ziel": "bleiben",
+        })
+        daten = self._entwurf(entwurf_id)["daten"]
+        self.assertEqual(daten["jahrgaenge"], ["9"])
+        self.assertEqual(daten["teams_abgewaehlt"], [teams["9c"]])
+        html = self.client.get(f"{basis}/grunddaten").text
+        self.assertIn('data-klassen-jahrgang="9" >', html)
+        self.assertNotIn(f'name="teams_aktiv" value="{teams["9c"]}" checked', html)
+        self.assertIn(f'name="teams_aktiv" value="{neunte[0]}" checked', html)
+
     def test_wertung_steht_im_abschluss(self):
         """Die frühere Seite „Wertung“ ist im Abschluss aufgegangen: alte
         Links leiten um, die Einstellungen stehen im Abschluss und gelten beim

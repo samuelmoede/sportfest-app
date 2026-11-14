@@ -50,6 +50,33 @@ def test_matrix_live_liste(live_server_url, entwurf_id, page):
     expect(liste.locator("li")).to_have_count(vorher + 1)
 
 
+def test_klassen_erscheinen_beim_anhaken_des_jahrgangs(live_server_url, page):
+    """Ein frisch angehakter Jahrgang zeigt seine Klassen sofort unter
+    "Einzelne Klassen abwaehlen" - ohne vorher zu speichern."""
+    import app.database as database
+    from app.services import assistent_entwurf_service as es
+
+    with database.get_conn() as conn:
+        conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('K8a', 8, 1)")
+        conn.execute("INSERT INTO teams (name, jahrgang, active) VALUES ('K8b', 8, 1)")
+        neu = es.erstelle_entwurf(conn, es.neue_daten())
+        conn.commit()
+    page.goto(f"{live_server_url}/assistent/entwurf/{neu}/grunddaten")
+    page.locator("summary", has_text="Einzelne Klassen abwählen").click()
+    zeile = page.locator("[data-klassen-jahrgang='8']")
+    expect(zeile).to_be_hidden()
+    expect(page.locator("[data-klassen-leer]")).to_be_visible()
+    page.locator("input[name=jahrgaenge][value='8']").check()
+    expect(zeile).to_be_visible()
+    expect(page.locator("[data-klassen-leer]")).to_be_hidden()
+    zeile.get_by_label("K8b").uncheck()
+    page.locator("input[name=name]").fill("Klassentest")
+    page.locator("button[name=ziel][value=weiter]").click()
+    page.goto(f"{live_server_url}/assistent/entwurf/{neu}/grunddaten")
+    expect(page.locator("[data-klassen-jahrgang='8']").get_by_label("K8a")).to_be_checked()
+    expect(page.locator("[data-klassen-jahrgang='8']").get_by_label("K8b")).not_to_be_checked()
+
+
 def test_vorschau_pfeile_und_dialog(live_server_url, entwurf_id, page):
     page.goto(f"{live_server_url}/assistent/entwurf/{entwurf_id}/vorschau")
     position = page.locator("[data-carousel-pos]")
