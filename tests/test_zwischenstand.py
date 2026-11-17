@@ -258,3 +258,34 @@ class RasterOhneSpeichernKnopfTests(_MitTempDb):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KonfliktRueckfrageTests(unittest.TestCase):
+    """Wunsch Samuel (2026-11-17): Hat ein anderes Geraet inzwischen etwas
+    anderes gespeichert, wird weder still ueberschrieben noch still
+    uebernommen - die Karte fragt "behalten" oder "ueberschreiben". Auch
+    "Beenden" aus einem veralteten Fenster prueft vorher beim Server.
+    Das Verhalten selbst ist per Browser geprueft (siehe PR), hier wird
+    abgesichert, dass die Bausteine in den Vorlagen bleiben."""
+
+    def _vorlage(self, name):
+        return (ROOT_DIR / "app" / "templates" / name).read_text(encoding="utf-8")
+
+    def test_raster_fragt_statt_still_zu_uebernehmen(self):
+        html = self._vorlage("ergebnisse.html")
+        self.assertIn('data-konflikt-aktion="behalten"', html)
+        self.assertIn('data-konflikt-aktion="ueberschreiben"', html)
+        self.assertIn("Welches Ergebnis soll gelten?", html)
+
+    def test_raster_beenden_prueft_vorher_beim_server(self):
+        html = self._vorlage("ergebnisse.html")
+        handler = html[html.index("function attachResultSaveHandler"):html.index("function attachCorrectionAreaHandler")]
+        self.assertIn("sendeZwischenstand(savedSlotId, true)", handler)
+
+    def test_feldansicht_fragt_und_prueft_vor_beenden(self):
+        html = self._vorlage("ergebnisse_feld.html")
+        self.assertIn('data-aktion="konflikt-behalten"', html)
+        self.assertIn('data-aktion="konflikt-ueberschreiben"', html)
+        self.assertIn("const pruefung = await speichereZwischenstand(karte)", html)
+        # Waehrend die Frage offen ist, darf das Nachladen sie nicht wegwischen.
+        self.assertIn(".fa-konflikt')) return false;", html)
