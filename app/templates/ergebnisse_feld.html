@@ -141,7 +141,9 @@
     <section class="fa-abschnitt">
         <h2>Jetzt</h2>
         {% for s in ansicht.laufend %}
-        <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1">
+        <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1"
+                 data-basis-a="{{ s.score_a if s.score_a is not none else '' }}"
+                 data-basis-b="{{ s.score_b if s.score_b is not none else '' }}">
             <div class="fa-jetzt-kopf">
                 <span class="fa-status"><span class="fa-punkt"></span>läuft · {{ s.startzeit }}{% if phasen_name(s) %} · {{ phasen_name(s) }}{% endif %}</span>
                 {% if s.started_at %}
@@ -175,7 +177,9 @@
     {% set s = ansicht.dran %}
     <section class="fa-abschnitt">
         <h2>Als Nächstes dran</h2>
-        <article class="fa-jetzt fa-dran" data-slot="{{ s.id }}">
+        <article class="fa-jetzt fa-dran" data-slot="{{ s.id }}"
+                 data-basis-a="{{ s.score_a if s.score_a is not none else '' }}"
+                 data-basis-b="{{ s.score_b if s.score_b is not none else '' }}">
             <div class="fa-jetzt-kopf">
                 <span class="fa-status">{{ s.startzeit }}{% if phasen_name(s) %} · {{ phasen_name(s) }}{% endif %}</span>
             </div>
@@ -589,6 +593,28 @@
     .fa-schritt { width: 46px; }
     .fa-seite .fa-zahl { width: 64px; font-size: 1.6rem; }
 }
+.fa-konflikt {
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid var(--amber);
+    border-radius: 12px;
+    background: var(--amber-soft);
+    line-height: 1.35;
+}
+.fa-konflikt p {
+    margin: 0 0 6px;
+}
+.fa-konflikt-titel {
+    font-weight: 800;
+}
+.fa-konflikt-aktionen {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+.fa-konflikt-aktionen button {
+    min-height: 48px;
+}
 </style>
 
 <script>
@@ -663,16 +689,100 @@
         el.className = 'fa-speicherstand' + (klasse ? ' ' + klasse : '');
     }
 
+    // Eigener kleiner Speicherweg mit JSON-Antwort (statt /save, das nach
+    // jedem Tippen die ganze Ergebnisseite neu baute). basis = zuletzt vom
+    // Server bekannter Stand: hat ein anderes Geraet inzwischen etwas
+    // anderes gespeichert, wird nicht ueberschrieben, sondern uebernommen.
+    async function sendeZwischenstand(karte, stand) {
+        const daten = new FormData();
+        daten.append('score_a', stand.a);
+        daten.append('score_b', stand.b);
+        daten.append('basis_a', karte.dataset.basisA || '');
+        daten.append('basis_b', karte.dataset.basisB || '');
+        daten.append('basis_pruefen', '1');
+        const antwort = await fetch(`/slot/${karte.dataset.slot}/zwischenstand`, {
+            method: 'POST', body: daten, credentials: 'same-origin',
+        });
+        if (!(antwort.headers.get('content-type') || '').includes('application/json')) {
+            throw new Error(`Anfrage fehlgeschlagen (${antwort.status})`);
+        }
+        return antwort.json();
+    }
+
+    const wert = v => (v === null || v === undefined ? '' : String(v));
+    const standText = (a, b) => (a === '' && b === '' ? 'kein Stand' : `${a} : ${b}`);
+
+    // Konflikt: Ein anderes Geraet hat inzwischen einen anderen Stand
+    // gespeichert. Nichts still ueberschreiben oder uebernehmen - fragen.
+    function zeigeKonflikt(karte, server, mein) {
+        karte.dataset.konfliktA = server.a;
+        karte.dataset.konfliktB = server.b;
+        let box = karte.querySelector('.fa-konflikt');
+        if (!box) {
+            box = document.createElement('div');
+            box.className = 'fa-konflikt';
+            box.setAttribute('role', 'alertdialog');
+            box.innerHTML = `
+                <p class="fa-konflikt-titel"></p>
+                <p class="fa-konflikt-text"></p>
+                <div class="fa-konflikt-aktionen">
+                    <button type="button" data-aktion="konflikt-behalten"></button>
+                    <button type="button" class="danger" data-aktion="konflikt-ueberschreiben"></button>
+                </div>`;
+            karte.querySelector('.fa-stand').before(box);
+        }
+        box.querySelector('.fa-konflikt-titel').textContent =
+            `Ein anderes Gerät hat inzwischen ${standText(server.a, server.b)} gespeichert.`;
+        box.querySelector('.fa-konflikt-text').textContent =
+            `Deine Eingabe ${standText(String(mein.a), String(mein.b))} ist noch nicht gespeichert. Welches Ergebnis soll gelten?`;
+        box.querySelector('[data-aktion="konflikt-behalten"]').textContent = `${standText(server.a, server.b)} behalten`;
+        box.querySelector('[data-aktion="konflikt-ueberschreiben"]').textContent = `Mit ${mein.a} : ${mein.b} überschreiben`;
+        setzeSpeicherstand(karte, 'Nicht gespeichert: bitte oben entscheiden.', 'fehler');
+    }
+
+    function loeseKonflikt(karte, aktion) {
+        const server = { a: karte.dataset.konfliktA || '', b: karte.dataset.konfliktB || '' };
+        delete karte.dataset.konfliktA;
+        delete karte.dataset.konfliktB;
+        karte.querySelector('.fa-konflikt')?.remove();
+        karte.dataset.basisA = server.a;
+        karte.dataset.basisB = server.b;
+        if (aktion === 'konflikt-behalten') {
+            karte.querySelector('input[name="score_a"]').value = server.a === '' ? 0 : server.a;
+            karte.querySelector('input[name="score_b"]').value = server.b === '' ? 0 : server.b;
+            const anzeige = karte.querySelector('[data-endstand]');
+            if (anzeige) anzeige.textContent = `${server.a || 0} : ${server.b || 0}`;
+            setzeSpeicherstand(karte, 'Bestehendes Ergebnis behalten', 'ok');
+        } else {
+            speichereZwischenstand(karte);
+        }
+    }
+
+    // Liefert das Ergebnis ('gespeichert', 'unveraendert', 'konflikt', ...).
     function speichereZwischenstand(karte) {
         wartend.delete(karte);
         const stand = lies(karte);
-        if (stand.a === null || stand.b === null || !karte.isConnected) return Promise.resolve();
-        return hinterher(() => sende(`/slot/${karte.dataset.slot}/save`, {
-            score_a: stand.a, score_b: stand.b, finish: '0', results_return_to: returnTo(),
-        })).then(() => {
-            if (!wartend.has(karte)) setzeSpeicherstand(karte, 'Zwischenstand gespeichert', 'ok');
+        if (stand.a === null || stand.b === null || !karte.isConnected) return Promise.resolve('ungueltig');
+        if (karte.dataset.konfliktA !== undefined) {
+            zeigeKonflikt(karte, { a: karte.dataset.konfliktA, b: karte.dataset.konfliktB }, stand);
+            return Promise.resolve('konflikt');
+        }
+        return hinterher(() => sendeZwischenstand(karte, stand)).then(inhalt => {
+            if (inhalt.ergebnis === 'gespeichert' || inhalt.ergebnis === 'unveraendert') {
+                karte.dataset.basisA = wert(inhalt.score_a);
+                karte.dataset.basisB = wert(inhalt.score_b);
+                if (!wartend.has(karte)) setzeSpeicherstand(karte, 'Zwischenstand gespeichert', 'ok');
+            } else if (inhalt.ergebnis === 'konflikt') {
+                zeigeKonflikt(karte, { a: wert(inhalt.score_a), b: wert(inhalt.score_b) }, lies(karte));
+            } else if (inhalt.ergebnis === 'beendet') {
+                ladeNeu().catch(() => {});
+            } else {
+                throw new Error(inhalt.ergebnis);
+            }
+            return inhalt.ergebnis;
         }).catch(() => {
             setzeSpeicherstand(karte, 'Nicht gespeichert. Bitte noch einmal tippen.', 'fehler');
+            return 'fehler';
         });
     }
 
@@ -682,6 +792,11 @@
         const anzeige = feld.closest('.fa-stand').parentElement.querySelector('[data-endstand]');
         if (anzeige) anzeige.textContent = `${stand.a ?? '–'} : ${stand.b ?? '–'}`;
         if (karte.dataset.autospeichern !== '1') return;
+        if (karte.dataset.konfliktA !== undefined) {
+            // Offene Rueckfrage: nur die eigene Eingabe darin nachfuehren.
+            zeigeKonflikt(karte, { a: karte.dataset.konfliktA, b: karte.dataset.konfliktB }, lies(karte));
+            return;
+        }
         clearTimeout(wartend.get(karte));
         setzeSpeicherstand(karte, 'Speichert …', '');
         wartend.set(karte, setTimeout(() => speichereZwischenstand(karte), 600));
@@ -754,6 +869,8 @@
                 } else {
                     schliesseKorrektur(karte);
                 }
+            } else if (aktion === 'konflikt-behalten' || aktion === 'konflikt-ueberschreiben') {
+                loeseKonflikt(karte, aktion);
             } else if (aktion === 'abbrechen') {
                 schliesseKorrektur(karte);
             } else if (aktion === 'ohne-start') {
@@ -778,6 +895,15 @@
                 mitSperre(knopf, async () => {
                     clearTimeout(wartend.get(karte));
                     wartend.delete(karte);
+                    if (aktion === 'beenden' && karte.dataset.basisA !== undefined) {
+                        // Vor dem Beenden pruefen, ob ein anderes Geraet inzwischen
+                        // einen anderen Stand gespeichert hat - dann erst fragen.
+                        const pruefung = await speichereZwischenstand(karte);
+                        if (pruefung !== 'gespeichert' && pruefung !== 'unveraendert') {
+                            if (pruefung === 'fehler') throw new Error('Pruefung fehlgeschlagen');
+                            return;
+                        }
+                    }
                     uebernimm(await hinterher(() => sende(`/slot/${karte.dataset.slot}/save`, {
                         score_a: stand.a, score_b: stand.b, finish: '1', results_return_to: returnTo(),
                     })));
@@ -838,7 +964,7 @@
     // jemand tippt, korrigiert oder etwas noch gespeichert wird.
     const istRuhig = () => {
         if (document.hidden || wartend.size || offen) return false;
-        if (root.querySelector('.fa-korrektur:not([hidden]), .fa-nachtrag:not([hidden]), details[open]')) return false;
+        if (root.querySelector('.fa-korrektur:not([hidden]), .fa-nachtrag:not([hidden]), details[open], .fa-konflikt')) return false;
         return !(document.activeElement && document.activeElement.classList.contains('fa-zahl'));
     };
     setInterval(() => {
