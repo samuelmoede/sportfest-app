@@ -141,7 +141,9 @@
     <section class="fa-abschnitt">
         <h2>Jetzt</h2>
         {% for s in ansicht.laufend %}
-        <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1">
+        <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1"
+                 data-basis-a="{{ s.score_a if s.score_a is not none else '' }}"
+                 data-basis-b="{{ s.score_b if s.score_b is not none else '' }}">
             <div class="fa-jetzt-kopf">
                 <span class="fa-status"><span class="fa-punkt"></span>läuft · {{ s.startzeit }}{% if phasen_name(s) %} · {{ phasen_name(s) }}{% endif %}</span>
                 {% if s.started_at %}
@@ -663,14 +665,49 @@
         el.className = 'fa-speicherstand' + (klasse ? ' ' + klasse : '');
     }
 
+    // Eigener kleiner Speicherweg mit JSON-Antwort (statt /save, das nach
+    // jedem Tippen die ganze Ergebnisseite neu baute). basis = zuletzt vom
+    // Server bekannter Stand: hat ein anderes Geraet inzwischen etwas
+    // anderes gespeichert, wird nicht ueberschrieben, sondern uebernommen.
+    async function sendeZwischenstand(karte, stand) {
+        const daten = new FormData();
+        daten.append('score_a', stand.a);
+        daten.append('score_b', stand.b);
+        daten.append('basis_a', karte.dataset.basisA || '');
+        daten.append('basis_b', karte.dataset.basisB || '');
+        daten.append('basis_pruefen', '1');
+        const antwort = await fetch(`/slot/${karte.dataset.slot}/zwischenstand`, {
+            method: 'POST', body: daten, credentials: 'same-origin',
+        });
+        if (!(antwort.headers.get('content-type') || '').includes('application/json')) {
+            throw new Error(`Anfrage fehlgeschlagen (${antwort.status})`);
+        }
+        return antwort.json();
+    }
+
     function speichereZwischenstand(karte) {
         wartend.delete(karte);
         const stand = lies(karte);
         if (stand.a === null || stand.b === null || !karte.isConnected) return Promise.resolve();
-        return hinterher(() => sende(`/slot/${karte.dataset.slot}/save`, {
-            score_a: stand.a, score_b: stand.b, finish: '0', results_return_to: returnTo(),
-        })).then(() => {
-            if (!wartend.has(karte)) setzeSpeicherstand(karte, 'Zwischenstand gespeichert', 'ok');
+        const wert = v => (v === null || v === undefined ? '' : String(v));
+        return hinterher(() => sendeZwischenstand(karte, stand)).then(inhalt => {
+            if (inhalt.ergebnis === 'gespeichert' || inhalt.ergebnis === 'unveraendert') {
+                karte.dataset.basisA = wert(inhalt.score_a);
+                karte.dataset.basisB = wert(inhalt.score_b);
+                if (!wartend.has(karte)) setzeSpeicherstand(karte, 'Zwischenstand gespeichert', 'ok');
+            } else if (inhalt.ergebnis === 'konflikt') {
+                karte.dataset.basisA = wert(inhalt.score_a);
+                karte.dataset.basisB = wert(inhalt.score_b);
+                karte.querySelector('input[name="score_a"]').value = inhalt.score_a ?? 0;
+                karte.querySelector('input[name="score_b"]').value = inhalt.score_b ?? 0;
+                const anzeige = karte.querySelector('[data-endstand]');
+                if (anzeige) anzeige.textContent = `${inhalt.score_a ?? 0} : ${inhalt.score_b ?? 0}`;
+                setzeSpeicherstand(karte, 'Ein anderes Gerät hat den Stand geändert. Er wurde übernommen.', 'fehler');
+            } else if (inhalt.ergebnis === 'beendet') {
+                ladeNeu().catch(() => {});
+            } else {
+                throw new Error(inhalt.ergebnis);
+            }
         }).catch(() => {
             setzeSpeicherstand(karte, 'Nicht gespeichert. Bitte noch einmal tippen.', 'fehler');
         });
