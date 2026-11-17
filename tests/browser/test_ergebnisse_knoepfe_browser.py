@@ -23,8 +23,8 @@ MOBILE_VIEWPORT = {"width": 375, "height": 812}
 
 @pytest.fixture(scope="module")
 def ergebnis_slots(live_server_url):
-    """Ein geplantes (Start/Speichern/Beenden) und ein laufendes Spiel
-    (Start rueckgaengig/Speichern/Beenden - die laengste Beschriftung)."""
+    """Ein geplantes (Start/Beenden) und ein laufendes Spiel
+    (Start rueckgaengig/Beenden - die laengste Beschriftung)."""
     import app.database as database
 
     with database.get_conn() as conn:
@@ -75,7 +75,9 @@ def test_knopf_beschriftungen_brechen_nicht_um(live_server_url, ergebnis_slots, 
 
     leisten = page.evaluate(KNOEPFE_JS)
     texte = {k["text"] for leiste in leisten for k in leiste}
-    assert {"Start", "Start rückgängig", "Speichern", "Beenden"} <= texte, texte
+    assert {"Start", "Start rückgängig", "Beenden"} <= texte, texte
+    # Der Stand wird beim Tippen automatisch gespeichert - kein Speichern-Knopf.
+    assert "Speichern" not in texte, texte
 
     for leiste in leisten:
         for knopf in leiste:

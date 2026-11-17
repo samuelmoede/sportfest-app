@@ -675,13 +675,21 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                     </div>
                 </div>
                 {% else %}
+                {# Kein Speichern-Knopf mehr: der Stand wird beim Tippen automatisch
+                   zwischengespeichert (/slot/<id>/zwischenstand, nur der Stand,
+                   Status/Uhr bleiben). data-basis-* = Stand, den dieses Geraet
+                   zuletzt vom Server kennt (Konfliktschutz bei zwei Geraeten). #}
+                <span class="speicherstand" role="status" aria-live="polite" data-speicherstand></span>
                 <div class="result-form-row">
-                <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form">
+                <form method="post" action="/slot/{{ s.id }}/save" id="result-form-{{ s.id }}" class="result-form"
+                      data-autospeichern data-slot-id="{{ s.id }}"
+                      data-basis-a="{{ s.score_a if s.score_a is not none else '' }}"
+                      data-basis-b="{{ s.score_b if s.score_b is not none else '' }}">
                     <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
                     <strong>{{ s.team_a or "?" }}</strong>
-                    <input type="number" min="0" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required>
+                    <input type="number" min="0" inputmode="numeric" name="score_a" value="{{ s.score_a if s.score_a is not none else '' }}" required aria-label="Punkte {{ s.team_a or 'Team' }}">
                     <span>:</span>
-                    <input type="number" min="0" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required>
+                    <input type="number" min="0" inputmode="numeric" name="score_b" value="{{ s.score_b if s.score_b is not none else '' }}" required aria-label="Punkte {{ s.team_b or 'Team' }}">
                     <strong>{{ s.team_b or "?" }}</strong>
                 </form>
                 <div class="result-actions">
@@ -696,7 +704,6 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
                         <button class="outline" type="submit">Start rückgängig</button>
                     </form>
                     {% endif %}
-                    <button class="secondary" type="submit" form="result-form-{{ s.id }}" name="finish" value="0">Speichern</button>
                     <button class="primary" type="submit" form="result-form-{{ s.id }}" name="finish" value="1">Beenden</button>
                 </div>
                 </div>
@@ -924,6 +931,114 @@ document.querySelectorAll("[data-six-card]").forEach(card => {
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: center;
+}
+/* Spaltenkopf ragte rechts ueber die Feld-Spalte hinaus (Feedback 2026-11-17):
+   Die Feld-Spalte ist selbst ein Grid mit einer impliziten auto-Spalte. War
+   ein Karteninhalt (andere Systemschrift, lange Pill) breiter als die Spalte,
+   wuchs diese innere Spalte mit - Kopf und Karten wurden breiter als der
+   Spaltenrahmen und lagen ueber dem Rand bzw. der Luecke zur Nachbarspalte.
+   minmax(0, 1fr) haelt den Inhalt auf Spaltenbreite, langer Text bricht um. */
+.results-court-column {
+    grid-template-columns: minmax(0, 1fr);
+    /* Kopf ohne negativen Rand: Spalte ohne Seitenabstand, die Zeitzellen
+       ruecken stattdessen ein. Was trotzdem ueber den Rahmen ragen wuerde,
+       wird an der Spalte abgeschnitten statt ueber die Nachbarspalte gemalt. */
+    padding: 0 0 6px;
+    overflow: clip;
+    overflow-clip-margin: 2px;
+}
+.results-court-column .editor-court-heading {
+    margin: 0;
+}
+.results-court-column .results-time-cell {
+    margin: 0 6px;
+}
+.results-court-column > *,
+.results-court-column .result-card {
+    min-width: 0;
+}
+.results-court-column .result-card {
+    overflow-wrap: anywhere;
+}
+.results-court-column .result-meta .pill,
+.results-court-column .result-meta .badge,
+.results-court-column .result-meta .change-counter {
+    max-width: 100%;
+    white-space: normal;
+}
+/* Die Zeitspalte klebt beim waagerechten Scrollen links. Zwischen den
+   einzelnen Zeit-Kaestchen lagen 8px Luecke, durch die Kopf und Karten der
+   darunter geschobenen Spalte durchschienen ("abgeschnittener Kopf"). Ein
+   Rand in Flaechenfarbe schliesst die Luecken. */
+.results-time-grid .editor-time-corner,
+.results-time-grid .editor-time-label {
+    box-shadow: 0 0 0 4px var(--surface), 8px 0 10px -4px rgba(15, 27, 45, 0.12);
+}
+
+/* Rueckfrage, wenn ein anderes Geraet inzwischen etwas anderes gespeichert hat. */
+.konflikt-box {
+    margin: 0 0 8px;
+    padding: 8px;
+    border: 1px solid var(--amber);
+    border-radius: 8px;
+    background: var(--amber-soft);
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+.konflikt-box p {
+    margin: 0 0 4px;
+}
+.konflikt-box .konflikt-titel {
+    font-weight: 800;
+}
+.konflikt-aktionen {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+.konflikt-aktionen button {
+    flex: 1 1 auto;
+    padding: 5px 7px;
+    font-size: 0.75rem;
+}
+
+/* Automatisches Zwischenspeichern: Anzeige oben rechts in der Karte. */
+.results-court-column .result-card {
+    position: relative;
+}
+.speicherstand {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 55%;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: right;
+    color: var(--muted);
+    pointer-events: none;
+}
+.speicherstand:empty {
+    display: none;
+}
+.speicherstand.ok {
+    color: var(--green);
+}
+.speicherstand.konflikt {
+    color: var(--amber);
+}
+.speicherstand.fehler {
+    color: var(--red);
+    pointer-events: auto;
+}
+.speicherstand svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
 }
 @media (max-width: 640px) {
     .results-time-grid {
@@ -1229,6 +1344,30 @@ function attachResultSaveHandler(form) {
 
         const submitter = event.submitter;
         const savedSlotId = getSlotIdFromSaveForm(form);
+        // Ein noch wartender Zwischenstand dieses Spiels ist durch "Beenden"
+        // ueberholt; die der anderen Spiele erst sichern, bevor die Karten
+        // neu gerendert werden.
+        // Doppelklick waehrend des Sicherns abfangen (der Knopf selbst darf
+        // erst nach dem Aufbau der FormData deaktiviert werden, siehe unten).
+        if (form.dataset.sichertGerade) return;
+        form.dataset.sichertGerade = '1';
+        try {
+            // Vor "Beenden" beim Server pruefen, ob ein anderes Geraet
+            // inzwischen einen anderen Stand gespeichert hat - dann nicht
+            // beenden, sondern erst fragen, welches Ergebnis gilt.
+            if (form.dataset.autospeichern !== undefined && savedSlotId) {
+                const pruefung = await sendeZwischenstand(savedSlotId, true);
+                if (pruefung !== 'gespeichert' && pruefung !== 'unveraendert') {
+                    if (pruefung === 'fehler') {
+                        window.alert('Das Spiel konnte nicht beendet werden: keine Verbindung. Bitte erneut versuchen.');
+                    }
+                    return;
+                }
+            }
+            await sichereAlleZwischenstaende();
+        } finally {
+            delete form.dataset.sichertGerade;
+        }
         const drafts = snapshotResultDrafts();
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
@@ -1342,6 +1481,7 @@ function attachAjaxReloadForm(form) {
         if (button) button.disabled = true;
 
         try {
+            await sichereAlleZwischenstaende();
             const response = await fetch(form.action, {
                 method: 'POST',
                 body: new FormData(form),
@@ -1367,6 +1507,307 @@ function attachAjaxReloadForm(form) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Automatisches Zwischenspeichern beim Tippen (ersetzt den Speichern-Knopf).
+//
+// Ausgelegt auf viele gleichzeitige Geraete:
+// * Entprellt: gespeichert wird erst, wenn ~0,8 s nicht mehr getippt wurde
+//   (oder sofort beim Verlassen des Feldes) - "12" erzeugt keinen Zwischen-
+//   stand "1" und nicht eine Anfrage je Tastendruck.
+// * Eigener kleiner Speicherweg (/slot/<id>/zwischenstand) mit JSON-Antwort,
+//   statt nach jedem Speichern die ganze Ergebnisseite neu zu bauen.
+// * Je Spiel laufen Anfragen nacheinander, nie parallel.
+// * Konfliktschutz: mitgeschickt wird der zuletzt vom Server bekannte Stand.
+//   Hat ein anderes Geraet inzwischen etwas anderes gespeichert, wird nichts
+//   ueberschrieben, sondern dessen Stand angezeigt.
+// * Fehler (Netz weg, Anmeldung abgelaufen) werden rot angezeigt und nach
+//   kurzer Zeit erneut versucht; beim Verlassen der Seite warnt der Browser.
+// * Nur der Stand wird gespeichert - Start und Beenden bleiben bewusste
+//   Schritte, ein beendetes Spiel wird nie automatisch geaendert.
+// ---------------------------------------------------------------------------
+const AUTOSPEICHERN_VERZOEGERUNG_MS = 800;
+const AUTOSPEICHERN_WIEDERHOLEN_MS = 5000;
+const autospeichern = new Map(); // slotId -> { timer, kette, offen, fehler }
+
+const SPEICHER_HAKEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+function autospeicherZustand(slotId) {
+    if (!autospeichern.has(slotId)) {
+        autospeichern.set(slotId, { timer: null, kette: Promise.resolve(), offen: 0, fehler: false, konflikt: null });
+    }
+    return autospeichern.get(slotId);
+}
+
+// Formulare werden beim Ersetzen von #results-section neu gebaut - immer das
+// aktuell im Dokument stehende Formular zur Spiel-ID verwenden.
+function autospeicherFormular(slotId) {
+    return document.querySelector(`.result-form[data-autospeichern][data-slot-id="${slotId}"]`);
+}
+
+function zeigeSpeicherstand(slotId, text, klasse, titel) {
+    const form = autospeicherFormular(slotId);
+    const el = form?.closest('.result-card')?.querySelector('[data-speicherstand]');
+    if (!el) return;
+    el.className = 'speicherstand' + (klasse ? ` ${klasse}` : '');
+    el.innerHTML = klasse === 'ok' ? `${SPEICHER_HAKEN}<span></span>` : '<span></span>';
+    el.querySelector('span').textContent = text;
+    el.title = titel || '';
+}
+
+function leseEingabe(form) {
+    const a = form.querySelector('input[name="score_a"]').value.trim();
+    const b = form.querySelector('input[name="score_b"]').value.trim();
+    return { a, b };
+}
+
+function istGueltigerStand(stand) {
+    const zahl = wert => /^\d+$/.test(wert);
+    // Beide Zahlen = Stand, beide leer = Stand loeschen. Nur eins: noch tippen.
+    return (zahl(stand.a) && zahl(stand.b)) || (stand.a === '' && stand.b === '');
+}
+
+function gleicherStand(form, stand) {
+    const norm = wert => (wert === '' ? '' : String(Number(wert)));
+    return norm(stand.a) === norm(form.dataset.basisA || '') && norm(stand.b) === norm(form.dataset.basisB || '');
+}
+
+function standText(a, b) {
+    return a === '' && b === '' ? 'kein Stand' : `${a} : ${b}`;
+}
+
+// Konflikt: Ein anderes Geraet hat inzwischen einen anderen Stand gespeichert,
+// als dieses Fenster kannte. Nichts wird still ueberschrieben oder still
+// uebernommen - die Karte fragt, welcher Stand gelten soll. Bis zur Antwort
+// wird fuer dieses Spiel nichts automatisch gespeichert.
+function zeigeKonflikt(slotId) {
+    const zustand = autospeicherZustand(slotId);
+    const form = autospeicherFormular(slotId);
+    const karte = form?.closest('.result-card');
+    if (!karte || !zustand.konflikt) return;
+    let box = karte.querySelector('[data-konflikt]');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'konflikt-box';
+        box.setAttribute('data-konflikt', '');
+        box.setAttribute('role', 'alertdialog');
+        box.innerHTML = `
+            <p class="konflikt-titel"></p>
+            <p class="konflikt-text"></p>
+            <div class="konflikt-aktionen">
+                <button type="button" class="outline" data-konflikt-aktion="behalten"></button>
+                <button type="button" class="danger" data-konflikt-aktion="ueberschreiben"></button>
+            </div>`;
+        box.addEventListener('click', event => {
+            const knopf = event.target.closest('[data-konflikt-aktion]');
+            if (knopf) loeseKonflikt(slotId, knopf.dataset.konfliktAktion);
+        });
+        form.closest('.result-form-row').before(box);
+    }
+    const { server, mein } = zustand.konflikt;
+    box.querySelector('.konflikt-titel').textContent =
+        `Ein anderes Gerät hat inzwischen ${standText(server.a, server.b)} gespeichert.`;
+    box.querySelector('.konflikt-text').textContent =
+        `Deine Eingabe ${standText(mein.a, mein.b)} ist noch nicht gespeichert. Welches Ergebnis soll gelten?`;
+    box.querySelector('[data-konflikt-aktion="behalten"]').textContent = `${standText(server.a, server.b)} behalten`;
+    box.querySelector('[data-konflikt-aktion="ueberschreiben"]').textContent = `Mit ${standText(mein.a, mein.b)} überschreiben`;
+    zeigeSpeicherstand(slotId, 'Nicht gespeichert', 'konflikt');
+}
+
+function loeseKonflikt(slotId, aktion) {
+    const zustand = autospeicherZustand(slotId);
+    const form = autospeicherFormular(slotId);
+    if (!zustand.konflikt || !form) return;
+    const { server, mein } = zustand.konflikt;
+    zustand.konflikt = null;
+    form.closest('.result-card')?.querySelector('[data-konflikt]')?.remove();
+    // In beiden Faellen ist der Server-Stand jetzt bekannt (neue Basis).
+    form.dataset.basisA = server.a;
+    form.dataset.basisB = server.b;
+    if (aktion === 'behalten') {
+        form.querySelector('input[name="score_a"]').value = server.a;
+        form.querySelector('input[name="score_b"]').value = server.b;
+        zeigeSpeicherstand(slotId, 'Bestehendes Ergebnis behalten', 'ok');
+    } else {
+        form.querySelector('input[name="score_a"]').value = mein.a;
+        form.querySelector('input[name="score_b"]').value = mein.b;
+        // Hat sich der Stand seitdem nochmals geaendert, fragt die Karte erneut.
+        sendeZwischenstand(slotId);
+    }
+}
+
+// Liefert ein Promise mit dem Ergebnis ('gespeichert', 'unveraendert',
+// 'konflikt', 'beendet', 'ungueltig', 'fehler'). erzwingen: auch dann beim
+// Server pruefen, wenn die Eingabe der bekannten Basis entspricht (vor
+// "Beenden" - sonst wuerde ein veraltetes Fenster still ueberschreiben).
+function sendeZwischenstand(slotId, erzwingen = false) {
+    const zustand = autospeicherZustand(slotId);
+    clearTimeout(zustand.timer);
+    zustand.timer = null;
+    zustand.offen += 1;
+    const lauf = zustand.kette.then(async () => {
+        const form = autospeicherFormular(slotId);
+        if (!form) return 'unveraendert';
+        const stand = leseEingabe(form);
+        if (zustand.konflikt) {
+            zustand.konflikt.mein = stand;
+            zeigeKonflikt(slotId);
+            return 'konflikt';
+        }
+        if (!istGueltigerStand(stand)) {
+            zeigeSpeicherstand(slotId, 'Beide Zahlen eintragen', '');
+            return 'ungueltig';
+        }
+        if (!erzwingen && gleicherStand(form, stand)) {
+            zustand.fehler = false;
+            zeigeSpeicherstand(slotId, 'Gespeichert', 'ok');
+            return 'unveraendert';
+        }
+        const daten = new FormData();
+        daten.append('score_a', stand.a);
+        daten.append('score_b', stand.b);
+        daten.append('basis_a', form.dataset.basisA || '');
+        daten.append('basis_b', form.dataset.basisB || '');
+        daten.append('basis_pruefen', '1');
+        zeigeSpeicherstand(slotId, 'Speichert …', '');
+
+        let inhalt = null;
+        try {
+            const antwort = await fetch(`/slot/${slotId}/zwischenstand`, {
+                method: 'POST', body: daten, credentials: 'same-origin',
+            });
+            if ((antwort.headers.get('content-type') || '').includes('application/json')) {
+                inhalt = await antwort.json();
+            }
+        } catch (fehler) {
+            console.error(fehler);
+        }
+
+        const aktuell = autospeicherFormular(slotId);
+        if (inhalt && aktuell) {
+            const wert = v => (v === null || v === undefined ? '' : String(v));
+            if (inhalt.ergebnis === 'gespeichert' || inhalt.ergebnis === 'unveraendert') {
+                aktuell.dataset.basisA = wert(inhalt.score_a);
+                aktuell.dataset.basisB = wert(inhalt.score_b);
+                zustand.fehler = false;
+                // Wurde inzwischen weitergetippt, folgt gleich die naechste Anfrage.
+                if (!zustand.timer) {
+                    const geloescht = inhalt.score_a === null && inhalt.score_b === null;
+                    zeigeSpeicherstand(slotId, geloescht ? 'Stand gelöscht' : 'Gespeichert', 'ok',
+                        `Zwischenstand gespeichert um ${inhalt.gespeichert_um}`);
+                }
+                return inhalt.ergebnis;
+            }
+            if (inhalt.ergebnis === 'konflikt') {
+                zustand.fehler = false;
+                zustand.konflikt = {
+                    server: { a: wert(inhalt.score_a), b: wert(inhalt.score_b) },
+                    mein: leseEingabe(aktuell),
+                };
+                zeigeKonflikt(slotId);
+                return 'konflikt';
+            }
+            if (inhalt.ergebnis === 'beendet') {
+                zustand.fehler = false;
+                zeigeSpeicherstand(slotId, 'Spiel ist schon beendet', 'konflikt');
+                ladeErgebnisseNeu().catch(fehler => console.error(fehler));
+                return 'beendet';
+            }
+        }
+        // Netzfehler, abgelaufene Anmeldung (Antwort ist dann die Login-Seite)
+        // oder Serverfehler: sichtbar machen und spaeter erneut versuchen.
+        zustand.fehler = true;
+        zeigeSpeicherstand(slotId, 'Nicht gespeichert', 'fehler',
+            'Keine Verbindung oder nicht angemeldet. Wird automatisch erneut versucht.');
+        clearTimeout(zustand.timer);
+        zustand.timer = setTimeout(() => sendeZwischenstand(slotId), AUTOSPEICHERN_WIEDERHOLEN_MS);
+        return 'fehler';
+    });
+    zustand.kette = lauf.catch(() => {}).then(() => { zustand.offen -= 1; });
+    return lauf.catch(() => 'fehler');
+}
+
+function planeZwischenstand(slotId, sofort) {
+    const zustand = autospeicherZustand(slotId);
+    clearTimeout(zustand.timer);
+    zustand.timer = null;
+    if (zustand.konflikt) {
+        // Offene Rueckfrage: nur die eigene Eingabe in der Frage nachfuehren.
+        const form = autospeicherFormular(slotId);
+        if (form) zustand.konflikt.mein = leseEingabe(form);
+        zeigeKonflikt(slotId);
+        return;
+    }
+    if (sofort) {
+        sendeZwischenstand(slotId);
+        return;
+    }
+    zeigeSpeicherstand(slotId, 'Speichert …', '');
+    zustand.timer = setTimeout(() => sendeZwischenstand(slotId), AUTOSPEICHERN_VERZOEGERUNG_MS);
+}
+
+// Vor allem, was #results-section ersetzt oder ein Spiel beendet: noch
+// wartende Zwischenstaende sofort senden und abwarten.
+function sichereAlleZwischenstaende() {
+    const laeufe = [];
+    autospeichern.forEach((zustand, slotId) => {
+        if (zustand.timer) laeufe.push(sendeZwischenstand(slotId));
+        else laeufe.push(zustand.kette);
+    });
+    return Promise.all(laeufe);
+}
+
+function hatUngespeicherteZwischenstaende() {
+    for (const zustand of autospeichern.values()) {
+        if (zustand.timer || zustand.offen || zustand.fehler || zustand.konflikt) return true;
+    }
+    return false;
+}
+
+async function ladeErgebnisseNeu() {
+    const response = await fetch(window.location.href, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`Laden fehlgeschlagen (${response.status})`);
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const current = document.getElementById('results-section');
+    const updated = doc.getElementById('results-section');
+    if (current && updated) {
+        current.replaceWith(updated);
+        initResultBoardHandlers();
+        updateResultTimers();
+    }
+}
+
+function attachAutospeichern(form) {
+    if (form.dataset.autospeichernAttached) return;
+    form.dataset.autospeichernAttached = '1';
+    const slotId = form.dataset.slotId;
+
+    form.addEventListener('input', event => {
+        if (event.target.matches('input[name="score_a"], input[name="score_b"]')) {
+            planeZwischenstand(slotId, false);
+        }
+    });
+    // Feld verlassen: nicht auf die Verzoegerung warten.
+    form.addEventListener('change', event => {
+        if (event.target.matches('input[name="score_a"], input[name="score_b"]')) {
+            planeZwischenstand(slotId, true);
+        }
+    });
+    // Enter loeste bisher den ersten Absende-Knopf aus. Ohne Speichern-Knopf
+    // waere das "Beenden" - Enter speichert deshalb nur den Zwischenstand.
+    form.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && event.target.matches('input')) {
+            event.preventDefault();
+            planeZwischenstand(slotId, true);
+        }
+    });
+}
+
+window.addEventListener('beforeunload', event => {
+    if (!hatUngespeicherteZwischenstaende()) return;
+    event.preventDefault();
+    event.returnValue = '';
+});
+
 function initResultBoardHandlers() {
     document.querySelectorAll('[data-start-slot]').forEach(attachStartHandler);
     document.querySelectorAll('[data-unstart-slot]').forEach(attachUnstartHandler);
@@ -1377,6 +1818,7 @@ function initResultBoardHandlers() {
         form.dataset.resultHandlerAttached = '1';
         attachResultSaveHandler(form);
     });
+    document.querySelectorAll('.result-form[data-autospeichern]').forEach(attachAutospeichern);
 }
 
 // Checkbox "Nur aktive anzeigen" - selbes AJAX-Muster wie der Aenderungsprotokoll-
@@ -1399,6 +1841,7 @@ function initNurAktiveToggle() {
 
         checkbox.disabled = true;
         try {
+            await sichereAlleZwischenstaende();
             const response = await fetch(url, { credentials: 'same-origin' });
             if (!response.ok) {
                 throw new Error(`Laden fehlgeschlagen (${response.status})`);

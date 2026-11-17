@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -54,6 +54,7 @@ from app.services.event_status_service import (
 from app.services.csrf_service import UNSAFE_METHODS as CSRF_UNSAFE_METHODS, is_request_origin_allowed
 from app.services.ko_phase_service import get_ko_error_message, get_next_phase_action
 from app.services.feldansicht_service import build_feldansicht
+from app.services import zwischenstand_service
 from app.services.results_filter_service import (
     build_results_filter_state,
     build_results_redirect_url,
@@ -175,7 +176,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/slot/[^/]+/(?:start|finish|unstart|save|reactivate|clear-result|undo-correction)$"
+            r"^/slot/[^/]+/(?:start|finish|unstart|save|zwischenstand|reactivate|clear-result|undo-correction)$"
         ),
         "referee",
     ),
@@ -2994,6 +2995,56 @@ def save_slot(
         build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,
     )
+
+
+@app.post("/slot/{slot_id}/zwischenstand")
+def save_slot_zwischenstand(
+    slot_id: int,
+    request: Request,
+    score_a: str = Form(""),
+    score_b: str = Form(""),
+    basis_a: str = Form(""),
+    basis_b: str = Form(""),
+    basis_pruefen: str = Form(""),
+):
+    """Automatisches Zwischenspeichern beim Tippen (Raster und Feldansicht).
+
+    Antwortet mit kleinem JSON statt Weiterleitung auf die ganze Ergebnisseite:
+    bei vielen Geraeten, die alle paar Sekunden speichern, waere das Neuaufbauen
+    der kompletten Seite je Tastendruck die eigentliche Last. Nur der Stand
+    wird geschrieben, Status/Uhr bleiben (siehe zwischenstand_service)."""
+    # Leere Formularfelder kommen bei FastAPI wie "nicht gesendet" an - ob
+    # die Basis geprueft werden soll, steht deshalb in einem eigenen Feld.
+    basis = (basis_a, basis_b) if basis_pruefen == "1" else None
+
+    def protokolliere(action, slot, alt, neu):
+        record_change(
+            conn,
+            request=request,
+            action=action,
+            entity_type="slot_result",
+            entity_id=slot_id,
+            competition_id=slot["competition_id"],
+            old_value=format_score(*alt),
+            new_value=format_score(*neu),
+        )
+
+    with get_conn() as conn:
+        ergebnis = zwischenstand_service.speichere_zwischenstand(
+            conn, slot_id, score_a, score_b, basis=basis, protokolliere=protokolliere,
+        )
+        conn.commit()
+
+    http_status = {
+        zwischenstand_service.GESPEICHERT: 200,
+        zwischenstand_service.UNVERAENDERT: 200,
+        zwischenstand_service.KONFLIKT: 409,
+        zwischenstand_service.BEENDET: 409,
+        zwischenstand_service.UNGUELTIG: 400,
+        zwischenstand_service.NICHT_GEFUNDEN: 404,
+    }[ergebnis["ergebnis"]]
+    ergebnis["gespeichert_um"] = app_now_display_time()
+    return JSONResponse(ergebnis, status_code=http_status, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/slot/{slot_id}/reactivate")
