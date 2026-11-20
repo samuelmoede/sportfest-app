@@ -207,3 +207,161 @@
         overflow: visible;
     }
 }
+
+/* Auswertungsseite (/auswertung): Urkundendruck ausgefuellt/blanko,
+   Platzierungen je Wettbewerb, Gesamtwertung */
+.auswertung-druck {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.auswertung-druck .panel {
+    margin: 0;
+}
+
+.auswertung-karte {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auswertung-aktionen {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auswertung-aktionen .button {
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.auswertung-anzahl {
+    margin-left: auto;
+    min-width: 2em;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.16);
+    font-size: 0.85em;
+    text-align: center;
+}
+
+.auswertung-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.92em;
+}
+
+.auswertung-link .icon,
+.auswertung-aktionen .icon,
+.auswertung-blanko .icon,
+.auswertung-podest .icon {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+
+.auswertung-blanko {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    align-items: end;
+}
+
+.auswertung-blanko label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.auswertung-blanko label[hidden] {
+    display: none;
+}
+
+.auswertung-blanko select,
+.auswertung-blanko input {
+    width: 100%;
+}
+
+.auswertung-blanko button {
+    grid-column: 1 / -1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.auswertung-hinweis {
+    margin: 0;
+    font-size: 0.85em;
+}
+
+.auswertung-podeste {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 12px;
+}
+
+.auswertung-podest {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+}
+
+.auswertung-podest h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.auswertung-podest ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.auswertung-podest li {
+    display: flex;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.auswertung-platz {
+    min-width: 1.8em;
+    color: var(--muted);
+}
+
+.auswertung-podest li.platz-1 .auswertung-platz { color: #b8860b; }
+.auswertung-podest li.platz-2 .auswertung-platz { color: #8a8a8a; }
+.auswertung-podest li.platz-3 .auswertung-platz { color: #a0522d; }
+
+.auswertung-podest-aktionen {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    flex-wrap: wrap;
+}
+
+.auswertung-podest-aktionen .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+@media (max-width: 520px) {
+    .auswertung-blanko {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

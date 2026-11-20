@@ -45,6 +45,14 @@ TITEL = {
 }
 
 
+def _textbreite(pdf, text: str) -> float:
+    """Textbreite inkl. Zeichenabstand (set_char_spacing), den
+    get_string_width nicht mitrechnet - sonst bricht z.B. der gesperrte
+    Titel "TEILNEHMERURKUNDE" vor dem letzten Buchstaben um."""
+    spacing = getattr(pdf, "char_spacing", 0) or 0
+    return pdf.get_string_width(text) + spacing * len(text)
+
+
 def passe_schriftgroesse(pdf, text: str, max_breite: float, start: float, minimum: float, style: str = "B"):
     """Groesste Schriftgroesse zwischen minimum und start, bei der text in
     eine Zeile der Breite max_breite passt. Passt es auch bei minimum nicht,
@@ -52,7 +60,7 @@ def passe_schriftgroesse(pdf, text: str, max_breite: float, start: float, minimu
     size = start
     while size > minimum:
         pdf.set_font(FONT, style, size)
-        if pdf.get_string_width(text) <= max_breite:
+        if _textbreite(pdf, text) <= max_breite:
             return size
         size -= 0.5
     pdf.set_font(FONT, style, minimum)
@@ -117,11 +125,39 @@ def _logo(pdf, logo_bytes, y: float, max_hoehe: float = 30, max_breite: float = 
     return y + hoehe + 4
 
 
+def _schreiblinie(pdf, y: float, breite: float, x=None):
+    """Leere Linie zum haendischen Eintragen (Blanko-Urkunde)."""
+    x = (PAGE_WIDTH - breite) / 2 if x is None else x
+    pdf.set_draw_color(*FARBE_GRAU)
+    pdf.set_line_width(0.35)
+    pdf.line(x, y, x + breite, y)
+    return y
+
+
+def _blanko_platz(pdf, y: float, farbe):
+    """ "___. Platz" zentriert: Linie fuer die Platzziffer, dahinter der Text."""
+    size = 30
+    pdf.set_font(FONT, "B", size)
+    text = ". Platz"
+    linie = 18
+    gesamt = linie + pdf.get_string_width(text)
+    x = (PAGE_WIDTH - gesamt) / 2
+    hoehe = _pt_to_mm(size) * 1.3
+    _schreiblinie(pdf, y + hoehe * 0.82, linie, x=x)
+    pdf.set_text_color(*farbe)
+    pdf.set_xy(x + linie, y)
+    pdf.cell(gesamt - linie, hoehe, text)
+    return y + hoehe
+
+
 def _zeichne_urkunde(pdf, eintrag, layout, logo_bytes):
     pdf.add_page()
     typ = eintrag.get("urkundentyp") or URKUNDE_TEILNEHMER
     platz = eintrag.get("platz")
     zeigt_platz = typ != URKUNDE_TEILNEHMER and platz is not None
+    blanko = bool(eintrag.get("blanko"))
+    # Blanko-Urkunde ohne festen Platz: "___. Platz" zum Eintragen.
+    platz_leer = blanko and typ != URKUNDE_TEILNEHMER and platz is None
     akzent = FARBEN_PLATZ.get(platz, FARBE_AKZENT) if typ == URKUNDE_SIEGER else FARBE_AKZENT
 
     _rahmen(pdf, akzent)
@@ -146,19 +182,28 @@ def _zeichne_urkunde(pdf, eintrag, layout, logo_bytes):
     pdf.line(PAGE_WIDTH / 2 - 25, y + 4, PAGE_WIDTH / 2 + 25, y + 4)
 
     y = _zentrierte_zeile(pdf, y + 14, "verliehen an", 13, farbe=FARBE_GRAU)
-    y = _passende_zeile(pdf, y + 4, eintrag.get("recipient_name") or "", 34, 14, style="B")
+    if blanko and not eintrag.get("recipient_name"):
+        y = _schreiblinie(pdf, y + 18, 120) + 2
+    else:
+        y = _passende_zeile(pdf, y + 4, eintrag.get("recipient_name") or "", 34, 14, style="B")
     if eintrag.get("jahrgang_label") and eintrag.get("recipient_name") != eintrag.get("jahrgang_label"):
         y = _zentrierte_zeile(pdf, y + 1, eintrag["jahrgang_label"], 12, farbe=FARBE_GRAU)
 
-    if zeigt_platz:
+    if zeigt_platz or platz_leer:
         y = _zentrierte_zeile(pdf, y + 12, "für den", 13, farbe=FARBE_GRAU)
         farbe_platz = FARBEN_PLATZ.get(platz, FARBE_AKZENT) if typ == URKUNDE_SIEGER else FARBE_AKZENT
-        y = _zentrierte_zeile(pdf, y + 2, f"{platz}. Platz", 30, style="B", farbe=farbe_platz)
+        if platz_leer:
+            y = _blanko_platz(pdf, y + 2, farbe_platz)
+        else:
+            y = _zentrierte_zeile(pdf, y + 2, f"{platz}. Platz", 30, style="B", farbe=farbe_platz)
     else:
         y = _zentrierte_zeile(pdf, y + 12, "für die erfolgreiche Teilnahme", 15, farbe=FARBE_TEXT)
 
     quelle = f"{eintrag.get('quelle_praefix', '')} {eintrag.get('quelle_label', '')}".strip()
-    y = _passende_zeile(pdf, y + 4, quelle, 16, 10, style="", farbe=FARBE_TEXT)
+    if blanko and not quelle:
+        y = _schreiblinie(pdf, y + 14, 120) + 2
+    else:
+        y = _passende_zeile(pdf, y + 4, quelle, 16, 10, style="", farbe=FARBE_TEXT)
 
     if eintrag.get("leistung"):
         _passende_zeile(pdf, y + 6, f"Leistung: {eintrag['leistung']}", 13, 9, style="", farbe=FARBE_GRAU)

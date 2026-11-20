@@ -335,6 +335,48 @@ def eintraege_aus_gesamtwertung(overall_groups, datum: str):
     return eintraege
 
 
+BLANKO_MAX_ANZAHL = 200
+
+
+def blanko_eintraege(
+    *,
+    urkundentyp: str,
+    anzahl,
+    platz=None,
+    quelle_label: str = "",
+    quelle_praefix: str = "",
+    veranstaltung: str = "",
+    datum: str = "",
+):
+    """Blanko-Urkunden zum Vorab-Druck: Klasse (und je nach Auswahl Platz und
+    Wettbewerb) bleiben leer und bekommen im PDF eine Schreiblinie zum
+    haendischen Eintragen. Veranstaltung und Datum werden aufgedruckt.
+    anzahl wird auf 1..BLANKO_MAX_ANZAHL begrenzt."""
+    typ = urkundentyp if urkundentyp in URKUNDENTYPEN else URKUNDE_TEILNEHMER
+    try:
+        menge = int(anzahl)
+    except (TypeError, ValueError):
+        menge = 1
+    menge = max(1, min(BLANKO_MAX_ANZAHL, menge))
+    platz_wert = _parse_optional_int(platz, minimum=1) if typ != URKUNDE_TEILNEHMER else None
+    if not quelle_label:
+        quelle_praefix = ""
+    eintrag = {
+        "blanko": True,
+        "urkundentyp": typ,
+        "platz": platz_wert,
+        "recipient_name": "",
+        "class_name": "",
+        "jahrgang_label": "",
+        "quelle_label": quelle_label or "",
+        "quelle_praefix": quelle_praefix or "",
+        "leistung": "",
+        "veranstaltung": veranstaltung or "",
+        "datum": datum or "",
+    }
+    return [dict(eintrag) for _ in range(menge)]
+
+
 def wende_anpassungen_an(eintraege, anpassungen, schwellen):
     """Setzt Urkundentyp (automatisch aus Platz/Punkten) und uebernimmt
     manuelle Anpassungen. Ein manuell geaenderter Platz fuehrt zu einem neu
