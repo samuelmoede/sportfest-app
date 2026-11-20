@@ -158,7 +158,7 @@
             </div>
             {% if next_event %}
             <p>Alle Turnier- und Sechskampfwertungen der Veranstaltung nach Jahrgang gebündelt.</p>
-            <a class="button primary" href="/events/{{ next_event.id }}#gesamtwertung">Gesamtwertung öffnen</a>
+            <a class="button primary" href="/auswertung?event_id={{ next_event.id }}">Gesamtwertung öffnen</a>
             {% else %}
             <p class="muted">Für eine Gesamtwertung wird zuerst eine Veranstaltung benötigt.</p>
             {% endif %}
