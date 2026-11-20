@@ -17,6 +17,10 @@ from app.services.urkunden_service import (
     WERTUNG_GESAMT,
     WERTUNG_WETTBEWERB,
     WERTUNGEN,
+    BLANKO_MAX_ANZAHL,
+    URKUNDE_SIEGER,
+    URKUNDE_TEILNEHMER,
+    blanko_eintraege,
     eintraege_aus_disziplinen,
     eintraege_aus_gesamtwertung,
     eintraege_aus_sechskampf,
@@ -196,6 +200,120 @@ def create_router(
                 "meldung": request.query_params.get("meldung", ""),
                 "fehler": request.query_params.get("fehler", ""),
             },
+        )
+
+    def waehle_event(params):
+        events = lade_events()
+        event_id = _parse_int(params.get("event_id"))
+        event = next((e for e in events if e["id"] == event_id), None)
+        if event is None and events:
+            event = events[0]
+        return events, event
+
+    def blanko_quellen(event, overall_groups):
+        """Auswahl "Wettbewerb" fuer Blanko-Urkunden: leer (zum Eintragen),
+        jeder Wettbewerb der Veranstaltung oder eine Gesamtwertung."""
+        quellen = {}
+        with get_conn() as conn:
+            for row in conn.execute(
+                "SELECT id, name FROM competitions WHERE event_id = ? AND status != 'archiviert' "
+                "ORDER BY jahrgang, name",
+                (event["id"],),
+            ).fetchall():
+                quellen[f"w:{row['id']}"] = (row["name"], "im Wettbewerb")
+        for group in overall_groups:
+            quellen[f"g:{group['year_group']}"] = (group["year_group"], "in der")
+        return quellen
+
+    @router.get("/auswertung")
+    def auswertung_seite(request: Request):
+        """Eigene Auswertungsseite: Gesamtwertung, Siegerinnen und Sieger je
+        Wettbewerb und Urkundendruck (ausgefuellt oder blanko)."""
+        events, event = waehle_event(request.query_params)
+        overall_ranking, wettbewerbe, anzahl, hat_disziplinen, quellen = [], [], {}, False, {}
+        if event is not None:
+            overall_ranking = calculate_event_overall_ranking(event["id"])
+            eintraege = sammle_eintraege(event, WERTUNG_WETTBEWERB)
+            gruppen = {}
+            for eintrag in sortiere_eintraege(eintraege):
+                gruppe = gruppen.setdefault(eintrag["quelle_id"], {
+                    "quelle_id": eintrag["quelle_id"],
+                    "label": eintrag["quelle_label"],
+                    "podest": [],
+                    "anzahl": 0,
+                })
+                if not eintrag["ausgeblendet"]:
+                    gruppe["anzahl"] += 1
+                if eintrag["platz"] is not None and eintrag["platz"] <= 3:
+                    gruppe["podest"].append(eintrag)
+            wettbewerbe = list(gruppen.values())
+            anzahl[WERTUNG_WETTBEWERB] = sum(g["anzahl"] for g in wettbewerbe)
+            anzahl[WERTUNG_GESAMT] = sum(
+                1 for e in sammle_eintraege(event, WERTUNG_GESAMT) if not e["ausgeblendet"]
+            )
+            disziplin = [e for e in sammle_eintraege(event, WERTUNG_DISZIPLIN) if not e["ausgeblendet"]]
+            hat_disziplinen = bool(disziplin)
+            anzahl[WERTUNG_DISZIPLIN] = len(disziplin)
+            quellen = blanko_quellen(event, overall_ranking)
+        return templates.TemplateResponse(
+            request=request, name="auswertung.html",
+            context={
+                "events": events,
+                "event": event,
+                "overall_ranking": overall_ranking,
+                "wettbewerbe": wettbewerbe,
+                "anzahl": anzahl,
+                "hat_disziplinen": hat_disziplinen,
+                "wertungen": WERTUNGEN,
+                "urkundentypen": URKUNDENTYPEN,
+                "blanko_quellen": quellen,
+                "blanko_max": BLANKO_MAX_ANZAHL,
+                "standard_typ": URKUNDE_SIEGER,
+            },
+        )
+
+    @router.get("/urkunden/blanko.pdf")
+    def urkunden_blanko_pdf(request: Request):
+        """Blanko-Urkunden zum Vorab-Druck: Klasse bleibt leer, Platz und
+        Wettbewerb wahlweise auch. platz=satz druckt je Satz 1., 2. und 3. Platz."""
+        params = request.query_params
+        _, event = waehle_event(params)
+        overall_groups = calculate_event_overall_ranking(event["id"]) if event is not None else []
+        quellen = blanko_quellen(event, overall_groups) if event is not None else {}
+        quelle_label, quelle_praefix = quellen.get(params.get("quelle") or "", ("", ""))
+        typ = params.get("typ") if params.get("typ") in URKUNDENTYPEN else URKUNDE_SIEGER
+        datum = formatiere_datum(event["event_date"]) if event is not None else ""
+        basis = {
+            "urkundentyp": typ,
+            "anzahl": params.get("anzahl") or 1,
+            "quelle_label": quelle_label,
+            "quelle_praefix": quelle_praefix,
+            "veranstaltung": event["name"] if event is not None else "",
+            "datum": datum,
+        }
+        platz = params.get("platz") or ""
+        if platz == "satz" and typ != URKUNDE_TEILNEHMER:
+            # Je Satz einmal Platz 1, 2, 3 hintereinander (fertig zum Sortieren).
+            saetze = blanko_eintraege(**basis)
+            auswahl = [
+                eintrag
+                for _ in saetze
+                for eintrag in (
+                    blanko_eintraege(**dict(basis, anzahl=1), platz=nummer)[0]
+                    for nummer in (1, 2, 3)
+                )
+            ]
+        else:
+            auswahl = blanko_eintraege(**basis, platz=platz)
+        logo_bytes, _ = lade_logo()
+        pdf = erzeuge_urkunden_pdf(auswahl, lade_layout(), logo_bytes)
+        teile = ["urkunden", "blanko", event["name"] if event else "", typ, quelle_label]
+        dateiname = "_".join(slugify_filename_part(t) for t in teile if t) + ".pdf"
+        art = "attachment" if params.get("download") else "inline"
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'{art}; filename="{dateiname}"'},
         )
 
     @router.get("/urkunden/pdf")

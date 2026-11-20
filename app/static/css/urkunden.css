@@ -207,3 +207,252 @@
         overflow: visible;
     }
 }
+
+/* Auswertungsseite (/auswertung): Gesamtwertung zuerst, Urkundendruck
+   klein hinter einem Druckersymbol, Einzelwettbewerbe eingeklappt */
+.auswertung-kopf {
+    position: relative;
+}
+
+.auswertung-druckmenue {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+}
+
+.auswertung-druckknopf {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    list-style: none;
+}
+
+.auswertung-druckknopf::-webkit-details-marker {
+    display: none;
+}
+
+.auswertung-druckknopf:hover,
+.auswertung-druckmenue[open] .auswertung-druckknopf {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+.auswertung-druckknopf .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.auswertung-druckpanel {
+    position: absolute;
+    top: 46px;
+    right: 0;
+    width: min(340px, calc(100vw - 32px));
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+}
+
+.auswertung-druckpanel h2 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+}
+
+.page-header.auswertung-kopf p.auswertung-druck-titel {
+    max-width: none;
+    margin: 10px 0 4px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.auswertung-druckliste {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.auswertung-druckliste a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.92em;
+}
+
+.auswertung-anzahl {
+    margin-left: auto;
+    min-width: 2em;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.16);
+    color: var(--muted);
+    font-size: 0.85em;
+    text-align: center;
+}
+
+.auswertung-blanko {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+    align-items: end;
+    font-size: 0.9em;
+}
+
+.auswertung-blanko label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.auswertung-blanko label[hidden] {
+    display: none;
+}
+
+.auswertung-blanko select,
+.auswertung-blanko input {
+    width: 100%;
+}
+
+.auswertung-blanko button {
+    grid-column: 1 / -1;
+}
+
+.auswertung-einzeln > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    list-style: none;
+}
+
+.auswertung-einzeln > summary::-webkit-details-marker {
+    display: none;
+}
+
+.auswertung-einzeln > summary .icon {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.15s;
+}
+
+.auswertung-einzeln[open] > summary .icon {
+    transform: rotate(90deg);
+}
+
+.auswertung-einzeln[open] > summary {
+    margin-bottom: 14px;
+}
+
+.auswertung-link {
+    font-size: 0.9em;
+}
+
+.auswertung-podeste {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 12px;
+}
+
+.auswertung-podest {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+}
+
+.auswertung-podest h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.auswertung-podest ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.auswertung-podest li {
+    display: flex;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.auswertung-platz {
+    min-width: 1.8em;
+    color: var(--muted);
+}
+
+.auswertung-podest li.platz-1 .auswertung-platz { color: #b8860b; }
+.auswertung-podest li.platz-2 .auswertung-platz { color: #8a8a8a; }
+.auswertung-podest li.platz-3 .auswertung-platz { color: #a0522d; }
+
+@media (max-width: 520px) {
+    .auswertung-blanko {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Kleines Druckersymbol je Tabelle/Wettbewerb (Auswertungsseite) */
+.year-group-kopf {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.year-group-kopf h3 {
+    margin: 0;
+}
+
+.year-group-block .year-group-kopf {
+    margin: 18px 0 10px;
+}
+
+.druck-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--muted);
+}
+
+.druck-symbol:hover,
+.druck-symbol:focus-visible {
+    background: var(--surface-soft);
+    color: var(--text);
+}
+
+.druck-symbol .icon {
+    width: 18px;
+    height: 18px;
+}
+
+.page-header.auswertung-kopf p.auswertung-druck-hinweis {
+    max-width: none;
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+}

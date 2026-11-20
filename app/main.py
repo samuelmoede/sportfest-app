@@ -155,6 +155,7 @@ AREA_ACCESS_RULES = (
     ("/assistent", "admin"),
     ("/ergebnisse", "referee"),
     ("/urkunden", "tournament_lead"),
+    ("/auswertung", "tournament_lead"),
     ("/zeitplan-aufholen", "tournament_lead"),
 )
 

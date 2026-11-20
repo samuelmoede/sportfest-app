@@ -21,7 +21,7 @@ class NavigationAufbauTests(unittest.TestCase):
             [
                 (None, ["Dashboard"]),
                 ("Wettkampftag", ["Spielplan", "Ergebnisse eintragen"]),
-                ("Auswertung", ["Tabellen", "Urkunden"]),
+                ("Auswertung", ["Übersicht", "Tabellen", "Urkunden"]),
                 (
                     "Vorbereitung",
                     [
@@ -63,7 +63,7 @@ class NavigationAufbauTests(unittest.TestCase):
         gruppen = build_navigation(
             "/", lambda rolle: rolle in {"referee", "tournament_lead"}
         )
-        self.assertEqual(_labels(gruppen)[2], ("Auswertung", ["Tabellen", "Urkunden"]))
+        self.assertEqual(_labels(gruppen)[2], ("Auswertung", ["Übersicht", "Tabellen", "Urkunden"]))
         self.assertEqual(len(gruppen), 3)
 
     def test_oeffentliche_eintraege_stehen_fuer_jede_rolle_an_derselben_stelle(self):
