@@ -31,6 +31,7 @@ NAV_GRUPPEN = (
         ("Ergebnisse eintragen", "/ergebnisse", "clipboard-pen-line", "referee", "exact"),
     )),
     ("Auswertung", (
+        ("Übersicht", "/auswertung", "medal", "tournament_lead", "exact"),
         ("Tabellen", "/tabellen", "list-ordered", None, "exact"),
         ("Urkunden", "/urkunden", "award", "tournament_lead", "exact"),
     )),
