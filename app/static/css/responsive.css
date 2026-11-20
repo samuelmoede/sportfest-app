@@ -312,6 +312,15 @@ body {
         min-width: 0;
     }
 
+    /* Tagesplan-Zeitraster ausnehmen: Ohne Mindestbreite schrumpfen die
+       Jahrgangsspalten bei halber Fensterbreite auf ~30 px und die Namen
+       stehen buchstabenweise untereinander. Die Spalten behalten ihre
+       Breite, der Wrapper scrollt waagerecht (wie am breiten Desktop). */
+    .dashboard-page .day-timeline-column-label,
+    .dashboard-page .day-timeline-column-body {
+        min-width: 200px;
+    }
+
     .dashboard-page .match {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -440,7 +449,9 @@ body {
     }
 
     .day-timeline-column-label,
-    .day-timeline-column-body {
+    .day-timeline-column-body,
+    .dashboard-page .day-timeline-column-label,
+    .dashboard-page .day-timeline-column-body {
         flex-basis: 160px;
         min-width: 160px;
     }
