@@ -291,6 +291,15 @@
     flex: 0 0 52px;
 }
 
+/* Zeitachse bleibt beim waagerechten Scrollen stehen (schmale Fenster). */
+.day-timeline-corner,
+.day-timeline-axis {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    background: var(--surface);
+}
+
 .day-timeline-column-label {
     flex: 1 1 200px;
     min-width: 200px;
@@ -304,7 +313,6 @@
 }
 
 .day-timeline-axis {
-    position: relative;
     flex: 0 0 52px;
     height: calc(var(--day-timeline-total-minutes, 60) * var(--day-timeline-px-per-minute));
 }
