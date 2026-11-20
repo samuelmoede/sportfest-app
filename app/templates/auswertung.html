@@ -1,11 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="page-header">
+<header class="page-header auswertung-kopf">
     <div>
         <p class="eyebrow">Auswertung{% if event %} &middot; {{ event.name }}{% endif %}</p>
-        <h1>Auswertung</h1>
-        <p>Gesamtwertung, Platzierungen je Wettbewerb und Urkunden zum Drucken: ausgefüllt aus den Ergebnissen oder blanko zum Ausfüllen von Hand.</p>
+        <h1>Gesamtwertung</h1>
     </div>
+    {% if event %}
+    {# Urkundendruck bewusst klein: nur ein Druckersymbol oben in der Ecke,
+       das ein kleines Menue (ausgefuellt / blanko) aufklappt. #}
+    <details class="auswertung-druckmenue">
+        <summary class="auswertung-druckknopf" title="Urkunden drucken" aria-label="Urkunden drucken">{{ icon("printer") }}</summary>
+        <div class="auswertung-druckpanel">
+            <h2>Urkunden drucken</h2>
+            <p class="auswertung-druck-titel">Ausgefüllt</p>
+            <ul class="auswertung-druckliste">
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=gesamt" target="_blank" rel="noopener">{{ wertungen["gesamt"] }} <span class="auswertung-anzahl">{{ anzahl.get("gesamt", 0) }}</span></a></li>
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb" target="_blank" rel="noopener">{{ wertungen["wettbewerb"] }} <span class="auswertung-anzahl">{{ anzahl.get("wettbewerb", 0) }}</span></a></li>
+                {% if hat_disziplinen %}
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=disziplin" target="_blank" rel="noopener">{{ wertungen["disziplin"] }} <span class="auswertung-anzahl">{{ anzahl.get("disziplin", 0) }}</span></a></li>
+                {% endif %}
+                <li><a href="/urkunden?event_id={{ event.id }}">Einzeln prüfen oder korrigieren</a></li>
+            </ul>
+            <p class="auswertung-druck-titel">Blanko (Klasse von Hand eintragen)</p>
+            <form method="get" action="/urkunden/blanko.pdf" target="_blank" class="auswertung-blanko">
+                <input type="hidden" name="event_id" value="{{ event.id }}">
+                <label>Urkundentyp
+                    <select name="typ" id="blanko-typ">
+                        {% for typ in urkundentypen %}
+                        <option value="{{ typ }}" {% if typ == standard_typ %}selected{% endif %}>{{ typ }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label id="blanko-platz-feld">Platz
+                    <select name="platz">
+                        <option value="">leer lassen</option>
+                        <option value="satz">Satz 1. bis 3. Platz</option>
+                        <option value="1">1. Platz</option>
+                        <option value="2">2. Platz</option>
+                        <option value="3">3. Platz</option>
+                    </select>
+                </label>
+                <label>Wettbewerb
+                    <select name="quelle">
+                        <option value="">leer lassen</option>
+                        {% for quelle_id, quelle in blanko_quellen.items() %}
+                        <option value="{{ quelle_id }}">{{ quelle[0] }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Anzahl
+                    <input type="number" name="anzahl" min="1" max="{{ blanko_max }}" value="1" required>
+                </label>
+                <button class="secondary" type="submit">Blanko-PDF öffnen</button>
+            </form>
+        </div>
+    </details>
+    {% endif %}
 </header>
 
 {% if not event %}
@@ -27,84 +77,13 @@
 </form>
 {% endif %}
 
-<section class="auswertung-druck" aria-label="Urkunden drucken">
-    <article class="panel auswertung-karte">
-        <div class="section-heading">
-            <div>
-                <p class="eyebrow">Urkunden</p>
-                <h2>Ausgefüllt drucken</h2>
-            </div>
-            <span class="section-icon" aria-hidden="true">{{ icon("printer") }}</span>
-        </div>
-        <p class="muted">Klasse, Platz und Wettbewerb kommen aus den Ergebnissen. Ein PDF mit einer Urkunde pro Seite.</p>
-        <div class="auswertung-aktionen">
-            <a class="button primary" href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb" target="_blank" rel="noopener">
-                {{ icon("trophy") }} {{ wertungen["wettbewerb"] }} <span class="auswertung-anzahl">{{ anzahl.get("wettbewerb", 0) }}</span>
-            </a>
-            {% if hat_disziplinen %}
-            <a class="button secondary" href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=disziplin" target="_blank" rel="noopener">
-                {{ icon("footprints") }} {{ wertungen["disziplin"] }} <span class="auswertung-anzahl">{{ anzahl.get("disziplin", 0) }}</span>
-            </a>
-            {% endif %}
-            <a class="button secondary" href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=gesamt" target="_blank" rel="noopener">
-                {{ icon("medal") }} {{ wertungen["gesamt"] }} <span class="auswertung-anzahl">{{ anzahl.get("gesamt", 0) }}</span>
-            </a>
-        </div>
-        <a class="auswertung-link" href="/urkunden?event_id={{ event.id }}">{{ icon("pencil") }} Einzelne Urkunden prüfen, filtern oder korrigieren</a>
-    </article>
-
-    <article class="panel auswertung-karte">
-        <div class="section-heading">
-            <div>
-                <p class="eyebrow">Urkunden</p>
-                <h2>Blanko drucken</h2>
-            </div>
-            <span class="section-icon" aria-hidden="true">{{ icon("file") }}</span>
-        </div>
-        <p class="muted">Zum Vorab-Druck: Veranstaltung und Datum stehen drauf, die Klasse wird von Hand eingetragen. Platz und Wettbewerb wahlweise auch.</p>
-        <form method="get" action="/urkunden/blanko.pdf" target="_blank" class="auswertung-blanko">
-            <input type="hidden" name="event_id" value="{{ event.id }}">
-            <label>Urkundentyp
-                <select name="typ" id="blanko-typ">
-                    {% for typ in urkundentypen %}
-                    <option value="{{ typ }}" {% if typ == standard_typ %}selected{% endif %}>{{ typ }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label id="blanko-platz-feld">Platz
-                <select name="platz">
-                    <option value="">leer lassen</option>
-                    <option value="satz">Satz 1. bis 3. Platz</option>
-                    <option value="1">1. Platz</option>
-                    <option value="2">2. Platz</option>
-                    <option value="3">3. Platz</option>
-                </select>
-            </label>
-            <label>Wettbewerb
-                <select name="quelle">
-                    <option value="">leer lassen</option>
-                    {% for quelle_id, quelle in blanko_quellen.items() %}
-                    <option value="{{ quelle_id }}">{{ quelle[0] }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Anzahl
-                <input type="number" name="anzahl" min="1" max="{{ blanko_max }}" value="1" required>
-            </label>
-            <button class="primary" type="submit">{{ icon("printer") }} Blanko-PDF öffnen</button>
-        </form>
-        <p class="muted auswertung-hinweis">Bei „Satz 1. bis 3. Platz“ gilt die Anzahl je Satz.</p>
-    </article>
+<section class="panel" id="gesamtwertung">
+    {% include "partials/gesamtwertung.html" %}
 </section>
 
-<section class="panel" id="wettbewerbe">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Ergebnisse</p>
-            <h2>Platzierungen je Wettbewerb</h2>
-        </div>
-        <span class="section-icon" aria-hidden="true">{{ icon("trophy") }}</span>
-    </div>
+{# Einzelwettbewerbe nur zum Nachschauen, daher eingeklappt. #}
+<details class="panel auswertung-einzeln" id="wettbewerbe">
+    <summary>{{ icon("chevron-right") }} Einzelne Wettbewerbe nachschauen</summary>
     {% if wettbewerbe %}
     <div class="auswertung-podeste">
         {% for w in wettbewerbe %}
@@ -119,28 +98,14 @@
             {% else %}
             <p class="muted">Noch keine Ergebnisse.</p>
             {% endif %}
-            <div class="auswertung-podest-aktionen">
-                <a class="button secondary" href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb&amp;quelle={{ w.quelle_id|urlencode }}" target="_blank" rel="noopener">{{ icon("printer") }} Urkunden ({{ w.anzahl }})</a>
-                <a class="auswertung-link" href="/tabellen?event_id={{ event.id }}">Tabelle</a>
-            </div>
+            <a class="auswertung-link" href="/tabellen?event_id={{ event.id }}">Ganze Tabelle</a>
         </article>
         {% endfor %}
     </div>
     {% else %}
     <p class="muted">Für diese Veranstaltung gibt es noch keine Wettbewerbe mit Wertung.</p>
     {% endif %}
-</section>
-
-<section class="panel" id="gesamtwertung">
-    <div class="section-heading">
-        <div>
-            <p class="eyebrow">Ergebnisse</p>
-            <h2>Gesamtwertung</h2>
-        </div>
-        <span class="section-icon" aria-hidden="true">{{ icon("medal") }}</span>
-    </div>
-    {% include "partials/gesamtwertung.html" %}
-</section>
+</details>
 
 <script>
 (function () {
@@ -154,6 +119,16 @@
     }
     typ.addEventListener("change", aktualisieren);
     aktualisieren();
+    // Druckmenue schliesst bei Klick daneben oder Escape.
+    var menue = document.querySelector(".auswertung-druckmenue");
+    if (menue) {
+        document.addEventListener("click", function (event) {
+            if (menue.open && !menue.contains(event.target)) menue.open = false;
+        });
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") menue.open = false;
+        });
+    }
 })();
 </script>
 {% endif %}

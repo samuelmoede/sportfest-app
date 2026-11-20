@@ -97,10 +97,12 @@ class AuswertungRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         text = response.text
         self.assertIn("Gesamtwertung", text)
-        self.assertIn("Platzierungen je Wettbewerb", text)
+        self.assertIn("Einzelne Wettbewerbe nachschauen", text)
+        # Gesamtwertung steht vor den Einzelwettbewerben.
+        self.assertLess(text.index('id="gesamtwertung"'), text.index('id="wettbewerbe"'))
         self.assertIn("Völkerball Jahrgang 7", text)
-        self.assertIn("Ausgefüllt drucken", text)
-        self.assertIn("Blanko drucken", text)
+        self.assertIn("Urkunden drucken", text)
+        self.assertIn("Blanko", text)
         self.assertIn("/urkunden/blanko.pdf", text)
         self.assertIn(f"/urkunden/pdf?event_id={self.event_id}&amp;wertung=gesamt", text)
         # Sechskampf vorhanden: auch der Druck je Disziplin wird angeboten.
