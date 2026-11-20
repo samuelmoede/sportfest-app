@@ -117,6 +117,11 @@ class AuswertungRouteTests(unittest.TestCase):
         event_text = self.client.get(f"/events/{self.event_id}").text
         self.assertNotIn('class="druck-symbol"', event_text)
 
+    def test_dashboard_verlinkt_auf_auswertung(self):
+        text = self.client.get("/").text
+        self.assertIn(f'href="/auswertung?event_id={self.event_id}"', text)
+        self.assertNotIn("#gesamtwertung", text)
+
     def test_seite_ohne_veranstaltung(self):
         from app.database import get_conn
         with get_conn() as conn:
