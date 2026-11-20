@@ -412,3 +412,47 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Kleines Druckersymbol je Tabelle/Wettbewerb (Auswertungsseite) */
+.year-group-kopf {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.year-group-kopf h3 {
+    margin: 0;
+}
+
+.year-group-block .year-group-kopf {
+    margin: 18px 0 10px;
+}
+
+.druck-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--muted);
+}
+
+.druck-symbol:hover,
+.druck-symbol:focus-visible {
+    background: var(--surface-soft);
+    color: var(--text);
+}
+
+.druck-symbol .icon {
+    width: 18px;
+    height: 18px;
+}
+
+.page-header.auswertung-kopf p.auswertung-druck-hinweis {
+    max-width: none;
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+}

@@ -12,12 +12,13 @@
         <summary class="auswertung-druckknopf" title="Urkunden drucken" aria-label="Urkunden drucken">{{ icon("printer") }}</summary>
         <div class="auswertung-druckpanel">
             <h2>Urkunden drucken</h2>
-            <p class="auswertung-druck-titel">Ausgefüllt</p>
+            <p class="auswertung-druck-hinweis">Einzelne Jahrgänge oder Wettbewerbe druckst du über das kleine Symbol an der jeweiligen Tabelle.</p>
+            <p class="auswertung-druck-titel">Ganze Veranstaltung</p>
             <ul class="auswertung-druckliste">
-                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=gesamt" target="_blank" rel="noopener">{{ wertungen["gesamt"] }} <span class="auswertung-anzahl">{{ anzahl.get("gesamt", 0) }}</span></a></li>
-                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb" target="_blank" rel="noopener">{{ wertungen["wettbewerb"] }} <span class="auswertung-anzahl">{{ anzahl.get("wettbewerb", 0) }}</span></a></li>
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=gesamt" target="_blank" rel="noopener">Gesamtwertung, alle Jahrgänge <span class="auswertung-anzahl">{{ anzahl.get("gesamt", 0) }}</span></a></li>
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb" target="_blank" rel="noopener">Alle Wettbewerbe <span class="auswertung-anzahl">{{ anzahl.get("wettbewerb", 0) }}</span></a></li>
                 {% if hat_disziplinen %}
-                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=disziplin" target="_blank" rel="noopener">{{ wertungen["disziplin"] }} <span class="auswertung-anzahl">{{ anzahl.get("disziplin", 0) }}</span></a></li>
+                <li><a href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=disziplin" target="_blank" rel="noopener">Alle Sechskampf-Disziplinen <span class="auswertung-anzahl">{{ anzahl.get("disziplin", 0) }}</span></a></li>
                 {% endif %}
                 <li><a href="/urkunden?event_id={{ event.id }}">Einzeln prüfen oder korrigieren</a></li>
             </ul>
@@ -78,7 +79,7 @@
 {% endif %}
 
 <section class="panel" id="gesamtwertung">
-    {% include "partials/gesamtwertung.html" %}
+    {% with druck_event_id = event.id %}{% include "partials/gesamtwertung.html" %}{% endwith %}
 </section>
 
 {# Einzelwettbewerbe nur zum Nachschauen, daher eingeklappt. #}
@@ -88,7 +89,10 @@
     <div class="auswertung-podeste">
         {% for w in wettbewerbe %}
         <article class="auswertung-podest">
-            <h3>{{ w.label }}</h3>
+            <div class="year-group-kopf">
+                <h3>{{ w.label }}</h3>
+                <a class="druck-symbol" href="/urkunden/pdf?event_id={{ event.id }}&amp;wertung=wettbewerb&amp;quelle={{ w.quelle_id|urlencode }}" target="_blank" rel="noopener" title="Urkunden {{ w.label }} drucken ({{ w.anzahl }})" aria-label="Urkunden {{ w.label }} drucken">{{ icon("printer") }}</a>
+            </div>
             {% if w.podest %}
             <ol>
                 {% for e in w.podest %}

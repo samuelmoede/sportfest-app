@@ -108,6 +108,15 @@ class AuswertungRouteTests(unittest.TestCase):
         # Sechskampf vorhanden: auch der Druck je Disziplin wird angeboten.
         self.assertIn("wertung=disziplin", text)
 
+    def test_druckersymbol_je_jahrgang_und_wettbewerb(self):
+        text = self.client.get(f"/auswertung?event_id={self.event_id}").text
+        self.assertIn("quelle=g%3AGesamtwertung%20Jahrgang%207", text)
+        self.assertIn("quelle=w%3A", text)
+        self.assertIn('class="druck-symbol"', text)
+        # Die Veranstaltungsseite nutzt dieselbe Tabelle, aber ohne Druckersymbol.
+        event_text = self.client.get(f"/events/{self.event_id}").text
+        self.assertNotIn('class="druck-symbol"', event_text)
+
     def test_seite_ohne_veranstaltung(self):
         from app.database import get_conn
         with get_conn() as conn:

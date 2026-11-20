@@ -1,7 +1,15 @@
 {% if overall_ranking %}
     {% for group in overall_ranking %}
     <div class="year-group-block">
+        {% if druck_event_id is defined and druck_event_id %}
+        {# Nur auf der Auswertungsseite: kleines Druckersymbol je Jahrgang. #}
+        <div class="year-group-kopf">
+            <h3>{{ group.year_group }}</h3>
+            <a class="druck-symbol" href="/urkunden/pdf?event_id={{ druck_event_id }}&amp;wertung=gesamt&amp;quelle={{ ('g:' ~ group.year_group)|urlencode }}" target="_blank" rel="noopener" title="Urkunden {{ group.year_group }} drucken" aria-label="Urkunden {{ group.year_group }} drucken">{{ icon("printer") }}</a>
+        </div>
+        {% else %}
         <h3>{{ group.year_group }}</h3>
+        {% endif %}
         <div class="table-scroll">
             <table class="team-table overall-table">
                 <thead>
