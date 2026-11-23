@@ -183,7 +183,7 @@ ACTION_ACCESS_RULES = (
     ),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table|advance-ko-round)$"
+            r"^/competition/[^/]+/(?:generate-semifinals|generate-finals|generate-finals-from-table|advance-ko-round|jahrgangsfinale/besetzen)$"
         ),
         "referee",
     ),
@@ -192,7 +192,7 @@ ACTION_ACCESS_RULES = (
     (re.compile(r"^/competition/create$"), "admin"),
     (
         re.compile(
-            r"^/competition/[^/]+/(?:duplicate|update|update-schedule-block|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
+            r"^/competition/[^/]+/(?:duplicate|update|update-timing|update-schedule-block|jahrgangsfinale/anlegen|discipline/create|discipline/reorder|archive|restore|reset|delete|delete-planned-slots)$"
         ),
         "admin",
     ),

@@ -117,3 +117,45 @@ class GrobplanScheduleBlockRoleAccessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WriteRoutesProtectedTests(unittest.TestCase):
+    """Jede schreibende Route braucht bei eingeschalteter Anmeldung eine
+    Rolle (siehe ACTION_ACCESS_RULES/AREA_ACCESS_RULES). Neue POST-Routen
+    ohne Eintrag waeren sonst fuer jeden offen (Pruefbericht B-08:
+    update-timing und Jahrgangsfinale waren ungeschuetzt)."""
+
+    PUBLIC_WRITE_PATHS = {"/login"}
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        tmp_db_path = Path(self._tmpdir.name) / "write-routes-test.db"
+        self._db_path_patcher = patch.object(database, "DB_PATH", tmp_db_path)
+        self._db_path_patcher.start()
+
+    def tearDown(self):
+        self._db_path_patcher.stop()
+        self._tmpdir.cleanup()
+
+    def test_all_write_routes_require_a_role(self):
+        import re
+        from app.main import app, get_required_role
+
+        unprotected = []
+        for route in app.routes:
+            methods = getattr(route, "methods", None) or set()
+            if not methods & {"POST", "PUT", "PATCH", "DELETE"}:
+                continue
+            if route.path in self.PUBLIC_WRITE_PATHS:
+                continue
+            probe = re.sub(r"\{[^}]+\}", "1", route.path)
+            if get_required_role(probe) is None:
+                unprotected.append(route.path)
+        self.assertEqual(unprotected, [])
+
+    def test_timing_and_jahrgangsfinale_roles(self):
+        from app.main import get_required_role
+
+        self.assertEqual(get_required_role("/competition/5/update-timing"), "admin")
+        self.assertEqual(get_required_role("/competition/5/jahrgangsfinale/anlegen"), "admin")
+        self.assertEqual(get_required_role("/competition/5/jahrgangsfinale/besetzen"), "referee")
