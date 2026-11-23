@@ -39,7 +39,7 @@ WERTUNGEN = {
     WERTUNG_GESAMT: "Gesamtwertung je Jahrgang",
 }
 
-JAHRGANGSGRUPPEN = ("Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe")
+JAHRGANGSGRUPPEN = ("Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Jahrgang 10", "Oberstufe")
 
 STANDARD_SCHWELLE = {
     # Platz 1 bis einschliesslich sieger_bis_platz -> Siegerurkunde.

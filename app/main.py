@@ -1776,12 +1776,13 @@ def calculate_event_overall_ranking(event_id: int):
             continue
         year_groups.setdefault(year_group, []).append(row)
 
-    ordered_groups = ["Jahrgang 7", "Jahrgang 8", "Jahrgang 9", "Oberstufe"]
+    # Gruppen aus den vorhandenen Jahrgaengen ableiten (frueher feste Liste
+    # 7, 8, 9, Oberstufe: Jahrgang 5/6/10 fielen dann still heraus).
+    # Jahrgang 10 gehoert zur Sek I, Oberstufe (GOST) sind 11-13.
+    ordered_groups = sorted(year_groups, key=_grobplan_column_sort_key)
     display_year_groups = {
-        "Jahrgang 7": "Gesamtwertung Jahrgang 7",
-        "Jahrgang 8": "Gesamtwertung Jahrgang 8",
-        "Jahrgang 9": "Gesamtwertung Jahrgang 9",
-        "Oberstufe": "Gesamtwertung GOST",
+        group: "Gesamtwertung GOST" if group == "Oberstufe" else f"Gesamtwertung {group}"
+        for group in ordered_groups
     }
     if is_schulpokal_event:
         def schulpokal_group_key(group):
