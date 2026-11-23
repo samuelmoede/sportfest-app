@@ -76,6 +76,9 @@ from app.services.schedule_generator_service import (
 from app.services.sixkampf_service import (
     calculate_sixkampf_station_rotation,
     calculate_sixkampf_team_ranking,
+    parse_sixkampf_werte_basis,
+    sixkampf_speichern_konflikt,
+    sixkampf_werte_basis,
 )
 from app.services.programmpunkte_service import list_programmpunkte
 from app.services.ui_view_service import (
@@ -2404,6 +2407,8 @@ def ergebnisse(
     correction_blocked: str = "",
     ko_error: str = "",
     nur_aktive: str = "",
+    konflikt_team_id: str = "",
+    konflikt_werte: str = "",
 ):
     nur_aktive_enabled = nur_aktive == "1"
     filter_state = build_results_filter_state(
@@ -2561,6 +2566,38 @@ def ergebnisse(
             key: "" if value is None else value
             for key, value in values.items()
         }
+        values_by_team_discipline = {}
+        for (team_key, discipline_key, value_index), value in values.items():
+            values_by_team_discipline.setdefault(
+                (team_key, discipline_key), {}
+            )[value_index] = value
+        basis_by_team_discipline = {
+            key: sixkampf_werte_basis(team_values)
+            for key, team_values in values_by_team_discipline.items()
+        }
+        # Konflikt beim Speichern (zwei Geraete, siehe
+        # sixkampf_team_results_save): gespeicherten Stand und die
+        # abgelehnte Eingabe zeigen, dann "behalten" oder "ueberschreiben".
+        sixkampf_konflikt = None
+        try:
+            konflikt_team_value = int(konflikt_team_id) if konflikt_team_id else None
+        except ValueError:
+            konflikt_team_value = None
+        if konflikt_team_value is not None and selected_discipline is not None:
+            stored_values = values_by_team_discipline.get(
+                (konflikt_team_value, selected_discipline["id"]), {}
+            )
+            submitted_values = parse_sixkampf_werte_basis(konflikt_werte)
+            sixkampf_konflikt = {
+                "team_id": konflikt_team_value,
+                "gespeichert": format_sixkampf_values(stored_values),
+                "eingabe": format_sixkampf_values(submitted_values),
+                "eingabe_werte": submitted_values,
+                "dismiss_url": build_results_redirect_url(
+                    str(request.url.path)
+                    + (f"?{request.url.query}" if request.url.query else "")
+                ),
+            }
         totals_by_team_discipline_display = {
             key: format_points_value(value)
             for key, value in totals_by_team_discipline.items()
@@ -2588,6 +2625,8 @@ def ergebnisse(
                 "teams": teams,
                 "values": values,
                 "values_input": values_input,
+                "basis_by_team_discipline": basis_by_team_discipline,
+                "sixkampf_konflikt": sixkampf_konflikt,
                 "totals_by_team_discipline": totals_by_team_discipline,
                 "totals_by_team_discipline_display": totals_by_team_discipline_display,
                 "overall_totals": overall_totals,
@@ -2727,6 +2766,23 @@ async def sixkampf_team_results_save(
             for value_index, value in parsed_values
             if value is not None
         }
+        if (
+            str(form.get("basis_pruefen", "")) == "1"
+            and str(form.get("ueberschreiben", "")) != "1"
+            and sixkampf_speichern_konflikt(
+                existing_values, new_values, str(form.get("basis", ""))
+            )
+        ):
+            return RedirectResponse(
+                build_results_redirect_url(
+                    results_return_to,
+                    competition_id=competition_id,
+                    discipline_id=discipline_id,
+                    konflikt_team_id=team_id,
+                    konflikt_werte=sixkampf_werte_basis(new_values) or "-",
+                ),
+                status_code=303,
+            )
         conn.execute("""
             DELETE FROM sixkampf_team_results
             WHERE competition_id = ? AND discipline_id = ? AND team_id = ?

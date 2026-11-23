@@ -171,6 +171,8 @@ if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) 
                   action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results"
                   class="six-class-form">
                 <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                <input type="hidden" name="basis_pruefen" value="1">
+                <input type="hidden" name="basis" value="{{ basis_by_team_discipline.get((team.id, selected_discipline.id), '') }}">
                 <header class="six-card-header">
                     <div class="six-card-team">
                         <span class="muted">Klasse</span>
@@ -205,6 +207,25 @@ if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) 
                     {% endfor %}
                 </div>
             </form>
+            {% if sixkampf_konflikt and sixkampf_konflikt.team_id == team.id %}
+            <div class="six-konflikt" role="alert" data-six-konflikt>
+                <strong>Ein anderes Gerät hat für {{ team.name }} inzwischen andere Werte gespeichert.</strong>
+                <p>Gespeichert ist jetzt: {{ sixkampf_konflikt.gespeichert }}</p>
+                <p>Deine Eingabe war: {{ sixkampf_konflikt.eingabe }}</p>
+                <div class="six-konflikt-actions">
+                    <a class="outline" href="{{ sixkampf_konflikt.dismiss_url }}">Gespeicherte Werte behalten</a>
+                    <form method="post"
+                          action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results">
+                        <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
+                        <input type="hidden" name="ueberschreiben" value="1">
+                        {% for value_index in range(1, selected_discipline.values_per_team + 1) %}
+                        <input type="hidden" name="value_{{ value_index }}" value="{{ sixkampf_konflikt.eingabe_werte.get(value_index, '') }}">
+                        {% endfor %}
+                        <button class="danger" type="submit">Mit meiner Eingabe überschreiben</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
         </article>
         {% endfor %}
     </div>
@@ -337,6 +358,13 @@ if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) 
     text-align: center;
     padding: 7px 8px;
 }
+.six-konflikt {
+    margin-top: 10px; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--red, #c0392b); background: var(--red-soft, #fdecea);
+}
+.six-konflikt p { margin: 6px 0; }
+.six-konflikt-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.six-konflikt-actions form { margin: 0; }
 .save-six {
     min-height: 42px;
     padding: 8px 14px;

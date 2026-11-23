@@ -1,3 +1,5 @@
+from math import isfinite
+
 from app.services.ranking_points_service import assign_points_by_placement_groups
 from app.utils.formatting import format_points_value
 
@@ -221,3 +223,41 @@ def calculate_sixkampf_station_rotation(teams, disciplines):
         ]
         rotation.append({"team": team, "rounds": rounds})
     return rotation
+
+
+def sixkampf_werte_basis(values):
+    """Stand der Stationswerte einer Klasse als kurzer Text fuer das
+    Formular (verstecktes Feld "basis"), z.B. "1=12.5;2=13.0". Beim
+    Speichern vergleicht der Server diesen Stand mit der Datenbank, damit
+    zwei Geraete sich nicht still gegenseitig ueberschreiben (Samuels
+    Regel: bei Konflikt fragen "behalten" oder "ueberschreiben")."""
+    return ";".join(
+        f"{int(value_index)}={float(value)!r}"
+        for value_index, value in sorted(values.items())
+        if value is not None
+    )
+
+
+def parse_sixkampf_werte_basis(text):
+    values = {}
+    for part in str(text or "").split(";"):
+        index_text, separator, value_text = part.partition("=")
+        if not separator:
+            continue
+        try:
+            value = float(value_text)
+            index = int(index_text)
+        except ValueError:
+            continue
+        if isfinite(value) and index >= 1:
+            values[index] = value
+    return values
+
+
+def sixkampf_speichern_konflikt(existing_values, new_values, basis_text):
+    """True, wenn seit dem Laden des Formulars ein anderes Geraet andere
+    Werte gespeichert hat und die neue Eingabe davon abweicht. Gleiche
+    Werte auf beiden Geraeten sind kein Konflikt."""
+    if existing_values == new_values:
+        return False
+    return existing_values != parse_sixkampf_werte_basis(basis_text)
