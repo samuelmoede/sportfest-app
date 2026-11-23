@@ -213,7 +213,7 @@ if (window.matchMedia('(max-width: 700px)').matches && !window.location.search) 
                 <p>Gespeichert ist jetzt: {{ sixkampf_konflikt.gespeichert }}</p>
                 <p>Deine Eingabe war: {{ sixkampf_konflikt.eingabe }}</p>
                 <div class="six-konflikt-actions">
-                    <a class="outline" href="{{ sixkampf_konflikt.dismiss_url }}">Gespeicherte Werte behalten</a>
+                    <a class="button secondary" href="{{ sixkampf_konflikt.dismiss_url }}">Gespeicherte Werte behalten</a>
                     <form method="post"
                           action="/competition/{{ selected_competition_id }}/discipline/{{ selected_discipline.id }}/team/{{ team.id }}/results">
                         <input type="hidden" name="results_return_to" value="{{ results_return_to }}">
