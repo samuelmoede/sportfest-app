@@ -100,7 +100,7 @@ def create_router(app_now_db_timestamp: Callable[[], str]) -> APIRouter:
             ))
             conn.commit()
 
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return RedirectResponse(
             f"/spielfelder?saved_court_id={court_id}&saved_at={saved_at}",
             status_code=303,

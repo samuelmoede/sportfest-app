@@ -154,7 +154,7 @@ def create_router(
                 event_date or None, status, event_type, event_id,
             ))
             conn.commit()
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return RedirectResponse(f"/events/{event_id}/edit?saved_at={saved_at}", status_code=303)
 
     @router.post("/events/{event_id}/activate")

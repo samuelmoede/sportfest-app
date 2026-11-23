@@ -445,7 +445,7 @@ def create_router(
                     (competition_id, team_id),
                 )
             conn.commit()
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return RedirectResponse(
             f"/wettbewerbe?saved_competition_id={competition_id}&saved_at={saved_at}#competition-{competition_id}",
             status_code=303,
@@ -532,7 +532,7 @@ def create_router(
                 scoring_direction, values_per_team_value, location.strip() or None,
             ))
             conn.commit()
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return _discipline_saved_redirect(competition_id, competition["event_id"], saved_at)
 
     @router.post("/discipline/{discipline_id}/update")
@@ -575,7 +575,7 @@ def create_router(
                 discipline_id,
             ))
             conn.commit()
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return _discipline_saved_redirect(
             existing["competition_id"], existing["event_id"], saved_at
         )
@@ -629,7 +629,7 @@ def create_router(
                 (discipline_id,)
             )
             conn.commit()
-        saved_at = app_now_db_timestamp()
+        saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
         return _discipline_saved_redirect(
             existing["competition_id"], existing["event_id"], saved_at
         )
