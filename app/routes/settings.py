@@ -480,7 +480,7 @@ def update_beamer_interval(
 
     set_beamer_refresh_seconds(beamer_refresh_seconds)
 
-    saved_at = app_now_db_timestamp()
+    saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
     return RedirectResponse(
         f"/einstellungen?settings_status=saved&saved_at={saved_at}",
         status_code=303,
@@ -492,7 +492,7 @@ def update_dashboard_info(
 ):
     set_dashboard_info_text(dashboard_info_text)
 
-    saved_at = app_now_db_timestamp()
+    saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
     return RedirectResponse(
         f"/einstellungen?settings_status=dashboard_info_saved&saved_at={saved_at}",
         status_code=303,
@@ -509,7 +509,7 @@ def update_site_theme(
             status_code=303,
         )
 
-    saved_at = app_now_db_timestamp()
+    saved_at = app_now_db_timestamp()[11:16]  # nur HH:MM fuer den Hinweis
     return RedirectResponse(
         f"/einstellungen?theme_status=saved&saved_at={saved_at}",
         status_code=303,

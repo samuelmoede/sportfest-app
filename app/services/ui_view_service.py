@@ -38,13 +38,16 @@ def classify_yeargang(value):
         normalized = str(value).strip().lower()
         if "oberstufe" in normalized or normalized in ("go", "gost", "sg"):
             return "Oberstufe"
-        # Handle patterns like "10a", "11b", "12/1", "13" as Oberstufe
-        for grade in range(10, 14):
+        # Jahrgang 10 gehoert zur Sek I (Samuel, 2026-11-23), erst 11-13
+        # ("11b", "12/1", "13") sind Oberstufe.
+        for grade in range(11, 14):
             if normalized.startswith(str(grade)):
                 return "Oberstufe"
+        if normalized.startswith("10"):
+            return "Jahrgang 10"
         return None  # Lehrer, Mixed, Finalrunde, Eltern, etc. → no column
 
-    if year >= 10:
+    if year >= 11:
         return "Oberstufe"
     if year >= 1:
         return f"Jahrgang {year}"
@@ -53,8 +56,8 @@ def classify_yeargang(value):
 
 def competition_column(competition):
     """Spalte im Tagesplan: beim Schulpokal setzt get_day_schedule_for_event
-    year_column (Jahrgang 10 bleibt Jahrgang 10 statt Oberstufe), sonst
-    classify_yeargang."""
+    year_column, sonst classify_yeargang (Jahrgang 10 gehoert zur Sek I,
+    Oberstufe sind 11-13)."""
     if isinstance(competition, dict) and competition.get("year_column"):
         return competition["year_column"]
     jahrgang = competition.get("jahrgang") if hasattr(competition, "get") else competition["jahrgang"]
