@@ -23,8 +23,14 @@ class ClassifyYeargangTests(unittest.TestCase):
         self.assertEqual(classify_yeargang(8), "Jahrgang 8")
         self.assertEqual(classify_yeargang(9), "Jahrgang 9")
 
-    def test_returns_oberstufe_for_10_to_13(self):
-        for year in (10, 11, 12, 13):
+    def test_jahrgang_10_gehoert_zur_sek_1(self):
+        # Samuel, 2026-11-23: Jahrgang 10 ist Sek I, nicht Oberstufe.
+        self.assertEqual(classify_yeargang(10), "Jahrgang 10")
+        self.assertEqual(classify_yeargang("10"), "Jahrgang 10")
+        self.assertEqual(classify_yeargang("10a"), "Jahrgang 10")
+
+    def test_returns_oberstufe_for_11_to_13(self):
+        for year in (11, 12, 13):
             self.assertEqual(classify_yeargang(year), "Oberstufe")
 
     def test_accepts_numeric_strings(self):

@@ -1119,11 +1119,11 @@ def _fremde_belegung(conn, datum, slots, eintrag_by_id, hinweise, ausnahmen=()):
 def _spalte(daten, wb):
     jahrgaenge = wb["jahrgaenge"]
     if len(jahrgaenge) > 1:
-        if all(j.isdigit() and int(j) >= 10 for j in jahrgaenge) and not ist_schulpokal(daten):
+        if all(j.isdigit() and int(j) >= 11 for j in jahrgaenge) and not ist_schulpokal(daten):
             return "Oberstufe"
         return "Jahrgang " + "/".join(jahrgaenge)
     jahrgang = jahrgaenge[0]
-    if ist_schulpokal(daten) or not jahrgang.isdigit() or int(jahrgang) < 10:
+    if ist_schulpokal(daten) or not jahrgang.isdigit() or int(jahrgang) < 11:
         return f"Jahrgang {jahrgang}"
     return "Oberstufe"
 

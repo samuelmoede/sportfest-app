@@ -117,6 +117,7 @@ _RESULTS_FELD_PATH = "/ergebnisse/feld"
 _RESULTS_TRANSIENT_PARAMS = {
     "saved_team_id", "saved_at", "phase_ready", "phase_ready_competition_id",
     "overwrite_warning", "correction_blocked", "ko_error",
+    "konflikt_team_id", "konflikt_werte",
 }
 
 
