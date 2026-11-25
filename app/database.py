@@ -13,6 +13,24 @@ def get_conn():
     return conn
 
 
+def enable_wal(db_path=None):
+    """Schaltet die Datenbank dauerhaft in den WAL-Modus (Write-Ahead-Log).
+
+    Ohne WAL sperrt jeder Schreibvorgang (z.B. ein Zwischenstand) die ganze
+    Datei, und gleichzeitige Leser warten oder scheitern mit "database is
+    locked". Mit WAL lesen viele Prozesse weiter, waehrend einer schreibt.
+    Die Einstellung wird in der Datei gespeichert; ein erneuter Aufruf aendert
+    nichts. Gibt den danach gueltigen Modus zurueck (z.B. "wal").
+    """
+    target_path = Path(db_path) if db_path is not None else DB_PATH
+    conn = sqlite3.connect(target_path, timeout=30)
+    try:
+        mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+    finally:
+        conn.close()
+    return str(mode).lower()
+
+
 def _competition_name_is_globally_unique(conn) -> bool:
     """True, solange die alte Spaltenregel "name ... UNIQUE" noch gilt."""
     for index in conn.execute("PRAGMA index_list(competitions)").fetchall():

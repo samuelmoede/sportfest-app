@@ -145,15 +145,16 @@ def restore_database_backup(backup_name: str) -> str:
         # settings-Tabelle); die gleichen idempotenten Migrationen wie beim
         # App-Start nachziehen, damit die App danach sofort weiterlaeuft.
         init_db(tmp_path)
-        try:
-            os.replace(tmp_path, DB_PATH)
-        except OSError:
-            # os.replace() ist auf manchen Netzlaufwerken/SMB-Freigaben nicht
-            # atomar verfuegbar (Windows-Zugriffsfehler) - dann direkt kopieren.
-            shutil.copyfile(tmp_path, DB_PATH)
-            tmp_path.unlink(missing_ok=True)
+        # Ueber die SQLite-Backup-API in die laufende Datenbank schreiben statt
+        # die Datei zu ersetzen: Im WAL-Modus (siehe enable_wal) gehoert zur
+        # Datenbank noch eine -wal-Datei, und andere Worker-Prozesse halten
+        # Verbindungen offen. Ein Dateitausch wuerde mit der alten -wal-Datei
+        # kollidieren; die Backup-API ersetzt den Inhalt sauber und sperrt
+        # dabei korrekt.
+        _sqlite_backup(tmp_path, DB_PATH)
     except (OSError, sqlite3.Error):
-        tmp_path.unlink(missing_ok=True)
         return "error"
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     return "ok"
