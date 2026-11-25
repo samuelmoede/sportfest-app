@@ -14,6 +14,10 @@ services:
       SPORTFEST_SESSION_HTTPS_ONLY: ${SPORTFEST_SESSION_HTTPS_ONLY:-false}
       SPORTFEST_TRUSTED_ORIGINS: ${SPORTFEST_TRUSTED_ORIGINS:-}
       SPORTFEST_PUBLIC_CACHE_SECONDS: ${SPORTFEST_PUBLIC_CACHE_SECONDS:-}
+      # Mehrere Prozesse statt --reload: haelt laut Lasttest 800 gleichzeitige
+      # Schueler auch ohne Cloudflare-Cache aus. Code-Aenderungen wirken erst
+      # nach einem Neustart (deploy-prod.yml: --force-recreate).
+      SPORTFEST_WORKERS: ${SPORTFEST_WORKERS:-3}
     volumes:
       - ./app:/app/app
       - ./data:/app/data
@@ -25,4 +29,4 @@ services:
       uvicorn app.main:app
       --host 0.0.0.0
       --port 8500
-      --reload
+      --workers ${SPORTFEST_WORKERS:-3}

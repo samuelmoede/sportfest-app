@@ -14,8 +14,11 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from app.database import init_db, get_conn, DB_PATH
+from contextlib import contextmanager
+import app.database as database_module
+from app.database import enable_wal, init_db, get_conn, DB_PATH
 from app.routes.settings import router as settings_router
 from app.routes.competitions import create_router as create_competitions_router
 from app.routes.events import create_router as create_events_router
@@ -108,6 +111,7 @@ from app.services.settings_service import (
     render_rich_text_html,
 )
 from app.services.public_cache_service import public_cache_control
+from app.services.session_secret_service import load_or_create_session_secret
 from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     end_user_session,
@@ -132,9 +136,12 @@ SESSION_SECRET_KEY = (
     or os.getenv("SESSION_SECRET_KEY")
 )
 if not SESSION_SECRET_KEY:
-    SESSION_SECRET_KEY = secrets.token_urlsafe(32)
+    # Alle Worker-Prozesse teilen sich denselben Schluessel (siehe
+    # app/services/session_secret_service.py), sonst waeren Anmeldungen bei
+    # mehreren Workern nur auf einem Prozess gueltig.
+    SESSION_SECRET_KEY = load_or_create_session_secret(DB_PATH.parent / ".session_secret")
     logging.getLogger(__name__).warning(
-        "Kein Session-Secret gesetzt; verwende einen temporaeren Entwicklungsschluessel."
+        "Kein Session-Secret gesetzt; verwende den gespeicherten Schluessel aus data/.session_secret."
     )
 
 SESSION_HTTPS_ONLY = os.getenv(
@@ -301,6 +308,15 @@ class PublicCacheMiddleware(BaseHTTPMiddleware):
 # Ganz aussen, damit auch ein von der Session-Middleware gesetztes Cookie
 # sichtbar ist.
 app.add_middleware(PublicCacheMiddleware)
+
+# Komprimiert Antworten (HTML, CSS, JSON) fuer Browser, die gzip annehmen -
+# das tun alle. Inhalt und Verhalten bleiben gleich, uebertragen
+# wird aber rund ein Zehntel (Spielplan ~177 kB -> ~15 kB). Das entlastet den
+# Upload des Servers, vor allem bei angemeldeten Benutzern (nie aus dem
+# Cloudflare-Cache) und falls der Cache einmal nicht greift. Muss ganz aussen
+# liegen, damit es "Vary: Accept-Encoding" an das "Vary: Cookie" der
+# PublicCacheMiddleware anhaengt, statt von ihr ueberschrieben zu werden.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 APP_TIMEZONE = ZoneInfo(os.getenv("SPORTFEST_TIMEZONE", "Europe/Berlin"))
 
@@ -960,12 +976,40 @@ def copy_competition_disciplines(conn, source_competition_id: int, target_compet
         ))
 
 
+@contextmanager
+def startup_lock():
+    """Nur ein Prozess zur Zeit fuehrt die Start-Migrationen aus.
+
+    Mit mehreren uvicorn-Workern (docker-compose: --workers) starten alle
+    gleichzeitig; ohne Sperre koennten zwei dasselbe ALTER TABLE versuchen.
+    Unter Windows (kein fcntl, lokale Entwicklung mit einem Prozess) laeuft
+    der Start ohne Sperre wie bisher.
+    """
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+    # Zur Laufzeit nachschlagen, damit Tests mit eigener Temp-DB auch ihre
+    # eigene Sperrdatei bekommen.
+    data_dir = database_module.DB_PATH.parent
+    data_dir.mkdir(parents=True, exist_ok=True)
+    with open(data_dir / ".startup.lock", "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
 @app.on_event("startup")
 def startup():
-    init_db()
-    with get_conn() as conn:
-        normalize_event_statuses(conn)
-        conn.commit()
+    with startup_lock():
+        init_db()
+        enable_wal()
+        with get_conn() as conn:
+            normalize_event_statuses(conn)
+            conn.commit()
 
 
 def get_active_competitions():
