@@ -71,3 +71,12 @@ Angemeldet steht dort `BYPASS` oder `DYNAMIC`.
 - Die Anmeldung muss in Produktion eingeschaltet sein (Einstellungen →
   Sicherheit). Ohne sie kann jeder mit der Adresse Ergebnisse ändern.
 - Die Regel zuerst ohne Publikum prüfen (siehe oben).
+
+## Falls der Cache nicht greift
+
+Auch ohne Cloudflare-Cache hält die App rund 800 gleichzeitige Schüler aus
+(lokaler Lasttest 2026-11-25, 3 Prozesse, WAL-Modus, Komprimierung: 0 Fehler,
+Seiten im Mittel 0,2 s; ein Ansturm von 800 Seitenaufrufen in 5 Sekunden ist
+nach rund 20 Sekunden abgearbeitet). Die Anzahl der Prozesse steuert
+`SPORTFEST_WORKERS` (Standard 3). Der Cache bleibt trotzdem die erste
+Verteidigungslinie, weil er den Server fast vollständig entlastet.

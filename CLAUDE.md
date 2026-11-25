@@ -21,7 +21,9 @@ pip install fastapi uvicorn jinja2 python-multipart itsdangerous
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8500
 ```
 
-Run with Docker (mounts `app/`, `data/`, `VERSION`, `CHANGELOG.md`; auto-reload enabled):
+Run with Docker (mounts `app/`, `data/`, `VERSION`, `CHANGELOG.md`; runs `--workers ${SPORTFEST_WORKERS:-3}`
+without auto-reload, so restart the container after code changes; for auto-reload use the local uvicorn command above).
+The DB runs in SQLite WAL mode (`enable_wal()` at startup, `-wal`/`-shm` files next to it):
 
 ```powershell
 docker compose up --build

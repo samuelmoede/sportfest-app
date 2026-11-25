@@ -12,3 +12,8 @@ backups/
 
 # Live-Datenbank
 data/*.db
+# SQLite-WAL-Begleitdateien und Startsperre (siehe enable_wal/startup_lock)
+data/*.db-wal
+data/*.db-shm
+data/.startup.lock
+data/.session_secret

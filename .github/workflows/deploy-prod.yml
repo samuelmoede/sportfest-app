@@ -27,4 +27,7 @@ jobs:
 
       - name: Container neu bauen und starten
         working-directory: ${{ env.DEPLOY_DIR }}
-        run: docker compose up -d --build
+        # --force-recreate: Die App laeuft mit mehreren Workern ohne --reload,
+        # Aenderungen (auch an einzeln gemounteten Dateien wie VERSION) wirken
+        # erst nach einem Neustart des Containers.
+        run: docker compose up -d --build --force-recreate
