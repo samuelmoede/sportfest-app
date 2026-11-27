@@ -5,6 +5,7 @@ import io
 import logging
 from math import isfinite
 import os
+import sys
 import re
 import secrets
 import time
@@ -114,6 +115,7 @@ from app.services.settings_service import (
 )
 from app.services.public_cache_service import public_cache_control
 from app.services.session_secret_service import load_or_create_session_secret
+from app.services import push_service
 from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     end_user_session,
@@ -216,6 +218,7 @@ ACTION_ACCESS_RULES = (
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
     (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
+    (re.compile(r"^/push/(?:abo|abmelden)$"), "referee"),
     (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
@@ -1012,6 +1015,11 @@ def startup():
         with get_conn() as conn:
             normalize_event_statuses(conn)
             conn.commit()
+    # Web-Push "Noch 1 Minute"/"Spielzeit vorbei" (Feldansicht), nicht in Tests.
+    if os.getenv("SPORTFEST_PUSH", "1") != "0" and "pytest" not in sys.modules:
+        push_service.starte_takt(
+            get_conn, lambda: app_now().replace(tzinfo=None), push_schluessel()
+        )
 
 
 def get_active_competitions():
@@ -2532,6 +2540,7 @@ def ergebnisse_feld(
             ),
             "phase_ready_url": phase_ready_url,
             "correction_blocked": correction_blocked == "1",
+            "push_schluessel": push_service.oeffentlicher_schluessel_text(push_schluessel()),
         },
     )
     if feld is not None:
@@ -3210,6 +3219,58 @@ def save_slot(
         build_results_redirect_url(results_return_to, **redirect_updates),
         status_code=303,
     )
+
+
+_push_schluessel_cache = []
+
+
+def push_schluessel():
+    """VAPID-Schluessel fuer Web-Push (einmal je Prozess geladen), None ohne
+    `cryptography`."""
+    if not _push_schluessel_cache:
+        try:
+            _push_schluessel_cache.append(push_service.lade_schluessel(database_module.DB_PATH.parent))
+        except Exception:
+            _push_schluessel_cache.append(None)
+    return _push_schluessel_cache[0]
+
+
+def _push_absender(request: Request) -> str:
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost").split(",")[0].strip()
+    return f"https://{host}"
+
+
+@app.post("/push/abo")
+async def push_abo(request: Request):
+    """Feldansicht: Handy fuer "Noch 1 Minute"/"Spielzeit vorbei" auf diesem
+    Feld anmelden (bzw. Feld aktualisieren)."""
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = None
+    if not isinstance(daten, dict):
+        return JSONResponse({"ok": False}, status_code=400)
+    court_id = parse_filter_id(str(daten.get("court_id") or ""))
+    with get_conn() as conn:
+        ok = push_service.speichere_abo(
+            conn, daten.get("abo"), court_id, _push_absender(request), app_now_db_timestamp()
+        )
+        conn.commit()
+    return JSONResponse({"ok": ok}, status_code=200 if ok else 400, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/push/abmelden")
+async def push_abmelden(request: Request):
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = None
+    endpoint = daten.get("endpoint") if isinstance(daten, dict) else None
+    if isinstance(endpoint, str):
+        with get_conn() as conn:
+            push_service.loesche_abo(conn, endpoint)
+            conn.commit()
+    return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/slot/{slot_id}/zwischenstand")
