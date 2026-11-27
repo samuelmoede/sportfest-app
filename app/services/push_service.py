@@ -312,6 +312,28 @@ def verarbeite(conn, jetzt, privat, sender=sende) -> int:
     return gesendet
 
 
+def sende_test(conn, endpoint, privat, sender=None):
+    """Schickt sofort eine Test-Meldung an ein angemeldetes Handy.
+
+    Liefert den HTTP-Status des Push-Dienstes (201 = angenommen, 0 =
+    Server erreicht den Dienst nicht) oder None, wenn das Handy nicht
+    angemeldet ist.
+    """
+    zeile = conn.execute("SELECT * FROM push_abos WHERE endpoint = ?", (endpoint,)).fetchone()
+    if zeile is None:
+        return None
+    status = (sender or sende)(dict(zeile), {
+        "titel": "Test · Sportfest",
+        "text": "So kommt „Noch 1 Minute“ an.",
+        "tag": "test",
+        "url": f"/ergebnisse/feld?court_id={zeile['court_id']}" if zeile["court_id"] else "/ergebnisse/feld",
+    }, privat)
+    if status in (404, 410):
+        loesche_abo(conn, endpoint)
+        conn.commit()
+    return status
+
+
 _takt_gestartet = False
 _takt_sperre = threading.Lock()
 

@@ -192,6 +192,7 @@
                 <input type="checkbox" data-benachrichtigung-schalter>
                 {{ icon("watch") }} Benachrichtigung (Smartwatch)
             </label>
+            <button type="button" class="fa-link" data-aktion="push-testen" hidden>Test-Push</button>
         </div>
         <p class="fa-signal-hinweis" data-benachrichtigung-hinweis hidden></p>
         <p class="fa-signal-hinweis">Eine Minute vorher kurz, in den letzten 5 Sekunden vibriert es jede Sekunde, am Ende lang. Der Bildschirm bleibt an, solange die Uhr läuft. Über eine Verlängerung entscheidet der Schiri, die Uhr zählt einfach weiter.</p>
@@ -943,6 +944,8 @@
                 } else {
                     schliesseKorrektur(karte);
                 }
+            } else if (aktion === 'push-testen') {
+                mitSperre(knopf, testePush);
             } else if (aktion === 'signal-testen') {
                 signal('ende');
             } else if (aktion === 'konflikt-behalten' || aktion === 'konflikt-ueberschreiben') {
@@ -1132,9 +1135,10 @@
         } else if (Notification.permission === 'denied') {
             zeigeBenachrichtigungHinweis('Benachrichtigungen sind für diese Seite blockiert. Freigeben in den Browser-Einstellungen der Seite.');
         } else {
-            zeigeBenachrichtigungHinweis(!an ? '' : pushAktiv
+            root.querySelectorAll('[data-aktion="push-testen"]').forEach(k => { k.hidden = !(an && pushAktiv); });
+            zeigeBenachrichtigungHinweis(!an ? '' : testErgebnis || (pushAktiv
                 ? 'Kommt auf Handy und gekoppelter Uhr, auch bei ausgeschaltetem Bildschirm.'
-                : 'Kommt auf Handy und gekoppelter Uhr, solange diese Seite offen ist.');
+                : 'Kommt auf Handy und gekoppelter Uhr, solange diese Seite offen ist.'));
         }
     }
     // Web-Push: meldet dieses Handy beim Server fuer das angezeigte Feld an,
@@ -1181,7 +1185,43 @@
         abo.unsubscribe().catch(() => {});
     }
 
+    // Test-Push: der Server schickt sofort eine Meldung an dieses Handy und
+    // meldet zurueck, was der Push-Dienst geantwortet hat.
+    let testErgebnis = '';   // bleibt sichtbar, auch wenn die Seite nachlaedt
+    async function testePush() {
+        const reg = await swBereit();
+        const abo = reg && reg.pushManager ? await reg.pushManager.getSubscription().catch(() => null) : null;
+        if (!abo) {
+            zeigeBenachrichtigungHinweis('Dieses Handy ist nicht für Push angemeldet. Schalter aus- und wieder einschalten.');
+            return;
+        }
+        let ergebnis = null;
+        try {
+            const antwort = await fetch('/push/test', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ endpoint: abo.endpoint }),
+            });
+            ergebnis = await antwort.json();
+        } catch (e) { ergebnis = null; }
+        const status = ergebnis ? ergebnis.status : null;
+        let text;
+        if (ergebnis && ergebnis.ok) {
+            text = `Test-Push verschickt (Push-Dienst: ${status}). Kommt keine Meldung, liegt es an den Benachrichtigungs-Einstellungen von Handy oder Browser.`;
+        } else if (status === null || status === undefined) {
+            text = 'Dieses Handy ist beim Server nicht angemeldet. Schalter aus- und wieder einschalten.';
+        } else if (status === 0) {
+            text = 'Der Server erreicht den Push-Dienst nicht (Internet/Firewall des Servers prüfen).';
+        } else {
+            text = `Der Push-Dienst hat abgelehnt (Status ${status}).`;
+        }
+        testErgebnis = text;
+        zeigeBenachrichtigungHinweis(text);
+    }
+
     async function schalteBenachrichtigung(schalter) {
+        testErgebnis = '';
         let an = schalter.checked;
         if (an) {
             if (!benachrichtigungMoeglich()) {
