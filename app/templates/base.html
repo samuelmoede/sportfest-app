@@ -7,6 +7,14 @@
     <meta name="google-site-verification" content="x4Xfl_3DQ9zcYFen2SKoy-FMSuLei9qq7oCc_ctVE1I" />
     <meta name="theme-color" content="{{ '#0f172a' if site_theme == 'dunkel' else '#17233c' }}">
     <title>Sportfest Manager</title>
+    {# Installierbare Web-App (Home-Bildschirm), siehe app/services/web_app_service.py #}
+    <link rel="manifest" href="/manifest.webmanifest?v={{ manifest_version() }}">
+    <link rel="icon" type="image/svg+xml" href="/static/icons/app-icon.svg?v={{ datei_version('icons/app-icon.svg') }}">
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png?v={{ datei_version('icons/apple-touch-icon.png') }}">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Sportfest">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="stylesheet" href="/static/style.css?v={{ style_version() }}">
     {% block extra_head %}{% endblock %}
 </head>
