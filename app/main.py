@@ -8,6 +8,7 @@ import os
 import sys
 import re
 import secrets
+import threading
 import time
 from typing import List, Optional
 from zoneinfo import ZoneInfo
@@ -117,6 +118,7 @@ from app.services.settings_service import (
 from app.services.public_cache_service import public_cache_control
 from app.services.session_secret_service import load_or_create_session_secret
 from app.services import push_service
+from app.services import signal_einstellungen_service
 from app.services.users_service import (
     SESSION_MAX_AGE_SECONDS,
     end_user_session,
@@ -220,6 +222,8 @@ ACTION_ACCESS_RULES = (
     (re.compile(r"^/slots/delete$"), "admin"),
     (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
     (re.compile(r"^/push/(?:abo|abmelden|test)$"), "referee"),
+    # Mein Konto: eigene Signal-Schalter, jede angemeldete Rolle.
+    (re.compile(r"^/konto/signale$"), "station_helper"),
     (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
@@ -393,6 +397,26 @@ templates.env.globals["get_current_role"] = get_current_role
 templates.env.globals["get_current_role_label"] = get_current_role_label
 templates.env.globals["get_current_role_description"] = get_current_role_description
 templates.env.globals["get_current_username"] = get_current_username
+
+
+def benutzer_id(request: Request):
+    """ID des angemeldeten Benutzers (None ohne Benutzer-Login)."""
+    user_id = request.session.get("user_id")
+    return user_id if isinstance(user_id, int) else None
+
+
+def get_signal_einstellungen(request: Request):
+    """Signal-Schalter des angemeldeten Benutzers fuer die Vorlagen (None
+    ohne Konto: dann merkt sich der Browser die Schalter)."""
+    user_id = benutzer_id(request)
+    if user_id is None:
+        return None
+    with get_conn() as conn:
+        return signal_einstellungen_service.lade_einstellungen(conn, user_id)
+
+
+templates.env.globals["benutzer_id"] = benutzer_id
+templates.env.globals["get_signal_einstellungen"] = get_signal_einstellungen
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
@@ -2567,6 +2591,9 @@ def ergebnisse_feld(
             "phase_ready_url": phase_ready_url,
             "correction_blocked": correction_blocked == "1",
             "push_schluessel": push_service.oeffentlicher_schluessel_text(push_schluessel()),
+            "eigenes_spiel": lambda slot: signal_einstellungen_service.eigenes_spiel(
+                slot, benutzer_id(request)
+            ),
         },
     )
     if feld is not None:
@@ -3030,6 +3057,7 @@ def start_slot(slot_id: int, request: Request, started_at: Optional[str] = Form(
             "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL, timer_stopped_at = NULL WHERE id = ?",
             (started_at_value, slot_id),
         )
+        signal_einstellungen_service.merke_starter(conn, [slot_id], benutzer_id(request))
         conn.commit()
 
     referer = request.headers.get("referer") or "/ergebnisse"
@@ -3041,6 +3069,7 @@ def start_round_slots(request: Request, slot_ids: List[int] = Form([])):
     """Startet alle zeitgleich geplanten Spiele gemeinsam (Runden-Timer)."""
     with get_conn() as conn:
         start_round(conn, slot_ids, app_now_db_timestamp())
+        signal_einstellungen_service.merke_starter(conn, slot_ids, benutzer_id(request))
         conn.commit()
     referer = request.headers.get("referer") or "/ergebnisse"
     return RedirectResponse(referer, status_code=303)
@@ -3122,7 +3151,8 @@ def save_slot(
 
         if not correction_blocked:
             started_at_value = slot["started_at"] if slot else None
-            if new_status == "läuft" and not started_at_value:
+            neu_gestartet = new_status == "läuft" and not started_at_value
+            if neu_gestartet:
                 started_at_value = app_now_db_timestamp()
             if new_status == "geplant":
                 started_at_value = None
@@ -3147,6 +3177,8 @@ def save_slot(
                 finished_at_value,
                 slot_id
             ))
+            if neu_gestartet:
+                signal_einstellungen_service.merke_starter(conn, [slot_id], benutzer_id(request))
             if slot is not None and (
                 slot["score_a"] != score_a or slot["score_b"] != score_b
             ):
@@ -3247,6 +3279,38 @@ def save_slot(
     )
 
 
+@app.get("/konto")
+def konto_page(request: Request):
+    """Mein Konto: Signale beim Spiel einstellen und testen - ohne dass ein
+    Spiel laufen muss (z.B. bei der Schiri-Einweisung)."""
+    return templates.TemplateResponse(
+        request=request, name="konto.html",
+        context={
+            "einstellungen": get_signal_einstellungen(request),
+            "push_schluessel": push_service.oeffentlicher_schluessel_text(push_schluessel()),
+        },
+    )
+
+
+@app.post("/konto/signale")
+async def konto_signale_speichern(request: Request):
+    """Speichert die Signal-Schalter des angemeldeten Benutzers (JSON)."""
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = None
+    user_id = benutzer_id(request)
+    if not isinstance(daten, dict) or user_id is None:
+        return JSONResponse({"ok": False}, status_code=400, headers={"Cache-Control": "no-store"})
+    with get_conn() as conn:
+        try:
+            einstellungen = signal_einstellungen_service.speichere_einstellungen(conn, user_id, daten)
+        except ValueError:
+            return JSONResponse({"ok": False}, status_code=400, headers={"Cache-Control": "no-store"})
+        conn.commit()
+    return JSONResponse({"ok": True, "einstellungen": einstellungen}, headers={"Cache-Control": "no-store"})
+
+
 _push_schluessel_cache = []
 
 
@@ -3278,8 +3342,12 @@ async def push_abo(request: Request):
         return JSONResponse({"ok": False}, status_code=400)
     court_id = parse_filter_id(str(daten.get("court_id") or ""))
     with get_conn() as conn:
+        user_id = benutzer_id(request)
+        if signal_einstellungen_service.lade_einstellungen(conn, user_id) is None:
+            user_id = None
         ok = push_service.speichere_abo(
-            conn, daten.get("abo"), court_id, _push_absender(request), app_now_db_timestamp()
+            conn, daten.get("abo"), court_id, _push_absender(request), app_now_db_timestamp(),
+            user_id=user_id,
         )
         conn.commit()
     return JSONResponse({"ok": ok}, status_code=200 if ok else 400, headers={"Cache-Control": "no-store"})
@@ -3297,6 +3365,31 @@ async def push_test(request: Request):
     privat = push_schluessel()
     if not isinstance(endpoint, str) or privat is None:
         return JSONResponse({"ok": False, "status": None}, status_code=400)
+    try:
+        verzoegerung = int(daten.get("verzoegerung") or 0)
+    except (TypeError, ValueError):
+        verzoegerung = 0
+    if verzoegerung > 0:
+        # "Test-Push in 15 s": Zeit, um den Bildschirm auszuschalten. Ob das
+        # Handy angemeldet ist, wird gleich geprueft, gesendet wird spaeter.
+        with get_conn() as conn:
+            bekannt = conn.execute(
+                "SELECT 1 FROM push_abos WHERE endpoint = ?", (endpoint,)
+            ).fetchone() is not None
+        if not bekannt:
+            return JSONResponse({"ok": False, "status": None}, headers={"Cache-Control": "no-store"})
+
+        def spaeter_senden():
+            try:
+                with get_conn() as conn:
+                    push_service.sende_test(conn, endpoint, privat)
+            except Exception:
+                pass
+
+        zeitgeber = threading.Timer(min(verzoegerung, 60), spaeter_senden)
+        zeitgeber.daemon = True
+        zeitgeber.start()
+        return JSONResponse({"ok": True, "status": None, "geplant": True}, headers={"Cache-Control": "no-store"})
     with get_conn() as conn:
         status = push_service.sende_test(conn, endpoint, privat)
     return JSONResponse(
@@ -3370,7 +3463,7 @@ def save_slot_zwischenstand(
 
 
 @app.post("/slot/{slot_id}/reactivate")
-def reactivate_slot(slot_id: int, results_return_to: str = Form("")):
+def reactivate_slot(slot_id: int, request: Request, results_return_to: str = Form("")):
     correction_blocked = False
     with get_conn() as conn:
         slot = conn.execute(
@@ -3384,6 +3477,7 @@ def reactivate_slot(slot_id: int, results_return_to: str = Form("")):
                 "UPDATE slots SET status = 'läuft', started_at = ?, finished_at = NULL WHERE id = ?",
                 (app_now_db_timestamp(), slot_id),
             )
+            signal_einstellungen_service.merke_starter(conn, [slot_id], benutzer_id(request))
             conn.commit()
 
     redirect_updates = {}
