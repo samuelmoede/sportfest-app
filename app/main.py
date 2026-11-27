@@ -33,6 +33,8 @@ from app.services.icon_service import icon_svg
 from app.services.competition_name_service import competition_name_vergeben
 from markupsafe import Markup
 from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
+from app.services import gesamtwertung_service
+from app.services.regeln_service import regeln_hinweise
 from app.routes.zeitplan import create_router as create_zeitplan_router
 from app.services.beamer_service import STANDARD_SEKUNDEN, baue_beamer_seiten
 from app.services.runden_timer_service import build_round_timer, start_round, stop_round_timer
@@ -1629,14 +1631,109 @@ def format_duration(start_time: str, end_time: str):
 
 
 
+def _spiele_fuer_direkten_vergleich(competition_ids):
+    """Beendete Spiele der Wettbewerbe mit deren Punkteregeln - fuer den
+    direkten Vergleich bei Gleichstand in der Gesamtwertung."""
+    if not competition_ids:
+        return []
+    placeholders = ", ".join(["?"] * len(competition_ids))
+    with get_conn() as conn:
+        rows = conn.execute(f"""
+            SELECT s.team_a_id, s.team_b_id, s.score_a, s.score_b,
+                   c.points_win, c.points_draw, c.points_loss
+            FROM slots s
+            JOIN competitions c ON c.id = s.competition_id
+            WHERE s.competition_id IN ({placeholders})
+              AND s.slot_typ = 'Spiel' AND s.status = 'beendet'
+              AND s.team_a_id IS NOT NULL AND s.team_b_id IS NOT NULL
+        """, tuple(competition_ids)).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _platzpunkte_je_sportart(competitions, grouped_competitions, overall, comp_results, year_group_of):
+    """Wertung „Platzpunkte je Sportart“: Wettbewerbe derselben Sportart und
+    desselben Jahrgangs (Teilmannschaften wie Jungen/Maedchen) werden zu einer
+    Spalte zusammengefasst; die Summe ihrer Platzpunkte ergibt den Platz in
+    der Sportart und dieser wieder Platzpunkte (siehe gesamtwertung_service).
+    Ersetzt points_by_competition/placements der Klassen und gibt die neuen
+    Spalten je Jahrgangsgruppe sowie die Erklaertexte je Klasse zurueck."""
+    sport_gruppen = {}
+    for competition in competitions:
+        year_group = year_group_of(competition["jahrgang"])
+        if year_group is None:
+            continue
+        key = (year_group,) + gesamtwertung_service.sportart_schluessel(competition)
+        sport_gruppen.setdefault(key, []).append(competition)
+
+    neue_spalten = {}
+    namen_je_gruppe = {}
+    for (year_group, _sport, jahrgang), members in sport_gruppen.items():
+        namen_je_gruppe.setdefault(year_group, []).append(members[0]["sportart"])
+    detail = {}
+    neue_punkte = {team_id: {} for team_id in overall}
+    neue_plaetze = {team_id: [] for team_id in overall}
+    for (year_group, _sport, jahrgang), members in sport_gruppen.items():
+        spalten_id = f"s:{members[0]['sportart']}|{jahrgang}"
+        sportart = members[0]["sportart"]
+        name = sportart
+        if namen_je_gruppe[year_group].count(sportart) > 1:
+            name = f"{sportart} (Jg. {jahrgang})"
+        neue_spalten.setdefault(year_group, []).append({
+            "id": spalten_id, "name": name, "jahrgang": members[0]["jahrgang"],
+            "competition_type": members[0]["competition_type"],
+            "competition_ids": [competition["id"] for competition in members],
+        })
+        team_ids = [
+            team_id for team_id, record in overall.items()
+            if any(competition["id"] in record["points_by_competition"] for competition in members)
+        ]
+        for team_id in team_ids:
+            neue_punkte[team_id][spalten_id] = None
+        teile = []
+        for competition in members:
+            ergebnisse = comp_results.get(competition["id"])
+            if not ergebnisse:
+                continue
+            teile.append({
+                "label": competition["teilmannschaft"] or competition["name"],
+                "punkte": {team_id: punkte for team_id, (_platz, punkte) in ergebnisse.items()},
+                "plaetze": {team_id: platz for team_id, (platz, _punkte) in ergebnisse.items()},
+            })
+        if not teile:
+            continue
+        wertung = gesamtwertung_service.sportart_wertung(teile, team_ids)
+        for team_id, eintrag in wertung.items():
+            if team_id not in neue_punkte:
+                continue
+            neue_punkte[team_id][spalten_id] = eintrag["punkte"]
+            neue_plaetze[team_id].append(eintrag["platz"])
+            text = gesamtwertung_service.sportart_detail_text(eintrag)
+            if text:
+                detail.setdefault(team_id, {})[spalten_id] = text
+
+    for team_id, record in overall.items():
+        record["points_by_competition"] = neue_punkte[team_id]
+        record["placements"] = neue_plaetze[team_id]
+    spalten = {
+        year_group: neue_spalten.get(year_group, [])
+        for year_group in grouped_competitions
+    }
+    return spalten, detail
+
+
 def calculate_event_overall_ranking(event_id: int):
     with get_conn() as conn:
-        event = conn.execute("SELECT event_type FROM events WHERE id = ?", (event_id,)).fetchone()
+        event = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()
         competitions = conn.execute("""
             SELECT * FROM competitions
             WHERE event_id = ?
             ORDER BY jahrgang, name
         """, (event_id,)).fetchall()
+
+    # Wertungsart der Veranstaltung (Einrichtungsassistent); leer = wie
+    # bisher: Schulpokal Spielpunkte, sonst Platzpunkte je Wettbewerb.
+    wertung_modus = gesamtwertung_service.wirksamer_modus(event)
+    entscheid = gesamtwertung_service.entscheid_sportart(event)
 
     # Schulpokal: ein Sieger je Jahrgang (auch Jahrgang 10, nicht GOST), aus
     # allen Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis).
@@ -1703,6 +1800,7 @@ def calculate_event_overall_ranking(event_id: int):
         explicit_teams_by_competition.setdefault(row["competition_id"], []).append(dict(row))
 
     overall = {}
+    comp_results = {}
     for competition in competitions:
         comp_teams_list = (
             explicit_teams_by_competition.get(competition["id"])
@@ -1768,6 +1866,9 @@ def calculate_event_overall_ranking(event_id: int):
                 })
                 record["points_by_competition"][competition_id] = row["scoring_points"]
                 record["placements"].append(row["placement"])
+                comp_results.setdefault(competition_id, {})[team_id] = (
+                    row["placement"], row["scoring_points"],
+                )
         else:
             rows = calculate_tournament_points(competition)
             for row in rows:
@@ -1781,18 +1882,27 @@ def calculate_event_overall_ranking(event_id: int):
                     "placements": [],
                     "tournament_score_diff": 0,
                 })
-                # Schulpokal: Gesamtwertung = Summe der Spielpunkte aus allen
-                # Wettbewerben des Jahrgangs (Volleyball 2/1/0 je Spiel,
-                # Tischtennis Jungen und Maedchen je 1 Punkt pro Sieg), wie in
-                # der Wertung der Sportfachschaft - nicht Platzierungspunkte.
-                if is_schulpokal_event:
+                # Wertung „Spielpunkte addieren“ (Standard beim Schulpokal):
+                # Summe der Spielpunkte aus allen Wettbewerben des Jahrgangs.
+                # Sonst Platzpunkte (1. Platz = Anzahl Klassen).
+                if wertung_modus == gesamtwertung_service.WERTUNG_SPIELPUNKTE:
                     record["points_by_competition"][competition_id] = row.get("pkt", 0)
                 else:
                     record["points_by_competition"][competition_id] = row.get("competition_points", 0)
                 record["tournament_score_diff"] += row.get("diff", 0)
                 record["placements"].append(row["placement"])
+                comp_results.setdefault(competition_id, {})[team_id] = (
+                    row["placement"], row.get("competition_points", 0),
+                )
+
+    points_detail = {}
+    if wertung_modus == gesamtwertung_service.WERTUNG_PLATZPUNKTE_SPORTART:
+        grouped_competitions, points_detail = _platzpunkte_je_sportart(
+            competitions, grouped_competitions, overall, comp_results, year_group_of,
+        )
 
     for record in overall.values():
+        record["points_detail"] = points_detail.get(record["team_id"], {})
         record["total_points"] = sum(
             value
             for value in record["points_by_competition"].values()
@@ -1841,42 +1951,28 @@ def calculate_event_overall_ranking(event_id: int):
         if not rows:
             continue
 
-        # Platzierungsbilanz: Anzahl 1. Plaetze vergleichen, bei Gleichstand
-        # Anzahl 2. Plaetze usw. Erst wenn auch das komplett gleich ist,
-        # entscheidet die aufsummierte Tor-/Punktedifferenz.
-        max_place = max(
-            (max(row["placements"], default=0) for row in rows),
-            default=0,
+        # Gesamtpunkte, bei Gleichstand optional direkter Vergleich in einer
+        # Sportart (z. B. Volleyball), dann Platzierungsbilanz (Anzahl
+        # 1. Plaetze, dann 2. Plaetze ...), dann aufsummierte Differenz.
+        spiele_entscheid = None
+        if entscheid:
+            entscheid_ids = [
+                competition["id"] for competition in competitions
+                if year_group_of(competition["jahrgang"]) == year_group
+                and str(competition["sportart"] or "").strip().casefold() == entscheid.casefold()
+            ]
+            spiele_entscheid = _spiele_fuer_direkten_vergleich(entscheid_ids)
+        gesamtwertung_service.sortiere_gesamtwertung(
+            rows, spiele_entscheid=spiele_entscheid, entscheid_label=entscheid,
         )
-
-        def placement_bilanz_key(row):
-            counts = row["placement_counts"]
-            return tuple(-counts.get(place, 0) for place in range(1, max_place + 1))
-
-        rows.sort(key=lambda row: (
-            -row["total_points"],
-            placement_bilanz_key(row),
-            -row["tournament_score_diff"],
-            row["team"].lower(),
-        ))
-
-        place = 0
-        previous_rank_key = None
-        for index, row in enumerate(rows, start=1):
-            rank_key = (
-                row["total_points"],
-                placement_bilanz_key(row),
-                row["tournament_score_diff"],
-            )
-            if previous_rank_key is None or rank_key != previous_rank_key:
-                place = index
-            row["place"] = place
-            previous_rank_key = rank_key
 
         result.append({
             "year_group": display_year_groups.get(year_group, year_group),
             "competitions": grouped_competitions.get(year_group, []),
             "rows": rows,
+            "wertung_modus": wertung_modus,
+            "wertung_label": gesamtwertung_service.WERTUNG_MODI.get(wertung_modus, ""),
+            "entscheid_sportart": entscheid,
         })
 
     return result
@@ -2406,6 +2502,15 @@ def ergebnisse_feld(
 
     ansicht = build_feldansicht(slots, courts, ort=selected_ort, court_id=selected_court_id)
     feld = ansicht["feld"]
+    feld_competition_ids = {
+        slot["competition_id"]
+        for key in ("beendet_frueher", "beendet", "laufend", "geplant")
+        for slot in ansicht[key]
+    } | ({ansicht["dran"]["competition_id"]} if ansicht["dran"] else set())
+    regeln = regeln_hinweise(
+        competition for competition in filter_state["competitions"]
+        if competition["id"] in feld_competition_ids
+    )
 
     phase_ready_url = None
     ready_competition_id = parse_filter_id(phase_ready_competition_id)
@@ -2421,6 +2526,7 @@ def ergebnisse_feld(
         request=request, name="ergebnisse_feld.html",
         context={
             "ansicht": ansicht,
+            "regeln": regeln,
             "results_return_to": (
                 f"/ergebnisse/feld?court_id={feld['id']}" if feld else "/ergebnisse/feld"
             ),
@@ -2681,6 +2787,7 @@ def ergebnisse(
                 "saved_team_id": saved_team_id_value,
                 "saved_at": saved_at_value,
                 "result_columns": [],
+                "regeln": regeln_hinweise([selected_competition]),
                 "nur_aktive": nur_aktive_enabled,
                 "phase_ready_prompt": None,
                 "phase_ready_dismiss_url": None,
@@ -2711,6 +2818,11 @@ def ergebnisse(
 
     # Runden-Timer (Mensa): alle zeitgleich geplanten Spiele gemeinsam starten.
     round_timer = build_round_timer(result_slots)
+    # Regeln der Sportarten, deren Spiele hier stehen (zum Nachlesen).
+    shown_competition_ids = {slot["competition_id"] for slot in result_slots}
+    regeln = regeln_hinweise(
+        competition for competition in competitions if competition["id"] in shown_competition_ids
+    )
 
     if nur_aktive_enabled:
         result_slots = [slot for slot in result_slots if slot["status"] != "beendet"]
@@ -2726,6 +2838,7 @@ def ergebnisse(
         context={
             "is_sixkampf": False,
             "round_timer": round_timer,
+            "regeln": regeln,
             "result_columns": result_columns,
             "result_time_marks": result_time_marks,
             "nur_aktive": nur_aktive_enabled,

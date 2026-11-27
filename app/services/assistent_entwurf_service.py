@@ -59,6 +59,11 @@ from app.services.schulpokal_vorlage_service import (
     SCHULPOKAL_EVENT_TYPE,
     parse_teilmannschaften,
 )
+from app.services.gesamtwertung_service import (
+    WERTUNG_PLATZPUNKTE_SPORTART,
+    normalisiere_modus,
+)
+from app.services.regeln_service import normalisiere_regeln
 from app.services.tiebreak_service import format_tiebreak_order, parse_tiebreak_order
 from app.utils.formatting import jahrgang_sort_key
 
@@ -91,6 +96,7 @@ SYSTEM_VORLAGE_SCHULPOKAL = "system:schulpokal"
 DEFAULT_EVENT_TYPE = "Sonstiges"
 DEFAULT_START = "08:00"
 DEFAULT_ENDE = "13:00"
+SCHULPOKAL_ENTSCHEID_SPORTART = "Volleyball"
 
 
 def jetzt():
@@ -208,6 +214,12 @@ def neue_daten():
         "programmpunkte": [],
         "showspiele": [],
         "akzeptierte_hinweise": [],
+        # Gesamtwertung der Veranstaltung (gesamtwertung_service): modus None
+        # = Standard der Veranstaltungsart; entscheid_sportart = Sportart,
+        # deren direkter Vergleich bei Gleichstand zuerst entscheidet.
+        "wertung": {"modus": None, "entscheid_sportart": None},
+        # Regeln je Sportart für die Ergebniseingabe (competitions.regeln).
+        "regeln": {},
     }
 
 
@@ -449,6 +461,7 @@ def _ersetze_in_bloecken(daten, alte, neue):
 VORLAGEN_SCHLUESSEL = (
     "modus", "grunddaten", "jahrgaenge", "sportarten", "matrix", "zusammenlegungen",
     "wettbewerbe", "orte", "zeitbloecke", "programmpunkte", "showspiele",
+    "wertung", "regeln",
 )
 
 
@@ -501,6 +514,13 @@ def system_vorlage_schulpokal():
         if block.get("finale_time"):
             ceremony["finale"].append(block["finale_time"])
     daten["jahrgaenge"] = sortiere_jahrgaenge(jahrgaenge)
+    # Wertung der Sportfachschaft (2026-11-26): Platzpunkte je Sportart,
+    # Tischtennis Jungen + Mädchen zusammen; bei Gleichstand entscheidet
+    # zuerst der direkte Vergleich im Volleyball.
+    daten["wertung"] = {
+        "modus": WERTUNG_PLATZPUNKTE_SPORTART,
+        "entscheid_sportart": SCHULPOKAL_ENTSCHEID_SPORTART,
+    }
     erste = DEFAULT_SCHULPOKAL_BLOECKE[0]
     daten["programmpunkte"].append({
         "id": "p1", "titel": "Eröffnung", "art": "eroeffnung",
@@ -603,6 +623,10 @@ def _daten_aus_veranstaltung(conn, event_id):
     bestand = {"event_id": event["id"], "wettbewerbe": {}, "showspiele": {}}
     daten = neue_daten()
     daten["grunddaten"]["event_type"] = event["event_type"] or DEFAULT_EVENT_TYPE
+    daten["wertung"] = {
+        "modus": normalisiere_modus(event["wertung_modus"]),
+        "entscheid_sportart": (event["wertung_entscheid_sportart"] or "").strip() or None,
+    }
     competitions = conn.execute(
         """
         SELECT * FROM competitions
@@ -638,6 +662,9 @@ def _daten_aus_veranstaltung(conn, event_id):
         bestand["wettbewerbe"][f'{key}#{competition["teilmannschaft"] or ""}'] = competition["id"]
         if sportart not in daten["sportarten"]:
             daten["sportarten"].append(sportart)
+        regeln = normalisiere_regeln(competition["regeln"])
+        if regeln and not daten["regeln"].get(sportart):
+            daten["regeln"][sportart] = regeln
         matrix = daten["matrix"].setdefault(sportart, [])
         for jahrgang in members:
             if jahrgang not in matrix:
@@ -985,6 +1012,34 @@ def db_typ_und_modus(daten, modus):
     return "Turnier", "gruppenphase_ko"
 
 
+def regeln_fuer(daten, sportart):
+    regeln = daten.get("regeln") or {}
+    if sportart in regeln:
+        return normalisiere_regeln(regeln[sportart])
+    for key, value in regeln.items():
+        if str(key).casefold() == str(sportart).casefold():
+            return normalisiere_regeln(value)
+    return None
+
+
+def wertung_einstellung(daten):
+    """{"modus", "entscheid_sportart"} des Entwurfs; eine Entscheid-Sportart,
+    die gar nicht mehr gespielt wird, fällt weg."""
+    wertung = daten.get("wertung") or {}
+    entscheid = str(wertung.get("entscheid_sportart") or "").strip() or None
+    if entscheid and entscheid.casefold() not in {s.casefold() for s in aktive_sportarten(daten)}:
+        entscheid = None
+    return {"modus": normalisiere_modus(wertung.get("modus")), "entscheid_sportart": entscheid}
+
+
+def _speichere_wertung_an_veranstaltung(conn, event_id, daten):
+    wertung = wertung_einstellung(daten)
+    conn.execute(
+        "UPDATE events SET wertung_modus = ?, wertung_entscheid_sportart = ? WHERE id = ?",
+        (wertung["modus"], wertung["entscheid_sportart"], event_id),
+    )
+
+
 def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
     """Legt Veranstaltung, Wettbewerbe, Teams, Spiele, Programmpunkte und
     Showspiele in EINER Transaktion an. Aufrufer startet BEGIN IMMEDIATE und
@@ -1023,6 +1078,7 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
             (name, grunddaten.get("datum") or None, grunddaten.get("event_type") or DEFAULT_EVENT_TYPE,
              event_id),
         )
+        _speichere_wertung_an_veranstaltung(conn, event_id, daten)
         # Ohne Ergebnisse: entfernte Wettbewerbe verschwinden ganz, wie beim
         # Löschen eines Wettbewerbs. Gesperrte bleiben unberührt; Showspiele
         # werden weiter unten nur ersetzt, wenn sie sich geändert haben.
@@ -1036,6 +1092,7 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
             """,
             (name, grunddaten.get("datum") or None, grunddaten.get("event_type") or DEFAULT_EVENT_TYPE),
         ).lastrowid
+        _speichere_wertung_an_veranstaltung(conn, event_id, daten)
 
     zaehler = {"neu": 0, "geaendert": 0, "unveraendert": 0, "gesperrt": 0,
                "geloescht": len((bestand or {}).get("entfernen_ids") or [])}
@@ -1117,6 +1174,16 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
                     (competition_id, disziplin, index),
                 )
 
+    # Regeln gelten auch für gesperrte und unveränderte Wettbewerbe: ein
+    # korrigierter Regeltext darf nie an schon gespielten Ergebnissen scheitern.
+    for eintrag in plan["eintraege"]:
+        competition_id = competition_ids.get(eintrag["id"])
+        if competition_id:
+            conn.execute(
+                "UPDATE competitions SET regeln = ? WHERE id = ?",
+                (regeln_fuer(daten, eintrag["wettbewerb"]["sportart"]), competition_id),
+            )
+
     neue_slots = []
     for slot in plan["slots"]:
         if slot.get("showspiel") or slot.get("bestehend") or slot["eintrag_id"] in unveraendert:
@@ -1174,6 +1241,12 @@ def uebernehmen(conn, entwurf_id, erwartete_version, plane, statistik=None):
             continue
         sources = [competition_ids[eid] for eid in show["quellen"]]
         final_id = create_jahrgangsfinale(conn, sources, show["start"], show["court_id"])
+        final = conn.execute("SELECT sportart FROM competitions WHERE id = ?", (final_id,)).fetchone()
+        if final is not None:
+            conn.execute(
+                "UPDATE competitions SET regeln = ? WHERE id = ?",
+                (regeln_fuer(daten, final["sportart"]), final_id),
+            )
         neue_slots.append({
             "competition_id": final_id, "slot_typ": "Spiel", "startzeit": show["start"],
             "court_id": show["court_id"], "team_a_id": None, "team_b_id": None,
