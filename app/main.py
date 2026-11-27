@@ -1754,7 +1754,6 @@ def calculate_event_overall_ranking(event_id: int):
     # Wertungsart der Veranstaltung (Einrichtungsassistent); leer = wie
     # bisher: Schulpokal Spielpunkte, sonst Platzpunkte je Wettbewerb.
     wertung_modus = gesamtwertung_service.wirksamer_modus(event)
-    entscheid = gesamtwertung_service.entscheid_sportart(event)
 
     # Schulpokal: ein Sieger je Jahrgang (auch Jahrgang 10, nicht GOST), aus
     # allen Wettbewerben dieses Jahrgangs (z.B. Volleyball + Tischtennis).
@@ -1975,16 +1974,30 @@ def calculate_event_overall_ranking(event_id: int):
         # Gesamtpunkte, bei Gleichstand optional direkter Vergleich in einer
         # Sportart (z. B. Volleyball), dann Platzierungsbilanz (Anzahl
         # 1. Plaetze, dann 2. Plaetze ...), dann aufsummierte Differenz.
+        # Die Entscheid-Sportart gilt je Jahrgang und nur, wenn der Jahrgang
+        # sie auch spielt (Samuel 2026-11-27: kein Volleyball-Vergleich fuer
+        # Jahrgang 7 mit Zweifelderball); sonst gleich die Bilanz.
+        gruppen_wettbewerbe = [
+            competition for competition in competitions
+            if year_group_of(competition["jahrgang"]) == year_group
+        ]
+        entscheid_gruppe = gesamtwertung_service.entscheid_fuer_jahrgaenge(
+            event,
+            sorted({competition["jahrgang"] for competition in gruppen_wettbewerbe}, key=jahrgang_sort_key),
+            [
+                competition["sportart"] for competition in gruppen_wettbewerbe
+                if "sportart" in competition.keys()
+            ],
+        )
         spiele_entscheid = None
-        if entscheid:
+        if entscheid_gruppe:
             entscheid_ids = [
-                competition["id"] for competition in competitions
-                if year_group_of(competition["jahrgang"]) == year_group
-                and str(competition["sportart"] or "").strip().casefold() == entscheid.casefold()
+                competition["id"] for competition in gruppen_wettbewerbe
+                if str(competition["sportart"] or "").strip().casefold() == entscheid_gruppe.casefold()
             ]
             spiele_entscheid = _spiele_fuer_direkten_vergleich(entscheid_ids)
         gesamtwertung_service.sortiere_gesamtwertung(
-            rows, spiele_entscheid=spiele_entscheid, entscheid_label=entscheid,
+            rows, spiele_entscheid=spiele_entscheid, entscheid_label=entscheid_gruppe,
         )
 
         result.append({
@@ -1993,7 +2006,7 @@ def calculate_event_overall_ranking(event_id: int):
             "rows": rows,
             "wertung_modus": wertung_modus,
             "wertung_label": gesamtwertung_service.WERTUNG_MODI.get(wertung_modus, ""),
-            "entscheid_sportart": entscheid,
+            "entscheid_sportart": entscheid_gruppe,
         })
 
     return result
