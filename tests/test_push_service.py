@@ -75,6 +75,23 @@ class VerschluesselungTests(unittest.TestCase):
         koerper = ps.verschluessele(b'{"titel": "Noch 1 Minute"}', _b64(oeffentlich), _b64(auth))
         self.assertEqual(_entschluessele(koerper, privat, oeffentlich, auth), b'{"titel": "Noch 1 Minute"}')
 
+    def test_beispiel_aus_rfc_8291(self):
+        # Anhang A von RFC 8291: feste Schluessel und Salz, erwartete Nachricht.
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        server = ec.derive_private_key(int.from_bytes(_unb64("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw"), "big"), ec.SECP256R1())
+        koerper = ps.verschluessele(
+            b"When I grow up, I want to be a watermelon",
+            "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+            "BTBZMqHH6r4Tts7J_aSIgg",
+            salz=_unb64("DGv6ra1nlYgDCS1FRnbzlw"),
+            sender_privat=server,
+        )
+        self.assertEqual(_b64(koerper), (
+            "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_"
+            "yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN"
+        ))
+
     def test_vapid_jwt_ist_mit_oeffentlichem_schluessel_pruefbar(self):
         privat = ps.privater_schluessel("geheim")
         kopfzeile = ps.vapid_header(privat, "https://fcm.googleapis.com/fcm/send/abc", "https://sportfest.example", jetzt=1000)
@@ -276,6 +293,16 @@ class RouteTests(unittest.TestCase):
         self.assertIn('data-push-schluessel="', seite)
         schluessel = seite.split('data-push-schluessel="', 1)[1].split('"', 1)[0]
         self.assertEqual(len(_unb64(schluessel)), 65)
+
+    def test_service_worker_url_traegt_inhalts_hash(self):
+        # Sonst liefert der Cloudflare-Edge-Cache den Worker noch alt aus.
+        import hashlib
+        from app.web import APP_DIR
+
+        inhalt = (APP_DIR / "static" / "js" / "benachrichtigung-sw.js").read_bytes()
+        erwartet = hashlib.sha256(inhalt).hexdigest()[:12]
+        seite = self.client.get("/ergebnisse/feld").text
+        self.assertIn(f"/static/js/benachrichtigung-sw.js?v={erwartet}", seite)
 
 
 if __name__ == "__main__":
