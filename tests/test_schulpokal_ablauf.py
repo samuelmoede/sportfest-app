@@ -234,6 +234,22 @@ class SchulpokalAblaufTests(unittest.TestCase):
         self.assertEqual((rows["9c"]["place"], rows["9b"]["place"]), (2, 3))
         self.assertEqual(rows["9b"]["tie_note"], "Gleichstand: direkter Vergleich Volleyball")
         self.assertEqual(group["wertung_label"], "Platzpunkte je Sportart")
+        self.assertEqual(group["entscheid_sportart"], "Volleyball")
+        # Jahrgaenge ohne Volleyball werden nicht nach Volleyball entschieden.
+        with get_conn() as conn:
+            volleyball_jahrgaenge = {
+                str(row["jahrgang"]) for row in conn.execute(
+                    "SELECT jahrgang FROM competitions WHERE event_id = ? AND sportart = 'Volleyball'",
+                    (self.event_id,),
+                )
+            }
+        andere = [
+            g for g in calculate_event_overall_ranking(self.event_id)
+            if g["year_group"].removeprefix("Gesamtwertung Jahrgang ") not in volleyball_jahrgaenge
+        ]
+        self.assertTrue(andere)
+        for g in andere:
+            self.assertIsNone(g["entscheid_sportart"], g["year_group"])
 
     def test_regeln_und_wertung_im_assistenten_und_bei_der_ergebniseingabe(self):
         """Regeln je Sportart (Schritt Sportarten) und die Wertungsart
@@ -243,7 +259,15 @@ class SchulpokalAblaufTests(unittest.TestCase):
         entwurf_id = int(location.split("/")[3])
         with get_conn() as conn:
             daten = es.lade_entwurf(conn, entwurf_id)["daten"]
-        self.assertEqual(daten["wertung"], {"modus": "platzpunkte_sportart", "entscheid_sportart": "Volleyball"})
+        self.assertEqual(daten["wertung"]["modus"], "platzpunkte_sportart")
+        self.assertEqual(daten["wertung"]["entscheid_sportart"], "Volleyball")
+        # Je Jahrgang nur, wo Volleyball gespielt wird (Samuel 2026-11-27).
+        je_jahrgang = daten["wertung"]["entscheid_je_jahrgang"]
+        self.assertEqual(set(je_jahrgang.values()), {"Volleyball"})
+        for jahrgang in je_jahrgang:
+            self.assertIn(jahrgang, daten["matrix"]["Volleyball"])
+        abschluss = self.client.get(f"/assistent/entwurf/{entwurf_id}/abschluss")
+        self.assertIn('name="wertung_entscheid_j_9"', abschluss.text)
         form = {"sportart_anzahl": str(len(daten["sportarten"])), "ziel": "bleiben"}
         for index, sportart in enumerate(daten["sportarten"]):
             form[f"sportart_{index}"] = sportart

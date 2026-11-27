@@ -137,6 +137,7 @@ def create_router() -> APIRouter:
             "wertung_modi": gw.WERTUNG_MODI,
             "wertung_beschreibung": gw.WERTUNG_BESCHREIBUNG,
             "wertung": es.wertung_einstellung(daten),
+            "sportarten_je_jahrgang": es.sportarten_je_jahrgang(daten),
             "wertung_modus": _wertung_modus(daten),
             "regeln_fuer": lambda sportart: es.regeln_fuer(daten, sportart) or "",
             "wb_index": wb_index,
@@ -587,6 +588,14 @@ def create_router() -> APIRouter:
             wertung = daten.setdefault("wertung", {})
             wertung["modus"] = gw.normalisiere_modus(form.get("wertung_modus"))
             wertung["entscheid_sportart"] = (form.get("wertung_entscheid") or "").strip() or None
+            # Neue Auswahl je Jahrgang (Samuel 2026-11-27): ersetzt die eine
+            # Sportart für alle Jahrgänge.
+            if form.get("wertung_entscheid_je_jahrgang") is not None:
+                wertung["entscheid_sportart"] = None
+                wertung["entscheid_je_jahrgang"] = {
+                    jahrgang: (form.get(f"wertung_entscheid_j_{jahrgang}") or "").strip()
+                    for jahrgang in es.sportarten_je_jahrgang(daten)
+                }
         count = int(form.get("wb_anzahl") or 0)
         for index in range(count):
             key = form.get(f"wb_key_{index}")

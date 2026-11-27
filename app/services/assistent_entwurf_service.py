@@ -61,6 +61,7 @@ from app.services.schulpokal_vorlage_service import (
 )
 from app.services.gesamtwertung_service import (
     WERTUNG_PLATZPUNKTE_SPORTART,
+    lese_entscheid_je_jahrgang,
     normalisiere_modus,
 )
 from app.services.regeln_service import normalisiere_regeln
@@ -627,6 +628,11 @@ def _daten_aus_veranstaltung(conn, event_id):
         "modus": normalisiere_modus(event["wertung_modus"]),
         "entscheid_sportart": (event["wertung_entscheid_sportart"] or "").strip() or None,
     }
+    je_jahrgang = lese_entscheid_je_jahrgang(
+        event["wertung_entscheid_je_jahrgang"] if "wertung_entscheid_je_jahrgang" in event.keys() else None
+    )
+    if je_jahrgang is not None:
+        daten["wertung"]["entscheid_je_jahrgang"] = je_jahrgang
     competitions = conn.execute(
         """
         SELECT * FROM competitions
@@ -1022,21 +1028,63 @@ def regeln_fuer(daten, sportart):
     return None
 
 
+def sportarten_je_jahrgang(daten):
+    """{"7": ["Zweifelderball"], "9": ["Volleyball", "Tischtennis"]} - welche
+    der gewählten Sportarten jeder teilnehmende Jahrgang spielt (Matrix)."""
+    matrix = daten.get("matrix") or {}
+    result = {}
+    for jahrgang in aktive_jahrgaenge(daten):
+        sportarten = [
+            sportart for sportart in aktive_sportarten(daten)
+            if jahrgang in sortiere_jahrgaenge(matrix.get(sportart) or [])
+        ]
+        if sportarten:
+            result[jahrgang] = sportarten
+    return result
+
+
 def wertung_einstellung(daten):
-    """{"modus", "entscheid_sportart"} des Entwurfs; eine Entscheid-Sportart,
-    die gar nicht mehr gespielt wird, fällt weg."""
+    """{"modus", "entscheid_sportart", "entscheid_je_jahrgang"} des Entwurfs.
+
+    entscheid_je_jahrgang: Jahrgang -> Sportart, deren direkter Vergleich bei
+    Gleichstand in der Gesamtwertung zuerst entscheidet. Nur Sportarten, die
+    der Jahrgang auch spielt (Samuel 2026-11-27: kein Volleyball-Vergleich
+    für Jahrgang 7 mit Zweifelderball). Fehlt die Einstellung (ältere
+    Entwürfe, Vorlagen), gilt die eine Sportart entscheid_sportart in allen
+    Jahrgängen, die sie spielen."""
     wertung = daten.get("wertung") or {}
     entscheid = str(wertung.get("entscheid_sportart") or "").strip() or None
     if entscheid and entscheid.casefold() not in {s.casefold() for s in aktive_sportarten(daten)}:
         entscheid = None
-    return {"modus": normalisiere_modus(wertung.get("modus")), "entscheid_sportart": entscheid}
+    gespeichert = wertung.get("entscheid_je_jahrgang")
+    je_jahrgang = {}
+    for jahrgang, sportarten in sportarten_je_jahrgang(daten).items():
+        if isinstance(gespeichert, dict):
+            wunsch = str(gespeichert.get(jahrgang) or "").strip()
+        else:
+            wunsch = entscheid or ""
+        for sportart in sportarten:
+            if wunsch and sportart.casefold() == wunsch.casefold():
+                je_jahrgang[jahrgang] = sportart
+    return {
+        "modus": normalisiere_modus(wertung.get("modus")),
+        "entscheid_sportart": entscheid,
+        "entscheid_je_jahrgang": je_jahrgang,
+    }
 
 
 def _speichere_wertung_an_veranstaltung(conn, event_id, daten):
     wertung = wertung_einstellung(daten)
     conn.execute(
-        "UPDATE events SET wertung_modus = ?, wertung_entscheid_sportart = ? WHERE id = ?",
-        (wertung["modus"], wertung["entscheid_sportart"], event_id),
+        """
+        UPDATE events
+        SET wertung_modus = ?, wertung_entscheid_sportart = ?, wertung_entscheid_je_jahrgang = ?
+        WHERE id = ?
+        """,
+        (
+            wertung["modus"], wertung["entscheid_sportart"],
+            json.dumps(wertung["entscheid_je_jahrgang"], ensure_ascii=False), event_id,
+        ),
     )
 
 

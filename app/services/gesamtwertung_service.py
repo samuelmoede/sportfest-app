@@ -18,9 +18,16 @@ mehrstufig:
 3. Die Platzpunkte aller Sportarten ergeben die Jahrgangswertung.
 
 Bei Gleichstand in der Gesamtwertung kann zuerst der direkte Vergleich in
-einer Sportart entscheiden (events.wertung_entscheid_sportart, z. B.
-Volleyball), danach die bisherigen Kriterien (Platzierungsbilanz,
-Tor-/Punktedifferenz)."""
+einer Sportart entscheiden, danach die bisherigen Kriterien
+(Platzierungsbilanz, Tor-/Punktedifferenz). Die Sportart wird je Jahrgang
+festgelegt (events.wertung_entscheid_je_jahrgang, JSON {"7":
+"Zweifelderball", "9": "Volleyball"}), weil in einer Veranstaltung
+verschiedene Jahrgaenge verschiedene Sportarten spielen (Samuel,
+2026-11-27). Aeltere Veranstaltungen haben nur eine Sportart fuer alle
+(events.wertung_entscheid_sportart); sie gilt dann nur in Jahrgaengen, die
+diese Sportart auch spielen."""
+
+import json
 
 from app.services.ranking_points_service import assign_points_by_placement_groups
 from app.utils.formatting import format_points_value
@@ -75,6 +82,49 @@ def entscheid_sportart(event):
     if event is None or "wertung_entscheid_sportart" not in event.keys():
         return None
     return str(event["wertung_entscheid_sportart"] or "").strip() or None
+
+
+def lese_entscheid_je_jahrgang(value):
+    """JSON-Text -> {"7": "Zweifelderball"}; None, wenn nichts gespeichert
+    ist (dann gilt die alte Einstellung fuer alle Jahrgaenge)."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        daten = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(daten, dict):
+        return None
+    result = {}
+    for jahrgang, sportart in daten.items():
+        sportart = str(sportart or "").strip()
+        if sportart:
+            result[str(jahrgang).strip()] = sportart
+    return result
+
+
+def entscheid_je_jahrgang(event):
+    if event is None or "wertung_entscheid_je_jahrgang" not in event.keys():
+        return None
+    return lese_entscheid_je_jahrgang(event["wertung_entscheid_je_jahrgang"])
+
+
+def entscheid_fuer_jahrgaenge(event, jahrgaenge, gespielte_sportarten):
+    """Sportart, deren direkter Vergleich in einer Jahrgangswertung zuerst
+    entscheidet - oder None. jahrgaenge: Jahrgaenge der Wertungsgruppe;
+    gespielte_sportarten: Sportarten, die diese Gruppe spielt. Eine Sportart,
+    die die Gruppe gar nicht spielt, zaehlt nie (z. B. Volleyball nicht fuer
+    Jahrgang 7, der nur Zweifelderball spielt)."""
+    gespielt = {str(s or "").strip().casefold(): str(s).strip() for s in gespielte_sportarten if s}
+    je_jahrgang = entscheid_je_jahrgang(event)
+    if je_jahrgang is not None:
+        kandidaten = [je_jahrgang.get(str(jahrgang).strip()) for jahrgang in jahrgaenge]
+    else:
+        kandidaten = [entscheid_sportart(event)]
+    for sportart in kandidaten:
+        if sportart and sportart.casefold() in gespielt:
+            return gespielt[sportart.casefold()]
+    return None
 
 
 # ---------------------------------------------------------------------------

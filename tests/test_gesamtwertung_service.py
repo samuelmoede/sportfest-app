@@ -111,6 +111,64 @@ class GleichstandTests(unittest.TestCase):
         self.assertEqual([r["place"] for r in rows], [1, 2, 2])
 
 
+class EntscheidJeJahrgangTests(unittest.TestCase):
+    """Direkter Vergleich bei Gleichstand nur in einer Sportart, die der
+    Jahrgang auch spielt (Samuel 2026-11-27: Zweifelderball-Jahrgang 7 darf
+    nicht nach Volleyball entschieden werden)."""
+
+    def test_alte_einstellung_gilt_nur_wo_die_sportart_gespielt_wird(self):
+        event = {"wertung_entscheid_sportart": "Volleyball", "wertung_entscheid_je_jahrgang": None}
+        self.assertIsNone(gw.entscheid_fuer_jahrgaenge(event, [7], ["Zweifelderball"]))
+        self.assertEqual(gw.entscheid_fuer_jahrgaenge(event, [9], ["Tischtennis", "volleyball"]), "volleyball")
+
+    def test_je_jahrgang_gewinnt(self):
+        event = {
+            "wertung_entscheid_sportart": "Volleyball",
+            "wertung_entscheid_je_jahrgang": '{"7": "Zweifelderball", "9": "Tischtennis"}',
+        }
+        self.assertEqual(gw.entscheid_fuer_jahrgaenge(event, [7], ["Zweifelderball"]), "Zweifelderball")
+        self.assertEqual(gw.entscheid_fuer_jahrgaenge(event, [9], ["Volleyball", "Tischtennis"]), "Tischtennis")
+        self.assertIsNone(gw.entscheid_fuer_jahrgaenge(event, [10], ["Volleyball"]))
+
+    def test_leere_zuordnung_heisst_kein_vergleich(self):
+        event = {"wertung_entscheid_sportart": "Volleyball", "wertung_entscheid_je_jahrgang": "{}"}
+        self.assertIsNone(gw.entscheid_fuer_jahrgaenge(event, [9], ["Volleyball"]))
+
+    def test_kaputtes_json_faellt_auf_alte_einstellung_zurueck(self):
+        self.assertIsNone(gw.lese_entscheid_je_jahrgang("kein json"))
+        self.assertIsNone(gw.lese_entscheid_je_jahrgang(None))
+        self.assertEqual(gw.lese_entscheid_je_jahrgang('{"7": " ", "8": "Zweifelderball"}'), {"8": "Zweifelderball"})
+
+
+class AssistentWertungTests(unittest.TestCase):
+    def _daten(self, wertung):
+        return {
+            "jahrgaenge": ["7", "8", "9"],
+            "sportarten": ["Zweifelderball", "Volleyball"],
+            "matrix": {"Zweifelderball": ["7", "8"], "Volleyball": ["9"]},
+            "wertung": wertung,
+        }
+
+    def test_sportarten_je_jahrgang(self):
+        from app.services import assistent_entwurf_service as es
+        self.assertEqual(
+            es.sportarten_je_jahrgang(self._daten({})),
+            {"7": ["Zweifelderball"], "8": ["Zweifelderball"], "9": ["Volleyball"]},
+        )
+
+    def test_vorbelegung_aus_alter_einstellung(self):
+        from app.services import assistent_entwurf_service as es
+        wertung = es.wertung_einstellung(self._daten({"entscheid_sportart": "Volleyball"}))
+        self.assertEqual(wertung["entscheid_je_jahrgang"], {"9": "Volleyball"})
+
+    def test_nicht_gespielte_sportart_faellt_weg(self):
+        from app.services import assistent_entwurf_service as es
+        wertung = es.wertung_einstellung(self._daten({
+            "entscheid_je_jahrgang": {"7": "Zweifelderball", "8": "Volleyball", "9": "Volleyball"},
+        }))
+        self.assertEqual(wertung["entscheid_je_jahrgang"], {"7": "Zweifelderball", "9": "Volleyball"})
+
+
 class RegelnTests(unittest.TestCase):
     def test_je_sportart_einmal(self):
         hinweise = regeln_hinweise([
