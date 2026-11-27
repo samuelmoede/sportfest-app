@@ -153,6 +153,7 @@
                 {% endif %}
             </div>
             <p class="fa-wettbewerb">{{ s.competition_name }}</p>
+            <p class="fa-zeitansage" role="status" aria-live="assertive" hidden></p>
             {% if s.group_patt_risk %}
             <p class="fa-warnung">{{ icon("triangle-alert") }} {{ s.group_patt_risk.message }}</p>
             {% endif %}
@@ -172,6 +173,17 @@
             </div>
         </article>
         {% endfor %}
+        {% if ansicht.laufend | selectattr("started_at") | selectattr("planned_duration_seconds") | list %}
+        {# Signal vor Spielende: nur auf diesem Geraet, Wahl im Browser gemerkt. #}
+        <div class="fa-signal">
+            <label class="fa-signal-schalter">
+                <input type="checkbox" data-signal-schalter checked>
+                {{ icon("bell-ring") }} Ton und Vibration
+            </label>
+            <button type="button" class="fa-link" data-aktion="signal-testen">Testen</button>
+        </div>
+        <p class="fa-signal-hinweis">Eine Minute vorher kurz, am Ende lang. Der Bildschirm bleibt an, solange die Uhr läuft. Über eine Verlängerung entscheidet der Schiri, die Uhr zählt einfach weiter.</p>
+        {% endif %}
     </section>
     {% elif ansicht.dran %}
     {% set s = ansicht.dran %}
@@ -443,6 +455,47 @@
 }
 .fa-uhr.knapp { color: var(--amber); }
 .fa-uhr.ueberzogen { color: var(--red); }
+.fa-jetzt.signal-knapp { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+.fa-jetzt.signal-ende { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
+.fa-zeitansage {
+    margin: 8px 0 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 800;
+    background: var(--amber-soft);
+    color: var(--text);
+}
+.fa-jetzt.signal-ende .fa-zeitansage {
+    background: var(--red-soft);
+    color: var(--red);
+}
+.fa-signal {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+.fa-signal-schalter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.fa-signal-schalter input { width: 20px; height: 20px; margin: 0; }
+.fa-signal-schalter .icon { width: 18px; height: 18px; }
+.fa-signal-hinweis {
+    margin: 6px 2px 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.35;
+}
 .fa-wettbewerb {
     margin: 2px 0 0;
     font-size: 0.85rem;
@@ -662,6 +715,7 @@
         }
         document.getElementById('feld-inhalt').replaceWith(neuerInhalt);
         root.dataset.returnTo = neuesRoot.dataset.returnTo;
+        zeigeSignalSchalter();
         aktualisiereUhren();
     }
 
@@ -869,6 +923,8 @@
                 } else {
                     schliesseKorrektur(karte);
                 }
+            } else if (aktion === 'signal-testen') {
+                signal('ende');
             } else if (aktion === 'konflikt-behalten' || aktion === 'konflikt-ueberschreiben') {
                 loeseKonflikt(karte, aktion);
             } else if (aktion === 'abbrechen') {
@@ -936,8 +992,100 @@
         return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     };
 
+    // Signal vor Spielende: eine Minute vorher kurz, am Ende lang (Ton und
+    // Vibration). Nur ein Hinweis fuer den Schiri: nichts wird automatisch
+    // beendet, die Uhr zaehlt danach weiter (Verlaengerung wird nicht
+    // erfasst). Signalisiert wird nur ein Wechsel, den diese Seite selbst
+    // miterlebt - nach dem Neuladen piept nichts nach. Ein-/Ausschalten gilt
+    // nur fuer dieses Geraet.
+    const SIGNAL_SPEICHER = 'feldansicht_signal';
+    const signalAn = () => {
+        try { return localStorage.getItem(SIGNAL_SPEICHER) !== 'aus'; } catch (e) { return true; }
+    };
+    const SIGNALE = {
+        knapp: { toene: [[880, 0.15, 0.1], [880, 0.15, 0]], vibration: [200, 100, 200] },
+        ende: { toene: [[1000, 0.4, 0.15], [1000, 0.4, 0.15], [1000, 1.0, 0]], vibration: [600, 200, 600, 200, 1000] },
+    };
+    let audio = null;
+    // Browser spielen Ton erst nach einem Antippen der Seite ab: deshalb
+    // wird der Ton beim ersten Tippen (z.B. "Spiel starten") vorbereitet.
+    function audioBereit() {
+        const Klasse = window.AudioContext || window.webkitAudioContext;
+        if (!Klasse) return null;
+        if (!audio) {
+            try {
+                // iPhone (Safari 17+): Ton auch bei eingeschaltetem Stummschalter.
+                if (navigator.audioSession) navigator.audioSession.type = 'playback';
+                audio = new Klasse();
+            } catch (e) {
+                return null;
+            }
+        }
+        if (audio.state === 'suspended' && audio.resume) audio.resume().catch(() => {});
+        return audio;
+    }
+    function piepe(toene) {
+        const ctx = audioBereit();
+        if (!ctx) return;
+        let zeit = ctx.currentTime + 0.02;
+        toene.forEach(([frequenz, dauer, pause]) => {
+            const ton = ctx.createOscillator();
+            const lautstaerke = ctx.createGain();
+            ton.type = 'square';
+            ton.frequency.value = frequenz;
+            lautstaerke.gain.setValueAtTime(0.0001, zeit);
+            lautstaerke.gain.exponentialRampToValueAtTime(0.4, zeit + 0.01);
+            lautstaerke.gain.setValueAtTime(0.4, zeit + dauer - 0.02);
+            lautstaerke.gain.exponentialRampToValueAtTime(0.0001, zeit + dauer);
+            ton.connect(lautstaerke);
+            lautstaerke.connect(ctx.destination);
+            ton.start(zeit);
+            ton.stop(zeit + dauer + 0.02);
+            zeit += dauer + pause;
+        });
+    }
+    function signal(art) {
+        piepe(SIGNALE[art].toene);
+        // iPhone-Browser koennen nicht vibrieren, dort bleibt Ton + Farbe.
+        if (navigator.vibrate) {
+            try { navigator.vibrate(SIGNALE[art].vibration); } catch (e) { /* egal */ }
+        }
+    }
+
+    // Bildschirm anlassen, solange eine Uhr laeuft: bei gesperrtem
+    // Bildschirm kann der Browser weder piepen noch vibrieren.
+    let sperre = null;
+    let sperreAngefragt = false;
+    let sperreGewuenscht = false;
+    function bildschirmAn(an) {
+        sperreGewuenscht = an;
+        if (!('wakeLock' in navigator)) return;
+        if (an && !sperre && !sperreAngefragt && !document.hidden) {
+            sperreAngefragt = true;
+            navigator.wakeLock.request('screen').then(neu => {
+                sperre = neu;
+                neu.addEventListener('release', () => { if (sperre === neu) sperre = null; });
+                if (!sperreGewuenscht) bildschirmAn(false);
+            }).catch(() => {}).finally(() => { sperreAngefragt = false; });
+        } else if (!an && sperre) {
+            const alt = sperre;
+            sperre = null;
+            alt.release().catch(() => {});
+        }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && sperreGewuenscht) bildschirmAn(true);
+    });
+    document.addEventListener('pointerdown', () => {
+        if (signalAn() && root.querySelector('.fa-uhr')) audioBereit();
+    }, { passive: true });
+
+    const phasen = new Map();   // "Spiel|Start" -> 'normal' | 'knapp' | 'ende'
+    const ZEITANSAGE = { knapp: 'Letzte Minute', ende: 'Spielzeit vorbei' };
+
     // Restzeit bis zum geplanten Ende; danach rot die Ueberziehung.
     function aktualisiereUhren() {
+        let uhrLaeuft = false;
         root.querySelectorAll('.fa-uhr').forEach(el => {
             const start = leseZeit(el.dataset.startedAt);
             if (!start) return;
@@ -945,17 +1093,51 @@
             const gelaufen = Math.max(0, ((stopp || new Date()) - start) / 1000);
             const geplant = Number(el.dataset.planned || 0);
             el.classList.remove('knapp', 'ueberzogen');
+            let phase = 'normal';
             if (!geplant) {
                 el.textContent = alsUhr(gelaufen);
             } else if (gelaufen >= geplant) {
                 el.textContent = `+${alsUhr(gelaufen - geplant)}`;
                 el.classList.add('ueberzogen');
+                phase = 'ende';
             } else {
                 el.textContent = alsUhr(geplant - gelaufen);
-                if (geplant - gelaufen <= 60) el.classList.add('knapp');
+                if (geplant - gelaufen <= 60) {
+                    el.classList.add('knapp');
+                    phase = 'knapp';
+                }
+            }
+
+            const karte = el.closest('.fa-jetzt');
+            if (!karte || !geplant || stopp) return;
+            uhrLaeuft = true;
+            karte.classList.toggle('signal-knapp', phase === 'knapp');
+            karte.classList.toggle('signal-ende', phase === 'ende');
+            const ansage = karte.querySelector('.fa-zeitansage');
+            if (ansage) {
+                ansage.hidden = phase === 'normal';
+                ansage.textContent = ZEITANSAGE[phase] || '';
+            }
+            const schluessel = `${karte.dataset.slot}|${el.dataset.startedAt}`;
+            const vorher = phasen.get(schluessel);
+            phasen.set(schluessel, phase);
+            if (vorher && vorher !== phase && phase !== 'normal' && signalAn() && !document.hidden) {
+                signal(phase);
             }
         });
+        bildschirmAn(uhrLaeuft && signalAn());
     }
+    function zeigeSignalSchalter() {
+        root.querySelectorAll('[data-signal-schalter]').forEach(schalter => { schalter.checked = signalAn(); });
+    }
+    zeigeSignalSchalter();
+    root.addEventListener('change', event => {
+        if (!event.target.matches('[data-signal-schalter]')) return;
+        try { localStorage.setItem(SIGNAL_SPEICHER, event.target.checked ? 'an' : 'aus'); } catch (e) { /* egal */ }
+        if (event.target.checked) audioBereit();
+        zeigeSignalSchalter();
+        aktualisiereUhren();
+    });
     aktualisiereUhren();
     setInterval(aktualisiereUhren, 1000);
 
