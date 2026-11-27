@@ -151,6 +151,38 @@ class NurWerGestartetHatTests(_TempDb):
         self.assertEqual(self._takt(), 1)
         self.assertEqual(self.gesendet, [_abo(3)["endpoint"]])
 
+    def test_mehrere_gleichzeitig_gestartete_spiele_nur_eine_meldung(self):
+        with get_conn() as conn:
+            feld2 = conn.execute("INSERT INTO courts (name) VALUES ('Feld 2')").lastrowid
+            zweites = conn.execute(
+                """
+                INSERT INTO slots (competition_id, court_id, startzeit, slot_typ, phase,
+                                   team_a_id, team_b_id, status)
+                SELECT competition_id, ?, startzeit, slot_typ, phase, team_a_id, team_b_id, status
+                FROM slots WHERE id = ?
+                """,
+                (feld2, self.slot_id),
+            ).lastrowid
+            ps.speichere_abo(conn, _abo(1), None, "https://x", "t", user_id=self.schiri1)
+            conn.execute(
+                "UPDATE slots SET status = 'läuft', started_at = '2026-12-21 09:00:00' WHERE id IN (?, ?)",
+                (self.slot_id, zweites),
+            )
+            ses.merke_starter(conn, [self.slot_id, zweites], self.schiri1)
+            conn.commit()
+            daten = []
+
+            def sender(abo, inhalt, privat):
+                daten.append(inhalt)
+                return 201
+
+            self.assertEqual(ps.verarbeite(conn, datetime(2026, 12, 21, 9, 7, 10), None, sender=sender), 1)
+            self.assertEqual(ps.verarbeite(conn, datetime(2026, 12, 21, 9, 8, 1), None, sender=sender), 1)
+        self.assertEqual([d["titel"] for d in daten], ["Noch 1 Minute · 2 Spiele", "Spielzeit vorbei · 2 Spiele"])
+        self.assertEqual(daten[0]["text"], "Feld 1 · Feld 2")
+        # "Ende" ersetzt "Noch 1 Minute" auf Handy und Uhr.
+        self.assertEqual(daten[0]["tag"], daten[1]["tag"])
+
     def test_eigenes_spiel(self):
         self._starte(self.schiri1)
         with get_conn() as conn:
