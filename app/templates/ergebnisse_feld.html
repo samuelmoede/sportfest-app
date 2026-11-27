@@ -74,6 +74,7 @@
         </a>
         {% endfor %}
     </nav>
+    {% include "partials/regeln_hinweis.html" %}
 
     {% macro beendet_zeile(s) %}
     <article class="fa-fertig" data-slot="{{ s.id }}">
@@ -713,6 +714,13 @@
             window.location.reload();
             return;
         }
+        // Aufgeklappte Regeln bleiben nach dem Speichern offen.
+        const offeneRegeln = new Set(
+            [...document.querySelectorAll('#feld-inhalt .regeln-hinweis[open]')].map((el) => el.dataset.regeln)
+        );
+        neuerInhalt.querySelectorAll('.regeln-hinweis').forEach((el) => {
+            if (offeneRegeln.has(el.dataset.regeln)) el.open = true;
+        });
         document.getElementById('feld-inhalt').replaceWith(neuerInhalt);
         root.dataset.returnTo = neuesRoot.dataset.returnTo;
         zeigeSignalSchalter();

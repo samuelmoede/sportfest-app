@@ -316,6 +316,10 @@
                 <input type="text" name="placement_points" value="{{ c.placement_points or '' }}"
                     placeholder="z. B. 7,6,5,4,3,2,1">
 
+                <label>Regeln (Hinweis bei der Ergebniseingabe)</label>
+                <textarea name="regeln" rows="3" maxlength="4000"
+                    placeholder="z. B. Spielzeit 10 Minuten, Aufschlag von hinten">{{ c.regeln or '' }}</textarea>
+
                 <label>Veranstaltung</label>
                 <select name="event_id">
                     <option value="">Ohne Veranstaltung</option>

@@ -58,6 +58,16 @@
     .wiz-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; margin-top: 16px; }
     .wiz-inline { display: inline; }
     .wiz-erweitert > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; margin: 6px 0; }
+    .wiz-regeln { display: grid; gap: 4px; }
+    .wiz-regeln-feld { display: flex; flex-direction: column; gap: 4px; }
+    .wiz-regeln-feld textarea { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; }
+    .wiz-wertung { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 12px; margin: 10px 0 14px; display: grid; gap: 8px; }
+    .wiz-wertung legend { font-weight: 600; padding: 0 4px; }
+    .wiz-wertung-option { display: flex; gap: 10px; align-items: flex-start; color: inherit; font-weight: 400; }
+    .wiz-wertung-option .muted { font-weight: 400; }
+    .wiz-wertung-option input { margin-top: 4px; }
+    .wiz-wertung-entscheid { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: inherit; }
+    .wiz-wertung-beispiel { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-soft); }
     .wiz-pruefung { border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); margin-bottom: 14px; }
     .wiz-pruefung.is-ok { border-color: #16a34a; background: rgba(22, 163, 74, 0.08); }
     .wiz-pruefung.is-blocked { border-color: #dc2626; background: rgba(220, 38, 38, 0.06); }
@@ -350,6 +360,22 @@
             {% endfor %}
         </ul>
         <button type="submit" name="aktion" value="zusammenlegen">Auswahl zusammenlegen</button>
+
+        {% if daten.sportarten %}
+        <h3 style="margin-top: 18px;">Regeln für Schiedsrichter</h3>
+        <p class="muted">Optional: steht bei der Ergebniseingabe unter „Regeln“ zum Nachlesen (Raster und Handy-Feldansicht). Gilt für alle Jahrgänge der Sportart.</p>
+        <div class="wiz-regeln">
+            {% for sportart in daten.sportarten %}
+            {% set text = regeln_fuer(sportart) %}
+            <details class="wiz-erweitert" {% if text %}open{% endif %}>
+                <summary>Regeln {{ sportart }}{% if text %} <span class="wiz-badge">hinterlegt</span>{% endif %}</summary>
+                <label class="wiz-regeln-feld">Regeltext {{ sportart }}
+                    <textarea name="regeln_{{ loop.index0 }}" rows="5" maxlength="4000" placeholder="z. B. Spielzeit 10 Minuten, Aufschlag von hinten, Netzberührung = Punkt für den Gegner">{{ text }}</textarea>
+                </label>
+            </details>
+            {% endfor %}
+        </div>
+        {% endif %}
         <div class="wiz-actions">
             <button type="submit" name="ziel" value="zurueck" class="secondary">Zurück</button>
             <button class="green" type="submit" name="ziel" value="weiter">Weiter zu Orten</button>
@@ -606,13 +632,30 @@
         <input type="hidden" name="wb_anzahl" value="{{ wettbewerbe|length }}">
         <h3 style="margin-top: 18px;">Wertung</h3>
         <p class="muted">
-            {% if ist_schulpokal %}
-            Schulpokal: ein Sieger je Jahrgang. Die Spielpunkte aller Wettbewerbe eines Jahrgangs werden addiert, alle Sportarten zählen gleich.
-            {% else %}
-            Gesamtwertung je Jahrgangsgruppe (Jahrgang 5–9 einzeln, ab 10 Oberstufe): Summe der Platzierungspunkte aller Wettbewerbe, alle Sportarten gleich gewichtet. Bei Gleichstand entscheidet die Platzierungsbilanz.
-            {% endif %}
-            Showspiele zählen nie. Punkte und Gleichstandsregeln lassen sich je Wettbewerb anpassen.
+            {% if ist_schulpokal %}Schulpokal: ein Sieger je Jahrgang aus allen Sportarten des Jahrgangs.{% else %}Gesamtwertung je Jahrgangsgruppe (Jahrgang 5–10 einzeln, ab 11 Oberstufe).{% endif %}
+            Showspiele zählen nie. Punkte und Gleichstandsregeln der einzelnen Tabellen lassen sich je Wettbewerb anpassen.
         </p>
+        <fieldset class="wiz-wertung">
+            <legend>Gesamtwertung</legend>
+            {% for key, label in wertung_modi.items() %}
+            <label class="wiz-wertung-option">
+                <input type="radio" name="wertung_modus" value="{{ key }}" {% if wertung_modus == key %}checked{% endif %}>
+                <span><strong>{{ label }}</strong><br><span class="muted">{{ wertung_beschreibung[key] }}</span></span>
+            </label>
+            {% endfor %}
+            {% if wertung_modus == "platzpunkte_sportart" %}
+            <p class="muted wiz-wertung-beispiel">Beispiel bei 7 Klassen: Tischtennis Jungen 1. Platz = 7, Mädchen 4. Platz = 4, zusammen 11 Punkte. Die Klasse mit den meisten Tischtennis-Punkten bekommt 7 Platzpunkte, die zweite 6 usw. Dazu kommen die Platzpunkte aus Volleyball.</p>
+            {% endif %}
+            <label class="wiz-wertung-entscheid">Bei Punktgleichheit in der Gesamtwertung zuerst
+                <select name="wertung_entscheid">
+                    <option value="">kein direkter Vergleich</option>
+                    {% for sportart in daten.sportarten %}
+                    <option value="{{ sportart }}" {% if wertung.entscheid_sportart == sportart %}selected{% endif %}>direkter Vergleich {{ sportart }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <p class="muted" style="margin: 4px 0 0;">Danach entscheiden Platzierungsbilanz (mehr 1. Plätze, dann 2. Plätze …) und die Tor-/Punktedifferenz.</p>
+        </fieldset>
         <div class="table-scroll">
         <table class="wiz-table">
             <thead><tr><th>Wettbewerb</th><th>Sieger</th><th>Zählt für</th><th>Punkte und Gleichstand</th></tr></thead>
