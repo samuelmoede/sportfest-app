@@ -141,3 +141,63 @@ def test_signal_laesst_sich_auf_dem_geraet_abschalten(live_server_url, page):
 
     page.locator("[data-aktion='signal-testen']").click()
     assert len(_signale(page, "ton")) == 3
+
+
+BENACHRICHTIGUNG_ATTRAPPE_JS = """
+ServiceWorkerRegistration.prototype.showNotification = function (titel, optionen) {
+    window.__signale.push({ art: 'benachrichtigung', titel, tag: optionen.tag, text: optionen.body });
+    return Promise.resolve();
+};
+"""
+
+
+def test_benachrichtigung_fuer_smartwatch(live_server_url, browser):
+    # Eigener Kontext, damit die Erlaubnis keine anderen Tests beeinflusst.
+    kontext = browser.new_context(viewport=MOBILE_VIEWPORT)
+    kontext.grant_permissions(["notifications"], origin=live_server_url)
+    page = kontext.new_page()
+    # Headless-Chromium meldet Notification.permission trotz Freigabe als
+    # "denied"; die Erlaubnis selbst gehoert dem Browser, nicht der App.
+    page.add_init_script("""
+        Object.defineProperty(Notification, 'permission', { get: () => 'granted' });
+        Notification.requestPermission = () => Promise.resolve('granted');
+    """)
+    page.add_init_script(ATTRAPPEN_JS)
+    page.add_init_script(BENACHRICHTIGUNG_ATTRAPPE_JS)
+    page.goto(f"{live_server_url}/impressum")
+    court_id = _laufendes_spiel("Signal-Feld 4", 120, page.evaluate(VOR_SEKUNDEN_JS, 56))
+    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
+
+    schalter = page.locator("[data-benachrichtigung-schalter]")
+    assert not schalter.is_checked()
+    schalter.check()
+    page.wait_for_function("navigator.serviceWorker.getRegistration('/static/js/').then(r => !!(r && r.active))")
+    page.wait_for_function(
+        "document.querySelector('[data-benachrichtigung-hinweis]').textContent.startsWith('Kommt auf Handy')"
+    )
+
+    page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=8000)
+    page.wait_for_function("window.__signale.some(s => s.art === 'benachrichtigung')")
+    meldungen = [s for s in page.evaluate("window.__signale") if s["art"] == "benachrichtigung"]
+    assert len(meldungen) == 1, meldungen
+    assert meldungen[0]["titel"] == "Noch 1 Minute · 7a – 7b"
+    assert meldungen[0]["text"] == "Signal-Feld 4 · Signal Signal-Feld 4"
+    assert meldungen[0]["tag"].startswith("spiel-")
+
+    # Wahl bleibt nach dem Neuladen erhalten.
+    page.reload()
+    assert page.locator("[data-benachrichtigung-schalter]").is_checked()
+    kontext.close()
+
+
+def test_benachrichtigung_standardmaessig_aus(live_server_url, page):
+    page.add_init_script(ATTRAPPEN_JS)
+    page.add_init_script(BENACHRICHTIGUNG_ATTRAPPE_JS)
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(f"{live_server_url}/impressum")
+    court_id = _laufendes_spiel("Signal-Feld 5", 120, page.evaluate(VOR_SEKUNDEN_JS, 58))
+    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
+
+    page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=6000)
+    page.wait_for_timeout(300)
+    assert [s for s in page.evaluate("window.__signale") if s["art"] == "benachrichtigung"] == []
