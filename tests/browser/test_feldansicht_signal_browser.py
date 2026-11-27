@@ -1,6 +1,8 @@
 """Echte Browser-Tests fuer das Signal vor Spielende in der Feldansicht
 (/ergebnisse/feld): eine Minute vor Ablauf kurz Ton + Vibration, am Ende
-lang. Ton (Web Audio) und Vibration werden im Browser durch Attrappen
+lang. Eingestellt und getestet wird auf "Mein Konto" (/konto); ohne
+Anmeldung merkt sich der Browser die Schalter. Signale gibt es nur fuer
+Spiele, die man selbst gestartet hat. Ton (Web Audio) und Vibration werden im Browser durch Attrappen
 ersetzt, die jeden Aufruf mitschreiben - echte Toene kann ein Test nicht
 hoeren, wohl aber pruefen, dass und wann sie angestossen werden.
 """
@@ -45,7 +47,7 @@ sekunden => {
 """
 
 
-def _laufendes_spiel(name, spielzeit_sekunden, started_at):
+def _laufendes_spiel(name, spielzeit_sekunden, started_at, starter=None):
     """Legt ein eigenes Feld mit einem laufenden Spiel an und gibt die
     Feld-ID zurueck (eigener Ort, damit andere Browser-Tests nicht stoeren)."""
     import app.database as database
@@ -68,10 +70,10 @@ def _laufendes_spiel(name, spielzeit_sekunden, started_at):
         conn.execute(
             """
             INSERT INTO slots (startzeit, slot_typ, competition_id, court_id, team_a_id, team_b_id,
-                               phase, gruppe, status, started_at)
-            VALUES ('09:00', 'Spiel', ?, ?, ?, ?, 'Gruppenphase', 'A', 'läuft', ?)
+                               phase, gruppe, status, started_at, started_by_user_id)
+            VALUES ('09:00', 'Spiel', ?, ?, ?, ?, 'Gruppenphase', 'A', 'läuft', ?, ?)
             """,
-            (comp_id, court_id, team_a, team_b, started_at),
+            (comp_id, court_id, team_a, team_b, started_at, starter),
         )
         conn.commit()
     return court_id
@@ -91,7 +93,7 @@ def test_letzte_minute_gibt_kurzes_signal(live_server_url, page):
 
     karte = page.locator(".fa-jetzt")
     assert karte.count() == 1
-    assert page.locator("[data-signal-schalter]").is_checked()
+    assert page.locator("[data-signal-zusammenfassung]").inner_text().startswith("Ton an")
     assert page.evaluate("window.__signale") == []
 
     page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=6000)
@@ -106,13 +108,13 @@ def test_countdown_und_ende_beenden_nichts(live_server_url, page):
     page.goto(f"{live_server_url}/impressum")
     # Mit ~7 s Restzeit geladen: fuer die letzte Minute kein Nach-Piepen,
     # aber der Countdown 5-4-3-2-1 (je einmal kurz vibrieren, ohne Ton) und das Ende.
-    court_id = _laufendes_spiel("Signal-Feld 2", 30, page.evaluate(VOR_SEKUNDEN_JS, 23))
+    court_id = _laufendes_spiel("Signal-Feld 2", 30, page.evaluate(VOR_SEKUNDEN_JS, 22))
     page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
 
     page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=3000)
     assert page.evaluate("window.__signale") == []
 
-    page.wait_for_selector(".fa-jetzt.signal-ende", timeout=12000)
+    page.wait_for_selector(".fa-jetzt.signal-ende", timeout=13000)
     assert page.locator(".fa-zeitansage").inner_text() == "Spielzeit vorbei"
     vibrationen = [s["muster"] for s in _signale(page, "vibration")]
     assert vibrationen == [120, 120, 120, 120, 120, [600, 200, 600, 200, 1000]], vibrationen
@@ -123,24 +125,53 @@ def test_countdown_und_ende_beenden_nichts(live_server_url, page):
     page.wait_for_function("document.querySelector('.fa-uhr').textContent.startsWith('+')")
 
 
-def test_signal_laesst_sich_auf_dem_geraet_abschalten(live_server_url, page):
+def test_signal_laesst_sich_auf_mein_konto_abschalten(live_server_url, page):
     page.add_init_script(ATTRAPPEN_JS)
     page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(f"{live_server_url}/impressum")
+    # Ohne Anmeldung gilt die Wahl fuer dieses Geraet (Browser-Speicher).
+    page.goto(f"{live_server_url}/konto")
+    assert page.locator("[data-schalter='ton']").is_checked()
+    page.locator("[data-schalter='ton']").uncheck()
+    page.wait_for_selector("[data-speichern-meldung]:not([hidden])")
+
     court_id = _laufendes_spiel("Signal-Feld 3", 120, page.evaluate(VOR_SEKUNDEN_JS, 58))
     page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
-
-    page.locator("[data-signal-schalter]").uncheck()
+    assert page.locator("[data-signal-zusammenfassung]").inner_text().startswith("Ton aus")
     page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=6000)
     # Farbe und Ansage bleiben, nur Ton und Vibration entfallen.
     assert page.evaluate("window.__signale") == []
 
-    # Die Wahl gilt auch nach dem Neuladen.
-    page.reload()
-    assert not page.locator("[data-signal-schalter]").is_checked()
-
-    page.locator("[data-aktion='signal-testen']").click()
+    # Testen geht ohne laufendes Spiel (und auch bei ausgeschaltetem Ton).
+    page.goto(f"{live_server_url}/konto")
+    assert not page.locator("[data-schalter='ton']").is_checked()
+    page.locator("[data-aktion='ton']").click()
     assert len(_signale(page, "ton")) == 3
+
+
+def test_countdown_testen_auf_mein_konto(live_server_url, page):
+    page.add_init_script(ATTRAPPEN_JS)
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(f"{live_server_url}/konto")
+    knopf = page.locator("[data-aktion='countdown']")
+    knopf.click()
+    page.wait_for_function("document.querySelector('[data-aktion=countdown]').textContent === '3'")
+    page.wait_for_function("document.querySelector('[data-aktion=countdown]').textContent === 'Countdown testen'", timeout=10000)
+    vibrationen = [s["muster"] for s in _signale(page, "vibration")]
+    assert vibrationen == [120, 120, 120, 120, 120, [600, 200, 600, 200, 1000]], vibrationen
+
+
+def test_fremd_gestartetes_spiel_gibt_kein_signal(live_server_url, page):
+    """Schiris wechseln sich ab: Ton nur fuer den, der das Spiel gestartet hat."""
+    page.add_init_script(ATTRAPPEN_JS)
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(f"{live_server_url}/impressum")
+    court_id = _laufendes_spiel("Signal-Feld 6", 120, page.evaluate(VOR_SEKUNDEN_JS, 58), starter=4711)
+    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
+    assert page.locator(".fa-jetzt").get_attribute("data-eigenes") == "0"
+    assert "selbst gestartet" in page.locator("[data-signal-zusammenfassung]").inner_text()
+    page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=6000)
+    page.wait_for_timeout(300)
+    assert page.evaluate("window.__signale") == []
 
 
 BENACHRICHTIGUNG_ATTRAPPE_JS = """
@@ -164,17 +195,18 @@ def test_benachrichtigung_fuer_smartwatch(live_server_url, browser):
     """)
     page.add_init_script(ATTRAPPEN_JS)
     page.add_init_script(BENACHRICHTIGUNG_ATTRAPPE_JS)
-    page.goto(f"{live_server_url}/impressum")
-    court_id = _laufendes_spiel("Signal-Feld 4", 120, page.evaluate(VOR_SEKUNDEN_JS, 56))
-    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
-
-    schalter = page.locator("[data-benachrichtigung-schalter]")
+    # Auf "Mein Konto" einschalten (ohne Anmeldung: fuer dieses Geraet).
+    page.goto(f"{live_server_url}/konto")
+    schalter = page.locator("[data-schalter='benachrichtigung']")
     assert not schalter.is_checked()
     schalter.check()
     page.wait_for_function("navigator.serviceWorker.getRegistration('/static/js/').then(r => !!(r && r.active))")
-    page.wait_for_function(
-        "document.querySelector('[data-benachrichtigung-hinweis]').textContent.startsWith('Kommt auf Handy')"
-    )
+    page.wait_for_selector("[data-status='erlaubnis'].ok")
+
+    court_id = _laufendes_spiel("Signal-Feld 4", 120, page.evaluate(VOR_SEKUNDEN_JS, 56))
+    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
+    assert "Benachrichtigung an" in page.locator("[data-signal-zusammenfassung]").inner_text()
+    assert page.locator("[data-benachrichtigung-hinweis]").is_hidden()
 
     page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=8000)
     page.wait_for_function("window.__signale.some(s => s.art === 'benachrichtigung')")
@@ -184,9 +216,9 @@ def test_benachrichtigung_fuer_smartwatch(live_server_url, browser):
     assert meldungen[0]["text"] == "Signal-Feld 4 · Signal Signal-Feld 4"
     assert meldungen[0]["tag"].startswith("spiel-")
 
-    # Wahl bleibt nach dem Neuladen erhalten.
-    page.reload()
-    assert page.locator("[data-benachrichtigung-schalter]").is_checked()
+    # Wahl bleibt erhalten.
+    page.goto(f"{live_server_url}/konto")
+    assert page.locator("[data-schalter='benachrichtigung']").is_checked()
     kontext.close()
 
 
