@@ -40,11 +40,13 @@ DEFAULT_SCHULPOKAL_BLOECKE = (
         "start_time": "11:10",
         "end_time": "13:40",
         "finale_time": "",
-        # Jungen spielen gegen Jungen, Maedchen gegen Maedchen; jeder Sieg
-        # bringt der Klasse einen Punkt (Wertung der Sportfachschaft).
+        # Jungen spielen gegen Jungen, Maedchen gegen Maedchen; Sieg 2,
+        # Unentschieden 1, Niederlage 0. Jungen- und Maedchentabelle bringen
+        # je Platzpunkte, deren Summe den Tischtennis-Platz ergibt
+        # (Wertung der Sportfachschaft, 2026-11-26).
         "teilmannschaften": "Jungen, Mädchen",
-        "points_win": 1,
-        "points_draw": 0,
+        "points_win": 2,
+        "points_draw": 1,
     },
 )
 

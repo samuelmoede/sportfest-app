@@ -1,11 +1,12 @@
 from collections import defaultdict
 from datetime import date, datetime
 from math import isfinite
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from app.services.regeln_service import normalisiere_regeln
 from app.database import get_conn
 from app.routes.teams import normalize_jahrgang
 from app.services.competition_name_service import competition_name_vergeben
@@ -351,6 +352,7 @@ def create_router(
         points_first_place: str = Form("7"),
         placement_points: str = Form(""),
         team_ids: List[str] = Form([]),
+        regeln: Optional[str] = Form(None),
     ):
         try:
             points_win_value = float(points_win.strip().replace(",", "."))
@@ -436,6 +438,13 @@ def create_router(
                 punkterunde_grosses_finale_value, punkterunde_kleines_finale_value,
                 competition_id,
             ))
+
+            if regeln is not None:
+                # Regeln fuer die Ergebniseingabe (fehlt das Feld, bleiben sie).
+                conn.execute(
+                    "UPDATE competitions SET regeln = ? WHERE id = ?",
+                    (normalisiere_regeln(regeln), competition_id),
+                )
 
             # Update explicit team assignments: clear then re-insert
             conn.execute("DELETE FROM competition_teams WHERE competition_id = ?", (competition_id,))
