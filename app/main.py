@@ -31,6 +31,7 @@ from app.routes.wizard import create_router as create_wizard_router
 from app.routes.assistent import create_router as create_assistent_router
 from app.services.navigation_service import build_navigation, nav_icon_svg
 from app.services.icon_service import icon_svg
+from app.services.web_app_service import manifest_json, manifest_version
 from app.services.competition_name_service import competition_name_vergeben
 from markupsafe import Markup
 from app.services.tiebreak_service import competition_tiebreak_order, resolve_with_order
@@ -341,6 +342,17 @@ def style_css():
 
 
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
+
+
+# Manifest der installierbaren Web-App (siehe app/services/web_app_service.py).
+# Liegt unter / statt /static, damit der Geltungsbereich die ganze App ist.
+@app.get("/manifest.webmanifest")
+def web_app_manifest():
+    return Response(
+        content=manifest_json(),
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 def app_now():
     return datetime.now(APP_TIMEZONE)
 
@@ -384,6 +396,7 @@ templates.env.globals["get_current_username"] = get_current_username
 templates.env.globals["is_logged_in"] = is_logged_in
 templates.env.globals["can_access_role"] = can_access_role
 templates.env.globals["get_site_theme"] = get_site_theme
+templates.env.globals["manifest_version"] = manifest_version
 templates.env.globals["nav_icon_svg"] = nav_icon_svg
 templates.env.globals["icon"] = lambda name, css_class="icon": Markup(icon_svg(name, css_class))
 templates.env.globals["get_navigation"] = lambda request: build_navigation(
