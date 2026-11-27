@@ -183,7 +183,7 @@
             </label>
             <button type="button" class="fa-link" data-aktion="signal-testen">Testen</button>
         </div>
-        <p class="fa-signal-hinweis">Eine Minute vorher kurz, am Ende lang. Der Bildschirm bleibt an, solange die Uhr läuft. Über eine Verlängerung entscheidet der Schiri, die Uhr zählt einfach weiter.</p>
+        <p class="fa-signal-hinweis">Eine Minute vorher kurz, in den letzten 5 Sekunden vibriert es jede Sekunde, am Ende lang. Der Bildschirm bleibt an, solange die Uhr läuft. Über eine Verlängerung entscheidet der Schiri, die Uhr zählt einfach weiter.</p>
         {% endif %}
     </section>
     {% elif ansicht.dran %}
@@ -1089,6 +1089,11 @@
     }, { passive: true });
 
     const phasen = new Map();   // "Spiel|Start" -> 'normal' | 'knapp' | 'ende'
+    // Countdown 5, 4, 3, 2, 1: je Sekunde ein kurzes Vibrieren (ohne Ton),
+    // damit man das Ende auch mit dem Handy in der Hosentasche spuert.
+    const COUNTDOWN_SEKUNDEN = 5;
+    const COUNTDOWN_VIBRATION = 120;
+    const countdown = new Map(); // "Spiel|Start" -> zuletzt gesehene Restsekunde
     const ZEITANSAGE = { knapp: 'Letzte Minute', ende: 'Spielzeit vorbei' };
 
     // Restzeit bis zum geplanten Ende; danach rot die Ueberziehung.
@@ -1132,6 +1137,13 @@
             if (vorher && vorher !== phase && phase !== 'normal' && signalAn() && !document.hidden) {
                 signal(phase);
             }
+            const rest = Math.floor(geplant - gelaufen);
+            const restVorher = countdown.get(schluessel);
+            countdown.set(schluessel, rest);
+            if (restVorher !== undefined && rest !== restVorher && rest >= 1 && rest <= COUNTDOWN_SEKUNDEN
+                && signalAn() && !document.hidden && navigator.vibrate) {
+                try { navigator.vibrate(COUNTDOWN_VIBRATION); } catch (e) { /* egal */ }
+            }
         });
         bildschirmAn(uhrLaeuft && signalAn());
     }
@@ -1147,7 +1159,8 @@
         aktualisiereUhren();
     });
     aktualisiereUhren();
-    setInterval(aktualisiereUhren, 1000);
+    // 4x pro Sekunde, damit beim Countdown keine Sekunde verschluckt wird.
+    setInterval(aktualisiereUhren, 250);
 
     // Die Turnierleitung startet Runden zentral und andere Geraete tragen
     // ebenfalls ein: den Stand regelmaessig nachladen, aber nie waehrend
