@@ -174,6 +174,37 @@ def test_fremd_gestartetes_spiel_gibt_kein_signal(live_server_url, page):
     assert page.evaluate("window.__signale") == []
 
 
+def test_mehrere_gleichzeitig_gestartete_spiele_ein_signal(live_server_url, page):
+    """Runden-Timer: zwei eigene Spiele mit gleicher Startzeit auf einem
+    Feld - ein Ton, eine Vibration, nicht doppelt."""
+    import app.database as database
+
+    page.add_init_script(ATTRAPPEN_JS)
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(f"{live_server_url}/impressum")
+    start = page.evaluate(VOR_SEKUNDEN_JS, 58)
+    court_id = _laufendes_spiel("Signal-Feld 7", 120, start)
+    with database.get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO slots (startzeit, slot_typ, competition_id, court_id, team_a_id, team_b_id,
+                               phase, gruppe, status, started_at)
+            SELECT startzeit, slot_typ, competition_id, court_id, team_b_id, team_a_id,
+                   phase, gruppe, status, started_at
+            FROM slots WHERE court_id = ?
+            """,
+            (court_id,),
+        )
+        conn.commit()
+    page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
+    assert page.locator(".fa-jetzt[data-slot]").count() == 2
+
+    page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=6000)
+    page.wait_for_timeout(500)
+    assert _signale(page, "vibration") == [{"art": "vibration", "muster": [200, 100, 200]}]
+    assert len(_signale(page, "ton")) == 2
+
+
 BENACHRICHTIGUNG_ATTRAPPE_JS = """
 ServiceWorkerRegistration.prototype.showNotification = function (titel, optionen) {
     window.__signale.push({ art: 'benachrichtigung', titel, tag: optionen.tag, text: optionen.body });

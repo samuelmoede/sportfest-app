@@ -1016,17 +1016,30 @@
     // Smartwatch (die Uhr spiegelt Handy-Benachrichtigungen), solange die
     // Seite offen ist. Bei ausgeschaltetem Bildschirm kommt die Meldung per
     // Web-Push vom Server.
-    async function benachrichtige(art, karte) {
-        if (!S.benachrichtigungAn()) return;
+    // Mehrere gleichzeitig gestartete Spiele (Runden-Timer): eine Meldung
+    // "Noch 1 Minute · 3 Spiele" statt einer je Spiel (wie beim Web-Push).
+    async function benachrichtige(art, karten) {
+        if (!S.benachrichtigungAn() || !karten.length) return;
         const reg = await S.swBereit();
         if (!reg) return;
-        const titel = `${art === 'ende' ? 'Spielzeit vorbei' : 'Noch 1 Minute'} · ${karte.dataset.paarung || ''}`;
-        const wettbewerb = karte.querySelector('.fa-wettbewerb');
-        const text = [karte.dataset.feld, wettbewerb && wettbewerb.textContent.trim()].filter(Boolean).join(' · ');
+        const ansage = art === 'ende' ? 'Spielzeit vorbei' : 'Noch 1 Minute';
+        const karte = karten[0];
+        let titel, text, tag;
+        if (karten.length === 1) {
+            titel = `${ansage} · ${karte.dataset.paarung || ''}`;
+            const wettbewerb = karte.querySelector('.fa-wettbewerb');
+            text = [karte.dataset.feld, wettbewerb && wettbewerb.textContent.trim()].filter(Boolean).join(' · ');
+            tag = `spiel-${karte.dataset.slot}`;
+        } else {
+            titel = `${ansage} · ${karten.length} Spiele`;
+            text = karten.map(k => k.dataset.paarung).filter(Boolean).join(' · ');
+            const uhr = karte.querySelector('.fa-uhr');
+            tag = `runde-${uhr ? uhr.dataset.startedAt : karte.dataset.slot}`;
+        }
         try {
             await reg.showNotification(titel, {
                 body: text,
-                tag: `spiel-${karte.dataset.slot}`,   // "Ende" ersetzt "Noch 1 Minute"
+                tag,   // "Ende" ersetzt "Noch 1 Minute"
                 renotify: true,
                 vibrate: S.SIGNALE[art].vibration,
                 data: { url: window.location.href },
@@ -1099,6 +1112,10 @@
     // Restzeit bis zum geplanten Ende; danach rot die Ueberziehung.
     function aktualisiereUhren() {
         let uhrLaeuft = false;
+        // Je Durchlauf hoechstens ein Ton/eine Vibration, auch wenn mehrere
+        // eigene Spiele zugleich die letzte Minute oder das Ende erreichen.
+        const wechsel = { knapp: [], ende: [] };
+        let countdownTick = false;
         root.querySelectorAll('.fa-uhr').forEach(el => {
             const start = leseZeit(el.dataset.startedAt);
             if (!start) return;
@@ -1136,17 +1153,20 @@
             const vorher = phasen.get(schluessel);
             phasen.set(schluessel, phase);
             if (vorher && vorher !== phase && phase !== 'normal' && eigenes) {
-                if (signalAn() && !document.hidden) S.signal(phase);
-                benachrichtige(phase, karte);
+                wechsel[phase].push(karte);
             }
             const rest = Math.floor(geplant - gelaufen);
             const restVorher = countdown.get(schluessel);
             countdown.set(schluessel, rest);
             if (restVorher !== undefined && rest !== restVorher && rest >= 1 && rest <= COUNTDOWN_SEKUNDEN
                 && eigenes && countdownAn() && !document.hidden) {
-                S.vibriere(COUNTDOWN_VIBRATION);
+                countdownTick = true;
             }
         });
+        const signalPhase = wechsel.ende.length ? 'ende' : (wechsel.knapp.length ? 'knapp' : null);
+        if (signalPhase && signalAn() && !document.hidden) S.signal(signalPhase);
+        else if (countdownTick) S.vibriere(COUNTDOWN_VIBRATION);
+        ['knapp', 'ende'].forEach(phase => benachrichtige(phase, wechsel[phase]));
         bildschirmAn(uhrLaeuft && (signalAn() || countdownAn()));
     }
     zeigeSignalZusammenfassung();

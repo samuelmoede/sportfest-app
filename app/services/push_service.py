@@ -306,30 +306,58 @@ def empfaenger(conn, slot):
     return [dict(row) for row in conn.execute(sql, werte).fetchall()]
 
 
+def sammel_meldung(slots, phase) -> dict:
+    """Eine Meldung fuer mehrere gleichzeitig gestartete Spiele (z.B.
+    Runden-Timer): ein Ton, eine Vibration statt einer je Spiel."""
+    felder = []
+    for slot in slots:
+        if slot.get("court_name") and slot["court_name"] not in felder:
+            felder.append(slot["court_name"])
+    return {
+        "titel": f"{TITEL[phase]} · {len(slots)} Spiele",
+        "text": " · ".join(felder),
+        # Gleiches Kennzeichen fuer beide Phasen: "Ende" ersetzt "Noch 1 Minute".
+        "tag": f"runde-{slots[0]['started_at']}",
+        "url": "/ergebnisse",
+    }
+
+
 def verarbeite(conn, jetzt, privat, sender=sende) -> int:
     """Ein Takt: faellige Meldungen eintragen und senden. Liefert die Anzahl
-    gesendeter Push-Nachrichten."""
+    gesendeter Push-Nachrichten.
+
+    Erst werden alle faelligen Meldungen in einem Zug als gesendet
+    eingetragen (ein zweiter Worker wartet so auf den Schreibzugriff und
+    findet danach nichts mehr), dann je Handy und Phase zusammengefasst:
+    wer mehrere Spiele auf einmal gestartet hat, bekommt nur eine Meldung."""
     slots = [dict(row) for row in conn.execute(LAUFENDE_SPIELE_SQL).fetchall()]
-    gesendet = 0
+    neu_faellig = []
     for slot, phase in faellige_meldungen(slots, jetzt):
         neu = conn.execute(
             "INSERT OR IGNORE INTO push_gesendet (slot_id, started_at, phase, gesendet_at) VALUES (?, ?, ?, ?)",
             (slot["id"], slot["started_at"], phase, jetzt.strftime("%Y-%m-%d %H:%M:%S")),
         ).rowcount
-        conn.commit()
-        if not neu:
-            continue
-        abos = empfaenger(conn, slot)
-        daten = meldung(slot, phase)
-        for abo in abos:
-            status = sender(abo, daten, privat)
-            if status in (404, 410):
-                loesche_abo(conn, abo["endpoint"])
-                conn.commit()
-            elif 200 <= status < 300:
-                gesendet += 1
-            else:
-                logger.warning("Web-Push an %s fehlgeschlagen (Status %s)", urlsplit(abo["endpoint"]).hostname, status)
+        if neu:
+            neu_faellig.append((slot, phase))
+    conn.commit()
+
+    je_handy = {}   # (endpoint, phase) -> (abo, [slots])
+    for slot, phase in neu_faellig:
+        for abo in empfaenger(conn, slot):
+            eintrag = je_handy.setdefault((abo["endpoint"], phase), (abo, []))
+            eintrag[1].append(slot)
+
+    gesendet = 0
+    for (_, phase), (abo, spiele) in je_handy.items():
+        daten = meldung(spiele[0], phase) if len(spiele) == 1 else sammel_meldung(spiele, phase)
+        status = sender(abo, daten, privat)
+        if status in (404, 410):
+            loesche_abo(conn, abo["endpoint"])
+            conn.commit()
+        elif 200 <= status < 300:
+            gesendet += 1
+        else:
+            logger.warning("Web-Push an %s fehlgeschlagen (Status %s)", urlsplit(abo["endpoint"]).hostname, status)
     return gesendet
 
 
