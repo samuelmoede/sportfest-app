@@ -66,7 +66,10 @@
     .wiz-wertung-option { display: flex; gap: 10px; align-items: flex-start; color: inherit; font-weight: 400; }
     .wiz-wertung-option .muted { font-weight: 400; }
     .wiz-wertung-option input { margin-top: 4px; }
-    .wiz-wertung-entscheid { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: inherit; }
+    .wiz-wertung-entscheid { display: grid; gap: 6px; color: inherit; }
+    .wiz-wertung-entscheid p { margin: 8px 0 2px; }
+    .wiz-wertung-entscheid-zeile { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; color: inherit; font-weight: 400; }
+    .wiz-wertung-entscheid-zeile > span { min-width: 92px; font-weight: 600; }
     .wiz-wertung-beispiel { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-soft); }
     .wiz-pruefung { border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); margin-bottom: 14px; }
     .wiz-pruefung.is-ok { border-color: #16a34a; background: rgba(22, 163, 74, 0.08); }
@@ -646,15 +649,21 @@
             {% if wertung_modus == "platzpunkte_sportart" %}
             <p class="muted wiz-wertung-beispiel">Beispiel bei 7 Klassen: Tischtennis Jungen 1. Platz = 7, Mädchen 4. Platz = 4, zusammen 11 Punkte. Die Klasse mit den meisten Tischtennis-Punkten bekommt 7 Platzpunkte, die zweite 6 usw. Dazu kommen die Platzpunkte aus Volleyball.</p>
             {% endif %}
-            <label class="wiz-wertung-entscheid">Bei Punktgleichheit in der Gesamtwertung zuerst
-                <select name="wertung_entscheid">
-                    <option value="">kein direkter Vergleich</option>
-                    {% for sportart in daten.sportarten %}
-                    <option value="{{ sportart }}" {% if wertung.entscheid_sportart == sportart %}selected{% endif %}>direkter Vergleich {{ sportart }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <p class="muted" style="margin: 4px 0 0;">Danach entscheiden Platzierungsbilanz (mehr 1. Plätze, dann 2. Plätze …) und die Tor-/Punktedifferenz.</p>
+            <input type="hidden" name="wertung_entscheid_je_jahrgang" value="1">
+            <div class="wiz-wertung-entscheid">
+                <p><strong>Bei Punktgleichheit in der Gesamtwertung zuerst</strong></p>
+                {% for jahrgang, sportarten in sportarten_je_jahrgang.items() %}
+                <label class="wiz-wertung-entscheid-zeile"><span>Jahrgang {{ jahrgang }}</span>
+                    <select name="wertung_entscheid_j_{{ jahrgang }}">
+                        <option value="">kein direkter Vergleich</option>
+                        {% for sportart in sportarten %}
+                        <option value="{{ sportart }}" {% if wertung.entscheid_je_jahrgang.get(jahrgang) == sportart %}selected{% endif %}>direkter Vergleich {{ sportart }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% endfor %}
+            </div>
+            <p class="muted" style="margin: 4px 0 0;">Je Jahrgang stehen nur die Sportarten zur Wahl, die er spielt. Danach entscheiden Platzierungsbilanz (mehr 1. Plätze, dann 2. Plätze …) und die Tor-/Punktedifferenz. Spielt ein Jahrgang nur eine Sportart, hat deren Tabelle den direkten Vergleich schon berücksichtigt.</p>
         </fieldset>
         <div class="table-scroll">
         <table class="wiz-table">

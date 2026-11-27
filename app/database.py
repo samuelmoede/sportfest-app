@@ -154,7 +154,8 @@ def init_db(db_path=None):
             event_type TEXT NOT NULL DEFAULT 'Sonstiges',
             siegerehrung_public INTEGER NOT NULL DEFAULT 0,
             wertung_modus TEXT,
-            wertung_entscheid_sportart TEXT
+            wertung_entscheid_sportart TEXT,
+            wertung_entscheid_je_jahrgang TEXT
         );
 
         CREATE TABLE IF NOT EXISTS competitions (
@@ -504,6 +505,10 @@ def init_db(db_path=None):
             conn.execute("ALTER TABLE events ADD COLUMN wertung_modus TEXT")
         if "wertung_entscheid_sportart" not in event_columns:
             conn.execute("ALTER TABLE events ADD COLUMN wertung_entscheid_sportart TEXT")
+        # Entscheid-Sportart je Jahrgang (JSON {"7": "Zweifelderball"}); NULL =
+        # alte Einstellung wertung_entscheid_sportart fuer alle Jahrgaenge.
+        if "wertung_entscheid_je_jahrgang" not in event_columns:
+            conn.execute("ALTER TABLE events ADD COLUMN wertung_entscheid_je_jahrgang TEXT")
 
         conn.execute("""
             UPDATE events

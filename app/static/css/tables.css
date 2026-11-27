@@ -200,3 +200,48 @@
     color: var(--text);
 }
 
+
+/* Gesamtwertung am Handy: Platz und Klasse bleiben links stehen, nur die
+   Punktespalten wischen seitlich mit (vorher verschwanden die Klassennamen
+   beim Wischen, Samuel 2026-11-27). Keine feste Mindestbreite mehr, damit
+   bei wenigen Sportarten gar nicht gewischt werden muss. */
+@media (max-width: 700px) {
+    .overall-table {
+        min-width: 0;
+    }
+
+    .overall-table th:nth-child(1),
+    .overall-table td.overall-place {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        box-sizing: border-box;
+        width: 60px;
+        min-width: 60px;
+        max-width: 60px;
+        padding-left: 12px;
+        padding-right: 6px;
+    }
+
+    .overall-table th:nth-child(2),
+    .overall-table td.overall-team {
+        position: sticky;
+        left: 60px;
+        z-index: 2;
+        min-width: 7rem;
+        max-width: 10rem;
+        white-space: normal;
+        overflow-wrap: break-word;
+        box-shadow: inset -1px 0 0 var(--border);
+    }
+
+    .overall-table td.overall-place,
+    .overall-table td.overall-team {
+        background: var(--surface);
+    }
+
+    .overall-table th:nth-child(1),
+    .overall-table th:nth-child(2) {
+        background: var(--surface-soft);
+    }
+}
