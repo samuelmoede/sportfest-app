@@ -162,8 +162,10 @@ def endpoint_erlaubt(endpoint) -> bool:
     return any(host == h or (h.startswith(".") and host.endswith(h)) for h in ERLAUBTE_PUSH_HOSTS)
 
 
-def speichere_abo(conn, abo, court_id, absender, jetzt_text) -> bool:
-    """Legt ein Abo an oder aktualisiert sein Feld. False bei ungueltigen Daten."""
+def speichere_abo(conn, abo, court_id, absender, jetzt_text, user_id=None) -> bool:
+    """Legt ein Abo an oder aktualisiert Feld und Benutzer. Ohne court_id
+    (Anmeldung auf "Mein Konto") bleibt ein schon bekanntes Feld erhalten.
+    False bei ungueltigen Daten."""
     if not isinstance(abo, dict):
         return False
     endpoint = abo.get("endpoint")
@@ -178,13 +180,15 @@ def speichere_abo(conn, abo, court_id, absender, jetzt_text) -> bool:
         return False
     conn.execute(
         """
-        INSERT INTO push_abos (endpoint, p256dh, auth, court_id, absender, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO push_abos (endpoint, p256dh, auth, court_id, absender, updated_at, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(endpoint) DO UPDATE SET
-            p256dh = excluded.p256dh, auth = excluded.auth, court_id = excluded.court_id,
-            absender = excluded.absender, updated_at = excluded.updated_at
+            p256dh = excluded.p256dh, auth = excluded.auth,
+            court_id = COALESCE(excluded.court_id, push_abos.court_id),
+            absender = excluded.absender, updated_at = excluded.updated_at,
+            user_id = excluded.user_id
         """,
-        (endpoint, p256dh, auth, court_id, absender, jetzt_text),
+        (endpoint, p256dh, auth, court_id, absender, jetzt_text, user_id),
     )
     conn.execute(
         """
@@ -234,7 +238,7 @@ def faellige_meldungen(slots, jetzt):
 
 
 LAUFENDE_SPIELE_SQL = """
-    SELECT s.id, s.court_id, s.started_at, s.timer_stopped_at,
+    SELECT s.id, s.court_id, s.started_at, s.timer_stopped_at, s.started_by_user_id,
            c.name AS competition_name, c.competition_type,
            c.game_duration_minutes, c.game_duration_seconds,
            ta.name AS team_a, tb.name AS team_b, ct.name AS court_name
@@ -283,6 +287,25 @@ def sende(abo, daten: dict, privat, oeffner=urllib.request.urlopen) -> int:
         return 0
 
 
+def empfaenger(conn, slot):
+    """Abos, die eine Meldung zu diesem Spiel bekommen: nur die Handys des
+    Benutzers, der das Spiel gestartet hat (sofern er Benachrichtigungen
+    eingeschaltet hat). Hat niemand angemeldet gestartet, gilt der alte Weg:
+    Handys ohne Konto, die fuer dieses Feld angemeldet sind."""
+    starter = slot.get("started_by_user_id")
+    if starter is not None:
+        sql = """
+            SELECT a.* FROM push_abos a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.user_id = ? AND u.signal_benachrichtigung = 1
+        """
+        werte = (starter,)
+    else:
+        sql = "SELECT * FROM push_abos WHERE court_id = ? AND user_id IS NULL"
+        werte = (slot["court_id"],)
+    return [dict(row) for row in conn.execute(sql, werte).fetchall()]
+
+
 def verarbeite(conn, jetzt, privat, sender=sende) -> int:
     """Ein Takt: faellige Meldungen eintragen und senden. Liefert die Anzahl
     gesendeter Push-Nachrichten."""
@@ -296,9 +319,7 @@ def verarbeite(conn, jetzt, privat, sender=sende) -> int:
         conn.commit()
         if not neu:
             continue
-        abos = [dict(row) for row in conn.execute(
-            "SELECT * FROM push_abos WHERE court_id = ?", (slot["court_id"],)
-        ).fetchall()]
+        abos = empfaenger(conn, slot)
         daten = meldung(slot, phase)
         for abo in abos:
             status = sender(abo, daten, privat)

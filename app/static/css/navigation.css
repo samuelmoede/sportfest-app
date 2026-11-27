@@ -280,6 +280,17 @@ nav a:hover,
     white-space: nowrap;
 }
 
+a.role-badge {
+    text-decoration: none;
+    cursor: pointer;
+}
+
+a.role-badge:hover,
+a.role-badge:focus-visible {
+    filter: brightness(1.2);
+    text-decoration: underline;
+}
+
 .role-badge-prefix {
     margin-right: 4px;
     opacity: 0.72;

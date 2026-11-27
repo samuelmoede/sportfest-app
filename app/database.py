@@ -45,6 +45,24 @@ def _competition_name_is_globally_unique(conn) -> bool:
     return False
 
 
+def _migrate_signal_einstellungen(conn):
+    """Signale beim Spiel (Seite "Mein Konto"): Schalter je Benutzer, wer
+    ein Spiel gestartet hat (nur diese Person bekommt Ton und Push) und zu
+    welchem Benutzer ein Push-Abo gehoert. Idempotent."""
+    def spalten(tabelle):
+        return {row["name"] for row in conn.execute(f"PRAGMA table_info({tabelle})").fetchall()}
+
+    user_spalten = spalten("users")
+    for spalte in ("signal_ton", "signal_countdown", "signal_benachrichtigung"):
+        if spalte not in user_spalten:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {spalte} INTEGER NOT NULL DEFAULT 1")
+    if "started_by_user_id" not in spalten("slots"):
+        conn.execute("ALTER TABLE slots ADD COLUMN started_by_user_id INTEGER")
+    if "user_id" not in spalten("push_abos"):
+        conn.execute("ALTER TABLE push_abos ADD COLUMN user_id INTEGER")
+    conn.commit()
+
+
 def _migrate_competition_name_unique_per_event(conn):
     """Wettbewerbsnamen muessen nur noch innerhalb einer Veranstaltung
     eindeutig sein (vorher: in der ganzen Datenbank).
@@ -294,7 +312,8 @@ def init_db(db_path=None):
             auth TEXT NOT NULL,
             court_id INTEGER,
             absender TEXT,
-            updated_at TEXT
+            updated_at TEXT,
+            user_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS push_gesendet (
@@ -348,7 +367,10 @@ def init_db(db_path=None):
             password_hash TEXT NOT NULL DEFAULT '',
             role TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            signal_ton INTEGER NOT NULL DEFAULT 1,
+            signal_countdown INTEGER NOT NULL DEFAULT 1,
+            signal_benachrichtigung INTEGER NOT NULL DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS user_sessions (
@@ -789,5 +811,6 @@ def init_db(db_path=None):
 
         conn.commit()
         _migrate_competition_name_unique_per_event(conn)
+        _migrate_signal_einstellungen(conn)
     conn.close()
 

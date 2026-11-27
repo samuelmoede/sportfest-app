@@ -26,6 +26,8 @@
 {% set access_username = get_current_username(request) %}
 {% set access_badge_prefix = "Benutzer:" if access_username else "Rolle:" %}
 {% set access_badge_text = access_username or access_role_label %}
+{# Mit Konto fuehrt das Abzeichen zu "Mein Konto" (Signale beim Spiel). #}
+{% set access_badge_tag = "a" if access_username else "span" %}
 {% set access_badge_aria = ("Angemeldet als " ~ access_username ~ ", Rolle: " ~ access_role_label) if access_username else ("Aktuelle Rolle: " ~ access_role_label) %}
 {# can_view_* werden auch von Kind-Templates gelesen (Dashboard, Tabellen). #}
 {% set can_view_results = can_access_role(request, "referee") %}
@@ -40,9 +42,9 @@
         <span>Manager</span>
     </div>
     <div class="mobile-access">
-        <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+        <{{ access_badge_tag }} class="role-badge role-{{ access_role }}"{% if access_username %} href="/konto"{% endif %} aria-label="{{ access_badge_aria }}" title="{% if access_username %}Mein Konto: Signale beim Spiel einstellen und testen{% else %}Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}{% endif %}">
             <span class="role-badge-prefix">{{ access_badge_prefix }}</span> {{ access_badge_text }}
-        </span>
+        </{{ access_badge_tag }}>
         <button type="button" class="mobile-menu-toggle" aria-expanded="false" aria-controls="mobile-menu-drawer">{{ icon("menu") }} Menü</button>
     </div>
 </header>
@@ -61,9 +63,9 @@
         </a>
         <a class="impressum-link" href="/impressum">Impressum</a>
         <div class="access-strip mobile-access-strip" aria-label="Zugriff">
-            <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+            <{{ access_badge_tag }} class="role-badge role-{{ access_role }}"{% if access_username %} href="/konto"{% endif %} aria-label="{{ access_badge_aria }}" title="{% if access_username %}Mein Konto: Signale beim Spiel einstellen und testen{% else %}Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}{% endif %}">
                 <span class="role-badge-prefix">{{ access_badge_prefix }}</span> {{ access_badge_text }}
-            </span>
+            </{{ access_badge_tag }}>
         {% if access_logged_in %}
             <a class="access-action" href="/logout">Abmelden</a>
         {% else %}
@@ -94,9 +96,9 @@
                 <span class="beamer-text">Beamer</span>
             </a>
             <div class="access-strip" aria-label="Zugriff">
-                <span class="role-badge role-{{ access_role }}" aria-label="{{ access_badge_aria }}" title="Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}">
+                <{{ access_badge_tag }} class="role-badge role-{{ access_role }}"{% if access_username %} href="/konto"{% endif %} aria-label="{{ access_badge_aria }}" title="{% if access_username %}Mein Konto: Signale beim Spiel einstellen und testen{% else %}Rolle: {{ access_role_label }} &ndash; {{ access_role_description }}{% endif %}">
                     <span class="role-badge-prefix">{{ access_badge_prefix }}</span> <span class="role-badge-label">{{ access_badge_text }}</span>
-                </span>
+                </{{ access_badge_tag }}>
                 {% if access_logged_in %}
                 <a class="access-action" href="/logout" aria-label="Abmelden">
                     {{ nav_icon_svg("log-out", "access-action-icon")|safe }}
