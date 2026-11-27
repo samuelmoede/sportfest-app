@@ -100,20 +100,23 @@ def test_letzte_minute_gibt_kurzes_signal(live_server_url, page):
     assert len(_signale(page, "ton")) == 2
 
 
-def test_ende_gibt_langes_signal_und_beendet_nichts(live_server_url, page):
+def test_countdown_und_ende_beenden_nichts(live_server_url, page):
     page.add_init_script(ATTRAPPEN_JS)
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(f"{live_server_url}/impressum")
-    # Schon in der letzten Minute geladen: dafuer kein Nach-Piepen, aber das Ende.
-    court_id = _laufendes_spiel("Signal-Feld 2", 30, page.evaluate(VOR_SEKUNDEN_JS, 28))
+    # Mit ~7 s Restzeit geladen: fuer die letzte Minute kein Nach-Piepen,
+    # aber der Countdown 5-4-3-2-1 (je einmal kurz vibrieren, ohne Ton) und das Ende.
+    court_id = _laufendes_spiel("Signal-Feld 2", 30, page.evaluate(VOR_SEKUNDEN_JS, 23))
     page.goto(f"{live_server_url}/ergebnisse/feld?court_id={court_id}")
 
     page.wait_for_selector(".fa-jetzt.signal-knapp", timeout=3000)
     assert page.evaluate("window.__signale") == []
 
-    page.wait_for_selector(".fa-jetzt.signal-ende", timeout=6000)
+    page.wait_for_selector(".fa-jetzt.signal-ende", timeout=12000)
     assert page.locator(".fa-zeitansage").inner_text() == "Spielzeit vorbei"
-    assert _signale(page, "vibration") == [{"art": "vibration", "muster": [600, 200, 600, 200, 1000]}]
+    vibrationen = [s["muster"] for s in _signale(page, "vibration")]
+    assert vibrationen == [120, 120, 120, 120, 120, [600, 200, 600, 200, 1000]], vibrationen
+    # Ton nur am Ende (der Countdown vibriert nur).
     assert len(_signale(page, "ton")) == 3
     # Nur ein Hinweis: das Spiel laeuft weiter, die Uhr zaehlt die Ueberziehung.
     assert page.locator(".fa-jetzt [data-aktion='beenden']").is_visible()
