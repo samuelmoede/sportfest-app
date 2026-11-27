@@ -14,6 +14,7 @@ from app.database import get_conn
 from app.routes.events import EVENT_TYPES
 from app.routes.teams import normalize_jahrgang
 from app.services import assistent_entwurf_service as es
+from app.services import gesamtwertung_service as gw
 from app.services.assistent_planung_service import MODI, plane
 from app.services.schedule_location_service import COMPETITION_LOCATIONS, normalize_competition_location
 from app.services.tiebreak_service import (
@@ -53,12 +54,27 @@ def _wettbewerbs_modus_label(daten, wb, plan_wb=None):
     return f"Vorschlag: {MODI[vorschlag]}" if vorschlag in MODI else "automatisch"
 
 
+def _wertung_modus(daten):
+    return es.wertung_einstellung(daten)["modus"] or gw.standard_modus(
+        (daten.get("grunddaten") or {}).get("event_type")
+    )
+
+
 def _wertung_text(daten, wb):
     if wb["einstellungen"]["art"] == "Sechskampf":
         return "Platzierung aus den Disziplinen, Platzierungspunkte in die Gesamtwertung"
-    if es.ist_schulpokal(daten):
+    modus = _wertung_modus(daten)
+    if modus == gw.WERTUNG_SPIELPUNKTE:
         return "Spielpunkte zählen für die Jahrgangswertung (Summe aller Sportarten des Jahrgangs)"
-    return "Platzierungspunkte (1. Platz = Anzahl Teams, dann absteigend) in die Gesamtwertung"
+    teile = es.parse_teilmannschaften(wb["einstellungen"].get("teilmannschaften"))
+    if modus == gw.WERTUNG_PLATZPUNKTE_SPORTART and len(teile) > 1:
+        return (
+            f"{' und '.join(teile)} je eigene Tabelle mit Platzpunkten (1. = Anzahl Klassen); "
+            f"die Summe ergibt den Platz in {wb['sportart']} und daraus die Platzpunkte für die Gesamtwertung"
+        )
+    if modus == gw.WERTUNG_PLATZPUNKTE_WETTBEWERB and len(teile) > 1:
+        return f"Platzierungspunkte je Teilmannschaft ({', '.join(teile)}) in die Gesamtwertung"
+    return "Platzierungspunkte (1. Platz = Anzahl Klassen, dann absteigend) in die Gesamtwertung"
 
 
 def create_router() -> APIRouter:
@@ -118,6 +134,11 @@ def create_router() -> APIRouter:
             "modus_label": lambda wb: _wettbewerbs_modus_label(daten, wb, plan_wbs.get(wb["key"])),
             "wertung_text": lambda wb: _wertung_text(daten, wb),
             "ist_schulpokal": es.ist_schulpokal(daten),
+            "wertung_modi": gw.WERTUNG_MODI,
+            "wertung_beschreibung": gw.WERTUNG_BESCHREIBUNG,
+            "wertung": es.wertung_einstellung(daten),
+            "wertung_modus": _wertung_modus(daten),
+            "regeln_fuer": lambda sportart: es.regeln_fuer(daten, sportart) or "",
             "wb_index": wb_index,
             "fehler": request.query_params.get("fehler", ""),
             "meldung": request.query_params.get("meldung", ""),
@@ -399,6 +420,13 @@ def create_router() -> APIRouter:
             if sportart is None:
                 continue
             matrix[sportart] = es.sortiere_jahrgaenge(form.getlist(f"matrix_{index}"))
+            if form.get(f"regeln_{index}") is not None:
+                regeln = es.normalisiere_regeln(form.get(f"regeln_{index}"))
+                daten.setdefault("regeln", {})
+                if regeln:
+                    daten["regeln"][sportart] = regeln
+                else:
+                    daten["regeln"].pop(sportart, None)
         neue = (form.get("neue_sportart") or "").strip()
         meldung = ""
         if neue and neue.casefold() not in {s.casefold() for s in sportarten}:
@@ -555,6 +583,10 @@ def create_router() -> APIRouter:
         return ""
 
     def _speichere_wertung(daten, stamm, form):
+        if form.get("wertung_modus") is not None:
+            wertung = daten.setdefault("wertung", {})
+            wertung["modus"] = gw.normalisiere_modus(form.get("wertung_modus"))
+            wertung["entscheid_sportart"] = (form.get("wertung_entscheid") or "").strip() or None
         count = int(form.get("wb_anzahl") or 0)
         for index in range(count):
             key = form.get(f"wb_key_{index}")

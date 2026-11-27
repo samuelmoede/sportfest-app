@@ -1,0 +1,27 @@
+{# Regeln je Sportart zum Nachlesen (Ergebniseingabe). regeln = regeln_service.regeln_hinweise(...) #}
+{% if regeln %}
+{# Stil hier statt in einer Teil-CSS-Datei: die @import-Dateien haben keinen
+   Versions-Parameter und koennen nach einem Update noch alt im Cache liegen. #}
+<style>
+    .regeln-hinweise { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+    .regeln-hinweis { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .regeln-hinweis > summary {
+        cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px;
+        padding: 8px 12px; font-weight: 600; min-height: 44px; box-sizing: border-box;
+    }
+    .regeln-hinweis > summary::-webkit-details-marker { display: none; }
+    .regeln-hinweis[open] { flex-basis: 100%; }
+    .regeln-hinweis .icon { width: 18px; height: 18px; }
+    .regeln-hinweis .regeln-pfeil { display: inline-flex; color: var(--muted); }
+    .regeln-hinweis[open] .regeln-pfeil { transform: rotate(180deg); }
+    .regeln-text { white-space: pre-line; padding: 0 14px 12px; line-height: 1.5; overflow-wrap: anywhere; }
+</style>
+<div class="regeln-hinweise">
+    {% for r in regeln %}
+    <details class="regeln-hinweis" data-regeln="{{ r.titel }}">
+        <summary>{{ icon("book-open") }} <span>Regeln {{ r.titel }}</span><span class="regeln-pfeil">{{ icon("chevron-down") }}</span></summary>
+        <div class="regeln-text">{{ r.text }}</div>
+    </details>
+    {% endfor %}
+</div>
+{% endif %}
