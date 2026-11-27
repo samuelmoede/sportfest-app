@@ -143,6 +143,8 @@
         <h2>Jetzt</h2>
         {% for s in ansicht.laufend %}
         <article class="fa-jetzt" data-slot="{{ s.id }}" data-autospeichern="1"
+                 data-paarung="{{ s.team_a or '?' }} – {{ s.team_b or '?' }}"
+                 data-feld="{{ ansicht.feld.name if ansicht.feld else '' }}"
                  data-basis-a="{{ s.score_a if s.score_a is not none else '' }}"
                  data-basis-b="{{ s.score_b if s.score_b is not none else '' }}">
             <div class="fa-jetzt-kopf">
@@ -183,6 +185,13 @@
             </label>
             <button type="button" class="fa-link" data-aktion="signal-testen">Testen</button>
         </div>
+        <div class="fa-signal">
+            <label class="fa-signal-schalter">
+                <input type="checkbox" data-benachrichtigung-schalter>
+                {{ icon("watch") }} Benachrichtigung (Smartwatch)
+            </label>
+        </div>
+        <p class="fa-signal-hinweis" data-benachrichtigung-hinweis hidden></p>
         <p class="fa-signal-hinweis">Eine Minute vorher kurz, in den letzten 5 Sekunden vibriert es jede Sekunde, am Ende lang. Der Bildschirm bleibt an, solange die Uhr läuft. Über eine Verlängerung entscheidet der Schiri, die Uhr zählt einfach weiter.</p>
         {% endif %}
     </section>
@@ -724,6 +733,7 @@
         document.getElementById('feld-inhalt').replaceWith(neuerInhalt);
         root.dataset.returnTo = neuesRoot.dataset.returnTo;
         zeigeSignalSchalter();
+        zeigeBenachrichtigungSchalter();
         aktualisiereUhren();
     }
 
@@ -1060,6 +1070,84 @@
         }
     }
 
+    // Benachrichtigung "Noch 1 Minute" / "Spielzeit vorbei" fuer die
+    // Smartwatch (die Uhr spiegelt Handy-Benachrichtigungen). Lokal ueber
+    // einen kleinen Service Worker, kein Push-Server: kommt nur, solange die
+    // Seite offen ist. Braucht https (bzw. localhost) und die Erlaubnis des
+    // Browsers; iPhones nur als App auf dem Home-Bildschirm.
+    const BENACHRICHTIGUNG_SPEICHER = 'feldansicht_benachrichtigung';
+    const SW_PFAD = '/static/js/benachrichtigung-sw.js';
+    const benachrichtigungMoeglich = () =>
+        window.isSecureContext && 'serviceWorker' in navigator && 'Notification' in window;
+    const benachrichtigungAn = () => {
+        if (!benachrichtigungMoeglich() || Notification.permission !== 'granted') return false;
+        try { return localStorage.getItem(BENACHRICHTIGUNG_SPEICHER) === 'an'; } catch (e) { return false; }
+    };
+    let swAktiv = null;
+    function swBereit() {
+        if (!benachrichtigungMoeglich()) return Promise.resolve(null);
+        if (!swAktiv) {
+            swAktiv = navigator.serviceWorker.register(SW_PFAD, { scope: '/static/js/' }).then(reg => {
+                if (reg.active) return reg;
+                const neu = reg.installing || reg.waiting;
+                return new Promise(fertig => {
+                    neu.addEventListener('statechange', () => { if (neu.state === 'activated') fertig(reg); });
+                });
+            }).catch(() => { swAktiv = null; return null; });
+        }
+        return swAktiv;
+    }
+    async function benachrichtige(art, karte) {
+        if (!benachrichtigungAn()) return;
+        const reg = await swBereit();
+        if (!reg) return;
+        const titel = `${art === 'ende' ? 'Spielzeit vorbei' : 'Noch 1 Minute'} · ${karte.dataset.paarung || ''}`;
+        const wettbewerb = karte.querySelector('.fa-wettbewerb');
+        const text = [karte.dataset.feld, wettbewerb && wettbewerb.textContent.trim()].filter(Boolean).join(' · ');
+        try {
+            await reg.showNotification(titel, {
+                body: text,
+                tag: `spiel-${karte.dataset.slot}`,   // "Ende" ersetzt "Noch 1 Minute"
+                renotify: true,
+                vibrate: SIGNALE[art].vibration,
+                data: { url: window.location.href },
+            });
+        } catch (e) { /* Benachrichtigung ist nur ein Zusatz */ }
+    }
+    function zeigeBenachrichtigungHinweis(text) {
+        root.querySelectorAll('[data-benachrichtigung-hinweis]').forEach(el => {
+            el.textContent = text || '';
+            el.hidden = !text;
+        });
+    }
+    function zeigeBenachrichtigungSchalter() {
+        const an = benachrichtigungAn();
+        root.querySelectorAll('[data-benachrichtigung-schalter]').forEach(schalter => { schalter.checked = an; });
+        if (!benachrichtigungMoeglich()) {
+            zeigeBenachrichtigungHinweis(window.isSecureContext
+                ? 'Dieser Browser kann keine Benachrichtigungen anzeigen (iPhone: nur als App auf dem Home-Bildschirm).'
+                : 'Benachrichtigungen gehen nur über die https-Adresse der Live-Seite.');
+        } else if (Notification.permission === 'denied') {
+            zeigeBenachrichtigungHinweis('Benachrichtigungen sind für diese Seite blockiert. Freigeben in den Browser-Einstellungen der Seite.');
+        } else {
+            zeigeBenachrichtigungHinweis(an ? 'Kommt auf Handy und gekoppelter Uhr, solange diese Seite offen ist.' : '');
+        }
+    }
+    async function schalteBenachrichtigung(schalter) {
+        let an = schalter.checked;
+        if (an) {
+            if (!benachrichtigungMoeglich()) {
+                an = false;
+            } else if (Notification.permission !== 'granted') {
+                an = (await Notification.requestPermission()) === 'granted';
+            }
+            if (an) await swBereit();
+        }
+        try { localStorage.setItem(BENACHRICHTIGUNG_SPEICHER, an ? 'an' : 'aus'); } catch (e) { /* egal */ }
+        zeigeBenachrichtigungSchalter();
+    }
+    if (benachrichtigungAn()) swBereit();
+
     // Bildschirm anlassen, solange eine Uhr laeuft: bei gesperrtem
     // Bildschirm kann der Browser weder piepen noch vibrieren.
     let sperre = null;
@@ -1134,8 +1222,9 @@
             const schluessel = `${karte.dataset.slot}|${el.dataset.startedAt}`;
             const vorher = phasen.get(schluessel);
             phasen.set(schluessel, phase);
-            if (vorher && vorher !== phase && phase !== 'normal' && signalAn() && !document.hidden) {
-                signal(phase);
+            if (vorher && vorher !== phase && phase !== 'normal') {
+                if (signalAn() && !document.hidden) signal(phase);
+                benachrichtige(phase, karte);
             }
             const rest = Math.floor(geplant - gelaufen);
             const restVorher = countdown.get(schluessel);
@@ -1151,7 +1240,12 @@
         root.querySelectorAll('[data-signal-schalter]').forEach(schalter => { schalter.checked = signalAn(); });
     }
     zeigeSignalSchalter();
+    zeigeBenachrichtigungSchalter();
     root.addEventListener('change', event => {
+        if (event.target.matches('[data-benachrichtigung-schalter]')) {
+            schalteBenachrichtigung(event.target);
+            return;
+        }
         if (!event.target.matches('[data-signal-schalter]')) return;
         try { localStorage.setItem(SIGNAL_SPEICHER, event.target.checked ? 'an' : 'aus'); } catch (e) { /* egal */ }
         if (event.target.checked) audioBereit();
