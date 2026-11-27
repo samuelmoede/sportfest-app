@@ -205,6 +205,20 @@ class VerarbeiteTests(unittest.TestCase):
             rest = conn.execute("SELECT COUNT(*) FROM push_abos").fetchone()[0]
         self.assertEqual(rest, 1)  # nur das Abo des anderen Felds bleibt
 
+    def test_test_push_geht_nur_an_dieses_handy(self):
+        with get_conn() as conn:
+            status = ps.sende_test(conn, "https://fcm.googleapis.com/fcm/send/1", None, sender=self._sender())
+            self.assertEqual(status, 201)
+            self.assertEqual([e for e, _ in self.gesendet], ["https://fcm.googleapis.com/fcm/send/1"])
+            self.assertEqual(self.gesendet[0][1]["tag"], "test")
+            # Unbekanntes Handy: nichts senden.
+            self.assertIsNone(ps.sende_test(conn, "https://fcm.googleapis.com/fcm/send/99", None, sender=self._sender()))
+            # Abgelaufenes Abo wird beim Test geloescht.
+            self.assertEqual(ps.sende_test(conn, "https://fcm.googleapis.com/fcm/send/2", None, sender=self._sender(410)), 410)
+            self.assertIsNone(conn.execute(
+                "SELECT 1 FROM push_abos WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/2'"
+            ).fetchone())
+
     def test_neustart_des_spiels_meldet_erneut(self):
         with get_conn() as conn:
             ps.verarbeite(conn, datetime(2026, 12, 21, 9, 7, 10), None, sender=self._sender())
@@ -242,6 +256,15 @@ class RouteTests(unittest.TestCase):
         self.client.post("/push/abmelden", json={"endpoint": self._abo()["endpoint"]})
         with get_conn() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM push_abos").fetchone()[0], 0)
+
+    def test_test_push_route(self):
+        self.client.post("/push/abo", json={"abo": self._abo(), "court_id": "3"})
+        with patch.object(ps, "sende", return_value=201) as gesendet:
+            antwort = self.client.post("/push/test", json={"endpoint": self._abo()["endpoint"]})
+        self.assertEqual(antwort.json(), {"ok": True, "status": 201})
+        self.assertEqual(gesendet.call_count, 1)
+        unbekannt = self.client.post("/push/test", json={"endpoint": "https://fcm.googleapis.com/fcm/send/unbekannt"})
+        self.assertEqual(unbekannt.json(), {"ok": False, "status": None})
 
     def test_fremde_adresse_wird_abgelehnt(self):
         antwort = self.client.post("/push/abo", json={"abo": self._abo("https://192.168.178.1/x"), "court_id": "3"})
