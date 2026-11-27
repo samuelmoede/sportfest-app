@@ -285,6 +285,25 @@ def init_db(db_path=None):
             active INTEGER NOT NULL DEFAULT 1
         );
 
+        -- Web-Push (Feldansicht): Handys mit eingeschalteter Benachrichtigung
+        -- und bereits gesendete Meldungen (verhindert Doppelte bei mehreren Workern).
+        CREATE TABLE IF NOT EXISTS push_abos (
+            endpoint TEXT PRIMARY KEY,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            court_id INTEGER,
+            absender TEXT,
+            updated_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS push_gesendet (
+            slot_id INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            phase TEXT NOT NULL,
+            gesendet_at TEXT,
+            PRIMARY KEY (slot_id, started_at, phase)
+        );
+
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT

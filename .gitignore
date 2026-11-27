@@ -17,3 +17,4 @@ data/*.db-wal
 data/*.db-shm
 data/.startup.lock
 data/.session_secret
+data/.vapid_secret

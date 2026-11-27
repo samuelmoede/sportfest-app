@@ -27,7 +27,9 @@
 </div>
 {% endmacro %}
 
-<div class="fa-root" data-return-to="{{ results_return_to }}">
+<div class="fa-root" data-return-to="{{ results_return_to }}"
+     data-push-schluessel="{{ push_schluessel or '' }}"
+     data-feld-id="{{ ansicht.feld.id if ansicht.feld else '' }}">
 <div id="feld-inhalt">
     <header class="fa-kopf">
         <div>
@@ -1130,9 +1132,55 @@
         } else if (Notification.permission === 'denied') {
             zeigeBenachrichtigungHinweis('Benachrichtigungen sind für diese Seite blockiert. Freigeben in den Browser-Einstellungen der Seite.');
         } else {
-            zeigeBenachrichtigungHinweis(an ? 'Kommt auf Handy und gekoppelter Uhr, solange diese Seite offen ist.' : '');
+            zeigeBenachrichtigungHinweis(!an ? '' : pushAktiv
+                ? 'Kommt auf Handy und gekoppelter Uhr, auch bei ausgeschaltetem Bildschirm.'
+                : 'Kommt auf Handy und gekoppelter Uhr, solange diese Seite offen ist.');
         }
     }
+    // Web-Push: meldet dieses Handy beim Server fuer das angezeigte Feld an,
+    // damit die Meldungen auch bei ausgeschaltetem Bildschirm kommen (dann
+    // ist die Seite selbst angehalten). Ohne Server-Schluessel bleibt es bei
+    // der lokalen Benachrichtigung.
+    let pushAktiv = false;
+    function schluesselBytes(text) {
+        const b64 = (text + '='.repeat((4 - text.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from(atob(b64), z => z.charCodeAt(0));
+    }
+    async function pushAnmelden() {
+        const schluessel = root.dataset.pushSchluessel;
+        const reg = schluessel ? await swBereit() : null;
+        if (!reg || !reg.pushManager) return false;
+        try {
+            let abo = await reg.pushManager.getSubscription();
+            if (!abo) {
+                abo = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: schluesselBytes(schluessel) });
+            }
+            const antwort = await fetch('/push/abo', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ abo: abo.toJSON(), court_id: root.dataset.feldId }),
+            });
+            pushAktiv = antwort.ok;
+        } catch (e) {
+            pushAktiv = false;
+        }
+        return pushAktiv;
+    }
+    async function pushAbmelden() {
+        pushAktiv = false;
+        const reg = await swBereit();
+        const abo = reg && reg.pushManager ? await reg.pushManager.getSubscription().catch(() => null) : null;
+        if (!abo) return;
+        fetch('/push/abmelden', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: abo.endpoint }),
+        }).catch(() => {});
+        abo.unsubscribe().catch(() => {});
+    }
+
     async function schalteBenachrichtigung(schalter) {
         let an = schalter.checked;
         if (an) {
@@ -1144,9 +1192,10 @@
             if (an) await swBereit();
         }
         try { localStorage.setItem(BENACHRICHTIGUNG_SPEICHER, an ? 'an' : 'aus'); } catch (e) { /* egal */ }
+        if (an) await pushAnmelden(); else await pushAbmelden();
         zeigeBenachrichtigungSchalter();
     }
-    if (benachrichtigungAn()) swBereit();
+    if (benachrichtigungAn()) pushAnmelden().then(() => zeigeBenachrichtigungSchalter());
 
     // Bildschirm anlassen, solange eine Uhr laeuft: bei gesperrtem
     // Bildschirm kann der Browser weder piepen noch vibrieren.
