@@ -218,7 +218,7 @@ ACTION_ACCESS_RULES = (
     ),
     (re.compile(r"^/slots/delete$"), "admin"),
     (re.compile(r"^/slots/runde/(?:starten|timer-stoppen)$"), "referee"),
-    (re.compile(r"^/push/(?:abo|abmelden)$"), "referee"),
+    (re.compile(r"^/push/(?:abo|abmelden|test)$"), "referee"),
     (re.compile(r"^/durchsage/(?:senden|\d+/beenden)$"), "tournament_lead"),
 )
 
@@ -3257,6 +3257,26 @@ async def push_abo(request: Request):
         )
         conn.commit()
     return JSONResponse({"ok": ok}, status_code=200 if ok else 400, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/push/test")
+async def push_test(request: Request):
+    """Feldansicht: sofort eine Test-Meldung an dieses Handy schicken, um
+    Anmeldung, Versand und Handy-Einstellungen ohne Wartezeit zu pruefen."""
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = None
+    endpoint = daten.get("endpoint") if isinstance(daten, dict) else None
+    privat = push_schluessel()
+    if not isinstance(endpoint, str) or privat is None:
+        return JSONResponse({"ok": False, "status": None}, status_code=400)
+    with get_conn() as conn:
+        status = push_service.sende_test(conn, endpoint, privat)
+    return JSONResponse(
+        {"ok": status is not None and 200 <= status < 300, "status": status},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.post("/push/abmelden")
