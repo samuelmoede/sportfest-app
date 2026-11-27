@@ -1130,7 +1130,7 @@
         root.querySelectorAll('[data-benachrichtigung-schalter]').forEach(schalter => { schalter.checked = an; });
         if (!benachrichtigungMoeglich()) {
             zeigeBenachrichtigungHinweis(window.isSecureContext
-                ? 'Dieser Browser kann keine Benachrichtigungen anzeigen (iPhone: nur als App auf dem Home-Bildschirm).'
+                ? 'Dieser Browser kann keine Benachrichtigungen anzeigen. iPhone: in Safari Teilen, dann „Zum Home-Bildschirm“ wählen und die Sportfest-App von dort öffnen.'
                 : 'Benachrichtigungen gehen nur über die https-Adresse der Live-Seite.');
         } else if (Notification.permission === 'denied') {
             zeigeBenachrichtigungHinweis('Benachrichtigungen sind für diese Seite blockiert. Freigeben in den Browser-Einstellungen der Seite.');
