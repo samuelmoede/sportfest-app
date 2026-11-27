@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
@@ -29,5 +30,17 @@ def get_style_version():
         return get_app_version()
 
 
+def get_datei_version(relativer_pfad):
+    """Kurzer Inhalts-Hash einer Datei unter app/static, fuer ?v= in URLs.
+
+    Der Cloudflare-Edge-Cache liefert Dateien unter /static sonst noch alt
+    aus (z.B. den Service Worker ohne Push-Empfang)."""
+    try:
+        return hashlib.sha256((APP_DIR / "static" / relativer_pfad).read_bytes()).hexdigest()[:12]
+    except OSError:
+        return get_app_version()
+
+
 templates.env.globals["app_version"] = get_app_version
+templates.env.globals["datei_version"] = get_datei_version
 templates.env.globals["style_version"] = get_style_version

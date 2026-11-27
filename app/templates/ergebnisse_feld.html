@@ -1081,7 +1081,9 @@
     // Seite offen ist. Braucht https (bzw. localhost) und die Erlaubnis des
     // Browsers; iPhones nur als App auf dem Home-Bildschirm.
     const BENACHRICHTIGUNG_SPEICHER = 'feldansicht_benachrichtigung';
-    const SW_PFAD = '/static/js/benachrichtigung-sw.js';
+    // ?v= mit Inhalts-Hash: sonst liefert der Cloudflare-Edge-Cache den
+    // Worker noch alt aus (ohne Push-Empfang) und Test-Push kommt nie an.
+    const SW_PFAD = '/static/js/benachrichtigung-sw.js?v={{ datei_version("js/benachrichtigung-sw.js") }}';
     const benachrichtigungMoeglich = () =>
         window.isSecureContext && 'serviceWorker' in navigator && 'Notification' in window;
     const benachrichtigungAn = () => {
